@@ -1,7 +1,7 @@
 
 use crate::simbox::SimBox;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Vector3D {
     pub x: f32,
     pub y: f32,

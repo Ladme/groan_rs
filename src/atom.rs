@@ -6,7 +6,7 @@
 use crate::vector3d::Vector3D;
 use crate::simbox::SimBox;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Atom {
     residue_number: u32,
     residue_name: String,
@@ -109,6 +109,34 @@ mod tests {
         assert_approx_eq!(f32, atom.get_force().x, 5.1235);
         assert_approx_eq!(f32, atom.get_force().y, 2.3451);
         assert_approx_eq!(f32, atom.get_force().z, -0.32145);
-
     }
+
+    #[test]
+    fn test_translate_nopbc() {
+
+        let mut atom = Atom::new(45, "GLY", 123, 123, "BB", [15.123, 14.321, 9.834].into(), [-3.432, 0.184, 1.234].into(), [5.1235, 2.3451, -0.32145].into());
+
+        let shift = Vector3D::from([4.5, 2.3, -8.3]);
+        atom.translate_nopbc(&shift);
+
+        assert_approx_eq!(f32, atom.get_position().x, 19.623, epsilon = 0.00001);
+        assert_approx_eq!(f32, atom.get_position().y, 16.621, epsilon = 0.00001);
+        assert_approx_eq!(f32, atom.get_position().z, 1.534, epsilon = 0.00001);
+    }
+
+    #[test]
+    fn test_translate() {
+
+        let mut atom = Atom::new(45, "GLY", 123, 123, "BB", [15.123, 14.321, 9.834].into(), [-3.432, 0.184, 1.234].into(), [5.1235, 2.3451, -0.32145].into());
+
+        let shift = Vector3D::from([4.5, 2.3, -10.2]);
+        let simbox = SimBox::from([16.0, 16.0, 16.0]);
+
+        atom.translate(&shift, &simbox);
+
+        assert_approx_eq!(f32, atom.get_position().x, 3.623, epsilon = 0.00001);
+        assert_approx_eq!(f32, atom.get_position().y, 0.621, epsilon = 0.00001);
+        assert_approx_eq!(f32, atom.get_position().z, 15.634, epsilon = 0.00001);
+    }
+
 }

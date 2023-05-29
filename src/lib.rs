@@ -3,10 +3,11 @@
 
 #![allow(dead_code)]
 
-pub mod system;
-mod errors;
 pub mod atom;
-mod simbox;
+mod errors;
 mod group;
 mod gro_io;
+mod ndx_io;
+mod simbox;
+pub mod system;
 mod vector3d;

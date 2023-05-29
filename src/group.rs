@@ -4,7 +4,7 @@
 //! Implementation of the Group structure and associated methods.
 
 /// Group of atoms in target system.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Group {
     pub atom_ranges: Vec<(u64, u64)>,
 }
@@ -36,6 +36,10 @@ impl Group {
     /// Fix overlaps in atom ranges. 
     /// Makes sure that the atom ranges are valid and not overflowing the number of atoms in the system.
     fn fix_atom_ranges(mut atom_ranges: Vec<(u64, u64)>, n_atoms: u64) -> Vec<(u64, u64)> {
+        if atom_ranges.is_empty() {
+            return atom_ranges;
+        }
+
         // sort the atom ranges in ascending order
         atom_ranges.sort_unstable(); 
         
@@ -52,7 +56,7 @@ impl Group {
             // current range does not overlap with the previous one nor is adjacent to it
             if *start > current_end + 1 || (current_end == 0u64 && current_start != 0u64) {
                 if current_start != std::u64::MAX {
-                    merged_indices.push((current_start, current_end.min(n_atoms)));
+                    merged_indices.push((current_start, current_end.min(n_atoms - 1)));
                 }
                 current_start = *start;
                 current_end = *end;
@@ -64,7 +68,7 @@ impl Group {
         
         if current_start != std::u64::MAX {
             // add the last merged range to the result if it exists
-            merged_indices.push((current_start, current_end.min(n_atoms)));
+            merged_indices.push((current_start, current_end.min(n_atoms - 1)));
         }
         
         merged_indices
@@ -73,10 +77,14 @@ impl Group {
     /// Create valid atom ranges from atom indices. 
     /// Makes sure that the atom ranges are valid and not overflowing the number of atoms in the system.
     fn make_atom_ranges(mut atom_indices: Vec<u64>, n_atoms: u64) -> Vec<(u64, u64)> {
+        let mut atom_ranges = Vec::new();
+        
+        if atom_indices.is_empty() {
+            return atom_ranges;
+        }
+
         // sort the atom indices in ascending order
         atom_indices.sort_unstable();
-        
-        let mut atom_ranges = Vec::new();
 
         let mut start = atom_indices[0];
         let mut end = atom_indices[0];
@@ -131,9 +139,17 @@ mod tests {
 
         let atoms = vec![(20, 32)];
 
-        let group = Group::from_ranges(atoms, 1028);
+        let group = Group::from_ranges(atoms, 33);
 
         assert_eq!(group.atom_ranges[0], (20, 32));
+    }
+
+    #[test]
+    fn test_new_group_ranges_empty() {
+
+        let atoms = vec![];
+        let group = Group::from_ranges(atoms, 1028);
+        assert!(group.atom_ranges.is_empty());
     }
 
     #[test]
@@ -244,7 +260,7 @@ mod tests {
 
         let group = Group::from_ranges(atoms, 1028);
 
-        assert_eq!(group.atom_ranges[0], (543, 1028));
+        assert_eq!(group.atom_ranges[0], (543, 1027));
         assert_eq!(group.atom_ranges.len(), 1);
     }
 
@@ -267,7 +283,7 @@ mod tests {
         let group = Group::from_ranges(atoms, 1028);
 
         assert_eq!(group.atom_ranges[0], (0, 43));
-        assert_eq!(group.atom_ranges[1], (1006, 1028));
+        assert_eq!(group.atom_ranges[1], (1006, 1027));
         assert_eq!(group.atom_ranges.len(), 2);
     }
 
@@ -285,13 +301,21 @@ mod tests {
     #[test]
     fn test_new_group_from_indices_basic() {
         let atom_indices = vec![6, 2, 13, 1, 10, 8, 3, 12, 7, 14, 15];
-        let group = Group::from_indices(atom_indices, 20);
+        let group = Group::from_indices(atom_indices, 16);
 
         assert_eq!(group.atom_ranges[0], (1, 3));
         assert_eq!(group.atom_ranges[1], (6, 8));
         assert_eq!(group.atom_ranges[2], (10, 10));
         assert_eq!(group.atom_ranges[3], (12, 15));
         assert_eq!(group.atom_ranges.len(), 4);
+    }
+
+    #[test]
+    fn test_new_group_from_indices_empty() {
+
+        let atoms = vec![];
+        let group = Group::from_indices(atoms, 1028);
+        assert!(group.atom_ranges.is_empty());
     }
 
     #[test]

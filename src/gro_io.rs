@@ -1,7 +1,7 @@
 // Released under MIT License.
 // Copyright (c) 2023 Ladislav Bartos
 
-//! Implementation of the methods for reading and writing gro files.
+//! Implementation of functions for reading and writing gro files.
 
 use std::fs::File;
 use std::io::{BufReader, BufRead};
@@ -12,14 +12,43 @@ use crate::errors::ParseGroError;
 use crate::system::System;
 use crate::simbox::SimBox;
 
-/// Open a gro file and read its contents.
-/// ## Returns
-/// Valid System structure with the loaded atoms and system properties or ParseGroError in case of an error.
-pub fn read_gro(filename: impl AsRef<Path>) -> Result<System, ParseGroError> {
+impl System {
 
+    /// Create a new System from file. 
+    /// ## Returns
+    /// System structure if successful or ParseGroError if parsing fails. 
+    /// ## Example
+    /// ```no_run
+    /// use groan_rs::system::System;
+    /// 
+    /// let system = match System::from_file("system.gro") {
+    ///     Ok(x) => x,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;
+    ///     }
+    /// };
+    /// ```
+    /// ## Notes
+    /// - The returned System structure will contain two default groups "all" and "All"
+    /// consisting of all the atoms in the system.
+    pub fn from_file(filename: impl AsRef<Path>) -> Result<Self, ParseGroError> { 
+        // TODO: add more supported file types
+        read_gro(filename)
+    }
+
+
+    /*pub fn write_gro(&self, filename: impl AsRef<Path>) -> Result<(), WriteGroError> {
+
+    }*/
+}
+
+/// Read a gro file and construct a System structure.
+fn read_gro(filename: impl AsRef<Path>) -> Result<System, ParseGroError> {
+    
     let file = match File::open(filename.as_ref()) {
         Ok(x) => x,
-        Err(_) => return Err(ParseGroError::FileNotFoundErr(Box::from(filename.as_ref()))),
+        Err(_) => return Err(ParseGroError::FileNotFound(Box::from(filename.as_ref()))),
     };
 
     let mut buffer = BufReader::new(file);
@@ -35,7 +64,7 @@ pub fn read_gro(filename: impl AsRef<Path>) -> Result<System, ParseGroError> {
     for (gmx_index, raw_line) in buffer.lines().enumerate() {
         let line = match raw_line {
             Ok(x) => x,
-            Err(_) => return Err(ParseGroError::LineNotFoundErr(Box::from(filename.as_ref()))),
+            Err(_) => return Err(ParseGroError::LineNotFound(Box::from(filename.as_ref()))),
         };
 
         if gmx_index == n_atoms as usize { 
@@ -47,20 +76,19 @@ pub fn read_gro(filename: impl AsRef<Path>) -> Result<System, ParseGroError> {
     }
 
     if atoms.len() != n_atoms as usize {
-        return Err(ParseGroError::LineNotFoundErr(Box::from(filename.as_ref())));
+        return Err(ParseGroError::LineNotFound(Box::from(filename.as_ref())));
     }
 
     Ok( System::new(&title, atoms, simulation_box) )
 
 }
 
-
 /// Read the next line in the provided buffer and parse it as a title.
 fn get_title(buffer: &mut BufReader<File>, filename: impl AsRef<Path>) -> Result<String, ParseGroError> {
 
     let mut title = String::new();
     match buffer.read_line(&mut title) {
-        Ok(0) | Err(_) => return Err(ParseGroError::LineNotFoundErr(Box::from(filename.as_ref()))),
+        Ok(0) | Err(_) => return Err(ParseGroError::LineNotFound(Box::from(filename.as_ref()))),
         Ok(_) => return Ok(title.trim().to_string()),
     };
 }
@@ -70,7 +98,7 @@ fn get_natoms(buffer: &mut BufReader<File>, filename: impl AsRef<Path>) -> Resul
 
     let mut line = String::new();
     match buffer.read_line(&mut line) {
-        Ok(0) | Err(_) => return Err(ParseGroError::LineNotFoundErr(Box::from(filename.as_ref()))),
+        Ok(0) | Err(_) => return Err(ParseGroError::LineNotFound(Box::from(filename.as_ref()))),
         Ok(_) => {
             match line.trim().parse::<u64>() {
                 Ok(x) => return Ok(x),
@@ -372,10 +400,10 @@ mod tests {
     ParseGroError::ParseAtomLineErr, "   16HIS    SC1   35   3.458   3.653   ");
 
     read_gro_fails!(test_read_gro_empty_file, "test_files/example_empty.gro", 
-    ParseGroError::LineNotFoundErr, Box::from(Path::new("test_files/example_empty.gro")));
+    ParseGroError::LineNotFound, Box::from(Path::new("test_files/example_empty.gro")));
 
     read_gro_fails!(test_read_gro_only_title, "test_files/example_only_title.gro", 
-    ParseGroError::LineNotFoundErr, Box::from(Path::new("test_files/example_only_title.gro")));
+    ParseGroError::LineNotFound, Box::from(Path::new("test_files/example_only_title.gro")));
 
     read_gro_fails!(test_read_gro_missing_natoms, "test_files/example_missing_natoms.gro", 
     ParseGroError::ParseLineErr, "");
@@ -412,4 +440,25 @@ mod tests {
 
     read_gro_fails!(test_read_gro_unparsable_box, "test_files/example_unparsable_box.gro",
     ParseGroError::ParseBoxLineErr, "   6.08608   6.08608   6,08608");
+
+    #[test]
+    fn test_system_from_file() {
+
+        let system = System::from_file("test_files/example.gro").expect("File not found.");
+
+        assert_eq!(system.get_name(), "INSANE! Membrane UpperLeaflet>POPC=1 LowerLeaflet>POPC=1");
+        assert_eq!(system.get_n_atoms(), 16844);
+
+        assert!(system.group_exists("all"));
+    }
+
+    #[test]
+    fn test_system_from_file_fails() {
+        
+        match System::from_file("test_files/example_invalid_position.gro") {
+            Ok(_) => panic!("Parsing should have failed, but it succeeded."),
+            Err(_) => (),
+        }
+    }
+
 }
