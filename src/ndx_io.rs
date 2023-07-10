@@ -3,68 +3,75 @@
 
 //! Implementation of functions for reading and writing ndx files.
 
-use std::path::Path;
 use std::fs::File;
-use std::io::{BufReader, BufRead};
+use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::path::Path;
 
-use crate::errors::{ParseNdxError, GroupError};
-use crate::group::Group;
-use crate::system::System;
+use indexmap::IndexMap;
+use std::collections::HashSet;
+
 use crate::atom::Atom;
+use crate::errors::{GroupError, ParseNdxError, WriteNdxError};
+use crate::system::System;
 
 impl System {
-
     /// Read an ndx file and create atom Groups in the System structure.
+    ///
     /// ## Returns
-    /// Ok if the parsing is successful or ParseNdxError if parsing fails 
-    /// or any of the groups in an ndx file already exists for the system.
+    /// - `Ok` if the parsing is successful.
+    /// - `ParseNdxError::InvalidNamesWarning` if any of the groups has an invalid name.
+    ///    Has priority over `DuplicateGroupsWarning`.
+    /// - `ParseNdxError::DuplicateGroupsWarning` if any of the groups already exists in the system.
+    /// - Other `ParseNdxError` errors if the file does not exist or parsing failed.
+    ///
     /// ## Notes
-    /// - In case an error occurs, the system is not changed.
+    /// - Overwrites all groups with the same names in the system, returning a warning.
+    /// - In case duplicate groups are present in the ndx file, the last one
+    /// is input into the system
+    /// - The indices in an ndx file do not correspond to atom numbers
+    /// from a gro file, but to actual atom numbers as used by gromacs.
+    /// - In case an error other than `ParseNdxError::DuplicateGroupsWarning` or 
+    /// `ParseNdxError::InvalidNamesWarning` occurs, the system is not changed.
     /// - Atom numbers can be in any order and will be properly reordered.
     /// - Duplicate atom numbers are ignored.
     /// - Empty lines are skipped.
     pub fn read_ndx(&mut self, filename: impl AsRef<Path>) -> Result<(), ParseNdxError> {
-
         let file = match File::open(filename.as_ref()) {
             Ok(x) => x,
             Err(_) => return Err(ParseNdxError::FileNotFound(Box::from(filename.as_ref()))),
         };
 
         let buffer = BufReader::new(file);
-        let mut names: Vec<String> = Vec::new();
-        let mut groups: Vec<Group> = Vec::new();
+        let mut groups: IndexMap<String, Vec<usize>> = IndexMap::new();
 
         let mut current_name = "".to_string();
         let mut atom_indices = Vec::new();
 
+        let mut duplicate_names: HashSet<String> = HashSet::new();
+
         for raw_line in buffer.lines() {
-            
             let line = match raw_line {
                 Ok(x) => x,
                 Err(_) => return Err(ParseNdxError::LineNotFound(Box::from(filename.as_ref()))),
             };
-            
+
             // skip empty lines
-            if line.trim().is_empty() { continue; }
+            if line.trim().is_empty() {
+                continue;
+            }
 
             // read ndx group name
-            if line.contains("[") && line.contains("]") {
-                // create previously loaded group
-                add_group(current_name, atom_indices, &mut names, &mut groups, self.get_n_atoms());
+            if line.contains('[') && line.contains(']') {
+                // store previously loaded group
+                if !current_name.is_empty()
+                    && groups.insert(current_name.clone(), atom_indices).is_some()
+                {
+                    duplicate_names.insert(current_name);
+                }
                 atom_indices = Vec::new();
-                
+
                 // read next group name
                 current_name = parse_group_name(&line)?;
-                // check that the group does not already exist
-                if self.group_exists(&current_name) {
-                    return Err(ParseNdxError::GroupAlreadyExists(current_name));
-                }
-
-                // check that there are no duplicate group names in the ndx file
-                if let Some(_) = names.iter().position(|x| *x == current_name) {
-                    return Err(ParseNdxError::GroupsShareName(current_name));
-                }
-                
 
             // read standard line
             } else {
@@ -72,36 +79,89 @@ impl System {
             }
         }
 
-        add_group(current_name, atom_indices, &mut names, &mut groups, self.get_n_atoms());
-    
-        // transfer all groups into the system
-        for (name, group) in names.into_iter().zip(groups.into_iter()) {
-            if let Err(_) = self.group_add(&name, group) {
-                panic!("Internal Error. Group {} already exists, which should be impossible.", name);
+        // load the last group
+        if !current_name.is_empty() && groups.insert(current_name.clone(), atom_indices).is_some() {
+            duplicate_names.insert(current_name);
+        }
+
+        let mut invalid_names: HashSet<String> = HashSet::new();
+
+        // create groups
+        for (groupname, atoms) in groups.into_iter() {
+            match self.group_create_from_indices(&groupname, atoms) {
+                Ok(_) => (),
+                Err(GroupError::AlreadyExistsWarning(e)) => {
+                    duplicate_names.insert(e.to_string());
+                }
+                Err(GroupError::InvalidName(e)) => {
+                    invalid_names.insert(e.to_string());
+                }
+                Err(_) => panic!(
+                    "Internal error. Unexpected error returned from group_create_from_indices()."
+                ),
             }
         }
 
-        Ok(())
+        if !invalid_names.is_empty() {
+            Err(ParseNdxError::InvalidNamesWarning(Box::new(invalid_names)))
+        } else if !duplicate_names.is_empty() {
+            Err(ParseNdxError::DuplicateGroupsWarning(Box::new(
+                duplicate_names,
+            )))
+        } else {
+            Ok(())
+        }
     }
 
-
-    /// Adds an already constructed group into the system. 
+    /// Open and write an ndx file using Groups from System as ndx groups.
+    ///
     /// ## Returns
-    /// Ok if the group was added or GroupError in case a group with the same name already exists.
-    fn group_add(&mut self, name: &str, group: Group) -> Result<(), GroupError> {
-        unsafe {
-            match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
-                Some(_) => Err(GroupError::AlreadyExists(name.to_string())),
-                None => Ok(())
-            }
+    /// `Ok` if writing is successful, else `WriteNdxError`.
+    ///
+    /// ## Example
+    /// Creating groups for residue names and writing them into ndx file.
+    /// ```no_run
+    /// use groan_rs::System;
+    ///
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// let (_, _residues) = system.group_by_resname();
+    /// if let Err(e) = system.write_ndx("output.ndx") {
+    ///     eprintln!("{}", e);
+    ///     return;
+    /// }
+    /// ```
+    ///
+    /// ## Notes
+    /// - Overwrites the contents of any previously existing file with the same `filename`.
+    /// - Default System groups such as `all` and `All` are not written out unless a new
+    /// group with such name has been created.
+    /// - Groups are written out in the same order as in which they were added into the System,
+    /// unless further manipulated.
+    pub fn write_ndx(&self, filename: impl AsRef<Path>) -> Result<(), WriteNdxError> {
+        let output = match File::create(&filename) {
+            Ok(x) => x,
+            Err(_) => return Err(WriteNdxError::CouldNotCreate(Box::from(filename.as_ref()))),
+        };
+
+        let mut writer = BufWriter::new(output);
+
+        for (name, group) in self.get_groups_as_ref() {
+            // skip default groups
+            if group.print_ndx {
+                group.write_ndx(&mut writer, name)?
+            };
         }
+
+        writer.flush().map_err(|_| WriteNdxError::CouldNotWrite)?;
+
+        Ok(())
     }
 }
 
 /// Parse a line of an ndx file as a group name.
 fn parse_group_name(line: &str) -> Result<String, ParseNdxError> {
-    let name = line.replace("[", "").replace("]", "").trim().to_string();
-    
+    let name = line.replace(['[', ']'], "").trim().to_string();
+
     if name.is_empty() {
         Err(ParseNdxError::ParseGroupNameErr(line.to_string()))
     } else {
@@ -110,65 +170,39 @@ fn parse_group_name(line: &str) -> Result<String, ParseNdxError> {
 }
 
 /// Parse a line of an ndx file as gmx atom numbers for an atom Group.
-/// ## Panics
-/// - If the atoms in the `atoms` variable are not sorted by their gmx atom numbers. 
-/// In `atoms`, the gmx atom numbers must be continuously increasing.
-fn parse_ndx_line(line: &str, atoms: &Vec<Atom>) -> Result<Vec<u64>, ParseNdxError> {
+fn parse_ndx_line(line: &str, atoms: &Vec<Atom>) -> Result<Vec<usize>, ParseNdxError> {
     let mut indices = Vec::new();
-    
+
     for raw_id in line.split_whitespace() {
-        let id = match raw_id.parse::<u64>() {
+        let id = match raw_id.parse::<usize>() {
             Ok(x) => x,
             Err(_) => return Err(ParseNdxError::ParseLineErr(line.to_string())),
         };
 
-        if id == 0 {
+        if id == 0 || id > atoms.len() {
             return Err(ParseNdxError::InvalidAtomIndex(id));
         }
 
-        // check that the index matches the expected gmx atom number
-        match atoms.get(id as usize - 1) {
-            Some(atom) => {
-                if atom.get_gmx_atom_number() == id {
-                    indices.push(id - 1);
-                } else {
-                    panic!("Internal Error. Expected gmx atom number {} was not found for atom at index {}.", id, id - 1);
-                }
-            },
-            // index is out of range, return Error
-            None => return Err(ParseNdxError::InvalidAtomIndex(id)),
-        }
+        indices.push(id - 1);
     }
 
     Ok(indices)
 }
 
-/// Create a group and add it and its name to vectors `groups` and `names`, respectively.
-fn add_group(
-    name: String, 
-    atom_indices: Vec<u64>, 
-    names: &mut Vec<String>, 
-    groups: &mut Vec<Group>,
-    n_atoms: u64) {
-    
-    if !name.is_empty() {
-        names.push(name);
-        groups.push(Group::from_indices(atom_indices, n_atoms));
-    }
-}
-
-
-
+/******************************/
+/*         UNIT TESTS         */
+/******************************/
 
 #[cfg(test)]
-mod tests {
+mod tests_read_ndx {
     use super::*;
 
     #[test]
-    fn test_read_ndx() { 
-
+    fn read() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
+
+        assert_eq!(system.get_n_groups(), 23);
 
         // assert that the groups were created
         assert!(system.group_exists("System"));
@@ -194,121 +228,169 @@ mod tests {
         assert!(system.group_exists("W_ION"));
 
         // assert that the groups have the correct number of atoms
-        assert_eq!(system.group_n_atoms("System").unwrap(), 16844);
-        assert_eq!(system.group_n_atoms("Protein").unwrap(), 61);
-        assert_eq!(system.group_n_atoms("Protein-H").unwrap(), 61);
-        assert_eq!(system.group_n_atoms("C-alpha").unwrap(), 0);
-        assert_eq!(system.group_n_atoms("Backbone").unwrap(), 0);
-        assert_eq!(system.group_n_atoms("MainChain").unwrap(), 0);
-        assert_eq!(system.group_n_atoms("MainChain+Cb").unwrap(), 0);
-        assert_eq!(system.group_n_atoms("MainChain+H").unwrap(), 0);
-        assert_eq!(system.group_n_atoms("SideChain").unwrap(), 61);
-        assert_eq!(system.group_n_atoms("SideChain-H").unwrap(), 61);
-        assert_eq!(system.group_n_atoms("Prot-Masses").unwrap(), 61);
-        assert_eq!(system.group_n_atoms("non-Protein").unwrap(), 16783);
-        assert_eq!(system.group_n_atoms("Other").unwrap(), 16783);
-        assert_eq!(system.group_n_atoms("POPC").unwrap(), 6144);
-        assert_eq!(system.group_n_atoms("W").unwrap(), 10399);
-        assert_eq!(system.group_n_atoms("ION").unwrap(), 240);
-        assert_eq!(system.group_n_atoms("Transmembrane_all").unwrap(), 61);
-        assert_eq!(system.group_n_atoms("Transmembrane").unwrap(), 29);
-        assert_eq!(system.group_n_atoms("Membrane").unwrap(), 6144);
-        assert_eq!(system.group_n_atoms("Protein_Membrane").unwrap(), 6205);
-        assert_eq!(system.group_n_atoms("W_ION").unwrap(), 10639);
+        assert_eq!(system.group_get_n_atoms("System").unwrap(), 16844);
+        assert_eq!(system.group_get_n_atoms("Protein").unwrap(), 61);
+        assert_eq!(system.group_get_n_atoms("Protein-H").unwrap(), 61);
+        assert_eq!(system.group_get_n_atoms("C-alpha").unwrap(), 0);
+        assert_eq!(system.group_get_n_atoms("Backbone").unwrap(), 0);
+        assert_eq!(system.group_get_n_atoms("MainChain").unwrap(), 0);
+        assert_eq!(system.group_get_n_atoms("MainChain+Cb").unwrap(), 0);
+        assert_eq!(system.group_get_n_atoms("MainChain+H").unwrap(), 0);
+        assert_eq!(system.group_get_n_atoms("SideChain").unwrap(), 61);
+        assert_eq!(system.group_get_n_atoms("SideChain-H").unwrap(), 61);
+        assert_eq!(system.group_get_n_atoms("Prot-Masses").unwrap(), 61);
+        assert_eq!(system.group_get_n_atoms("non-Protein").unwrap(), 16783);
+        assert_eq!(system.group_get_n_atoms("Other").unwrap(), 16783);
+        assert_eq!(system.group_get_n_atoms("POPC").unwrap(), 6144);
+        assert_eq!(system.group_get_n_atoms("W").unwrap(), 10399);
+        assert_eq!(system.group_get_n_atoms("ION").unwrap(), 240);
+        assert_eq!(system.group_get_n_atoms("Transmembrane_all").unwrap(), 61);
+        assert_eq!(system.group_get_n_atoms("Transmembrane").unwrap(), 29);
+        assert_eq!(system.group_get_n_atoms("Membrane").unwrap(), 6144);
+        assert_eq!(system.group_get_n_atoms("Protein_Membrane").unwrap(), 6205);
+        assert_eq!(system.group_get_n_atoms("W_ION").unwrap(), 10639);
 
         // assert that the groups contain the correct atoms
-        for (group_atom, system_atom) in system.group_iter("System").unwrap().zip(system.atoms_iter()) {
-            assert_eq!(system_atom.get_gmx_atom_number(), group_atom.get_gmx_atom_number());
+        for (group_atom, system_atom) in system
+            .group_iter("System")
+            .unwrap()
+            .zip(system.atoms_iter())
+        {
+            assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
         }
 
-        for (group_atom, system_atom) in system.group_iter("Protein").unwrap().zip(system.atoms_iter().take(61)) {
-            assert_eq!(system_atom.get_gmx_atom_number(), group_atom.get_gmx_atom_number());
+        for (group_atom, system_atom) in system
+            .group_iter("Protein")
+            .unwrap()
+            .zip(system.atoms_iter().take(61))
+        {
+            assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
         }
 
-        for (group_atom, system_atom) in system.group_iter("Transmembrane_all").unwrap().zip(system.atoms_iter().take(61)) {
-            assert_eq!(system_atom.get_gmx_atom_number(), group_atom.get_gmx_atom_number());
+        for (group_atom, system_atom) in system
+            .group_iter("Transmembrane_all")
+            .unwrap()
+            .zip(system.atoms_iter().take(61))
+        {
+            assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
         }
 
-        for (group_atom, system_atom) in system.group_iter("W_ION").unwrap().zip(system.atoms_iter().skip(6205)) {
-            assert_eq!(system_atom.get_gmx_atom_number(), group_atom.get_gmx_atom_number());
+        for (group_atom, system_atom) in system
+            .group_iter("W_ION")
+            .unwrap()
+            .zip(system.atoms_iter().skip(6205))
+        {
+            assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
         }
 
-        for (group_atom, system_atom) in system.group_iter("Membrane").unwrap().zip(system.atoms_iter().skip(61).take(6144)) {
-            assert_eq!(system_atom.get_gmx_atom_number(), group_atom.get_gmx_atom_number());
+        for (group_atom, system_atom) in system
+            .group_iter("Membrane")
+            .unwrap()
+            .zip(system.atoms_iter().skip(61).take(6144))
+        {
+            assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
         }
     }
 
     #[test]
-    fn test_read_ndx_small() { 
-
+    fn read_small() {
         let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
         system.read_ndx("test_files/index_small.ndx").unwrap();
 
+        assert_eq!(system.get_n_groups(), 4);
+
         assert!(system.group_exists("System"));
         assert!(system.group_exists("Protein"));
 
-        assert_eq!(system.group_n_atoms("System").unwrap(), 50);
-        assert_eq!(system.group_n_atoms("Protein").unwrap(), 50);
+        assert_eq!(system.group_get_n_atoms("System").unwrap(), 50);
+        assert_eq!(system.group_get_n_atoms("Protein").unwrap(), 50);
 
         // assert that the groups contain the correct atoms
-        for (group_atom, system_atom) in system.group_iter("System").unwrap().zip(system.atoms_iter()) {
-            assert_eq!(system_atom.get_gmx_atom_number(), group_atom.get_gmx_atom_number());
+        for (group_atom, system_atom) in system
+            .group_iter("System")
+            .unwrap()
+            .zip(system.atoms_iter())
+        {
+            assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
         }
 
-        for (group_atom, system_atom) in system.group_iter("Protein").unwrap().zip(system.atoms_iter()) {
-            assert_eq!(system_atom.get_gmx_atom_number(), group_atom.get_gmx_atom_number());
+        for (group_atom, system_atom) in system
+            .group_iter("Protein")
+            .unwrap()
+            .zip(system.atoms_iter())
+        {
+            assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
         }
     }
 
     #[test]
-    fn test_read_ndx_shuffled() { 
-
+    fn read_shuffled() {
         let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
         system.read_ndx("test_files/index_shuffled.ndx").unwrap();
 
+        assert_eq!(system.get_n_groups(), 4);
+
         assert!(system.group_exists("System"));
         assert!(system.group_exists("Protein"));
 
-        assert_eq!(system.group_n_atoms("System").unwrap(), 50);
-        assert_eq!(system.group_n_atoms("Protein").unwrap(), 50);
+        assert_eq!(system.group_get_n_atoms("System").unwrap(), 50);
+        assert_eq!(system.group_get_n_atoms("Protein").unwrap(), 50);
 
         // assert that the groups contain the correct atoms
-        for (group_atom, system_atom) in system.group_iter("System").unwrap().zip(system.atoms_iter()) {
-            assert_eq!(system_atom.get_gmx_atom_number(), group_atom.get_gmx_atom_number());
+        for (group_atom, system_atom) in system
+            .group_iter("System")
+            .unwrap()
+            .zip(system.atoms_iter())
+        {
+            assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
         }
 
-        for (group_atom, system_atom) in system.group_iter("Protein").unwrap().zip(system.atoms_iter()) {
-            assert_eq!(system_atom.get_gmx_atom_number(), group_atom.get_gmx_atom_number());
+        for (group_atom, system_atom) in system
+            .group_iter("Protein")
+            .unwrap()
+            .zip(system.atoms_iter())
+        {
+            assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
         }
     }
 
     #[test]
-    fn test_read_ndx_duplicate_atoms() { 
-
+    fn red_duplicate_atoms() {
         let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
         system.read_ndx("test_files/index_duplicate.ndx").unwrap();
 
+        assert_eq!(system.get_n_groups(), 4);
+
         assert!(system.group_exists("System"));
         assert!(system.group_exists("Protein"));
 
-        assert_eq!(system.group_n_atoms("System").unwrap(), 50);
-        assert_eq!(system.group_n_atoms("Protein").unwrap(), 50);
+        assert_eq!(system.group_get_n_atoms("System").unwrap(), 50);
+        assert_eq!(system.group_get_n_atoms("Protein").unwrap(), 50);
 
         // assert that the groups contain the correct atoms
-        for (group_atom, system_atom) in system.group_iter("System").unwrap().zip(system.atoms_iter()) {
-            assert_eq!(system_atom.get_gmx_atom_number(), group_atom.get_gmx_atom_number());
+        for (group_atom, system_atom) in system
+            .group_iter("System")
+            .unwrap()
+            .zip(system.atoms_iter())
+        {
+            assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
         }
 
-        for (group_atom, system_atom) in system.group_iter("Protein").unwrap().zip(system.atoms_iter()) {
-            assert_eq!(system_atom.get_gmx_atom_number(), group_atom.get_gmx_atom_number());
+        for (group_atom, system_atom) in system
+            .group_iter("Protein")
+            .unwrap()
+            .zip(system.atoms_iter())
+        {
+            assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
         }
     }
 
     #[test]
-    fn test_read_ndx_empty() { 
-
+    fn read_empty() {
         let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
         system.read_ndx("test_files/index_empty.ndx").unwrap();
+
+        assert_eq!(system.get_n_groups(), 2);
 
         assert!(!system.group_exists("System"));
         assert!(!system.group_exists("Protein"));
@@ -317,25 +399,55 @@ mod tests {
     }
 
     #[test]
-    fn test_read_ndx_empy_lines() { 
-
+    fn read_empy_lines() {
         let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
         system.read_ndx("test_files/index_empty_lines.ndx").unwrap();
+
+        assert_eq!(system.get_n_groups(), 4);
 
         assert!(system.group_exists("System"));
         assert!(system.group_exists("Protein"));
 
-        assert_eq!(system.group_n_atoms("System").unwrap(), 50);
-        assert_eq!(system.group_n_atoms("Protein").unwrap(), 50);
+        assert_eq!(system.group_get_n_atoms("System").unwrap(), 50);
+        assert_eq!(system.group_get_n_atoms("Protein").unwrap(), 50);
 
         // assert that the groups contain the correct atoms
-        for (group_atom, system_atom) in system.group_iter("System").unwrap().zip(system.atoms_iter()) {
-            assert_eq!(system_atom.get_gmx_atom_number(), group_atom.get_gmx_atom_number());
+        for (group_atom, system_atom) in system
+            .group_iter("System")
+            .unwrap()
+            .zip(system.atoms_iter())
+        {
+            assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
         }
 
-        for (group_atom, system_atom) in system.group_iter("Protein").unwrap().zip(system.atoms_iter()) {
-            assert_eq!(system_atom.get_gmx_atom_number(), group_atom.get_gmx_atom_number());
+        for (group_atom, system_atom) in system
+            .group_iter("Protein")
+            .unwrap()
+            .zip(system.atoms_iter())
+        {
+            assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
         }
+    }
+
+    #[test]
+    fn read_multiword_group() {
+        let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
+        system
+            .read_ndx("test_files/index_multiword_group.ndx")
+            .unwrap();
+
+        assert_eq!(system.get_n_groups(), 4);
+
+        assert!(system.group_exists("System"));
+        assert!(system.group_exists("Protein Named Buforin II P11L"));
+
+        assert_eq!(system.group_get_n_atoms("System").unwrap(), 50);
+        assert_eq!(
+            system
+                .group_get_n_atoms("Protein Named Buforin II P11L")
+                .unwrap(),
+            50
+        );
     }
 
     macro_rules! read_ndx_fails {
@@ -357,28 +469,194 @@ mod tests {
         };
     }
 
-    read_ndx_fails!(test_read_ndx_nonexistent, "nonexistent.ndx", 
-    ParseNdxError::FileNotFound, Box::from(Path::new("nonexistent.ndx")));
+    read_ndx_fails!(
+        read_nonexistent,
+        "nonexistent.ndx",
+        ParseNdxError::FileNotFound,
+        Box::from(Path::new("nonexistent.ndx"))
+    );
 
-    read_ndx_fails!(test_read_ndx_duplicate_groups, "test_files/index_duplicate_groups.ndx", 
-    ParseNdxError::GroupsShareName, "Protein");
+    read_ndx_fails!(
+        read_name_invalid,
+        "test_files/index_invalid_name.ndx",
+        ParseNdxError::ParseGroupNameErr,
+        "[   ] "
+    );
 
-    read_ndx_fails!(test_read_ndx_group_exists, "test_files/index_group_exists.ndx", 
-    ParseNdxError::GroupAlreadyExists, "All");
+    read_ndx_fails!(
+        read_unfinished_name,
+        "test_files/index_unfinished_name.ndx",
+        ParseNdxError::ParseLineErr,
+        "[ Protein "
+    );
 
-    read_ndx_fails!(test_read_ndx_name_invalid, "test_files/index_invalid_name.ndx", 
-    ParseNdxError::ParseGroupNameErr, "[   ] ");
+    read_ndx_fails!(
+        read_invalid_line,
+        "test_files/index_invalid_line.ndx",
+        ParseNdxError::ParseLineErr,
+        "  16   17   18   19   20   21   -22   23   24   25   26   27   28   29   30"
+    );
 
-    read_ndx_fails!(test_read_ndx_unfinished_name, "test_files/index_unfinished_name.ndx", 
-    ParseNdxError::ParseLineErr, "[ Protein ");
+    read_ndx_fails!(
+        read_invalid_index,
+        "test_files/index_invalid_index1.ndx",
+        ParseNdxError::InvalidAtomIndex,
+        0
+    );
 
-    read_ndx_fails!(test_read_ndx_invalid_line, "test_files/index_invalid_line.ndx", 
-    ParseNdxError::ParseLineErr, "  16   17   18   19   20   21   -22   23   24   25   26   27   28   29   30");
+    read_ndx_fails!(
+        read_invalid_index2,
+        "test_files/index_invalid_index2.ndx",
+        ParseNdxError::InvalidAtomIndex,
+        51
+    );
 
-    read_ndx_fails!(test_read_ndx_invalid_index, "test_files/index_invalid_index1.ndx", 
-    ParseNdxError::InvalidAtomIndex, 0);
+    #[test]
+    fn read_duplicate_groups() {
+        let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
+        match system.read_ndx("test_files/index_duplicate_groups.ndx") {
+            Err(ParseNdxError::DuplicateGroupsWarning(e)) => {
+                assert_eq!(e, Box::new(HashSet::from(["Protein".to_string()])))
+            }
+            Ok(_) => panic!("Warning should have been returned, but it was not."),
+            Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
+        }
 
-    read_ndx_fails!(test_read_ndx_invalid_index2, "test_files/index_invalid_index2.ndx", 
-    ParseNdxError::InvalidAtomIndex, 51);
+        assert_eq!(system.get_n_groups(), 4);
 
+        assert!(system.group_exists("System"));
+        assert!(system.group_exists("Protein"));
+
+        assert_eq!(system.group_get_n_atoms("System").unwrap(), 50);
+        assert_eq!(system.group_get_n_atoms("Protein").unwrap(), 32);
+    }
+
+    #[test]
+    fn read_duplicate_groups2() {
+        let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
+        match system.read_ndx("test_files/index_duplicate_groups2.ndx") {
+            Err(ParseNdxError::DuplicateGroupsWarning(e)) => {
+                assert_eq!(e, Box::new(HashSet::from(["Protein".to_string()])))
+            }
+            Ok(_) => panic!("Warning should have been returned, but it was not."),
+            Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
+        }
+
+        assert_eq!(system.get_n_groups(), 4);
+
+        assert!(system.group_exists("System"));
+        assert!(system.group_exists("Protein"));
+
+        assert_eq!(system.group_get_n_atoms("System").unwrap(), 50);
+        assert_eq!(system.group_get_n_atoms("Protein").unwrap(), 15);
+    }
+
+    #[test]
+    fn read_group_exists() {
+        let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
+        match system.read_ndx("test_files/index_group_exists.ndx") {
+            Err(ParseNdxError::DuplicateGroupsWarning(e)) => {
+                assert_eq!(e, Box::new(HashSet::from(["All".to_string()])))
+            }
+            Ok(_) => panic!("Warning should have been returned, but it was not."),
+            Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
+        }
+
+        assert_eq!(system.get_n_groups(), 4);
+
+        assert!(system.group_exists("System"));
+        assert!(system.group_exists("Protein"));
+        assert!(system.group_exists("All"));
+
+        assert_eq!(system.group_get_n_atoms("System").unwrap(), 50);
+        assert_eq!(system.group_get_n_atoms("Protein").unwrap(), 50);
+        assert_eq!(system.group_get_n_atoms("All").unwrap(), 35);
+    }
+
+    #[test]
+    fn read_groups_exist() {
+        let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
+        match system.read_ndx("test_files/index_groups_exist.ndx") {
+            Err(ParseNdxError::DuplicateGroupsWarning(e)) => assert_eq!(
+                e,
+                Box::new(HashSet::from(["All".to_string(), "Protein".to_string()]))
+            ),
+            Ok(_) => panic!("Warning should have been returned, but it was not."),
+            Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
+        }
+
+        assert_eq!(system.get_n_groups(), 4);
+
+        assert!(system.group_exists("System"));
+        assert!(system.group_exists("Protein"));
+
+        assert_eq!(system.group_get_n_atoms("System").unwrap(), 50);
+        assert_eq!(system.group_get_n_atoms("Protein").unwrap(), 15);
+        assert_eq!(system.group_get_n_atoms("All").unwrap(), 35);
+    }
+
+    #[test]
+    fn read_invalid_names() {
+        let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
+        match system.read_ndx("test_files/index_invalid_names.ndx") {
+            Err(ParseNdxError::InvalidNamesWarning(e)) => assert_eq!(
+                e,
+                Box::new(HashSet::from([
+                    "inval@id".to_string(),
+                    "&also_invalid".to_string(),
+                    "(parentheses are invalid)".to_string()
+                ]))
+            ),
+            Ok(_) => panic!("Warning should have been returned, but it was not."),
+            Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
+        }
+
+        assert_eq!(system.get_n_groups(), 4);
+
+        assert!(system.group_exists("System"));
+        assert!(system.group_exists("Valid Name"));
+
+        assert_eq!(system.group_get_n_atoms("System").unwrap(), 50);
+        assert_eq!(system.group_get_n_atoms("Valid Name").unwrap(), 50);
+        assert_eq!(system.group_get_n_atoms("All").unwrap(), 50);
+    }
+}
+
+#[cfg(test)]
+mod tests_write_ndx {
+    use super::*;
+    use file_diff;
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn write() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let ndx_output = NamedTempFile::new().unwrap();
+        let path_to_output = ndx_output.path();
+
+        if let Err(_) = system.write_ndx(path_to_output) {
+            panic!("Writing ndx file failed.");
+        }
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/index.ndx").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_fails() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.write_ndx("Xhfguiedhqueiowhd/nonexistent.ndx") {
+            Err(WriteNdxError::CouldNotCreate(e)) => {
+                assert_eq!(e, Box::from(Path::new("Xhfguiedhqueiowhd/nonexistent.ndx")))
+            }
+            Ok(_) => panic!("Writing should have failed, but it did not."),
+            Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
+        }
+    }
 }
