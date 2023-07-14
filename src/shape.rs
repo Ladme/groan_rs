@@ -164,11 +164,14 @@ impl Cylinder {
     /// - `radius` - Radius of the cylinder.
     /// - `height` - Height of the cylinder along the main axis of the cylinder.
     ///
+    /// ## Panics
+    /// Panics if `orientation` is not `Dimension::X`, `Dimension::Y`, nor `Dimension::Z`.
+    /// 
     /// ## Example
     /// ```no_run
     /// use groan_rs::shape::Cylinder;
     /// use groan_rs::Dimension;
-    ///
+    /// 
     /// // constructs a cylinder oriented along the z-dimension of the simulation box
     /// let cylinder = Cylinder::new(
     ///     [1.0, 2.0, 3.0].into(), // position

@@ -16,7 +16,7 @@ use crate::xtc_io::Xdrfile;
 
 #[derive(Debug)]
 pub struct System {
-    /// Name of the molcular system.
+    /// Name of the molecular system.
     name: String,
     /// Vector of atoms in the system.
     atoms: Vec<Atom>,
