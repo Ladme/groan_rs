@@ -118,8 +118,6 @@ pub enum ReadXtcError {
     FrameNotFound,
     #[error("{} number of atoms in the xtc file '{}' does not match the number of atoms in the system", "error:".red().bold(), path_to_yellow(.0))]
     AtomsNumberMismatch(Box<Path>),
-    #[error("{} no readable xtc file associated with the system named '{}'", "error:".red().bold(), .0.to_string().yellow())]
-    FileIsNotOpen(String),
 }
 
 /// Errors that can occur when writing an xtc file.
@@ -131,8 +129,6 @@ pub enum WriteXtcError {
     CouldNotCreate(Box<Path>),
     #[error("{} could not write frame to an xtc file", "error:".red().bold())]
     CouldNotWrite,
-    #[error("{} no writeable xtc file associated with the system named '{}'", "error:".red().bold(), .0.to_string().yellow())]
-    FileIsNotOpen(String),
 }
 
 /// Errors that can occur when parsing atom selection query.
@@ -156,13 +152,4 @@ pub enum SelectError {
     GroupNotFound(String),
     #[error("{} the provided query '{}' could not be understood for unknown reason", "error:".red().bold(), .0.to_string().yellow())]
     UnknownError(String),
-}
-
-/// Errors that can occur when constructing Analyzer.
-#[derive(Error, Debug, PartialEq, Eq)]
-pub enum AnalysisError {
-    #[error("{} atom index '{}' does not exist in the system", "error:".red().bold(), .0.to_string().yellow())]
-    InvalidAtomIndex(usize),
-    #[error("{} group '{}' does not exist", "error:".red().bold(), .0.to_string().yellow())]
-    GroupNotFound(String),
 }

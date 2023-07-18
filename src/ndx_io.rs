@@ -30,7 +30,7 @@ impl System {
     /// is input into the system
     /// - The indices in an ndx file do not correspond to atom numbers
     /// from a gro file, but to actual atom numbers as used by gromacs.
-    /// - In case an error other than `ParseNdxError::DuplicateGroupsWarning` or 
+    /// - In case an error other than `ParseNdxError::DuplicateGroupsWarning` or
     /// `ParseNdxError::InvalidNamesWarning` occurs, the system is not changed.
     /// - Atom numbers can be in any order and will be properly reordered.
     /// - Duplicate atom numbers are ignored.

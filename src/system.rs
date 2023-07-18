@@ -12,7 +12,6 @@ use crate::errors::GroupError;
 use crate::group::Group;
 use crate::simbox::SimBox;
 use crate::vector3d::Vector3D;
-use crate::xtc_io::Xdrfile;
 
 #[derive(Debug)]
 pub struct System {
@@ -30,10 +29,6 @@ pub struct System {
     simulation_time: f32,
     /// Precision of the coordinates.
     coordinates_precision: u64,
-    /// Xdrfile currently open for reading.
-    xdrfile_read: Option<Xdrfile>,
-    /// Xdrfile currently open for writing.
-    xdrfile_write: Option<Xdrfile>,
 }
 
 impl System {
@@ -106,8 +101,6 @@ impl System {
             simulation_step: 0u64,
             simulation_time: 0.0f32,
             coordinates_precision: 100u64,
-            xdrfile_read: None,
-            xdrfile_write: None,
         };
 
         match system.group_create_all() {
@@ -221,16 +214,6 @@ impl System {
         self.coordinates_precision
     }
 
-    /// Get mutable reference to readable xdrfile associated with the system, if there is any.
-    pub fn get_xdrfile_read(&mut self) -> Option<&mut Xdrfile> {
-        self.xdrfile_read.as_mut()
-    }
-
-    /// Get mutable reference to writeable xdrfile associated with the system, if there is any.
-    pub fn get_xdrfile_write(&mut self) -> Option<&mut Xdrfile> {
-        self.xdrfile_write.as_mut()
-    }
-
     /// Set the simulation time.
     pub fn set_simulation_time(&mut self, time: f32) {
         self.simulation_time = time
@@ -249,49 +232,6 @@ impl System {
     /// Set precision of the coordinates.
     pub fn set_precision(&mut self, precision: u64) {
         self.coordinates_precision = precision;
-    }
-
-    /// Set readable xdrfile for the system.
-    pub fn set_xdrfile_read(&mut self, file: Xdrfile) {
-        self.xdrfile_read = Some(file)
-    }
-
-    /// Set writeable xdrfile for the system.
-    pub fn set_xdrfile_write(&mut self, file: Xdrfile) {
-        self.xdrfile_write = Some(file)
-    }
-
-    /// Explicitly close a readable xtc file associated with the system.
-    ///
-    /// ## Notes
-    /// - In most cases, file will be closed implicitly once not needed.
-    pub fn read_xtc_close(&mut self) {
-        self.xdrfile_read = None;
-    }
-
-    /// Explicitly close a writeable xtc file associated with the system.
-    ///
-    /// ## Notes
-    /// - In most cases, file will be closed implicitly once not needed.
-    /// - You only need to use this function when reading a file that has been just written.
-    ///
-    /// ## Example
-    /// ```no_run
-    /// use groan_rs::System;
-    ///
-    /// let mut system = System::from_file("system.gro").unwrap();
-    /// system.write_xtc_init("output.xtc").unwrap();
-    /// system.write_xtc_frame(None);
-    ///
-    /// // close the file
-    /// system.write_xtc_close();
-    ///
-    /// // open the file again, but for reading
-    /// system.read_xtc_init("output.xtc").unwrap();
-    /// ```
-    ///
-    pub fn write_xtc_close(&mut self) {
-        self.xdrfile_write = None;
     }
 
     /**************************/

@@ -345,7 +345,7 @@ impl System {
     /// }
     /// ```
     ///
-    /// ## Note on performace
+    /// ## Note on performance
     /// It might be slightly faster to iterate using `system.get_atoms_as_ref().iter()` if you do
     /// not care about the additional methods `AtomIterator` implements.
     pub fn atoms_iter(&self) -> AtomIterator {
@@ -382,7 +382,7 @@ impl System {
 mod tests {
     use super::*;
     use crate::dimension::Dimension;
-    use crate::shape::{Sphere, Cylinder, Rectangular};
+    use crate::shape::{Cylinder, Rectangular, Sphere};
     use crate::vector3d::Vector3D;
     use float_cmp::assert_approx_eq;
 
@@ -612,7 +612,12 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        let cylinder = Cylinder::new(system.group_get_center("Protein").unwrap(), 2.0, 3.0, Dimension::X);
+        let cylinder = Cylinder::new(
+            system.group_get_center("Protein").unwrap(),
+            2.0,
+            3.0,
+            Dimension::X,
+        );
         let count = system
             .group_iter("W")
             .unwrap()
@@ -627,7 +632,12 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        let cylinder = Cylinder::new(system.group_get_center("Protein").unwrap(), 2.0, 3.0, Dimension::Y);
+        let cylinder = Cylinder::new(
+            system.group_get_center("Protein").unwrap(),
+            2.0,
+            3.0,
+            Dimension::Y,
+        );
         let count = system
             .group_iter("W")
             .unwrap()
@@ -642,7 +652,12 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        let cylinder = Cylinder::new(system.group_get_center("Protein").unwrap(), 2.0, 3.0, Dimension::Z);
+        let cylinder = Cylinder::new(
+            system.group_get_center("Protein").unwrap(),
+            2.0,
+            3.0,
+            Dimension::Z,
+        );
         let count = system
             .group_iter("W")
             .unwrap()

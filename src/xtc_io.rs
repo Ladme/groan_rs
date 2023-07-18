@@ -23,7 +23,7 @@ use crate::vector3d::Vector3D;
 pub struct XtcReader<'a> {
     system: *mut System,
     xtc: Xdrfile,
-    phantom: PhantomData<&'a mut System>
+    phantom: PhantomData<&'a mut System>,
 }
 
 impl<'a> XtcReader<'a> {
@@ -61,7 +61,7 @@ impl<'a> Iterator for XtcReader<'a> {
     type Item = Result<&'a mut System, ReadXtcError>;
 
     /// Read next frame in an xtc file.
-    /// 
+    ///
     /// ## Returns
     /// `None` in case the file has been fully read.
     /// `Some(&mut System)` in case the frame has been read successfully.
@@ -116,22 +116,21 @@ impl<'a> Iterator for XtcReader<'a> {
 }
 
 impl System {
-
-    /// Create an XtcReader which is an iterator over an xtc file.
-    /// 
+    /// Create an `XtcReader` structure which is an iterator over an xtc file.
+    ///
     /// ## Returns
     /// `XtcReader` if the xtc file exists and matches the gro file.
     /// Else returns `ReadXtcError`.
-    /// 
+    ///
     /// ## Example
-    /// Iterating through an xtc trajectory and calculating 
+    /// Iterating through an xtc trajectory and calculating
     /// and printing the current center of geometry of the system.
     /// ```no_run
     /// use groan_rs::System;
-    /// 
+    ///
     /// // load system from file
     /// let mut system = System::from_file("system.gro").unwrap();
-    /// 
+    ///
     /// // create the `XtcReader`
     /// let mut trajectory = match system.xtc_iter("trajectory.xtc") {
     ///     Ok(x) => x,
@@ -140,7 +139,7 @@ impl System {
     ///         return;
     ///     }
     /// };
-    /// 
+    ///
     /// // iterate through the trajectory
     /// // `raw_frame` is either mutable reference to the `System` in the current state
     /// // or `ReadXtcError` in case reading of the frame has failed
@@ -159,26 +158,27 @@ impl System {
     /// ```no_run
     /// use groan_rs::System;
     /// use groan_rs::errors::ReadXtcError;
-    /// 
+    ///
     /// fn example_fn() -> Result<(), ReadXtcError> {
     ///     // load system from file
     ///     let mut system = System::from_file("system.gro").unwrap();
-    /// 
+    ///
     ///     // loop through the trajectory
     ///     for raw_frame in system.xtc_iter("trajectory.xtc")? {
     ///         let frame = raw_frame?;
     ///         println!("{:?}", frame.group_get_center("all"));
     ///     }
-    /// 
+    ///
     ///     Ok(())
     /// }
     /// ```
-    /// 
+    ///
     /// ## Warning
     /// Only orthogonal simulation boxes are currently supported!
     ///
     /// ## Notes
     /// - The function checks whether the number of atoms in the system corresponds to the number of atoms in the xtc file.
+    /// - The `System` structure is modified while iterating through the xtc file.
     pub fn xtc_iter(&mut self, filename: impl AsRef<Path>) -> Result<XtcReader, ReadXtcError> {
         XtcReader::new(self, filename)
     }
@@ -200,17 +200,17 @@ pub struct XtcWriter {
 
 impl XtcWriter {
     /// Open a new xtc file for writing.
-    /// 
+    ///
     /// ## Returns
-    /// An instance of an `XtcWriter` struct or `WriteXtcError` in case the file can't be created.
-    /// 
+    /// An instance of `XtcWriter` structure or `WriteXtcError` in case the file can't be created.
+    ///
     /// ## Example
     /// Create a new xtc file for writing and associate a system with it.
     /// ```no_run
     /// use groan_rs::{System, XtcWriter};
-    /// 
+    ///
     /// let system = System::from_file("system.gro").unwrap();
-    /// 
+    ///
     /// let mut writer = XtcWriter::new(&system, "output.xtc").unwrap();
     /// ```
     pub fn new(system: &System, filename: impl AsRef<Path>) -> Result<XtcWriter, WriteXtcError> {
@@ -221,36 +221,33 @@ impl XtcWriter {
             Err(XtcError::InvalidPath(x)) => return Err(WriteXtcError::InvalidPath(x)),
         };
 
-        Ok(XtcWriter {
-            system,
-            xtc,
-        })
+        Ok(XtcWriter { system, xtc })
     }
 
     /// Write the current state of the system into an open xtc file.
-    /// 
+    ///
     /// ## Example
     /// Reading and writing an xtc file.
     /// ```no_run
     /// use groan_rs::{System, XtcWriter};
     /// use std::error::Error;
-    /// 
+    ///
     /// fn example_fn() -> Result<(), Box<dyn Error>> {
     ///     // load system from file
     ///     let mut system = System::from_file("system.gro")?;
     ///
     ///     // create an xtc file for writing and associate it with the system
     ///     let mut writer = XtcWriter::new(&system, "output.xtc")?;
-    /// 
+    ///
     ///     // loop through the trajectory
     ///     for raw_frame in system.xtc_iter("trajectory.xtc")? {
     ///         // check for errors
     ///         let _ = raw_frame?;
-    /// 
+    ///
     ///         // write the current frame into `output.xtc`
     ///         writer.write_frame(None)?;
     ///     }
-    /// 
+    ///
     ///     Ok(())
     /// }
     /// ```
@@ -284,264 +281,6 @@ impl XtcWriter {
 
         Ok(())
     }
-
-}
-
-
-/**************************/
-/*       LEGACY CODE      */
-/**************************/
-
-impl System {
-    /// Open an xtc file for reading and associate it with the molecular system.
-    ///
-    /// ## Example
-    /// ```no_run
-    /// use groan_rs::System;
-    ///
-    /// // load system from file
-    /// let mut system = System::from_file("system.gro").unwrap();
-    ///
-    /// // initialize xtc file reading
-    /// if let Err(e) = system.read_xtc_init("trajectory.xtc") {
-    ///     eprintln!("{}", e);
-    ///     return;
-    /// }
-    ///
-    /// // open another file; this will close "trajectory.xtc"
-    /// if let Err(e) = system.read_xtc_init("another_trajectory.xtc") {
-    ///     eprintln!("{}", e);
-    ///     return;
-    /// }
-    /// ```
-    /// ## Warning
-    /// Only orthogonal simulation boxes are currently supported!
-    ///
-    /// ## Notes
-    /// - The function checks whether the number of atoms in the system corresponds to the number of atoms in the xtc file.
-    /// - Each system can only have one open readable xdr (xtc or trr) file associated with it at any moment.
-    /// Opening additional file will close the previously opened file.
-    pub fn read_xtc_init(&mut self, filename: impl AsRef<Path>) -> Result<(), ReadXtcError> {
-        let n_atoms = self.get_n_atoms();
-
-        // sanity check the number of atoms
-        match Xdrfile::check_xtc(filename.as_ref(), n_atoms) {
-            Err(e) => return Err(e),
-            Ok(false) => {
-                return Err(ReadXtcError::AtomsNumberMismatch(Box::from(
-                    filename.as_ref(),
-                )))
-            }
-            Ok(true) => (),
-        };
-
-        // open the xtc file and save the handle to it
-        match Xdrfile::open_xtc(filename.as_ref(), OpenMode::Read) {
-            Ok(x) => self.set_xdrfile_read(x),
-            Err(XtcError::FileNotFound(x)) => return Err(ReadXtcError::FileNotFound(x)),
-            Err(XtcError::InvalidPath(x)) => return Err(ReadXtcError::InvalidPath(x)),
-        };
-
-        Ok(())
-    }
-
-    /// Open an xtc file for writing and associate it with the molecular system.
-    ///
-    /// ## Example
-    /// ```no_run
-    /// use groan_rs::System;
-    ///
-    /// // load system from file
-    /// let mut system = System::from_file("system.gro").unwrap();
-    ///
-    /// // initialize xtc file writing
-    /// if let Err(e) = system.write_xtc_init("trajectory.xtc") {
-    ///     eprintln!("{}", e);
-    ///     return;
-    /// }
-    ///
-    /// // open another file; this will close "trajectory.xtc"
-    /// if let Err(e) = system.write_xtc_init("another_trajectory.xtc") {
-    ///     eprintln!("{}", e);
-    ///     return;
-    /// }
-    /// ```
-    /// ## Warning
-    /// Only orthogonal simulation boxes are currently supported!
-    ///
-    /// ## Notes
-    /// - Each system can only have one open writeable xdr (xtc or trr) file associated with it at any moment.
-    /// Opening additional file will close the previously opened file.
-    pub fn write_xtc_init(&mut self, filename: impl AsRef<Path>) -> Result<(), WriteXtcError> {
-        // create the xtc file and save the handle to it
-        match Xdrfile::open_xtc(filename.as_ref(), OpenMode::Write) {
-            Ok(x) => self.set_xdrfile_write(x),
-            Err(XtcError::FileNotFound(x)) => return Err(WriteXtcError::CouldNotCreate(x)),
-            Err(XtcError::InvalidPath(x)) => return Err(WriteXtcError::InvalidPath(x)),
-        };
-
-        Ok(())
-    }
-
-    /// Read a single frame from an xtc file and update the system.
-    ///
-    /// ## Returns
-    /// `true` if frame was successfully read, `false` if there is nothing more to read,
-    /// `ReadXtcError` if reading failed.
-    ///
-    /// ## Example
-    /// ```no_run
-    /// use groan_rs::System;
-    ///
-    /// // load system from file
-    /// let mut system = System::from_file("system.gro").unwrap();
-    /// // initialize xtc file reading
-    /// if let Err(e) = system.read_xtc_init("trajectory.xtc") {
-    ///     eprintln!("{}", e);
-    ///     return;
-    /// }
-    ///
-    /// // iterate through the trajectory and calculate
-    /// // center of geometry of the system for each frame
-    /// loop {
-    ///      match system.read_xtc_frame() {
-    ///         // calculate system center and print it
-    ///         Ok(true) => println!("{:?}", system.group_get_center("all")),
-    ///         // reading is done
-    ///         Ok(false) => break,
-    ///         // an error occured
-    ///         Err(e) => {
-    ///             eprintln!("{}", e);
-    ///             return;
-    ///         }
-    ///     }
-    /// }
-    /// ```
-    /// ## Warning
-    /// Only orthogonal simulation boxes are currently supported!
-    pub fn read_xtc_frame(&mut self) -> Result<bool, ReadXtcError> {
-        let n_atoms = self.get_n_atoms();
-
-        unsafe {
-            let atoms = self.get_atoms_as_ref_mut() as *mut Vec<Atom>;
-
-            // get the handle to the xdrfile
-            let xdrfile = match self.get_xdrfile_read() {
-                Some(x) => x,
-                None => return Err(ReadXtcError::FileIsNotOpen(self.get_name().to_string())),
-            };
-
-            // check that the xdrfile is open for reading
-            if xdrfile.mode != OpenMode::Read {
-                return Err(ReadXtcError::FileIsNotOpen(self.get_name().to_string()));
-            }
-
-            let mut step: c_int = 0;
-            let mut time: c_float = 0.0;
-            let mut boxvector: [[c_float; 3usize]; 3usize] = [[0.0; 3]; 3];
-            let mut precision: c_float = 0.0;
-            let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms as usize];
-
-            // read xtc frame
-            let return_code = c_xdrfile::read_xtc(
-                xdrfile.handle,
-                n_atoms as c_int,
-                &mut step,
-                &mut time,
-                &mut boxvector,
-                coordinates.as_mut_ptr(),
-                &mut precision,
-            );
-
-            match return_code {
-                // reading successful and there is more to read
-                0 => (),
-                // file is completely read
-                11 => return Ok(false),
-                // error occured
-                _ => return Err(ReadXtcError::FrameNotFound),
-            }
-
-            for (i, atom) in (*atoms).iter_mut().enumerate() {
-                atom.set_position(&Vector3D::from(*coordinates.get_unchecked(i)));
-            }
-
-            // update the system
-            self.set_simulation_step(step as u64);
-            self.set_simulation_time(time);
-            self.set_box(matrix2simbox(boxvector));
-            self.set_precision(precision as u64);
-
-            Ok(true)
-        }
-    }
-
-    /// Write the current state of the system into an open xtc file.
-    ///
-    /// ## Example
-    /// ```no_run
-    /// use groan_rs::System;
-    ///
-    /// // load system from file
-    /// let mut system = System::from_file("system.gro").unwrap();
-    /// // initialize xtc file writing
-    /// if let Err(e) = system.write_xtc_init("trajectory.xtc") {
-    ///     eprintln!("{}", e);
-    ///     return;
-    /// }
-    ///
-    /// // write the current simulation frame to "trajectory.xtc"
-    /// // use precision of 100
-    /// if let Err(e) = system.write_xtc_frame(Some(100)) {
-    ///     eprintln!("{}", e);    
-    /// }
-    /// ```
-    /// ## Warning
-    /// Only orthogonal simulation boxes are currently supported!
-    ///
-    /// ## Notes
-    /// - `precision` is the precision of the coordinates written into the xtc file.
-    /// If `None` is supplied, the value from `System` is used.
-    pub fn write_xtc_frame(&mut self, precision: Option<u64>) -> Result<(), WriteXtcError> {
-        let n_atoms = self.get_n_atoms();
-        let real_precision = precision.unwrap_or(self.get_precision());
-
-        unsafe {
-            let xdrfile: *mut Xdrfile = match self.get_xdrfile_write() {
-                Some(x) => x as *mut Xdrfile,
-                None => return Err(WriteXtcError::FileIsNotOpen(self.get_name().to_string())),
-            };
-
-            // check that the xdrfile is open for writing
-            if (*xdrfile).mode != OpenMode::Write {
-                return Err(WriteXtcError::FileIsNotOpen(self.get_name().to_string()));
-            }
-
-            // prepare coordinate matrix
-            let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms as usize];
-            for (i, atom) in self.atoms_iter().enumerate() {
-                let pos = atom.get_position();
-                coordinates[i] = [pos.x, pos.y, pos.z];
-            }
-
-            // write the xtc frame
-            let return_code = c_xdrfile::write_xtc(
-                (*xdrfile).handle,
-                n_atoms as c_int,
-                self.get_simulation_step() as i32,
-                self.get_simulation_time(),
-                &mut simbox2matrix(self.get_box_as_ref()),
-                coordinates.as_mut_ptr(),
-                real_precision as f32,
-            );
-
-            if return_code != 0 {
-                return Err(WriteXtcError::CouldNotWrite);
-            }
-        }
-
-        Ok(())
-    }
 }
 
 /******************************/
@@ -557,7 +296,6 @@ enum OpenMode {
 #[derive(Debug)]
 pub struct Xdrfile {
     handle: *mut c_xdrfile::XDRFILE,
-    mode: OpenMode,
 }
 
 impl Xdrfile {
@@ -596,7 +334,7 @@ impl Xdrfile {
             let handle = c_xdrfile::xdrfile_open(c_path.as_ptr(), mode2cstring(mode).as_ptr());
 
             if !handle.is_null() {
-                Ok(Xdrfile { handle, mode })
+                Ok(Xdrfile { handle })
             } else {
                 Err(XtcError::FileNotFound(Box::from(filename.as_ref())))
             }
@@ -670,13 +408,11 @@ mod tests {
     fn read_xtc() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        system
-            .read_xtc_init("test_files/short_trajectory.xtc")
-            .unwrap();
-
         // first frame
-
-        system.read_xtc_frame().unwrap();
+        system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .next();
 
         assert_eq!(system.get_simulation_step(), 0);
         assert_eq!(system.get_precision(), 100);
@@ -723,14 +459,10 @@ mod tests {
         assert_approx_eq!(f32, atom2.get_force().z, 0.0);
 
         // last frame
-
-        loop {
-            match system.read_xtc_frame() {
-                Ok(true) => (),
-                Ok(false) => break,
-                Err(e) => panic!("Reading xtc file failed: {}", e),
-            }
-        }
+        system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .last();
 
         assert_eq!(system.get_simulation_step(), 50000);
         assert_eq!(system.get_precision(), 100);
@@ -778,32 +510,54 @@ mod tests {
     }
 
     #[test]
-    fn write_xtc() {
+    fn read_xtc_unmatching() {
+        let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
+
+        match system.xtc_iter("test_files/short_trajectory.xtc") {
+            Err(ReadXtcError::AtomsNumberMismatch(_)) => (),
+            _ => panic!("XTC file should not be valid."),
+        }
+    }
+
+    #[test]
+    fn read_xtc_nonexistent() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        system
-            .read_xtc_init("test_files/short_trajectory.xtc")
-            .unwrap();
+        match system.xtc_iter("test_files/nonexistent.xtc") {
+            Err(ReadXtcError::FileNotFound(_)) => (),
+            _ => panic!("XTC file should not exist."),
+        }
+    }
+
+    #[test]
+    fn write_xtc() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
 
         let xtc_output = NamedTempFile::new().unwrap();
         let path_to_output = xtc_output.path();
 
-        system.write_xtc_init(path_to_output).unwrap();
+        let mut writer = XtcWriter::new(&system, path_to_output).unwrap();
 
-        loop {
-            match system.read_xtc_frame() {
-                Ok(true) => system.write_xtc_frame(None).unwrap(),
-                Ok(false) => break,
-                Err(e) => panic!("Reading xtc file failed: {}", e),
-            }
+        for _ in system.xtc_iter("test_files/short_trajectory.xtc").unwrap() {
+            writer.write_frame(None).unwrap();
         }
 
         // we must close the file, otherwise metadata do not get updated
-        system.write_xtc_close();
+        drop(writer);
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected = File::open("test_files/short_trajectory.xtc").unwrap();
 
         assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_invalid_path() {
+        let system = System::from_file("test_files/example.gro").unwrap();
+
+        match XtcWriter::new(&system, "test_files/nonexistent/output.xtc") {
+            Err(WriteXtcError::CouldNotCreate(_)) => (),
+            _ => panic!("Output XTC file should not have been created."),
+        }
     }
 }

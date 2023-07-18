@@ -1,31 +1,31 @@
 // Released under MIT License.
 // Copyright (c) 2023 Ladislav Bartos
 
-//! # GROAN_RS: Gromacs Analysis Library Written in Rust
-//! 
+//! # groan_rs: Gromacs Analysis Library Written in Rust
+//!
 //! Rust library for analyzing Gromacs simulations.
 //! Currently in very early stage of development.
-//! 
+//!
 //! ## Usage
-//! 
+//!
 //! Add the following dependency to your `Cargo.toml` file:
-//! 
+//!
 //! ```toml
 //! [dependencies]
 //! groan_rs = "0.1.0"
 //! ```
-//! 
+//!
 //! Import the crate in your Rust code:
 //! ```
 //! use groan_rs::*;
 //! ```
-//! 
+//!
 //! ## Examples
-//! 
+//!
 //! Read a gro file and an ndx file and calculate the center of geometry of a protein.
 //! ```no_run
 //! use groan_rs::*;
-//! 
+//!
 //! fn main() {
 //!     // read a gro file
 //!     let mut system = System::from_file("system.gro").unwrap();
@@ -33,17 +33,17 @@
 //!     system.read_ndx("index.ndx").unwrap();
 //!     // calculate center of geometry of a protein
 //!     let center = system.group_get_center("Protein").unwrap();
-//! 
+//!
 //!     // print the result
 //!     println!("{:?}", center);
 //! }
-//! 
+//!
 //! ```
-//! 
+//!
 //! Read an xtc file and calculate distance between two groups of atoms as a function of time.
 //! ```no_run
 //! use groan_rs::*;
-//! 
+//!
 //! fn main() {
 //!     // read a gro file
 //!     let mut system = System::from_file("system.gro").unwrap();
@@ -65,16 +65,16 @@
 //!     println!("{:?}", distances);
 //! }
 //! ```
-//! 
+//!
 //! (Note that in a real program, you would want proper error handling instead of using unwrap.)
-//! 
+//!
 //! ## Features
 //! - [x] reading and writing gro files
 //! - [x] reading and writing xtc files
 //! - [x] reading and writing ndx files
 //! - [x] VMD-like selection language
 //! - [x] basic geometry selection
-//! - [x] center of geometry calculations 
+//! - [x] center of geometry calculations
 //! - [x] distance calculation respecting PBC
 //! - [x] simulation frame centering
 //! - [ ] reading and writing pdb files
@@ -82,9 +82,9 @@
 //! - [ ] reading tpr files
 //! - [ ] center of mass calculations
 //! - [ ] support for non-orthogonal boxes
-//! 
+//!
 //! ## Warning
-//! Currently, most of the `groan_rs` library currently only supports boxes that are orthogonal!
+//! Currently, most of the `groan_rs` library only supports simulation boxes that are orthogonal!
 //! If you intend to analyze simulations with non-orthogonal simulation boxes, look elsewhere.
 
 mod analysis;
