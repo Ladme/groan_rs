@@ -13,31 +13,6 @@ use crate::simbox::SimBox;
 use crate::system::System;
 
 impl System {
-    /// Create a new System from file.
-    ///
-    /// ## Returns
-    /// `System` structure if successful or `ParseGroError` if parsing fails.
-    ///
-    /// ## Example
-    /// ```no_run
-    /// use groan_rs::System;
-    ///
-    /// let system = match System::from_file("system.gro") {
-    ///     Ok(x) => x,
-    ///     Err(e) => {
-    ///         eprintln!("{}", e);
-    ///         return;
-    ///     }
-    /// };
-    /// ```
-    /// ## Notes
-    /// - The returned System structure will contain two default groups "all" and "All"
-    /// consisting of all the atoms in the system.
-    pub fn from_file(filename: impl AsRef<Path>) -> Result<Self, ParseGroError> {
-        // TODO: support more file formats
-        read_gro(filename)
-    }
-
     /// Write all atoms of the `System` into a gro file with the given name.
     ///
     /// ## Returns
@@ -188,7 +163,7 @@ impl System {
 }
 
 /// Read a gro file and construct a System structure.
-fn read_gro(filename: impl AsRef<Path>) -> Result<System, ParseGroError> {
+pub fn read_gro(filename: impl AsRef<Path>) -> Result<System, ParseGroError> {
     let file = match File::open(filename.as_ref()) {
         Ok(x) => x,
         Err(_) => return Err(ParseGroError::FileNotFound(Box::from(filename.as_ref()))),

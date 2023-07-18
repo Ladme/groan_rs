@@ -6,10 +6,13 @@
 use indexmap::IndexMap;
 use std::collections::HashSet;
 use std::error::Error;
+use std::path::Path;
 
 use crate::atom::Atom;
-use crate::errors::GroupError;
+use crate::errors::{GroupError, ParseFileError};
+use crate::gro_io;
 use crate::group::Group;
+use crate::pdb_io;
 use crate::simbox::SimBox;
 use crate::vector3d::Vector3D;
 
@@ -108,6 +111,51 @@ impl System {
                 panic!("Internal error. Group `all` or `All` already exists as System is created.")
             }
             Ok(_) => system,
+        }
+    }
+
+    /// Create a new System from gro file or pdb file.
+    /// The method will attempt to automatically recognize gro or pdb file based on the file extension.
+    ///
+    /// ## Returns
+    /// `System` structure if successful.
+    /// `ParseFileError` if the file format is not supported.
+    /// `ParseGroError` if parsing of the gro file fails.
+    /// `ParsePdbError` if parsing of the pdb file fails.
+    ///
+    /// ## Example
+    /// Reading gro file.
+    /// ```no_run
+    /// use groan_rs::System;
+    ///
+    /// let system = match System::from_file("system.gro") {
+    ///     Ok(x) => x,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;
+    ///     }
+    /// };
+    /// ```
+    /// ## Notes
+    /// - The returned System structure will contain two default groups "all" and "All"
+    /// consisting of all the atoms in the system.
+    pub fn from_file(filename: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
+        // get file extension
+        let extension = match filename.as_ref().extension() {
+            Some(x) => x,
+            None => {
+                return Err(Box::from(ParseFileError::UnknownExtension(Box::from(
+                    filename.as_ref(),
+                ))))
+            }
+        };
+
+        match extension.to_str() {
+            Some("gro") => gro_io::read_gro(filename).map_err(Box::from),
+            Some("pdb") => pdb_io::read_pdb(filename).map_err(Box::from),
+            _ => Err(Box::from(ParseFileError::UnknownExtension(Box::from(
+                filename.as_ref(),
+            )))),
         }
     }
 

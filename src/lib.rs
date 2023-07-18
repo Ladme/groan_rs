@@ -4,7 +4,8 @@
 //! # groan_rs: Gromacs Analysis Library Written in Rust
 //!
 //! Rust library for analyzing Gromacs simulations.
-//! Currently in very early stage of development.
+//! Currently in very early stage of development:
+//! anything can break, change or stop working at any time.
 //!
 //! ## Usage
 //!
@@ -86,6 +87,9 @@
 //! ## Warning
 //! Currently, most of the `groan_rs` library only supports simulation boxes that are orthogonal!
 //! If you intend to analyze simulations with non-orthogonal simulation boxes, look elsewhere.
+//!
+//! ## License
+//! This library is released under the MIT License.
 
 mod analysis;
 //pub mod analyzer;
@@ -97,6 +101,7 @@ mod gro_io;
 mod group;
 pub mod iterators;
 mod ndx_io;
+mod pdb_io;
 mod select;
 pub mod shape;
 pub mod simbox;

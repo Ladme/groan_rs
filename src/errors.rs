@@ -31,6 +31,13 @@ fn unpack_set(set: &Box<HashSet<String>>) -> ColoredString {
     output.yellow()
 }
 
+/// Errors that can occur when reading a file of unknown type.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum ParseFileError {
+    #[error("{} file '{}' has an unknown file extension", "error:".red().bold(), path_to_yellow(.0))]
+    UnknownExtension(Box<Path>),
+}
+
 /// Errors that can occur when reading and parsing gro file.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum ParseGroError {
@@ -44,6 +51,23 @@ pub enum ParseGroError {
     ParseAtomLineErr(String),
     #[error("{} could not parse line '{}' as box dimensions", "error:".red().bold(), .0.yellow())]
     ParseBoxLineErr(String),
+}
+
+/// Errors that can occur when reading and parsing pdb file.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum ParsePdbError {
+    #[error("{} file '{}' was not found", "error:".red().bold(), path_to_yellow(.0))]
+    FileNotFound(Box<Path>),
+    #[error("{} file '{}' ended unexpectedly", "error:".red().bold(), path_to_yellow(.0))]
+    LineNotFound(Box<Path>),
+    #[error("{} could not parse line '{}'", "error:".red().bold(), .0.yellow())]
+    ParseLineErr(String),
+    #[error("{} could not parse line '{}' as atom", "error:".red().bold(), .0.yellow())]
+    ParseAtomLineErr(String),
+    #[error("{} could not parse line '{}' as box dimensions", "error:".red().bold(), .0.yellow())]
+    ParseBoxLineErr(String),
+    #[error("{} could not parse line '{}' as title", "error:".red().bold(), .0.yellow())]
+    ParseTitleLineErr(String),
 }
 
 /// Errors that can occur when writing a gro file.
