@@ -57,7 +57,7 @@ impl From<[f32; 3]> for SimBox {
 }
 
 impl SimBox {
-    /// Check whether the simulation box is orthogonal.
+    /// Check that the simulation box is orthogonal.
     /// ## Returns
     /// `true` if only the first three dimensions of the `SimBox` are non-zero. Otherwise, returns `false`.
     pub fn is_orthogonal(&self) -> bool {
@@ -67,6 +67,13 @@ impl SimBox {
             && self.v2z == 0.0
             && self.v3x == 0.0
             && self.v3y == 0.0
+    }
+
+    /// Check that the box is a valid simulation box, i.e. at least the first 3 dimensions of the box are positive.
+    /// ## Returns
+    /// `true` if the box is a valid simulation box. Otherwise, returns `false`.
+    pub fn is_valid(&self) -> bool {
+        self.x > 0.0 && self.y > 0.0 && self.z > 0.0
     }
 }
 
