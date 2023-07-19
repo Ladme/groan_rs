@@ -131,7 +131,7 @@ fn line_as_atom(line: &str) -> Result<Atom, ParsePdbError> {
 /// - Parses a line starting with CRYST1.
 fn line_as_box(line: &str) -> Result<SimBox, ParsePdbError> {
     // check line length
-    if line.len() < 33 {
+    if line.len() < 54 {
         return Err(ParsePdbError::ParseBoxLineErr(line.to_string()));
     }
 
@@ -147,6 +147,20 @@ fn line_as_box(line: &str) -> Result<SimBox, ParsePdbError> {
         curr += 9;
     }
 
+    // check that the box is orthogonal
+    for _ in 0..3 {
+        let value = line[curr..curr + 7]
+            .trim()
+            .parse::<f32>()
+            .map_err(|_| ParsePdbError::ParseBoxLineErr(line.to_string()))?;
+
+        if value != 90.0 {
+            return Err(ParsePdbError::NonOrthogonalBox(line.to_string()));
+        }
+
+        curr += 7;
+    }
+
     Ok(SimBox::from(boxsize))
 }
 
@@ -154,11 +168,280 @@ fn line_as_box(line: &str) -> Result<SimBox, ParsePdbError> {
 ///
 /// ## Notes
 /// - Parses a line starting with TITLE.
+/// - In case the TITLE line is empty, 'Unknown' is used as the name for the system.
 fn line_as_title(line: &str) -> Result<String, ParsePdbError> {
     let title = line[5..].trim().to_string();
     if title.is_empty() {
-        return Err(ParsePdbError::ParseTitleLineErr(line.to_string()));
+        return Ok("Unknown".to_string());
     }
 
     Ok(title)
+}
+
+#[cfg(test)]
+mod tests_read {
+    use super::*;
+    use float_cmp::approx_eq;
+
+    #[test]
+    fn read_simple() {
+        let system = read_pdb("test_files/example.pdb").unwrap();
+
+        assert_eq!(system.get_name(), "Buforin II peptide P11L");
+        assert_eq!(system.get_n_atoms(), 50);
+
+        // check box size
+        let simbox = system.get_box_as_ref();
+        assert!(approx_eq!(f32, simbox.x, 6.0861));
+        assert!(approx_eq!(f32, simbox.y, 6.0861));
+        assert!(approx_eq!(f32, simbox.z, 6.0861));
+
+        assert_eq!(simbox.v1y, 0.0f32);
+        assert_eq!(simbox.v1z, 0.0f32);
+        assert_eq!(simbox.v2x, 0.0f32);
+
+        assert_eq!(simbox.v2z, 0.0f32);
+        assert_eq!(simbox.v3x, 0.0f32);
+        assert_eq!(simbox.v3y, 0.0f32);
+
+        let atoms = system.get_atoms_as_ref();
+
+        // check the first atom
+        let first = &atoms[0];
+        assert_eq!(first.get_residue_number(), 1);
+        assert_eq!(first.get_residue_name(), "THR");
+        assert_eq!(first.get_atom_name(), "BB");
+        assert_eq!(first.get_atom_number(), 1);
+
+        assert!(approx_eq!(f32, first.get_position().x, 1.660));
+        assert!(approx_eq!(f32, first.get_position().y, 2.061));
+        assert!(approx_eq!(f32, first.get_position().z, 3.153));
+
+        // check atom somewhere in the middle
+        let middle = &atoms[24];
+        assert_eq!(middle.get_residue_number(), 11);
+        assert_eq!(middle.get_residue_name(), "LEU");
+        assert_eq!(middle.get_atom_name(), "SC1");
+        assert_eq!(middle.get_atom_number(), 25);
+
+        assert!(approx_eq!(f32, middle.get_position().x, 3.161));
+        assert!(approx_eq!(f32, middle.get_position().y, 2.868));
+        assert!(approx_eq!(f32, middle.get_position().z, 2.797));
+
+        // check the last atom
+        let last = &atoms[49];
+        assert_eq!(last.get_residue_number(), 21);
+        assert_eq!(last.get_residue_name(), "LYS");
+        assert_eq!(last.get_atom_name(), "SC2");
+        assert_eq!(last.get_atom_number(), 50);
+
+        assert!(approx_eq!(f32, last.get_position().x, 4.706));
+        assert!(approx_eq!(f32, last.get_position().y, 4.447));
+        assert!(approx_eq!(f32, last.get_position().z, 2.813));
+
+        // check that the velocity and force of all atoms is zero
+        for atom in atoms.iter() {
+            assert_eq!(atom.get_velocity().x, 0.0f32);
+            assert_eq!(atom.get_velocity().y, 0.0f32);
+            assert_eq!(atom.get_velocity().z, 0.0f32);
+
+            assert_eq!(atom.get_force().x, 0.0f32);
+            assert_eq!(atom.get_force().y, 0.0f32);
+            assert_eq!(atom.get_force().z, 0.0f32);
+        }
+    }
+
+    #[test]
+    fn read_hetatm() {
+        let system = read_pdb("test_files/example_hetatm.pdb").unwrap();
+
+        assert_eq!(system.get_name(), "Buforin II peptide P11L");
+        assert_eq!(system.get_n_atoms(), 50);
+
+        // check box size
+        let simbox = system.get_box_as_ref();
+        assert!(approx_eq!(f32, simbox.x, 6.0861));
+        assert!(approx_eq!(f32, simbox.y, 6.0861));
+        assert!(approx_eq!(f32, simbox.z, 6.0861));
+
+        assert_eq!(simbox.v1y, 0.0f32);
+        assert_eq!(simbox.v1z, 0.0f32);
+        assert_eq!(simbox.v2x, 0.0f32);
+
+        assert_eq!(simbox.v2z, 0.0f32);
+        assert_eq!(simbox.v3x, 0.0f32);
+        assert_eq!(simbox.v3y, 0.0f32);
+
+        let atoms = system.get_atoms_as_ref();
+
+        // check the first atom
+        let first = &atoms[0];
+        assert_eq!(first.get_residue_number(), 1);
+        assert_eq!(first.get_residue_name(), "THR");
+        assert_eq!(first.get_atom_name(), "BB");
+        assert_eq!(first.get_atom_number(), 1);
+
+        assert!(approx_eq!(f32, first.get_position().x, 1.660));
+        assert!(approx_eq!(f32, first.get_position().y, 2.061));
+        assert!(approx_eq!(f32, first.get_position().z, 3.153));
+
+        // check atom somewhere in the middle
+        let middle = &atoms[24];
+        assert_eq!(middle.get_residue_number(), 11);
+        assert_eq!(middle.get_residue_name(), "LEU");
+        assert_eq!(middle.get_atom_name(), "SC1");
+        assert_eq!(middle.get_atom_number(), 25);
+
+        assert!(approx_eq!(f32, middle.get_position().x, 3.161));
+        assert!(approx_eq!(f32, middle.get_position().y, 2.868));
+        assert!(approx_eq!(f32, middle.get_position().z, 2.797));
+
+        // check the last atom
+        let last = &atoms[49];
+        assert_eq!(last.get_residue_number(), 21);
+        assert_eq!(last.get_residue_name(), "LYS");
+        assert_eq!(last.get_atom_name(), "SC2");
+        assert_eq!(last.get_atom_number(), 50);
+
+        assert!(approx_eq!(f32, last.get_position().x, 4.706));
+        assert!(approx_eq!(f32, last.get_position().y, 4.447));
+        assert!(approx_eq!(f32, last.get_position().z, 2.813));
+
+        // check that the velocity and force of all atoms is zero
+        for atom in atoms.iter() {
+            assert_eq!(atom.get_velocity().x, 0.0f32);
+            assert_eq!(atom.get_velocity().y, 0.0f32);
+            assert_eq!(atom.get_velocity().z, 0.0f32);
+
+            assert_eq!(atom.get_force().x, 0.0f32);
+            assert_eq!(atom.get_force().y, 0.0f32);
+            assert_eq!(atom.get_force().z, 0.0f32);
+        }
+    }
+
+    #[test]
+    fn read_no_title() {
+        let system = read_pdb("test_files/example_notitle.pdb").unwrap();
+
+        assert_eq!(system.get_name(), "Unknown");
+        assert_eq!(system.get_n_atoms(), 50);
+
+        // check box size
+        let simbox = system.get_box_as_ref();
+        assert!(approx_eq!(f32, simbox.x, 6.0861));
+        assert!(approx_eq!(f32, simbox.y, 6.0861));
+        assert!(approx_eq!(f32, simbox.z, 6.0861));
+    }
+
+    #[test]
+    fn read_empty_title() {
+        let system = read_pdb("test_files/example_empty_title.pdb").unwrap();
+
+        assert_eq!(system.get_name(), "Unknown");
+        assert_eq!(system.get_n_atoms(), 50);
+
+        // check box size
+        let simbox = system.get_box_as_ref();
+        assert!(approx_eq!(f32, simbox.x, 6.0861));
+        assert!(approx_eq!(f32, simbox.y, 6.0861));
+        assert!(approx_eq!(f32, simbox.z, 6.0861));
+    }
+
+    #[test]
+    fn read_no_box() {
+        let system = read_pdb("test_files/example_nobox.pdb").unwrap();
+
+        assert_eq!(system.get_name(), "Buforin II peptide P11L");
+        assert_eq!(system.get_n_atoms(), 50);
+
+        // check box size
+        let simbox = system.get_box_as_ref();
+        assert!(approx_eq!(f32, simbox.x, 0.0));
+        assert!(approx_eq!(f32, simbox.y, 0.0));
+        assert!(approx_eq!(f32, simbox.z, 0.0));
+    }
+
+    #[test]
+    fn read_multiple_titles() {
+        let system = read_pdb("test_files/example_multiple_titles.pdb").unwrap();
+
+        assert_eq!(system.get_name(), "Third title");
+        assert_eq!(system.get_n_atoms(), 50);
+
+        // check box size
+        let simbox = system.get_box_as_ref();
+        assert!(approx_eq!(f32, simbox.x, 6.0861));
+        assert!(approx_eq!(f32, simbox.y, 6.0861));
+        assert!(approx_eq!(f32, simbox.z, 6.0861));
+    }
+
+    #[test]
+    fn read_multiple_boxes() {
+        let system = read_pdb("test_files/example_multiple_boxes.pdb").unwrap();
+
+        assert_eq!(system.get_name(), "Buforin II peptide P11L");
+        assert_eq!(system.get_n_atoms(), 50);
+
+        // check box size
+        let simbox = system.get_box_as_ref();
+        assert!(approx_eq!(f32, simbox.x, 5.0861));
+        assert!(approx_eq!(f32, simbox.y, 5.0861));
+        assert!(approx_eq!(f32, simbox.z, 5.0861));
+    }
+
+    macro_rules! read_pdb_fails {
+        ($name:ident, $file:expr, $variant:path, $expected:expr) => {
+            #[test]
+            fn $name() {
+                let file = $file;
+                match read_pdb(file) {
+                    Err($variant(e)) => assert_eq!(e, $expected),
+                    Ok(_) => panic!("Parsing should have failed, but it succeeded."),
+                    Err(e) => panic!("Parsing successfully failed but incorrect error type `{:?}` was returned.", e),
+                }
+            }
+        };
+    }
+
+    read_pdb_fails!(
+        read_nonorthogonal_box,
+        "test_files/example_nonorthogonal.pdb",
+        ParsePdbError::NonOrthogonalBox,
+        "CRYST1   60.861   60.861   60.861  90.00  89.00  90.00 P 1           1"
+    );
+
+    read_pdb_fails!(
+        read_invalid_box,
+        "test_files/example_invalid_box.pdb",
+        ParsePdbError::ParseBoxLineErr,
+        "CRYST1   60.861   60.f61   60.861  90.00  90.00  90.00 P 1           1"
+    );
+
+    read_pdb_fails!(
+        read_invalid_box2,
+        "test_files/example_invalid_box2.pdb",
+        ParsePdbError::ParseBoxLineErr,
+        "CRYST1   60.861   60.861   60.861  90.00  90.00  90.0O P 1           1"
+    );
+
+    read_pdb_fails!(
+        read_short_box,
+        "test_files/example_short_box.pdb",
+        ParsePdbError::ParseBoxLineErr,
+        "CRYST1   60.861   60.861   60.861  90.00  90.00  90.0"
+    );
+
+    read_pdb_fails!(
+        read_short_atom,
+        "test_files/example_short_atom.pdb",
+        ParsePdbError::ParseAtomLineErr,
+        "ATOM     35  SC1 HIS A  16      34.580  36.530  27.8"
+    );
+
+    read_pdb_fails!(
+        read_invalid_atom,
+        "test_files/example_invalid_atom.pdb",
+        ParsePdbError::ParseAtomLineErr,
+        "ATOM      30  SC1 ARG A  14      32.540  35.200  34.040  1.00  0.00            "
+    );
 }

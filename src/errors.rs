@@ -68,6 +68,8 @@ pub enum ParsePdbError {
     ParseBoxLineErr(String),
     #[error("{} could not parse line '{}' as title", "error:".red().bold(), .0.yellow())]
     ParseTitleLineErr(String),
+    #[error("{} simulation box specified on line '{}' is not orthogonal", "error:".red().bold(), .0.yellow())]
+    NonOrthogonalBox(String),
 }
 
 /// Errors that can occur when writing a gro file.
