@@ -24,7 +24,7 @@ use crate::vector3d::Vector3D;
 ///
 /// ## Notes
 /// - In case multiple TITLE lines are provided, the **last one** is used as the
-/// name of the system. If not TITLE line is provided, "Unknown" is used as the name.
+/// name of the system. If no TITLE line is provided, "Unknown" is used as the name.
 ///
 /// - In case multiple CRYST1 lines are provided, information from the **last one** is used.
 /// If no CRYST1 line is provided, the simulation box size is set to 0 in all dimensions.
