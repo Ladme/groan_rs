@@ -1,0 +1,11 @@
+TITLE     Expected atom and residue wrapping
+REMARK    THIS IS A SIMULATION BOX
+CRYST1   10.000   10.000   10.000  90.00  90.00  90.00 P 1           1
+MODEL        1
+ATOM      1 BBBB THR   158       0.000   0.000   0.000  1.00  0.00            
+ATOM  99999  SC1 THR   158       0.000   0.000   0.000  1.00  0.00            
+ATOM      0  BB  ARG     3       0.000   0.000   0.000  1.00  0.00            
+ATOM      1  SC1 ARGG    3       0.000   0.000   0.000  1.00  0.00            
+ATOM      5  SC2 ARG     3       0.000   0.000   0.000  1.00  0.00            
+TER
+ENDMDL

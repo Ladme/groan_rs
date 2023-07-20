@@ -88,7 +88,7 @@ fn parse_subquery(expression: &str, start: usize, end: usize) -> Result<Box<Sele
                 let new_end = match find_parenthesis(expression, i, end) {
                     Some(x) => x,
                     None => {
-                        panic!("Internal error. Parentheses should be balanced but they are not.")
+                        panic!("Groan error. Parentheses should be balanced but they are not.")
                     }
                 };
 
@@ -168,7 +168,7 @@ fn process_operation(
                 Operator::And => Ok(Some(Box::from(Select::And(t, parsed)))),
                 Operator::Or => Ok(Some(Box::from(Select::Or(t, parsed)))),
                 Operator::Not => panic!(
-                    "Internal error. Somehow, NOT operator is being treated as binary operator."
+                    "Groan error. Somehow, NOT operator is being treated as binary operator."
                 ),
             }
         } else {
@@ -177,7 +177,7 @@ fn process_operation(
     // or create a new tree
     } else {
         if tree.is_some() {
-            panic!("Internal error. No binary operator detected but the tree already exists.")
+            panic!("Groan error. No binary operator detected but the tree already exists.")
         }
         Ok(Some(parsed))
     }

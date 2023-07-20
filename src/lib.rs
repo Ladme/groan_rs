@@ -91,6 +91,9 @@
 //! ## License
 //! This library is released under the MIT License.
 
+/// Current version of the `groan_rs` library.
+pub const GROAN_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 mod analysis;
 //pub mod analyzer;
 pub mod atom;

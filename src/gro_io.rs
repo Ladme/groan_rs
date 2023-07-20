@@ -39,24 +39,11 @@ impl System {
         filename: impl AsRef<Path>,
         write_velocities: bool,
     ) -> Result<(), WriteGroError> {
-        let output = File::create(&filename)
-            .map_err(|_| WriteGroError::CouldNotCreate(Box::from(filename.as_ref())))?;
-
-        let mut writer = BufWriter::new(output);
-
-        System::write_header(&mut writer, self.get_name(), self.get_n_atoms())?;
-
-        // write atoms
-        for atom in self.atoms_iter() {
-            atom.write_gro(&mut writer, write_velocities)?;
+        match self.group_write_gro("all", filename, write_velocities) {
+            Ok(_) => Ok(()),
+            Err(WriteGroError::GroupNotFound(_)) => panic!("Groan error. Default group 'all' does not exist."),
+            Err(e) => Err(e),
         }
-
-        // write simulation box
-        self.write_box(&mut writer)?;
-
-        writer.flush().map_err(|_| WriteGroError::CouldNotWrite())?;
-
-        Ok(())
     }
 
     /// Write atoms of the specified group into a gro file with the given name.
@@ -99,9 +86,14 @@ impl System {
         let mut writer = BufWriter::new(output);
 
         // write gro file header
-        System::write_header(
+        let title = match group_name {
+            "all" => self.get_name().to_owned(),
+            _ => format!("Group `{}` from {}", group_name, self.get_name()),
+        };
+
+        write_header(
             &mut writer,
-            &format!("Group `{}` from {}", group_name, self.get_name()),
+            &title,
             self.group_get_n_atoms(group_name).unwrap(),
         )?;
 
@@ -144,19 +136,6 @@ impl System {
             )
             .map_err(|_| WriteGroError::CouldNotWrite())?;
         }
-
-        Ok(())
-    }
-
-    /// Write header into an open gro file.
-    fn write_header(
-        writer: &mut BufWriter<File>,
-        title: &str,
-        n_atoms: usize,
-    ) -> Result<(), WriteGroError> {
-        writeln!(writer, "{}", title).map_err(|_| WriteGroError::CouldNotWrite())?;
-
-        writeln!(writer, "{:>5}", n_atoms).map_err(|_| WriteGroError::CouldNotWrite())?;
 
         Ok(())
     }
@@ -309,6 +288,19 @@ fn line_as_box(line: &str) -> Result<SimBox, ParseGroError> {
     }
 
     Ok(simulation_box.into())
+}
+
+/// Write gro file header into an open gro file.
+fn write_header(
+    writer: &mut BufWriter<File>,
+    title: &str,
+    n_atoms: usize,
+) -> Result<(), WriteGroError> {
+    writeln!(writer, "{}", title).map_err(|_| WriteGroError::CouldNotWrite())?;
+
+    writeln!(writer, "{:>5}", n_atoms).map_err(|_| WriteGroError::CouldNotWrite())?;
+
+    Ok(())
 }
 
 /******************************/
@@ -716,12 +708,12 @@ mod tests_write {
     }
 
     #[test]
-    fn write_gro_wrap() {
+    fn write_wrap() {
         let atom1 = Atom::new(
             158,
             "THR",
             1,
-            "BB",
+            "BBBBBT",
             [0.0, 0.0, 0.0].into(),
             [0.0, 0.0, 0.0].into(),
             [0.0, 0.0, 0.0].into(),
@@ -749,7 +741,7 @@ mod tests_write {
 
         let atom4 = Atom::new(
             100003,
-            "ARG",
+            "ARGGGT",
             200001,
             "SC1",
             [0.0, 0.0, 0.0].into(),

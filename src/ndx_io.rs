@@ -97,7 +97,7 @@ impl System {
                     invalid_names.insert(e.to_string());
                 }
                 Err(_) => panic!(
-                    "Internal error. Unexpected error returned from group_create_from_indices()."
+                    "Groan error. Unexpected error returned from group_create_from_indices()."
                 ),
             }
         }

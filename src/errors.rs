@@ -83,6 +83,17 @@ pub enum WriteGroError {
     GroupNotFound(String),
 }
 
+/// Errors that can occur when writing a pdb file.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum WritePdbError {
+    #[error("{} file '{}' could not be created", "error:".red().bold(), path_to_yellow(.0))]
+    CouldNotCreate(Box<Path>),
+    #[error("{} could not write line into file", "error:".red().bold())]
+    CouldNotWrite(),
+    #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
+    GroupNotFound(String),
+}
+
 /// Errors that can occur when working with Groups of atoms.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum GroupError {

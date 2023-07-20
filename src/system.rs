@@ -108,7 +108,7 @@ impl System {
 
         match system.group_create_all() {
             Err(_) => {
-                panic!("Internal error. Group `all` or `All` already exists as System is created.")
+                panic!("Groan error. Group `all` or `All` already exists as System is created.")
             }
             Ok(_) => system,
         }
@@ -296,12 +296,12 @@ impl System {
 
         self.groups
             .get_mut("all")
-            .expect("Internal Error. Group `all` is not available after creating it.")
+            .expect("Groan error. Group `all` is not available after creating it.")
             .print_ndx = false;
 
         self.groups
             .get_mut("All")
-            .expect("Internal Error. Group `All` is not available after creating it.")
+            .expect("Groan error. Group `All` is not available after creating it.")
             .print_ndx = false;
 
         Ok(())
@@ -771,7 +771,7 @@ impl System {
                     vector,
                     simbox
                         .as_ref()
-                        .expect("Internal Error. SimBox is NULL which is impossible."),
+                        .expect("Groan error. SimBox is NULL which is impossible."),
                 );
             }
         }
@@ -792,6 +792,49 @@ impl System {
     pub fn atoms_translate(&mut self, vector: &Vector3D) {
         for atom in self.atoms.iter_mut() {
             atom.translate(vector, &self.simulation_box);
+        }
+    }
+
+    /// Renumber all atoms of the system. This function will give a new atom number
+    /// to each atom depending on the index of the atom. The atom numbers start with 1.
+    ///
+    /// ## Example
+    /// Constructing a new system containing a dimer
+    /// of a protein from the original system.
+    /// ```no_run
+    /// use groan_rs::{System, Vector3D};
+    ///
+    /// // load system and ndx groups from files
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.read_ndx("index.ndx").unwrap();
+    ///
+    /// // copy protein atoms to a new vector
+    /// let mut protein = system.group_extract("Protein").unwrap();
+    /// // copy protein atoms again (second protomer)
+    /// let mut protein2 = protein.clone();
+    ///
+    /// // translate atoms of the second protomer
+    /// let translate = Vector3D::from([2.0, 0.0, 0.0]);
+    /// for atom in protein2.iter_mut() {
+    ///     atom.translate_nopbc(&translate);
+    /// }
+    ///
+    /// // add atoms of the second protomer to the first protomer
+    /// protein.extend(protein2);
+    ///
+    /// // create new system
+    /// let mut new_system = System::new("New system", protein, system.get_box_copy());
+    /// // the atom numbers in this system will not be unique...
+    ///
+    /// // give new (correct) numbers to the atoms
+    /// new_system.atoms_renumber();
+    ///
+    /// // write a new gro file with correct atom numbers
+    /// new_system.write_gro("output.gro", true).unwrap();
+    /// ```
+    pub fn atoms_renumber(&mut self) {
+        for (i, atom) in self.atoms.iter_mut().enumerate() {
+            atom.set_atom_number(i + 1);
         }
     }
 }
@@ -830,6 +873,74 @@ mod tests {
         assert_eq!(system.get_box_as_ref().v3y, 0.0f32);
 
         assert!(system.group_exists("all"));
+    }
+
+    #[test]
+    fn from_file() {
+        let system_gro = System::from_file("test_files/example_novelocities.gro").unwrap();
+
+        assert_eq!(system_gro.get_name(), "Buforin II peptide P11L");
+        assert_eq!(system_gro.get_n_atoms(), 50);
+
+        let simbox = system_gro.get_box_as_ref();
+        assert_approx_eq!(f32, simbox.x, 6.08608);
+        assert_approx_eq!(f32, simbox.y, 6.08608);
+        assert_approx_eq!(f32, simbox.z, 6.08608);
+
+        assert_eq!(simbox.v1y, 0.0f32);
+        assert_eq!(simbox.v1z, 0.0f32);
+        assert_eq!(simbox.v2x, 0.0f32);
+
+        assert_eq!(simbox.v2z, 0.0f32);
+        assert_eq!(simbox.v3x, 0.0f32);
+        assert_eq!(simbox.v3y, 0.0f32);
+
+        let system_pdb = System::from_file("test_files/example.pdb").unwrap();
+        assert_eq!(system_pdb.get_name(), "Buforin II peptide P11L");
+        assert_eq!(system_pdb.get_n_atoms(), 50);
+
+        let simbox = system_pdb.get_box_as_ref();
+        assert_approx_eq!(f32, simbox.x, 6.0861);
+        assert_approx_eq!(f32, simbox.y, 6.0861);
+        assert_approx_eq!(f32, simbox.z, 6.0861);
+
+        assert_eq!(simbox.v1y, 0.0f32);
+        assert_eq!(simbox.v1z, 0.0f32);
+        assert_eq!(simbox.v2x, 0.0f32);
+
+        assert_eq!(simbox.v2z, 0.0f32);
+        assert_eq!(simbox.v3x, 0.0f32);
+        assert_eq!(simbox.v3y, 0.0f32);
+
+        // compare atoms from PDB an GRO file
+        for (groa, pdba) in system_gro.atoms_iter().zip(system_pdb.atoms_iter()) {
+            assert_eq!(groa.get_residue_number(), pdba.get_residue_number());
+            assert_eq!(groa.get_residue_name(), pdba.get_residue_name());
+            assert_eq!(groa.get_atom_number(), pdba.get_atom_number());
+            assert_eq!(groa.get_atom_name(), pdba.get_atom_name());
+            assert_approx_eq!(f32, groa.get_position().x, pdba.get_position().x);
+            assert_approx_eq!(f32, groa.get_position().y, pdba.get_position().y);
+            assert_approx_eq!(f32, groa.get_position().z, pdba.get_position().z);
+
+            assert_eq!(groa.get_velocity(), pdba.get_velocity());
+            assert_eq!(groa.get_force(), pdba.get_force());
+        }
+    }
+
+    #[test]
+    fn from_file_unknown() {
+        match System::from_file("test_files/index.ndx") {
+            Ok(_) => panic!("Parsing should have failed."),
+            Err(e) => assert!(e.to_string().contains("test_files/index.ndx")),
+        }
+    }
+
+    #[test]
+    fn from_file_no_extension() {
+        match System::from_file("LICENSE") {
+            Ok(_) => panic!("Parsing should have failed."),
+            Err(e) => assert!(e.to_string().contains("LICENSE")),
+        }
     }
 
     #[test]
@@ -1581,5 +1692,20 @@ mod tests {
         assert_eq!(system.group_get_n_atoms("resname POPC").unwrap(), 6144);
         assert_eq!(system.group_get_n_atoms("resname W").unwrap(), 10399);
         assert_eq!(system.group_get_n_atoms("resname ION").unwrap(), 240);
+    }
+
+    #[test]
+    fn atoms_renumber() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        for atom in system.atoms_iter_mut() {
+            atom.set_atom_number(1);
+        }
+
+        system.atoms_renumber();
+
+        for (i, atom) in system.atoms_iter().enumerate() {
+            assert_eq!(atom.get_atom_number(), i + 1);
+        }
     }
 }

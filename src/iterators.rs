@@ -350,7 +350,7 @@ impl System {
     /// not care about the additional methods `AtomIterator` implements.
     pub fn atoms_iter(&self) -> AtomIterator {
         self.group_iter("all")
-            .expect("Internal Error. Default group `all` does not exist but it should.")
+            .expect("Groan error. Default group `all` does not exist but it should.")
     }
 
     /// Create an iterator over all atoms in the system. The atoms are mutable.
@@ -370,7 +370,7 @@ impl System {
     /// ```
     pub fn atoms_iter_mut(&mut self) -> MutAtomIterator {
         self.group_iter_mut("all")
-            .expect("Internal Error. Default group `all` does not exist but it should.")
+            .expect("Groan error. Default group `all` does not exist but it should.")
     }
 }
 

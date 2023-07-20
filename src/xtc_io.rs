@@ -226,6 +226,9 @@ impl XtcWriter {
 
     /// Write the current state of the system into an open xtc file.
     ///
+    /// ## Note
+    /// - If `precision` is `None`, `precision` from the `System` structure will be used.
+    ///
     /// ## Example
     /// Reading and writing an xtc file.
     /// ```no_run
@@ -356,7 +359,7 @@ fn path2cstring(path: impl AsRef<Path>) -> Result<CString, NulError> {
     CString::new(
         path.as_ref()
             .to_str()
-            .expect("Internal Error. Could not convert path to string.")
+            .expect("Groan error. Could not convert path to string.")
             .as_bytes(),
     )
 }

@@ -6,7 +6,7 @@
 use std::io::Write;
 
 use crate::dimension::Dimension;
-use crate::errors::WriteGroError;
+use crate::errors::{WriteGroError, WritePdbError};
 use crate::simbox::SimBox;
 use crate::vector3d::Vector3D;
 
@@ -152,23 +152,38 @@ impl Atom {
         self.position.z += translate.z;
     }
 
-    /// Writes information about the atom in gro format.
+    /// Write information about the atom in gro format.
     /// Only writes velocities if requested (if `write_velocities == true`).
+    /// 
+    /// ## Notes
+    /// - Allows for 0 to 5-letter atom names, 0 to 5-letter residue names, 1 to 5-digit atom numbers, and 1 to 5-digit residue numbers.
+    /// - Longer names are shortened, longer numbers are wrapped to 0.
     pub fn write_gro(
         &self,
         stream: &mut impl Write,
         write_velocities: bool,
     ) -> Result<(), WriteGroError> {
         let position = self.get_position();
+
+        let format_atomname = match self.get_atom_name().len() {
+            0..=5 => format!("{:>5}", self.get_atom_name()),
+            _ => format!("{:>5}", self.get_atom_name().chars().take(5).collect::<String>()),
+        };
+
+        let format_resname = match self.get_residue_name().len() {
+            0..=5 => format!("{:<5}", self.get_residue_name()),
+            _ => format!("{:<5}", self.get_residue_name().chars().take(5).collect::<String>()),
+        };
+
         if write_velocities {
             let velocity = self.get_velocity();
 
             writeln!(
                 stream,
-                "{:>5}{:<5}{:>5}{:>5}{:>8.3}{:>8.3}{:>8.3}{:>8.4}{:>8.4}{:>8.4}",
+                "{:>5}{}{}{:>5}{:>8.3}{:>8.3}{:>8.3}{:>8.4}{:>8.4}{:>8.4}",
                 self.get_residue_number() % 100000,
-                self.get_residue_name(),
-                self.get_atom_name(),
+                format_resname,
+                format_atomname,
                 self.get_atom_number() % 100000,
                 position.x,
                 position.y,
@@ -183,8 +198,8 @@ impl Atom {
                 stream,
                 "{:>5}{:<5}{:>5}{:>5}{:>8.3}{:>8.3}{:>8.3}",
                 self.get_residue_number() % 100000,
-                self.get_residue_name(),
-                self.get_atom_name(),
+                format_resname,
+                format_atomname,
                 self.get_atom_number() % 100000,
                 position.x,
                 position.y,
@@ -192,6 +207,49 @@ impl Atom {
             )
             .map_err(|_| WriteGroError::CouldNotWrite())?;
         }
+
+        Ok(())
+    }
+
+    /// Write information about the atom in pdb format.
+    ///
+    /// ## Notes
+    /// - All atoms are treated as 'ATOM'. 'HETATM' is not used at all.
+    /// - Allows for 0 to 4-letter atom names, 0 to 4-letter residue names, 1 to 5-digit atom numbers and 1 to 4-digit residue numbers.
+    /// - Longer names are shortened, longer numbers are wrapped to 0.
+    pub fn write_pdb(&self, stream: &mut impl Write) -> Result<(), WritePdbError> {
+        let position = self.get_position();
+
+        let format_resname = match self.get_residue_name().len() {
+            0..=3 => format!("{:>3} ", self.get_residue_name()),
+            4 => format!("{:>4}", self.get_residue_name()),
+            _ => format!(
+                "{:>4}",
+                self.get_residue_name().chars().take(4).collect::<String>()
+            ),
+        };
+
+        let format_atomname = match self.get_atom_name().len() {
+            0..=3 => format!(" {:<3}", self.get_atom_name()),
+            4 => format!("{:<4}", self.get_atom_name()),
+            _ => format!(
+                "{:<4}",
+                self.get_atom_name().chars().take(4).collect::<String>()
+            ),
+        };
+
+        writeln!(
+            stream,
+            "ATOM  {:>5} {} {} {:>4}    {:>8.3}{:>8.3}{:>8.3}  1.00  0.00            ",
+            self.get_atom_number() % 100000,
+            format_atomname,
+            format_resname,
+            self.get_residue_number() % 10000,
+            position.x * 10.0,
+            position.y * 10.0,
+            position.z * 10.0,
+        )
+        .map_err(|_| WritePdbError::CouldNotWrite())?;
 
         Ok(())
     }
