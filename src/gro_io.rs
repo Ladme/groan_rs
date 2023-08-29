@@ -41,7 +41,9 @@ impl System {
     ) -> Result<(), WriteGroError> {
         match self.group_write_gro("all", filename, write_velocities) {
             Ok(_) => Ok(()),
-            Err(WriteGroError::GroupNotFound(_)) => panic!("Groan error. Default group 'all' does not exist."),
+            Err(WriteGroError::GroupNotFound(_)) => {
+                panic!("Groan error. Default group 'all' does not exist.")
+            }
             Err(e) => Err(e),
         }
     }

@@ -10,6 +10,7 @@ use std::path::Path;
 
 use crate::atom::Atom;
 use crate::errors::{GroupError, ParseFileError};
+use crate::files::FileType;
 use crate::gro_io;
 use crate::group::Group;
 use crate::pdb_io;
@@ -140,19 +141,9 @@ impl System {
     /// - The returned System structure will contain two default groups "all" and "All"
     /// consisting of all the atoms in the system.
     pub fn from_file(filename: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
-        // get file extension
-        let extension = match filename.as_ref().extension() {
-            Some(x) => x,
-            None => {
-                return Err(Box::from(ParseFileError::UnknownExtension(Box::from(
-                    filename.as_ref(),
-                ))))
-            }
-        };
-
-        match extension.to_str() {
-            Some("gro") => gro_io::read_gro(filename).map_err(Box::from),
-            Some("pdb") => pdb_io::read_pdb(filename).map_err(Box::from),
+        match FileType::from_name(&filename) {
+            FileType::GRO => gro_io::read_gro(filename).map_err(Box::from),
+            FileType::PDB => pdb_io::read_pdb(filename).map_err(Box::from),
             _ => Err(Box::from(ParseFileError::UnknownExtension(Box::from(
                 filename.as_ref(),
             )))),

@@ -78,7 +78,7 @@
 //! - [x] center of geometry calculations
 //! - [x] distance calculation respecting PBC
 //! - [x] simulation frame centering
-//! - [ ] reading and writing pdb files
+//! - [x] reading and writing pdb files
 //! - [ ] reading and writing trr files
 //! - [ ] reading tpr files
 //! - [ ] center of mass calculations
@@ -100,6 +100,7 @@ pub mod atom;
 mod c_xdrfile;
 pub mod dimension;
 pub mod errors;
+pub mod files;
 mod gro_io;
 mod group;
 pub mod iterators;

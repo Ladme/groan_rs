@@ -68,7 +68,6 @@ pub fn read_pdb(filename: impl AsRef<Path>) -> Result<System, ParsePdbError> {
 }
 
 impl System {
-
     /// Write all atoms of the `System` into a pdb file with the given name.
     ///
     /// ## Returns
@@ -76,7 +75,7 @@ impl System {
     ///
     /// ## Warning
     /// This function only supports orthogonal rectangular simulation boxes.
-    /// 
+    ///
     /// ## Example
     /// ```no_run
     /// use groan_rs::System;
@@ -87,17 +86,18 @@ impl System {
     ///     return;
     /// }
     /// ```
-    /// 
+    ///
     /// ## Notes
     /// - The chain identifier will not be written for any atom.
     pub fn write_pdb(&self, filename: impl AsRef<Path>) -> Result<(), WritePdbError> {
         match self.group_write_pdb("all", filename) {
             Ok(_) => Ok(()),
-            Err(WritePdbError::GroupNotFound(_)) => panic!("Groan error. Default group 'all' does not exist."),
+            Err(WritePdbError::GroupNotFound(_)) => {
+                panic!("Groan error. Default group 'all' does not exist.")
+            }
             Err(e) => Err(e),
         }
     }
-
 
     /// Write atoms of the specified group into a pdb file with the given name.
     ///
@@ -106,7 +106,7 @@ impl System {
     ///
     /// ## Warning
     /// This function only supports orthogonal rectangular simulation boxes.
-    /// 
+    ///
     /// ## Example
     /// ```no_run
     /// use groan_rs::System;
@@ -120,10 +120,14 @@ impl System {
     ///     return;
     /// }
     /// ```
-    /// 
+    ///
     /// ## Notes
     /// - The chain identifier will not be written for any atom.
-    pub fn group_write_pdb(&self, group_name: &str, filename: impl AsRef<Path>) -> Result<(), WritePdbError> {
+    pub fn group_write_pdb(
+        &self,
+        group_name: &str,
+        filename: impl AsRef<Path>,
+    ) -> Result<(), WritePdbError> {
         if !self.group_exists(group_name) {
             return Err(WritePdbError::GroupNotFound(group_name.to_string()));
         }
@@ -381,9 +385,18 @@ mod tests_read {
         let system_nochain = read_pdb("test_files/example_nochain.pdb").unwrap();
 
         assert_eq!(system_chain.get_name(), system_nochain.get_name());
-        assert_eq!(system_chain.get_box_as_ref().x, system_nochain.get_box_as_ref().x);
-        assert_eq!(system_chain.get_box_as_ref().y, system_nochain.get_box_as_ref().y);
-        assert_eq!(system_chain.get_box_as_ref().z, system_nochain.get_box_as_ref().z);
+        assert_eq!(
+            system_chain.get_box_as_ref().x,
+            system_nochain.get_box_as_ref().x
+        );
+        assert_eq!(
+            system_chain.get_box_as_ref().y,
+            system_nochain.get_box_as_ref().y
+        );
+        assert_eq!(
+            system_chain.get_box_as_ref().z,
+            system_nochain.get_box_as_ref().z
+        );
 
         for (ac, anc) in system_chain.atoms_iter().zip(system_nochain.atoms_iter()) {
             assert_eq!(ac.get_residue_number(), anc.get_residue_number());
@@ -699,7 +712,7 @@ mod tests_write {
 
         assert!(file_diff::diff_files(&mut result, &mut expected));
     }
-    
+
     #[test]
     fn write_group() {
         let mut system = System::from_file("test_files/example.gro").unwrap();

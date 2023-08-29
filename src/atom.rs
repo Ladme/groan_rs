@@ -154,7 +154,7 @@ impl Atom {
 
     /// Write information about the atom in gro format.
     /// Only writes velocities if requested (if `write_velocities == true`).
-    /// 
+    ///
     /// ## Notes
     /// - Allows for 0 to 5-letter atom names, 0 to 5-letter residue names, 1 to 5-digit atom numbers, and 1 to 5-digit residue numbers.
     /// - Longer names are shortened, longer numbers are wrapped to 0.
@@ -167,12 +167,18 @@ impl Atom {
 
         let format_atomname = match self.get_atom_name().len() {
             0..=5 => format!("{:>5}", self.get_atom_name()),
-            _ => format!("{:>5}", self.get_atom_name().chars().take(5).collect::<String>()),
+            _ => format!(
+                "{:>5}",
+                self.get_atom_name().chars().take(5).collect::<String>()
+            ),
         };
 
         let format_resname = match self.get_residue_name().len() {
             0..=5 => format!("{:<5}", self.get_residue_name()),
-            _ => format!("{:<5}", self.get_residue_name().chars().take(5).collect::<String>()),
+            _ => format!(
+                "{:<5}",
+                self.get_residue_name().chars().take(5).collect::<String>()
+            ),
         };
 
         if write_velocities {

@@ -34,7 +34,7 @@ fn unpack_set(set: &Box<HashSet<String>>) -> ColoredString {
 /// Errors that can occur when reading a file of unknown type.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum ParseFileError {
-    #[error("{} file '{}' has an unknown file extension", "error:".red().bold(), path_to_yellow(.0))]
+    #[error("{} file '{}' has an unknown or unsupported file extension", "error:".red().bold(), path_to_yellow(.0))]
     UnknownExtension(Box<Path>),
 }
 
