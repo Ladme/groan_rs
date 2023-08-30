@@ -66,5 +66,4 @@ mod tests {
     fn identify_noextension() {
         assert_eq!(FileType::from_name("file"), FileType::Unknown);
     }
-
 }

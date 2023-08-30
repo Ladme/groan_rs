@@ -134,6 +134,22 @@ impl Atom {
         self.force.z = force.z;
     }
 
+    /// Check whether the atom has non-zero velocity.
+    ///
+    /// ## Returns
+    /// `true` if the atom has non-zero velocity. `false` otherwise.
+    pub fn has_velocity(&self) -> bool {
+        self.velocity.x != 0.0 || self.velocity.y != 0.0 || self.velocity.z != 0.0
+    }
+
+    /// Check whether the atom has non-zero force acting on it.
+    ///
+    /// ## Returns
+    /// `true` if the atom has non-zero force acting on it. `false` otherwise.
+    pub fn has_force(&self) -> bool {
+        self.force.x != 0.0 || self.force.y != 0.0 || self.force.z != 0.0
+    }
+
     /// Translates the position of the atom by the provided Vector3D.
     /// Wraps the atom to the simulation box.
     pub fn translate(&mut self, translate: &Vector3D, sbox: &SimBox) {
@@ -493,6 +509,26 @@ mod tests {
         atom.set_force(&new_for);
 
         assert_eq!(*atom.get_force(), new_for);
+    }
+
+    #[test]
+    fn has_velocity() {
+        let mut atom = make_default_atom();
+        assert!(atom.has_velocity());
+
+        let new_vel = Vector3D::default();
+        atom.set_velocity(&new_vel);
+        assert!(!atom.has_velocity());
+    }
+
+    #[test]
+    fn has_force() {
+        let mut atom = make_default_atom();
+        assert!(atom.has_force());
+
+        let new_force = Vector3D::default();
+        atom.set_force(&new_force);
+        assert!(!atom.has_force());
     }
 
     #[test]

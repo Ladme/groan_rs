@@ -273,6 +273,31 @@ impl System {
         self.coordinates_precision = precision;
     }
 
+    /// Check whether velocities are present.
+    ///
+    /// ## Returns
+    /// `true` if any of the atoms in the system has non-zero velocity. `false` otherwise.
+    /// 
+    /// ## Notes
+    /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
+    pub fn has_velocities(&self) -> bool {
+        self.atoms.iter().any(|atom| atom.has_velocity())
+    }
+
+    /// Check whether forces are present.
+    ///
+    /// ## Returns
+    /// `true` if any of the atoms in the system has non-zero force acting on it. `false` otherwise.
+    /// 
+    /// ## Warning
+    /// This function is currently untested.
+    /// 
+    /// ## Notes
+    /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
+    pub fn has_forces(&self) -> bool {
+        self.atoms.iter().any(|atom| atom.has_force())
+    }
+
     /**************************/
     /*    CREATING GROUPS     */
     /**************************/
@@ -1002,6 +1027,15 @@ mod tests {
 
         assert!(groups.contains_key("Test"));
         assert!(!system.get_groups_as_ref().contains_key("Test"));
+    }
+
+    #[test]
+    fn has_velocities() {
+        let system = System::from_file("test_files/example.gro").unwrap();
+        assert!(system.has_velocities());
+
+        let system = System::from_file("test_files/example_novelocities.gro").unwrap();
+        assert!(!system.has_velocities());
     }
 
     #[test]
