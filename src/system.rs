@@ -9,7 +9,7 @@ use std::error::Error;
 use std::path::Path;
 
 use crate::atom::Atom;
-use crate::errors::{GroupError, ParseFileError};
+use crate::errors::{AtomError, GroupError, ParseFileError};
 use crate::files::FileType;
 use crate::gro_io;
 use crate::group::Group;
@@ -754,6 +754,42 @@ impl System {
     /// ```
     pub fn group_extract(&self, name: &str) -> Result<Vec<Atom>, GroupError> {
         Ok(self.group_iter(name)?.cloned().collect())
+    }
+
+    /// Get immutable reference to an atom with target atom number.
+    /// 
+    /// ## Returns
+    /// Reference to `Atom` structure or `AtomError::OutOfRange` if `gmx_number` is out of range.
+    pub fn get_atom_as_ref(&self, gmx_number: usize) -> Result<&Atom, AtomError> {
+        if gmx_number == 0 || gmx_number > self.atoms.len() {
+            return Err(AtomError::OutOfRange(gmx_number));
+        }
+
+        Ok(&self.atoms[gmx_number - 1])
+    }
+
+    /// Get mutable reference to an atom with target atom number.
+    /// 
+    /// ## Returns
+    /// Mutable reference to `Atom` structure or `AtomError::OutOfRange` if `gmx_number` is out of range.
+    pub fn get_atom_as_ref_mut(&mut self, gmx_number: usize) -> Result<&mut Atom, AtomError> {
+        if gmx_number == 0 || gmx_number > self.atoms.len() {
+            return Err(AtomError::OutOfRange(gmx_number));
+        }
+
+        Ok(&mut self.atoms[gmx_number - 1])
+    }
+
+    /// Get copy of an atom with target atom number.
+    /// 
+    /// ## Returns
+    /// Copy of an `Atom` structure or `AtomError::OutOfRange` if `gmx_number` is out of range
+    pub fn get_atom_copy(&self, gmx_number: usize) -> Result<Atom, AtomError> {
+        if gmx_number == 0 || gmx_number > self.atoms.len() {
+            return Err(AtomError::OutOfRange(gmx_number));
+        }
+
+        Ok(self.atoms[gmx_number - 1].clone())
     }
 
     /**************************/
@@ -1560,6 +1596,48 @@ mod tests {
                 e
             ),
         }
+    }
+
+    #[test]
+    fn get_atom_as_ref() {
+        let system = System::from_file("test_files/example.gro").unwrap();
+
+        assert!(system.get_atom_as_ref(0).is_err());
+        assert!(system.get_atom_as_ref(16845).is_err());
+        
+        let atom = system.get_atom_as_ref(1).unwrap();
+        assert_eq!(atom.get_atom_number(), 1);
+
+        let atom = system.get_atom_as_ref(16844).unwrap();
+        assert_eq!(atom.get_atom_number(), 16844);
+    }
+
+    #[test]
+    fn get_atom_as_ref_mut() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        assert!(system.get_atom_as_ref_mut(0).is_err());
+        assert!(system.get_atom_as_ref_mut(16845).is_err());
+        
+        let atom = system.get_atom_as_ref_mut(1).unwrap();
+        assert_eq!(atom.get_atom_number(), 1);
+
+        let atom = system.get_atom_as_ref_mut(16844).unwrap();
+        assert_eq!(atom.get_atom_number(), 16844);
+    }
+
+    #[test]
+    fn get_atom_copy() {
+        let system = System::from_file("test_files/example.gro").unwrap();
+
+        assert!(system.get_atom_copy(0).is_err());
+        assert!(system.get_atom_copy(16845).is_err());
+        
+        let atom = system.get_atom_copy(1).unwrap();
+        assert_eq!(atom.get_atom_number(), 1);
+
+        let atom = system.get_atom_copy(16844).unwrap();
+        assert_eq!(atom.get_atom_number(), 16844);
     }
 
     #[test]

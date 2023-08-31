@@ -107,6 +107,13 @@ pub enum GroupError {
     InvalidName(String),
 }
 
+/// Errors that can occur when working with atoms in a system.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum AtomError {
+    #[error("{} atom number '{}' is out of range", "error:".red().bold(), .0.to_string().as_str().yellow())]
+    OutOfRange(usize),
+}
+
 /// Errors that can occur when reading and parsing ndx file.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum ParseNdxError {
