@@ -156,6 +156,27 @@ impl Vector3D {
         ])
     }
 
+    /// Calculate the angle between two vectors. Returns angle in radians.
+    /// 
+    /// ## Example
+    /// ```
+    /// use groan_rs::Vector3D;
+    /// use float_cmp::assert_approx_eq;
+    /// 
+    /// let vector1 = Vector3D::from([1.0, 2.0, 3.0]);
+    /// let vector2 = Vector3D::from([3.0, 2.0, 1.0]);
+    /// 
+    /// let angle = vector1.angle(&vector2);
+    /// 
+    /// assert_approx_eq!(f32, angle, 0.77519345);
+    /// ```
+    /// 
+    /// ## Notes
+    /// - Always returns a value between 0 and π.
+    pub fn angle(&self, vector: &Vector3D) -> f32 {
+        (self.dot(vector) / (self.len() * vector.len())).acos()
+    }
+
     /// Shift vector in the direction of `orientation` by target distance.
     /// `orientation` does not have to be a unit vector.
     ///
@@ -609,6 +630,62 @@ mod tests {
         assert_approx_eq!(f32, cross.x, -6.87);
         assert_approx_eq!(f32, cross.y, -30.39);
         assert_approx_eq!(f32, cross.z, -1.58);
+    }
+
+    #[test]
+    fn angle_1() {
+        let vector1 = Vector3D::from([2.0, 0.0, 0.0]);
+        let vector2 = Vector3D::from([0.0, 2.0, 0.0]);
+
+        assert_approx_eq!(f32, vector1.angle(&vector2), 1.57079632);
+    }
+
+    #[test]
+    fn angle_2() {
+        let vector1 = Vector3D::from([2.0, 0.0, 0.0]);
+        let vector2 = Vector3D::from([0.0, -2.0, 0.0]);
+
+        assert_approx_eq!(f32, vector1.angle(&vector2), 1.57079632);
+    }
+
+    #[test]
+    fn angle_3() {
+        let vector1 = Vector3D::from([1.0, 0.0, 0.0]);
+        let vector2 = Vector3D::from([0.0, 0.0, 7.0]);
+
+        assert_approx_eq!(f32, vector1.angle(&vector2), 1.57079632);
+    }
+
+    #[test]
+    fn angle_4() {
+        let vector1 = Vector3D::from([1.0, 0.0, 0.0]);
+        let vector2 = Vector3D::from([3.0, 0.0, 3.0]);
+
+        assert_approx_eq!(f32, vector1.angle(&vector2), 0.785398163);
+    }
+
+    #[test]
+    fn angle_5() {
+        let vector1 = Vector3D::from([1.0, 0.0, 0.0]);
+        let vector2 = Vector3D::from([4.0, 0.0, 0.0]);
+
+        assert_approx_eq!(f32, vector1.angle(&vector2), 0.0);
+    }
+
+    #[test]
+    fn angle_6() {
+        let vector1 = Vector3D::from([1.0, 0.0, 0.0]);
+        let vector2 = Vector3D::from([-4.0, 0.0, 0.0]);
+
+        assert_approx_eq!(f32, vector1.angle(&vector2), 3.14159265);
+    }
+
+    #[test]
+    fn angle_7() {
+        let vector1 = Vector3D::from([1.0, -1.0, 3.5]);
+        let vector2 = Vector3D::from([1.2, 2.4, -0.7]);
+
+        assert_approx_eq!(f32, vector1.angle(&vector2), 1.9269546);
     }
 
     #[test]
