@@ -121,7 +121,7 @@ impl System {
     /// ## Example
     /// Creating groups for residue names and writing them into ndx file.
     /// ```no_run
-    /// use groan_rs::System;
+    /// use groan_rs::prelude::*;
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
     /// let (_, _residues) = system.group_by_resname();

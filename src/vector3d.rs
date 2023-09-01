@@ -56,7 +56,7 @@ impl Vector3D {
     ///
     /// ## Example
     /// ```
-    /// use groan_rs::Vector3D;
+    /// use groan_rs::prelude::*;
     /// use float_cmp::assert_approx_eq;
     ///
     /// let vector = Vector3D::from([1.0, 2.0, 3.0]);
@@ -73,7 +73,7 @@ impl Vector3D {
     ///
     /// ## Example
     /// ```
-    /// use groan_rs::Vector3D;
+    /// use groan_rs::prelude::*;
     /// use float_cmp::assert_approx_eq;
     ///
     /// let vector = Vector3D::from([1.0, 2.0, 3.0]).to_unit();
@@ -99,7 +99,7 @@ impl Vector3D {
     ///
     /// ## Example
     /// ```
-    /// use groan_rs::Vector3D;
+    /// use groan_rs::prelude::*;
     /// use float_cmp::assert_approx_eq;
     ///
     /// let vector = Vector3D::from([1.0, -2.0, 3.0]).invert();
@@ -120,7 +120,7 @@ impl Vector3D {
     ///
     /// ## Example
     /// ```
-    /// use groan_rs::Vector3D;
+    /// use groan_rs::prelude::*;
     /// use float_cmp::assert_approx_eq;
     ///
     /// let vector1 = Vector3D::from([4.0, 2.0, -1.0]);
@@ -136,7 +136,7 @@ impl Vector3D {
     ///
     /// ## Example
     /// ```
-    /// use groan_rs::Vector3D;
+    /// use groan_rs::prelude::*;
     /// use float_cmp::assert_approx_eq;
     ///
     /// let vector1 = Vector3D::from([4.0, 2.0, -1.0]);
@@ -157,20 +157,20 @@ impl Vector3D {
     }
 
     /// Calculate the angle between two vectors. Returns angle in radians.
-    /// 
+    ///
     /// ## Example
     /// ```
-    /// use groan_rs::Vector3D;
+    /// use groan_rs::prelude::*;
     /// use float_cmp::assert_approx_eq;
-    /// 
+    ///
     /// let vector1 = Vector3D::from([1.0, 2.0, 3.0]);
     /// let vector2 = Vector3D::from([3.0, 2.0, 1.0]);
-    /// 
+    ///
     /// let angle = vector1.angle(&vector2);
-    /// 
+    ///
     /// assert_approx_eq!(f32, angle, 0.77519345);
     /// ```
-    /// 
+    ///
     /// ## Notes
     /// - Always returns a value between 0 and π.
     pub fn angle(&self, vector: &Vector3D) -> f32 {
@@ -188,7 +188,7 @@ impl Vector3D {
     /// ## Example
     /// Shift a given point in space by 2 nm (in total) along x and y dimensions.
     /// ```
-    /// use groan_rs::{Vector3D, Dimension};
+    /// use groan_rs::prelude::*;
     /// use float_cmp::assert_approx_eq;
     ///
     /// let mut vector = Vector3D::from([1.0, 2.0, 3.0]);
@@ -214,7 +214,7 @@ impl Vector3D {
     ///
     /// ## Example
     /// ```
-    /// use groan_rs::{Vector3D, SimBox};
+    /// use groan_rs::prelude::*;
     /// use float_cmp::assert_approx_eq;
     ///
     /// let mut point = Vector3D::from([-0.5, 2.0, 4.2]);
@@ -272,7 +272,7 @@ impl Vector3D {
     /// ## Example 1: Two-dimensional distance
     /// Calculate distance between two points in the xy-plane.
     /// ```
-    /// use groan_rs::{Vector3D, SimBox, Dimension};
+    /// use groan_rs::prelude::*;
     /// use float_cmp::assert_approx_eq;
     ///
     /// let point1 = Vector3D::from([1.0, 2.0, 3.0]);
@@ -286,7 +286,7 @@ impl Vector3D {
     /// ## Example 2: One-dimensional oriented distance
     /// Calculate oriented distance between two points along the x-axis.
     /// ```
-    /// use groan_rs::{Vector3D, SimBox, Dimension};
+    /// use groan_rs::prelude::*;
     /// use float_cmp::assert_approx_eq;
     ///
     /// let point1 = Vector3D::from([1.0, 2.0, 3.0]);
@@ -336,7 +336,7 @@ impl Vector3D {
     /// ## Example 1: Two-dimensional distance
     /// Calculate naive distance between two points in the xy-plane.
     /// ```
-    /// use groan_rs::{Vector3D, Dimension};
+    /// use groan_rs::prelude::*;
     /// use float_cmp::assert_approx_eq;
     ///
     /// let point1 = Vector3D::from([1.0, 2.0, 3.0]);
@@ -348,7 +348,7 @@ impl Vector3D {
     /// ## Example 2: One-dimensional oriented distance
     /// Calculate naive oriented distance between two points along the x-axis.
     /// ```
-    /// use groan_rs::{Vector3D, Dimension};
+    /// use groan_rs::prelude::*;
     /// use float_cmp::assert_approx_eq;
     ///
     /// let point1 = Vector3D::from([1.0, 2.0, 3.0]);
@@ -401,7 +401,7 @@ impl Vector3D {
     ///
     /// ## Example
     /// ```
-    /// use groan_rs::{Vector3D, SimBox};
+    /// use groan_rs::prelude::*;
     /// use float_cmp::assert_approx_eq;
     ///
     /// let point1 = Vector3D::from([1.0, 2.0, 3.0]);
@@ -450,7 +450,7 @@ impl Vector3D {
     ///
     /// ## Example
     /// ```
-    /// use groan_rs::{Dimension, Vector3D};
+    /// use groan_rs::prelude::*;
     ///
     /// let mut vec: Vector3D = [1.0, 2.0, 3.0].into();
     ///

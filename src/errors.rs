@@ -142,36 +142,36 @@ pub enum WriteNdxError {
     CouldNotWrite,
 }
 
-/// Errors that can occur when working with xtc file.
+/// Errors that can occur when working with an xtc or a trr file.
 #[derive(Error, Debug, PartialEq, Eq)]
-pub enum XtcError {
+pub enum XdrError {
     #[error("{} unable to work with path '{}'", "error:".red().bold(), path_to_yellow(.0))]
     InvalidPath(Box<Path>),
     #[error("{} file '{}' could not be opened or created", "error:".red().bold(), path_to_yellow(.0))]
     FileNotFound(Box<Path>),
 }
 
-/// Errors that can occur when reading an xtc file.
+/// Errors that can occur when reading an xtc or trr file.
 #[derive(Error, Debug, PartialEq, Eq)]
-pub enum ReadXtcError {
+pub enum ReadXdrError {
     #[error("{} unable to work with path '{}'", "error:".red().bold(), path_to_yellow(.0))]
     InvalidPath(Box<Path>),
-    #[error("{} file '{}' was not found or could not be read as an xtc file", "error:".red().bold(), path_to_yellow(.0))]
+    #[error("{} file '{}' was not found or could not be read as an xdr file", "error:".red().bold(), path_to_yellow(.0))]
     FileNotFound(Box<Path>),
-    #[error("{} could not read frame in an xtc file", "error:".red().bold())]
+    #[error("{} could not read frame in an xdr file", "error:".red().bold())]
     FrameNotFound,
-    #[error("{} number of atoms in the xtc file '{}' does not match the number of atoms in the system", "error:".red().bold(), path_to_yellow(.0))]
+    #[error("{} number of atoms in the xdr file '{}' does not match the number of atoms in the system", "error:".red().bold(), path_to_yellow(.0))]
     AtomsNumberMismatch(Box<Path>),
 }
 
-/// Errors that can occur when writing an xtc file.
+/// Errors that can occur when writing an xtc or trr file.
 #[derive(Error, Debug, PartialEq, Eq)]
-pub enum WriteXtcError {
+pub enum WriteXdrError {
     #[error("{} unable to work with path '{}'", "error:".red().bold(), path_to_yellow(.0))]
     InvalidPath(Box<Path>),
     #[error("{} file '{}' could not be created", "error:".red().bold(), path_to_yellow(.0))]
     CouldNotCreate(Box<Path>),
-    #[error("{} could not write frame to an xtc file", "error:".red().bold())]
+    #[error("{} could not write frame to an xdr file", "error:".red().bold())]
     CouldNotWrite,
 }
 

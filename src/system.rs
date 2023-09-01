@@ -33,6 +33,8 @@ pub struct System {
     simulation_time: f32,
     /// Precision of the coordinates.
     coordinates_precision: u64,
+    /// Lambda
+    lambda: f32,
 }
 
 impl System {
@@ -44,7 +46,7 @@ impl System {
     ///
     /// ## Example 1: Manually creating a system
     /// ```no_run
-    /// use groan_rs::{Atom, SimBox, System};
+    /// use groan_rs::prelude::*;
     ///
     /// let name = "My System";
     /// let atoms = Vec::new();
@@ -59,7 +61,7 @@ impl System {
     ///
     /// ## Example 2: Creating system from other system using `extract`
     /// ```no_run
-    /// use groan_rs::System;
+    /// use groan_rs::prelude::*;
     ///
     /// // load system from file
     /// let mut original_system = System::from_file("system.gro").unwrap();
@@ -77,8 +79,7 @@ impl System {
     ///
     /// ## Example 3: Creating system from other system using iterators
     /// ```no_run
-    /// use groan_rs::System;
-    /// use groan_rs::shape::Sphere;
+    /// use groan_rs::prelude::*;
     ///
     /// let mut original_system = System::from_file("system.gro").unwrap();
     ///
@@ -105,6 +106,7 @@ impl System {
             simulation_step: 0u64,
             simulation_time: 0.0f32,
             coordinates_precision: 100u64,
+            lambda: 0.0,
         };
 
         match system.group_create_all() {
@@ -127,7 +129,7 @@ impl System {
     /// ## Example
     /// Reading gro file.
     /// ```no_run
-    /// use groan_rs::System;
+    /// use groan_rs::prelude::*;
     ///
     /// let system = match System::from_file("system.gro") {
     ///     Ok(x) => x,
@@ -253,14 +255,19 @@ impl System {
         self.coordinates_precision
     }
 
+    /// Get the simulation lambda.
+    pub fn get_lambda(&self) -> f32 {
+        self.lambda
+    }
+
     /// Set the simulation time.
     pub fn set_simulation_time(&mut self, time: f32) {
-        self.simulation_time = time
+        self.simulation_time = time;
     }
 
     /// Set the simulation step.
     pub fn set_simulation_step(&mut self, step: u64) {
-        self.simulation_step = step
+        self.simulation_step = step;
     }
 
     /// Set simulation box.
@@ -273,11 +280,16 @@ impl System {
         self.coordinates_precision = precision;
     }
 
+    /// Set the simulation lambda.
+    pub fn set_lambda(&mut self, lambda: f32) {
+        self.lambda = lambda;
+    }
+
     /// Check whether velocities are present.
     ///
     /// ## Returns
     /// `true` if any of the atoms in the system has non-zero velocity. `false` otherwise.
-    /// 
+    ///
     /// ## Notes
     /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
     pub fn has_velocities(&self) -> bool {
@@ -288,10 +300,10 @@ impl System {
     ///
     /// ## Returns
     /// `true` if any of the atoms in the system has non-zero force acting on it. `false` otherwise.
-    /// 
+    ///
     /// ## Warning
     /// This function is currently untested.
-    /// 
+    ///
     /// ## Notes
     /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
     pub fn has_forces(&self) -> bool {
@@ -333,7 +345,7 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::System;
+    /// use groan_rs::prelude::*;
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
@@ -372,7 +384,7 @@ impl System {
     /// ## Example
     /// Creating a group "My Group" containing the atoms indexed as 0, 1, 2, 3, 10, 11, and 12.
     /// ```no_run
-    /// use groan_rs::System;
+    /// use groan_rs::prelude::*;
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
@@ -412,7 +424,7 @@ impl System {
     /// ## Example
     /// Creating a group "My Group" containing the atoms of the system with indices 0-25 and 50-75 (including).
     /// ```no_run
-    /// use groan_rs::System;
+    /// use groan_rs::prelude::*;
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
@@ -451,7 +463,7 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::System;
+    /// use groan_rs::prelude::*;
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
@@ -523,7 +535,7 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::System;
+    /// use groan_rs::prelude::*;
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
@@ -636,7 +648,7 @@ impl System {
     /// ## Example:
     /// Get the number of atoms in the group "Protein".
     /// ```no_run
-    /// use groan_rs::System;
+    /// use groan_rs::prelude::*;
     ///
     /// let system = System::from_file("system.gro").unwrap();
     /// let n_atoms = system.group_get_n_atoms("Protein");
@@ -721,7 +733,7 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::{Atom, System};
+    /// use groan_rs::prelude::*;
     ///
     /// let system = System::from_file("system.gro").unwrap();
     /// let extracted: Vec<Atom> = system.atoms_extract();
@@ -739,7 +751,7 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::{Atom, System};
+    /// use groan_rs::prelude::*;
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.read_ndx("index.ndx").unwrap();
@@ -757,7 +769,7 @@ impl System {
     }
 
     /// Get immutable reference to an atom with target atom number.
-    /// 
+    ///
     /// ## Returns
     /// Reference to `Atom` structure or `AtomError::OutOfRange` if `gmx_number` is out of range.
     pub fn get_atom_as_ref(&self, gmx_number: usize) -> Result<&Atom, AtomError> {
@@ -769,7 +781,7 @@ impl System {
     }
 
     /// Get mutable reference to an atom with target atom number.
-    /// 
+    ///
     /// ## Returns
     /// Mutable reference to `Atom` structure or `AtomError::OutOfRange` if `gmx_number` is out of range.
     pub fn get_atom_as_ref_mut(&mut self, gmx_number: usize) -> Result<&mut Atom, AtomError> {
@@ -781,7 +793,7 @@ impl System {
     }
 
     /// Get copy of an atom with target atom number.
-    /// 
+    ///
     /// ## Returns
     /// Copy of an `Atom` structure or `AtomError::OutOfRange` if `gmx_number` is out of range
     pub fn get_atom_copy(&self, gmx_number: usize) -> Result<Atom, AtomError> {
@@ -804,7 +816,7 @@ impl System {
     /// ## Example
     /// Translating the atoms of the group "Protein".
     /// ```no_run
-    /// use groan_rs::System;
+    /// use groan_rs::prelude::*;
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.group_create("Protein", "resid 1 to 29");
@@ -835,7 +847,7 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::System;
+    /// use groan_rs::prelude::*;
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
@@ -854,7 +866,7 @@ impl System {
     /// Constructing a new system containing a dimer
     /// of a protein from the original system.
     /// ```no_run
-    /// use groan_rs::{System, Vector3D};
+    /// use groan_rs::prelude::*;
     ///
     /// // load system and ndx groups from files
     /// let mut system = System::from_file("system.gro").unwrap();
@@ -1604,7 +1616,7 @@ mod tests {
 
         assert!(system.get_atom_as_ref(0).is_err());
         assert!(system.get_atom_as_ref(16845).is_err());
-        
+
         let atom = system.get_atom_as_ref(1).unwrap();
         assert_eq!(atom.get_atom_number(), 1);
 
@@ -1618,7 +1630,7 @@ mod tests {
 
         assert!(system.get_atom_as_ref_mut(0).is_err());
         assert!(system.get_atom_as_ref_mut(16845).is_err());
-        
+
         let atom = system.get_atom_as_ref_mut(1).unwrap();
         assert_eq!(atom.get_atom_number(), 1);
 
@@ -1632,7 +1644,7 @@ mod tests {
 
         assert!(system.get_atom_copy(0).is_err());
         assert!(system.get_atom_copy(16845).is_err());
-        
+
         let atom = system.get_atom_copy(1).unwrap();
         assert_eq!(atom.get_atom_number(), 1);
 

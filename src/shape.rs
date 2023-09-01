@@ -59,7 +59,7 @@ impl Sphere {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::shape::Sphere;
+    /// use groan_rs::prelude::*;
     ///
     /// // constructs a sphere with radius 2.0 nm
     /// let sphere = Sphere::new(
@@ -100,7 +100,7 @@ impl Rectangular {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::shape::Rectangular;
+    /// use groan_rs::prelude::*;
     ///
     /// // constructs a rectangular box of specified size
     /// let rect = Rectangular::new(
@@ -169,8 +169,7 @@ impl Cylinder {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::shape::Cylinder;
-    /// use groan_rs::Dimension;
+    /// use groan_rs::prelude::*;
     ///
     /// // constructs a cylinder oriented along the z-dimension of the simulation box
     /// let cylinder = Cylinder::new(

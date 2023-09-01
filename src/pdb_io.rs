@@ -78,7 +78,7 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::System;
+    /// use groan_rs::prelude::*;
     ///
     /// let system = System::from_file("system.gro").unwrap();
     /// if let Err(e) = system.write_pdb("system.pdb") {
@@ -109,7 +109,7 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::System;
+    /// use groan_rs::prelude::*;
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
     ///

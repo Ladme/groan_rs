@@ -31,6 +31,7 @@ impl Group {
     }
 
     /// Create a new valid Group structure from atom ranges.
+    ///
     /// ## Parameters
     /// Expects a vector of atom ranges (start, end) and the total number of atoms in the system.
     /// The individual "atom ranges" in the atom ranges can be overlapping.
@@ -44,6 +45,7 @@ impl Group {
     }
 
     /// Create a new valid Group structure from atom indices.
+    ///
     /// ## Parameters
     /// Expects a vector of atom indices and the total number of atoms in the system.
     /// There can be duplicate atoms in the "atom indices". In the final Group structure, they will be removed.

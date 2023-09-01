@@ -31,7 +31,7 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::System;
+    /// use groan_rs::prelude::*;
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.read_ndx("index.ndx").unwrap();
@@ -103,7 +103,7 @@ impl System {
     /// ## Example
     /// Calculating the distance between the group 'Protein' and 'Membrane' along the z-dimension.
     /// ```no_run
-    /// use groan_rs::{Dimension, System};
+    /// use groan_rs::prelude::*;
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.read_ndx("index.ndx").unwrap();
@@ -140,7 +140,7 @@ impl System {
     /// ## Example
     /// Calculate distances between atoms of group 'Protein' and 'Membrane'.
     /// ```no_run
-    /// use groan_rs::{Dimension, System};
+    /// use groan_rs::prelude::*;
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.read_ndx("index.ndx").unwrap();

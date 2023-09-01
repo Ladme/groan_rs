@@ -40,8 +40,7 @@ impl<'a> AtomIterator<'a> {
     /// Iterating over all atoms of the system
     /// that are located in a sphere around a specific point.
     /// ```no_run
-    /// use groan_rs::System;
-    /// use groan_rs::shape::Sphere;
+    /// use groan_rs::prelude::*;
     ///
     /// let system = System::from_file("system.gro").unwrap();
     ///
@@ -161,8 +160,7 @@ impl<'a> MutAtomIterator<'a> {
     /// that are located in a sphere around a specific point
     /// and change their names.
     /// ```no_run
-    /// use groan_rs::System;
-    /// use groan_rs::shape::Sphere;
+    /// use groan_rs::prelude::*;
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
@@ -264,7 +262,7 @@ impl System {
     /// ## Example
     /// Printing the atoms of group "Protein".
     /// ```no_run
-    /// use groan_rs::System;
+    /// use groan_rs::prelude::*;
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.group_create("Protein", "resid 1 to 29").unwrap();
@@ -300,7 +298,7 @@ impl System {
     /// Translating the atoms of the group "Protein".
     /// Note that using `system.group_translate()` may be faster.
     /// ```no_run
-    /// use groan_rs::System;
+    /// use groan_rs::prelude::*;
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.group_create("Protein", "resid 1 to 29").unwrap();
@@ -336,7 +334,7 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::System;
+    /// use groan_rs::prelude::*;
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
@@ -359,7 +357,7 @@ impl System {
     /// Translating all the atoms in the system by a specified vector.
     /// Note that using `system.atoms_translate()` may be faster.
     /// ```no_run
-    /// use groan_rs::System;
+    /// use groan_rs::prelude::*;
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
     /// let simulation_box = system.get_box_copy();

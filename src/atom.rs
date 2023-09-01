@@ -286,7 +286,7 @@ impl Atom {
     /// ## Example
     /// Calculate distance between two atoms in the xy-plane.
     /// ```
-    /// use groan_rs::{Atom, Dimension, SimBox};
+    /// use groan_rs::prelude::*;
     /// use float_cmp::assert_approx_eq;
     ///
     /// let atom1 = Atom::new(1, "LYS", 1, "BB",  [1.0, 2.0, 3.0].into(), Default::default(), Default::default());
@@ -311,7 +311,7 @@ impl Atom {
     /// ## Example
     /// Calculate distance between an atom and a point in the xy-plane.
     /// ```
-    /// use groan_rs::{Atom, Dimension, SimBox, Vector3D};
+    /// use groan_rs::prelude::*;
     /// use float_cmp::assert_approx_eq;
     ///
     /// let atom = Atom::new(1, "LYS", 1, "BB",  [1.0, 2.0, 3.0].into(), Default::default(), Default::default());

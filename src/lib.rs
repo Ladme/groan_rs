@@ -18,14 +18,14 @@
 //!
 //! Import the crate in your Rust code:
 //! ```
-//! use groan_rs::*;
+//! use groan_rs::prelude::*;
 //! ```
 //!
 //! ## Examples
 //!
 //! Read a gro file and an ndx file and calculate the center of geometry of a protein.
 //! ```no_run
-//! use groan_rs::*;
+//! use groan_rs::prelude::*;
 //!
 //! fn main() {
 //!     // read a gro file
@@ -43,7 +43,7 @@
 //!
 //! Read an xtc file and calculate distance between two groups of atoms as a function of time.
 //! ```no_run
-//! use groan_rs::*;
+//! use groan_rs::prelude::*;
 //!
 //! fn main() {
 //!     // read a gro file
@@ -79,7 +79,7 @@
 //! - [x] distance calculation respecting PBC
 //! - [x] simulation frame centering
 //! - [x] reading and writing pdb files
-//! - [ ] reading and writing trr files
+//! - [x] reading and writing trr files
 //! - [ ] reading tpr files
 //! - [ ] center of mass calculations
 //! - [ ] support for non-orthogonal boxes
@@ -97,7 +97,6 @@ pub const GROAN_VERSION: &str = env!("CARGO_PKG_VERSION");
 mod analysis;
 //pub mod analyzer;
 pub mod atom;
-mod c_xdrfile;
 pub mod dimension;
 pub mod errors;
 pub mod files;
@@ -110,13 +109,21 @@ mod select;
 pub mod shape;
 pub mod simbox;
 pub mod system;
+pub mod trr_io;
 mod utility;
 pub mod vector3d;
+mod xdrfile;
 pub mod xtc_io;
 
-pub use atom::Atom;
-pub use dimension::Dimension;
-pub use simbox::SimBox;
-pub use system::System;
-pub use vector3d::Vector3D;
-pub use xtc_io::XtcWriter;
+/// Reexported basic `groan_rs` structures.
+pub mod prelude {
+    pub use crate::atom::Atom;
+    pub use crate::dimension::Dimension;
+    pub use crate::shape::{Cylinder, Rectangular, Shape, Sphere};
+    pub use crate::simbox::SimBox;
+    pub use crate::system::System;
+    pub use crate::trr_io::TrrWriter;
+    pub use crate::vector3d::Vector3D;
+    pub use crate::xdrfile::{XdrReader, XdrWriter};
+    pub use crate::xtc_io::XtcWriter;
+}
