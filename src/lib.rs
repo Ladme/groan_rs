@@ -122,8 +122,8 @@ pub mod prelude {
     pub use crate::shape::{Cylinder, Rectangular, Shape, Sphere};
     pub use crate::simbox::SimBox;
     pub use crate::system::System;
-    pub use crate::trr_io::TrrWriter;
+    pub use crate::trr_io::{TrrReader, TrrWriter};
     pub use crate::vector3d::Vector3D;
     pub use crate::xdrfile::{XdrReader, XdrWriter};
-    pub use crate::xtc_io::XtcWriter;
+    pub use crate::xtc_io::{XtcReader, XtcWriter};
 }
