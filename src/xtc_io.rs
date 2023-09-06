@@ -226,8 +226,8 @@ impl XdrWriter for XtcWriter {
 
     /// Write the current state of the system into an open xtc file.
     ///
-    /// ## Note
-    /// - Precision for writing the xtc file is taken from the `System` structure.
+    /// ## Returns
+    /// - `Ok` if the frame has been successfully written. Otherwise `WriteXdrError`.
     ///
     /// ## Example
     /// Reading and writing an xtc file.
@@ -254,6 +254,9 @@ impl XdrWriter for XtcWriter {
     ///     Ok(())
     /// }
     /// ```
+    ///
+    /// ## Notes
+    /// - Precision for writing the xtc file is taken from the `System` structure.
     fn write_frame(&mut self) -> Result<(), WriteXdrError> {
         unsafe {
             let n_atoms = (*self.system).get_n_atoms();

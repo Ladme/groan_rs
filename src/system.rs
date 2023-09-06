@@ -1,7 +1,7 @@
 // Released under MIT License.
 // Copyright (c) 2023 Ladislav Bartos
 
-//! Implementation of basic System methods.
+//! Implementation of the System structure and its basic methods.
 
 use indexmap::IndexMap;
 use std::collections::HashSet;
@@ -300,9 +300,6 @@ impl System {
     ///
     /// ## Returns
     /// `true` if any of the atoms in the system has non-zero force acting on it. `false` otherwise.
-    ///
-    /// ## Warning
-    /// This function is currently untested.
     ///
     /// ## Notes
     /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
@@ -1084,6 +1081,20 @@ mod tests {
 
         let system = System::from_file("test_files/example_novelocities.gro").unwrap();
         assert!(!system.has_velocities());
+    }
+
+    #[test]
+    fn has_forces() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        assert!(!system.has_forces());
+
+        system.trr_iter("test_files/short_trajectory.trr").unwrap().next();
+        assert!(system.has_forces());
+
+        system.trr_iter("test_files/short_trajectory.trr").unwrap().nth(1);
+        assert!(!system.has_forces());
+
+
     }
 
     #[test]

@@ -1,7 +1,7 @@
 // Released under MIT License.
 // Copyright (c) 2023 Ladislav Bartos
 
-//! Enum capturing file types supported by groan_rs.
+//! Enum capturing file types supported by `groan_rs`.
 
 use std::path::Path;
 

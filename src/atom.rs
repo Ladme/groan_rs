@@ -1,7 +1,7 @@
 // Released under MIT License.
 // Copyright (c) 2023 Ladislav Bartos
 
-//! Implementation of Atom methods.
+//! Implementation of the Atom structure and its methods.
 
 use std::io::Write;
 

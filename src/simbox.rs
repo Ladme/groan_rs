@@ -1,7 +1,7 @@
 // Released under MIT License.
 // Copyright (c) 2023 Ladislav Bartos
 
-//! Implementation of SimBox methods.
+//! Implementation of the SimBox structure and its methods.
 
 use std::ops::Deref;
 

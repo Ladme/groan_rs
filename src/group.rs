@@ -1,7 +1,7 @@
 // Released under MIT License.
 // Copyright (c) 2023 Ladislav Bartos
 
-//! Implementation of the Group structure and associated methods.
+//! Implementation of the Group structure and its methods.
 
 use std::io::Write;
 

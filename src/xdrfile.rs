@@ -1,7 +1,7 @@
 // Released under MIT License.
 // Copyright (c) 2023 Ladislav Bartos
 
-//! Rust bindings for the xdrfile library.
+//! Rust bindings for the `xdrfile` library.
 
 /******************************/
 /*   C bindings for XdrFile   */
@@ -184,6 +184,33 @@ pub fn simbox2matrix(simbox: &SimBox) -> [[c_float; 3usize]; 3usize] {
 /// Any structure implementing `XdrReader` can be used to read an xdr file.
 pub trait XdrReader<'a>: Iterator<Item = Result<&'a mut System, ReadXdrError>> {
     /// Open an xdr (= xtc / trr) file creating an iterator over it.
+    ///
+    /// ## Example
+    /// Using `XdrReader::new` in a generic function.
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    /// use std::path::Path;
+    ///
+    /// // this function can read any xtc or trr file
+    /// fn read_xdr_file<'a, Reader>(system: &'a mut System, file: impl AsRef<Path>)
+    ///     where Reader: XdrReader<'a>
+    /// {
+    ///     // open the xtc/trr file for reading
+    ///     let iterator = Reader::new(system, file).unwrap();
+    ///
+    ///     // read the xtc/trr file
+    ///     for raw_frame in iterator {
+    ///         let frame = raw_frame.unwrap();
+    ///
+    ///         // perform some operation with frame
+    ///     }
+    /// }
+    ///
+    /// // `read_xdr_file` can be then called to read either an xtc file or a trr file
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// read_xdr_file::<XtcReader>(&mut system, "trajectory.xtc");
+    /// read_xdr_file::<TrrReader>(&mut system, "trajectory.trr");
+    /// ```
     fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<Self, ReadXdrError>
     where
         Self: Sized;
@@ -192,6 +219,29 @@ pub trait XdrReader<'a>: Iterator<Item = Result<&'a mut System, ReadXdrError>> {
 /// Any structure implementing `XdrWriter` can be used to write an xdr file.
 pub trait XdrWriter {
     /// Open a new xdr (= xtc or trr) file for writing.
+    ///
+    /// ## Example
+    /// Using `XdrWriter::new` in a generic function.
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    /// use std::path::Path;
+    ///
+    /// // this function can write an xtc or a trr file
+    /// fn write_xdr_file<Writer>(system: &System, file: impl AsRef<Path>)
+    ///     where Writer: XdrWriter
+    /// {
+    ///     // open the xtc/trr file for writing
+    ///     let mut writer = Writer::new(system, file).unwrap();
+    ///
+    ///     // write frame into the xtc/trr file
+    ///     writer.write_frame().unwrap();
+    /// }
+    ///
+    /// // `write_xdr_file` can be then called to write either an xtc file or a trr file
+    /// let system = System::from_file("system.gro").unwrap();
+    /// write_xdr_file::<XtcWriter>(&system, "trajectory.xtc");
+    /// write_xdr_file::<TrrWriter>(&system, "trajectory.trr");
+    /// ```
     fn new(system: &System, filename: impl AsRef<Path>) -> Result<Self, WriteXdrError>
     where
         Self: Sized;

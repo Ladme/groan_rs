@@ -179,7 +179,7 @@ impl XdrWriter for TrrWriter {
     /// Open a new trr file for writing.
     ///
     /// ## Returns
-    /// An instance of `TrrWriter` structure or `WriteTrrError` in case the file can't be created.
+    /// An instance of `TrrWriter` structure or `WriteXdrError` in case the file can't be created.
     ///
     /// ## Example
     /// Create a new trr file for writing and associate a system with it.
@@ -202,6 +202,9 @@ impl XdrWriter for TrrWriter {
     }
 
     /// Write the current state of the system into an open trr file.
+    ///
+    /// ## Returns
+    /// - `Ok` if the frame has been successfully written. Otherwise `WriteXdrError`.
     ///
     /// ## Example
     /// Reading and writing a trr file.
