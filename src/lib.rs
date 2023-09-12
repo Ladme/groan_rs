@@ -9,11 +9,10 @@
 //!
 //! ## Usage
 //!
-//! Add the following dependency to your `Cargo.toml` file:
-//!
-//! ```toml
-//! [dependencies]
-//! groan_rs = "0.1.0"
+//! Run
+//! 
+//! ```
+//! $ cargo add groan_rs
 //! ```
 //!
 //! Import the crate in your Rust code:
@@ -485,8 +484,8 @@ pub mod prelude {
     pub use crate::shape::{Cylinder, Rectangular, Shape, Sphere};
     pub use crate::simbox::SimBox;
     pub use crate::system::System;
-    pub use crate::trr_io::{TrrReader, TrrWriter};
+    pub use crate::trr_io::{TrrGroupWriter, TrrReader, TrrWriter};
     pub use crate::vector3d::Vector3D;
-    pub use crate::xdrfile::{XdrReader, XdrWriter};
-    pub use crate::xtc_io::{XtcReader, XtcWriter};
+    pub use crate::xdrfile::{XdrGroupWriter, XdrReader, XdrWriter};
+    pub use crate::xtc_io::{XtcGroupWriter, XtcReader, XtcWriter};
 }

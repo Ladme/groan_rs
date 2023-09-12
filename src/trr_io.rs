@@ -9,9 +9,11 @@ use std::path::Path;
 
 use crate::atom::Atom;
 use crate::errors::{ReadXdrError, WriteXdrError, XdrError};
+use crate::group::Group;
+use crate::iterators::AtomIterator;
 use crate::system::System;
 use crate::vector3d::Vector3D;
-use crate::xdrfile::{self, OpenMode, XdrFile, XdrReader, XdrWriter};
+use crate::xdrfile::{self, OpenMode, XdrFile, XdrGroupWriter, XdrReader, XdrWriter};
 
 /**************************/
 /*      READING TRR       */
@@ -191,7 +193,7 @@ impl XdrWriter for TrrWriter {
     /// let mut writer = TrrWriter::new(&system, "output.trr").unwrap();
     /// ```
     fn new(system: &System, filename: impl AsRef<Path>) -> Result<TrrWriter, WriteXdrError> {
-        // create the trr file and save the handle to it
+        // create the trr file and save a handle to it
         let trr = match XdrFile::open_xdr(filename.as_ref(), OpenMode::Write) {
             Ok(x) => x,
             Err(XdrError::FileNotFound(x)) => return Err(WriteXdrError::CouldNotCreate(x)),
@@ -255,7 +257,150 @@ impl XdrWriter for TrrWriter {
                 forces[i] = [force.x, force.y, force.z];
             }
 
-            // write the xtc frame
+            // write the trr frame
+            let return_code = xdrfile::write_trr(
+                self.trr.handle,
+                n_atoms as c_int,
+                (*self.system).get_simulation_step() as i32,
+                (*self.system).get_simulation_time(),
+                (*self.system).get_lambda(),
+                &mut xdrfile::simbox2matrix((*self.system).get_box_as_ref()),
+                coordinates.as_mut_ptr(),
+                velocities.as_mut_ptr(),
+                forces.as_mut_ptr(),
+            );
+
+            if return_code != 0 {
+                return Err(WriteXdrError::CouldNotWrite);
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/// Structure for writing groups of atoms into trr files.
+/// Each `TrrGroupWriter` is tightly coupled with a corresponding `Group` from `System` structure.
+/// If you make updates to the `System` structure, such as during the iteration with `System::trr_iter()`,
+/// and subsequently write a TRR frame using `TrrGroupWriter::write_frame()`, the modifications
+/// made to the `System` will be reflected in the written frame.
+///
+/// Note that the purpose of the `TrrGroupWriter` is writing valid trr files with consistent number of atoms.
+/// Therefore, the `TrrGroupWriter` always works with the original provided group of atoms.
+/// If you change the meaning of this group after constructing `TrrGroupWriter` (by overwriting the group),
+/// `TrrGroupWriter` will still use the original group of atoms.
+/// If you completely remove the original group, `TrrGroupWriter` will still maintain a working copy of it.
+///
+/// `TrrGroupWriter` implements the `XdrGroupWriter` trait.
+pub struct TrrGroupWriter {
+    system: *const System,
+    trr: XdrFile,
+    /// This is a deep copy of the group from the system. `TrrGroupWriter` must always work, even if the user removes the group from the `System` or overwrites it.
+    group: Group,
+}
+
+impl XdrGroupWriter for TrrGroupWriter {
+    /// Open a new trr file for writing and associate a specific group from a specific system with it.
+    ///
+    /// ## Returns
+    /// An instance of `TrrGroupWriter` structure or `WriteXdrError` in case the file can't be created
+    /// or the group does not exist.
+    ///
+    /// ## Example
+    /// Create a new trr file for writing and associate a group with it.
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    ///
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.group_create("My Group", "resid 1-4").unwrap();
+    ///
+    /// let mut writer = TrrGroupWriter::new(&system, "My Group", "output.trr").unwrap();
+    /// ```
+    fn new(
+        system: &System,
+        group_name: &str,
+        filename: impl AsRef<Path>,
+    ) -> Result<TrrGroupWriter, WriteXdrError> {
+        // check that the group exists
+        if !system.group_exists(group_name) {
+            return Err(WriteXdrError::GroupNotFound(group_name.to_owned()));
+        }
+
+        // get copy of the group
+        let group = system.get_groups_as_ref().get(group_name).unwrap().clone();
+
+        // create the trr file and save a handle to it
+        let trr = match XdrFile::open_xdr(filename.as_ref(), OpenMode::Write) {
+            Ok(x) => x,
+            Err(XdrError::FileNotFound(x)) => return Err(WriteXdrError::CouldNotCreate(x)),
+            Err(XdrError::InvalidPath(x)) => return Err(WriteXdrError::InvalidPath(x)),
+        };
+
+        Ok(TrrGroupWriter { system, trr, group })
+    }
+
+    /// Write the current state of the group into an open trr file.
+    ///
+    /// ## Returns
+    /// - `Ok` if the frame has been successfully written. Otherwise `WriteXdrError`.
+    ///
+    /// ## Example
+    /// Reading a trr file and writing only the atoms corresponding to an ndx group `Protein` into the output trr file.
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    /// use std::error::Error;
+    ///
+    /// fn example_fn() -> Result<(), Box<dyn Error>> {
+    ///     // load system from file
+    ///     let mut system = System::from_file("system.gro")?;
+    ///     system.read_ndx("index.ndx")?;
+    ///
+    ///     // create a trr file for writing and associate it with the group `Protein`
+    ///     let mut writer = TrrGroupWriter::new(&system, "Protein", "output.trr")?;
+    ///
+    ///     // loop through the trajectory
+    ///     for raw_frame in system.trr_iter("trajectory.trr")? {
+    ///         // check for errors
+    ///         let _ = raw_frame?;
+    ///
+    ///         // write the current state of the group `Protein` into `output.trr`
+    ///         writer.write_frame()?;
+    ///     }
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    /// ## Notes
+    /// - While Gromacs supports writing trr files containing only some of the particle properties (e.g. just velocities),
+    /// `groan_rs` will always write full trr file with all the properties, even if they are zeroed.
+    fn write_frame(&mut self) -> Result<(), WriteXdrError> {
+        unsafe {
+            let n_atoms = self.group.get_n_atoms();
+
+            // create an iterator over the atoms of the group
+            let iterator = AtomIterator::new(
+                (*self.system).get_atoms_as_ref(),
+                self.group.get_atom_ranges(),
+                (*self.system).get_box_as_ref(),
+            );
+
+            // prepare coordinate, velocity and forces matrix
+            let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms as usize];
+            let mut velocities = vec![[0.0, 0.0, 0.0]; n_atoms as usize];
+            let mut forces = vec![[0.0, 0.0, 0.0]; n_atoms as usize];
+
+            for (i, atom) in iterator.enumerate() {
+                let pos = atom.get_position();
+                coordinates[i] = [pos.x, pos.y, pos.z];
+
+                let vel = atom.get_velocity();
+                velocities[i] = [vel.x, vel.y, vel.z];
+
+                let force = atom.get_force();
+                forces[i] = [force.x, force.y, force.z];
+            }
+
+            // write the trr frame
             let return_code = xdrfile::write_trr(
                 self.trr.handle,
                 n_atoms as c_int,
@@ -315,6 +460,7 @@ impl XdrFile {
 mod tests {
     use super::*;
     use float_cmp::assert_approx_eq;
+    use std::fs::File;
     use tempfile::NamedTempFile;
 
     #[test]
@@ -592,26 +738,16 @@ mod tests {
         }
     }
 
-    #[test]
-    fn write_trr() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-
-        let xtc_output = NamedTempFile::new().unwrap();
-        let path_to_output = xtc_output.path();
-
-        let mut writer = TrrWriter::new(&system, path_to_output).unwrap();
-
-        for _ in system.trr_iter("test_files/short_trajectory.trr").unwrap() {
-            writer.write_frame().unwrap();
-        }
-
-        // we must close the file, otherwise metadata do not get updated
-        drop(writer);
-
-        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+    fn check_trr(
+        system: &mut System,
+        path_to_output: impl AsRef<Path>,
+        check_filename: impl AsRef<Path>,
+        check_trr_iter: impl AsRef<Path>,
+    ) {
+        let mut system2 = System::from_file(check_filename).unwrap();
 
         for (raw_frame1, raw_frame2) in system
-            .trr_iter("test_files/short_trajectory.trr")
+            .trr_iter(check_trr_iter)
             .unwrap()
             .zip(system2.trr_iter(path_to_output).unwrap())
         {
@@ -661,12 +797,154 @@ mod tests {
     }
 
     #[test]
+    fn write_trr() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        let xtc_output = NamedTempFile::new().unwrap();
+        let path_to_output = xtc_output.path();
+
+        let mut writer = TrrWriter::new(&system, path_to_output).unwrap();
+
+        for _ in system.trr_iter("test_files/short_trajectory.trr").unwrap() {
+            writer.write_frame().unwrap();
+        }
+
+        // we must close the file, otherwise metadata do not get updated
+        drop(writer);
+
+        check_trr(
+            &mut system,
+            path_to_output,
+            "test_files/example.gro",
+            "test_files/short_trajectory.trr",
+        );
+    }
+
+    #[test]
     fn write_invalid_path() {
         let system = System::from_file("test_files/example.gro").unwrap();
 
         match TrrWriter::new(&system, "test_files/nonexistent/output.trr") {
             Err(WriteXdrError::CouldNotCreate(_)) => (),
             _ => panic!("Output TRR file should not have been created."),
+        }
+    }
+
+    #[test]
+    fn write_group_trr() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let xtc_output = NamedTempFile::new().unwrap();
+        let path_to_output = xtc_output.path();
+
+        let mut writer = TrrGroupWriter::new(&system, "Protein", path_to_output).unwrap();
+
+        for _ in system.xtc_iter("test_files/short_trajectory.xtc").unwrap() {
+            writer.write_frame().unwrap();
+        }
+
+        // we must close the file, otherwise metadata do not get updated
+        drop(writer);
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/short_trajectory_protein.trr").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_group_trr_all() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        let xtc_output = NamedTempFile::new().unwrap();
+        let path_to_output = xtc_output.path();
+
+        let mut writer = TrrGroupWriter::new(&system, "all", path_to_output).unwrap();
+
+        for _ in system.trr_iter("test_files/short_trajectory.trr").unwrap() {
+            writer.write_frame().unwrap();
+        }
+
+        // we must close the file, otherwise metadata do not get updated
+        drop(writer);
+
+        check_trr(
+            &mut system,
+            path_to_output,
+            "test_files/example.gro",
+            "test_files/short_trajectory.trr",
+        );
+    }
+
+    #[test]
+    fn write_group_trr_replace() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let xtc_output = NamedTempFile::new().unwrap();
+        let path_to_output = xtc_output.path();
+
+        let mut writer = TrrGroupWriter::new(&system, "Protein", path_to_output).unwrap();
+
+        // replace the protein group with something else; this should not change the output of the XtcGroupWriter
+        if let Ok(_) = system.group_create("Protein", "serial 1") {
+            panic!("Function should return warning but it did not.");
+        }
+
+        for _ in system.xtc_iter("test_files/short_trajectory.xtc").unwrap() {
+            writer.write_frame().unwrap();
+        }
+
+        // we must close the file, otherwise metadata do not get updated
+        drop(writer);
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/short_trajectory_protein.trr").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_group_trr_remove() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let xtc_output = NamedTempFile::new().unwrap();
+        let path_to_output = xtc_output.path();
+
+        let mut writer = TrrGroupWriter::new(&system, "Protein", path_to_output).unwrap();
+
+        // remove the protein group from the system; this should not change the output of the XtcGroupWriter
+        unsafe {
+            let val = system.get_groups_as_ref_mut().remove("Protein").unwrap();
+            assert_eq!(val.get_atom_ranges(), writer.group.get_atom_ranges());
+            assert!(!system.group_exists("Protein"));
+        }
+
+        for _ in system.xtc_iter("test_files/short_trajectory.xtc").unwrap() {
+            writer.write_frame().unwrap();
+        }
+
+        // we must close the file, otherwise metadata do not get updated
+        drop(writer);
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/short_trajectory_protein.trr").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_group_trr_nonexistent() {
+        let system = System::from_file("test_files/example.gro").unwrap();
+
+        let xtc_output = NamedTempFile::new().unwrap();
+        let path_to_output = xtc_output.path();
+
+        match TrrGroupWriter::new(&system, "Protein", path_to_output) {
+            Err(WriteXdrError::GroupNotFound(g)) => assert_eq!(g, "Protein"),
+            _ => panic!("Output XTC file should not have been created."),
         }
     }
 }

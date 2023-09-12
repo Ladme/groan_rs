@@ -24,7 +24,7 @@ pub struct AtomIterator<'a> {
 }
 
 impl<'a> AtomIterator<'a> {
-    fn new(atoms: &'a [Atom], atom_ranges: &'a [(usize, usize)], simbox: &'a SimBox) -> Self {
+    pub fn new(atoms: &'a [Atom], atom_ranges: &'a [(usize, usize)], simbox: &'a SimBox) -> Self {
         AtomIterator {
             atoms,
             atom_ranges,
@@ -143,7 +143,11 @@ pub struct MutAtomIterator<'a> {
 }
 
 impl<'a> MutAtomIterator<'a> {
-    fn new(atoms: &'a mut [Atom], atom_ranges: &'a [(usize, usize)], simbox: &'a SimBox) -> Self {
+    pub fn new(
+        atoms: &'a mut [Atom],
+        atom_ranges: &'a [(usize, usize)],
+        simbox: &'a SimBox,
+    ) -> Self {
         MutAtomIterator {
             atoms: atoms as *mut [Atom],
             atom_ranges,

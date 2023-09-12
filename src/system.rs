@@ -184,7 +184,7 @@ impl System {
         self.atoms.clone()
     }
 
-    /// Get immutable refernece to the groups in the system.
+    /// Get immutable reference to the groups in the system.
     pub fn get_groups_as_ref(&self) -> &IndexMap<String, Group> {
         &self.groups
     }
@@ -1088,13 +1088,17 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         assert!(!system.has_forces());
 
-        system.trr_iter("test_files/short_trajectory.trr").unwrap().next();
+        system
+            .trr_iter("test_files/short_trajectory.trr")
+            .unwrap()
+            .next();
         assert!(system.has_forces());
 
-        system.trr_iter("test_files/short_trajectory.trr").unwrap().nth(1);
+        system
+            .trr_iter("test_files/short_trajectory.trr")
+            .unwrap()
+            .nth(1);
         assert!(!system.has_forces());
-
-
     }
 
     #[test]

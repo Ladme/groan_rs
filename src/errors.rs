@@ -173,6 +173,8 @@ pub enum WriteXdrError {
     CouldNotCreate(Box<Path>),
     #[error("{} could not write frame to an xdr file", "error:".red().bold())]
     CouldNotWrite,
+    #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
+    GroupNotFound(String),
 }
 
 /// Errors that can occur when parsing atom selection query.
