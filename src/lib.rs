@@ -11,7 +11,7 @@
 //!
 //! Run
 //! 
-//! ```
+//! ```ignore
 //! $ cargo add groan_rs
 //! ```
 //!

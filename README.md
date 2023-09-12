@@ -3,11 +3,10 @@
 Rust library for analyzing Gromacs simulations. Currently in very early stage of development: anything can break, change or stop working at any time.
 
 ## Usage
-Add the following dependency to your `Cargo.toml` file:
+Run
 
 ```
-[dependencies]
-groan_rs = "0.1.0"
+$ cargo add groan_rs
 ```
 
 Import the crate in your Rust code:
