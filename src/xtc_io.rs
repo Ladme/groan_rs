@@ -76,7 +76,7 @@ impl<'a> Iterator for XtcReader<'a> {
             let mut time: c_float = 0.0;
             let mut boxvector: [[c_float; 3usize]; 3usize] = [[0.0; 3]; 3];
             let mut precision: c_float = 0.0;
-            let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms as usize];
+            let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
 
             // read xtc frame
             let return_code = xdrfile::read_xtc(
@@ -264,7 +264,7 @@ impl XdrWriter for XtcWriter {
             let n_atoms = (*self.system).get_n_atoms();
 
             // prepare coordinate matrix
-            let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms as usize];
+            let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
             for (i, atom) in (*self.system).atoms_iter().enumerate() {
                 let pos = atom.get_position();
                 coordinates[i] = [pos.x, pos.y, pos.z];
@@ -394,7 +394,7 @@ impl XdrGroupWriter for XtcGroupWriter {
             );
 
             // prepare coordinate matrix
-            let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms as usize];
+            let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
             for (i, atom) in iterator.enumerate() {
                 let pos = atom.get_position();
                 coordinates[i] = [pos.x, pos.y, pos.z];

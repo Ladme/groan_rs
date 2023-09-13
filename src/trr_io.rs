@@ -76,9 +76,9 @@ impl<'a> Iterator for TrrReader<'a> {
             let mut time: c_float = 0.0;
             let mut boxvector: [[c_float; 3usize]; 3usize] = [[0.0; 3]; 3];
             let mut lambda: c_float = 0.0;
-            let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms as usize];
-            let mut velocities = vec![[0.0, 0.0, 0.0]; n_atoms as usize];
-            let mut forces = vec![[0.0, 0.0, 0.0]; n_atoms as usize];
+            let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
+            let mut velocities = vec![[0.0, 0.0, 0.0]; n_atoms];
+            let mut forces = vec![[0.0, 0.0, 0.0]; n_atoms];
 
             // read xtc frame
             let return_code = xdrfile::read_trr(
@@ -242,9 +242,9 @@ impl XdrWriter for TrrWriter {
             let n_atoms = (*self.system).get_n_atoms();
 
             // prepare coordinate, velocity and forces matrix
-            let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms as usize];
-            let mut velocities = vec![[0.0, 0.0, 0.0]; n_atoms as usize];
-            let mut forces = vec![[0.0, 0.0, 0.0]; n_atoms as usize];
+            let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
+            let mut velocities = vec![[0.0, 0.0, 0.0]; n_atoms];
+            let mut forces = vec![[0.0, 0.0, 0.0]; n_atoms];
 
             for (i, atom) in (*self.system).atoms_iter().enumerate() {
                 let pos = atom.get_position();
@@ -383,9 +383,9 @@ impl XdrGroupWriter for TrrGroupWriter {
             );
 
             // prepare coordinate, velocity and forces matrix
-            let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms as usize];
-            let mut velocities = vec![[0.0, 0.0, 0.0]; n_atoms as usize];
-            let mut forces = vec![[0.0, 0.0, 0.0]; n_atoms as usize];
+            let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
+            let mut velocities = vec![[0.0, 0.0, 0.0]; n_atoms];
+            let mut forces = vec![[0.0, 0.0, 0.0]; n_atoms];
 
             for (i, atom) in iterator.enumerate() {
                 let pos = atom.get_position();

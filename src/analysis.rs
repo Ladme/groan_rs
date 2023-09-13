@@ -171,8 +171,8 @@ impl System {
         group2: &str,
         dim: Dimension,
     ) -> Result<Vec<Vec<f32>>, GroupError> {
-        let n_atoms_group1 = self.group_get_n_atoms(group1)? as usize;
-        let n_atoms_group2 = self.group_get_n_atoms(group2)? as usize;
+        let n_atoms_group1 = self.group_get_n_atoms(group1)?;
+        let n_atoms_group2 = self.group_get_n_atoms(group2)?;
 
         let mut distances = Vec::with_capacity(n_atoms_group1);
 

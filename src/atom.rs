@@ -298,10 +298,7 @@ impl Atom {
             ),
         };
 
-        let format_chain = match self.get_chain() {
-            None => ' ',
-            Some(x) => x,
-        };
+        let format_chain = self.get_chain().unwrap_or(' ');
 
         writeln!(
             stream,

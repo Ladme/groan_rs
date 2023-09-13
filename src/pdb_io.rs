@@ -49,17 +49,17 @@ pub fn read_pdb(filename: impl AsRef<Path>) -> Result<System, ParsePdbError> {
         };
 
         // parse ATOM/HETATM line
-        if (line.len() >= 4 && line[0..4] == "ATOM".to_string())
-            || (line.len() >= 6 && line[0..6] == "HETATM".to_string())
+        if (line.len() >= 4 && line[0..4] == *"ATOM")
+            || (line.len() >= 6 && line[0..6] == *"HETATM")
         {
             atoms.push(line_as_atom(&line)?);
         }
         // parse TITLE line
-        else if line.len() >= 5 && line[0..5] == "TITLE".to_string() {
+        else if line.len() >= 5 && line[0..5] == *"TITLE" {
             title = line_as_title(&line)?;
         }
         // parse CRYST1 line
-        else if line.len() >= 6 && line[0..6] == "CRYST1".to_string() {
+        else if line.len() >= 6 && line[0..6] == *"CRYST1" {
             simbox = line_as_box(&line)?;
         }
     }
@@ -196,8 +196,8 @@ fn line_as_atom(line: &str) -> Result<Atom, ParsePdbError> {
     // parsing position
     let mut curr = 30usize;
     let mut position = [0.0, 0.0, 0.0];
-    for i in 0..3 {
-        position[i] = line[curr..curr + 8]
+    for pos in &mut position {
+        *pos = line[curr..curr + 8]
             .trim()
             .parse::<f32>()
             .map(|x| x / 10.0)
@@ -235,8 +235,8 @@ fn line_as_box(line: &str) -> Result<SimBox, ParsePdbError> {
 
     let mut boxsize = [0.0, 0.0, 0.0];
     let mut curr = 6usize;
-    for i in 0..3 {
-        boxsize[i] = line[curr..curr + 9]
+    for dim in &mut boxsize {
+        *dim = line[curr..curr + 9]
             .trim()
             .parse::<f32>()
             .map(|x| x / 10.0)

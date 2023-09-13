@@ -74,7 +74,7 @@ impl<'a> Iterator for AtomIterator<'a> {
             }
 
             if self.current_index <= *end {
-                let atom = unsafe { self.atoms.get_unchecked(self.current_index as usize) };
+                let atom = unsafe { self.atoms.get_unchecked(self.current_index) };
                 self.current_index += 1;
                 return Some(atom);
             }
@@ -198,7 +198,7 @@ impl<'a> Iterator for MutAtomIterator<'a> {
             }
 
             if self.current_index <= *end {
-                let atom = unsafe { (*self.atoms).get_unchecked_mut(self.current_index as usize) };
+                let atom = unsafe { (*self.atoms).get_unchecked_mut(self.current_index) };
                 self.current_index += 1;
                 return Some(atom);
             }
@@ -317,7 +317,7 @@ impl System {
     ///     Err(e) => eprintln!("{}", e),
     /// };
     /// ```
-    pub fn group_iter_mut<'a>(&'a mut self, name: &str) -> Result<MutAtomIterator, GroupError> {
+    pub fn group_iter_mut(&mut self, name: &str) -> Result<MutAtomIterator, GroupError> {
         unsafe {
             let simbox = self.get_box_as_ref() as *const SimBox;
 

@@ -98,7 +98,7 @@ impl Group {
 
             Select::GmxAtomNumber(numbers) => Ok(numbers
                 .iter()
-                .any(|&(start, end)| atom_index + 1 >= start && atom_index + 1 <= end)),
+                .any(|&(start, end)| atom_index + 1 >= start && atom_index < end)),
 
             Select::AtomNumber(numbers) => {
                 let atomnum = system.get_atoms_as_ref()[atom_index].get_atom_number();

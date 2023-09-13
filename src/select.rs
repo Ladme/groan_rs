@@ -421,7 +421,7 @@ fn parse_token(string: &str) -> Result<Select, SelectError> {
                         Err(SelectError::InvalidChainId("".to_string()))
                     }
                 })
-                .map(|parsed| Select::Chain(parsed))
+                .map(Select::Chain)
         }
 
         "group" => {
