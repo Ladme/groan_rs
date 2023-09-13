@@ -107,6 +107,15 @@ impl Group {
                     .any(|&(start, end)| atomnum >= start && atomnum <= end))
             }
 
+            Select::Chain(identifiers) => {
+                let chain = match system.get_atoms_as_ref()[atom_index].get_chain() {
+                    None => return Ok(false),
+                    Some(x) => x,
+                };
+
+                Ok(identifiers.iter().any(|&target| target == chain))
+            }
+
             Select::GroupName(names) => {
                 for name in names.iter() {
                     match system.group_isin(name, atom_index) {

@@ -15,6 +15,7 @@ pub enum Select {
     ResidueNumber(Vec<(usize, usize)>),
     GmxAtomNumber(Vec<(usize, usize)>),
     AtomNumber(Vec<(usize, usize)>),
+    Chain(Vec<char>),
     GroupName(Vec<String>),
     And(Box<Select>, Box<Select>),
     Or(Box<Select>, Box<Select>),
@@ -67,6 +68,7 @@ pub fn parse_query(query: &str) -> Result<Box<Select>, SelectError> {
             Err(SelectError::InvalidParentheses(query.to_string()))
         }
         Err(SelectError::InvalidNumber(_)) => Err(SelectError::InvalidNumber(query.to_string())),
+        Err(SelectError::InvalidChainId(_)) => Err(SelectError::InvalidChainId(query.to_string())),
         Err(_) => Err(SelectError::UnknownError(query.to_string())),
     }
 }
@@ -401,6 +403,27 @@ fn parse_token(string: &str) -> Result<Select, SelectError> {
                 usize::MAX,
             )))
         }
+
+        "chain" => {
+            if token.len() <= 1 {
+                return Err(SelectError::EmptyArgument("".to_string()));
+            }
+
+            // collect tokens into the Select::Chain enum and check that each token is only one character long
+            token
+                .iter()
+                .skip(1)
+                .try_fold(Vec::new(), |mut acc, t| {
+                    if t.len() == 1 {
+                        acc.push(t.chars().next().unwrap());
+                        Ok(acc)
+                    } else {
+                        Err(SelectError::InvalidChainId("".to_string()))
+                    }
+                })
+                .map(|parsed| Select::Chain(parsed))
+        }
+
         "group" => {
             if token.len() <= 1 {
                 return Err(SelectError::EmptyArgument("".to_string()));
@@ -836,6 +859,26 @@ mod pass_tests {
         advanced_ranges_8,
         "atomnum 1 15 4- 6-12",
         Select::AtomNumber(vec![(1, 1), (4, 12), (15, 15)])
+    );
+
+    parsing_success!(chain_simple, "chain B", Select::Chain(vec!['B']));
+
+    parsing_success!(
+        chain_multi,
+        "chain B C E F",
+        Select::Chain(vec!['B', 'C', 'E', 'F'])
+    );
+
+    parsing_success!(
+        chain_combined,
+        "(serial 1 to 3 and chain A) or chain C D",
+        Select::Or(
+            Box::from(Select::And(
+                Box::from(Select::GmxAtomNumber(vec![(1, 3)])),
+                Box::from(Select::Chain(vec!['A']))
+            )),
+            Box::from(Select::Chain(vec!['C', 'D']))
+        )
     );
 
     parsing_success!(
@@ -1660,6 +1703,18 @@ mod fail_tests {
     parsing_fails!(invalid_range_2, "resid 25 -20", SelectError::InvalidNumber);
     parsing_fails!(invalid_range_3, "resid 25- 20", SelectError::InvalidNumber);
     parsing_fails!(invalid_range_4, "resid 25 - 20", SelectError::InvalidNumber);
+
+    parsing_fails!(chain_multichar_1, "chain AB", SelectError::InvalidChainId);
+    parsing_fails!(
+        chain_multichar_2,
+        "chain myidentifier",
+        SelectError::InvalidChainId
+    );
+    parsing_fails!(
+        chain_multichar_3,
+        "chain A B C chain",
+        SelectError::InvalidChainId
+    );
 
     parsing_fails!(
         fail_parentheses_1,

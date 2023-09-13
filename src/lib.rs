@@ -11,7 +11,7 @@
 //!
 //! Run
 //!
-//! ```ignore
+//! ```bash
 //! $ cargo add groan_rs
 //! ```
 //!
@@ -351,6 +351,7 @@
 //! - Their **atom names** using `name XYZ` or `atomname XYZ`. For instance, `name P` will select all atoms of the system which name is P.
 //! - Their **real atom numbers** using `serial XYZ`. For instance, `serial 256` will select the atom with the number 256 (this is guaranteed to be a single atom). Note that in this case, the atoms are selected based on their "real" atom numbers, as understood by gromacs, **not** by the atom numbers specified in the `gro` or `pdb` file the system originates from.
 //! - Their **gro atom numbers** using `atomid XYZ` or `atomnum XYZ`. For instance, `atomid 124` will select all atoms which have the atom number 124 in the `gro` or `pdb` file the system originates from. This can be multiple atoms.
+//! - Their **chain identifiers** using `chain X`. For instance `chain A` will select all atoms belonging to the chain 'A'. The information about chains is usually present in pdb files. Note that if no chain information is present, using this keyword will select no atoms.
 //!
 //! **Multiple identifiers**
 //!
@@ -359,6 +360,7 @@
 //! - `resid 13 15 16 17` will select all atoms corresponding to residues with numbers 13, 15, 16, or 17.
 //! - `name P CA HA` will select all atoms with atom names P, CA, or HA.
 //! - `serial 245 267 269 271` will select atoms numbered 245, 267, 269, or 271.
+//! - `chain A B C` will select atoms belonging to the chains 'A', 'B', or 'C'.
 //!
 //! **Selecting atoms using groups**
 //!

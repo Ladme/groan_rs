@@ -1246,6 +1246,39 @@ mod tests {
     }
 
     #[test]
+    fn group_create_chain() {
+        let mut system = System::from_file("test_files/example.pdb").unwrap();
+
+        system.group_create("Chains A+B", "chain A B").unwrap();
+
+        assert!(system.group_exists("Chains A+B"));
+        assert_eq!(system.group_get_n_atoms("Chains A+B").unwrap(), 31);
+
+        for i in 0..=30 {
+            assert!(system.group_isin("Chains A+B", i).unwrap());
+        }
+
+        system.group_create("Chain C", "chain C").unwrap();
+
+        assert!(system.group_exists("Chain C"));
+        assert_eq!(system.group_get_n_atoms("Chain C").unwrap(), 19);
+
+        for i in 31..=49 {
+            assert!(system.group_isin("Chain C", i).unwrap());
+        }
+    }
+
+    #[test]
+    fn group_create_chain_from_gro() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.group_create("Chains A+B", "chain A B").unwrap();
+
+        assert!(system.group_exists("Chains A+B"));
+        assert_eq!(system.group_get_n_atoms("Chains A+B").unwrap(), 0);
+    }
+
+    #[test]
     fn group_create_macro() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 

@@ -196,6 +196,8 @@ pub enum SelectError {
     InvalidNumber(String),
     #[error("{} group '{}' does not exist", "error:".red().bold(), .0.to_string().yellow())]
     GroupNotFound(String),
+    #[error("{} invalid chain identifier(s) in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
+    InvalidChainId(String),
     #[error("{} the provided query '{}' could not be understood for unknown reason", "error:".red().bold(), .0.to_string().yellow())]
     UnknownError(String),
 }

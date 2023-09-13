@@ -184,6 +184,9 @@ fn line_as_atom(line: &str) -> Result<Atom, ParsePdbError> {
         return Err(ParsePdbError::ParseAtomLineErr(line.to_string()));
     }
 
+    // parsing chain
+    let chain = line.chars().nth(21).filter(|&x| !x.is_whitespace());
+
     // parsing residue number
     let residue_number = line[22..26]
         .trim()
@@ -203,7 +206,7 @@ fn line_as_atom(line: &str) -> Result<Atom, ParsePdbError> {
         curr += 8;
     }
 
-    Ok(Atom::new(
+    let atom = Atom::new(
         residue_number,
         &residue_name,
         atom_number,
@@ -211,7 +214,13 @@ fn line_as_atom(line: &str) -> Result<Atom, ParsePdbError> {
         position.into(),
         Vector3D::default(),
         Vector3D::default(),
-    ))
+    );
+
+    // add chain information, if available
+    match chain {
+        Some(x) => Ok(atom.with_chain(x)),
+        None => Ok(atom),
+    }
 }
 
 /// Parse a single line as a simulation box.
@@ -340,6 +349,7 @@ mod tests_read {
         assert_eq!(first.get_residue_name(), "THR");
         assert_eq!(first.get_atom_name(), "BB");
         assert_eq!(first.get_atom_number(), 1);
+        assert_eq!(first.get_chain().unwrap(), 'A');
 
         assert!(approx_eq!(f32, first.get_position().x, 1.660));
         assert!(approx_eq!(f32, first.get_position().y, 2.061));
@@ -351,6 +361,7 @@ mod tests_read {
         assert_eq!(middle.get_residue_name(), "LEU");
         assert_eq!(middle.get_atom_name(), "SC1");
         assert_eq!(middle.get_atom_number(), 25);
+        assert_eq!(middle.get_chain().unwrap(), 'B');
 
         assert!(approx_eq!(f32, middle.get_position().x, 3.161));
         assert!(approx_eq!(f32, middle.get_position().y, 2.868));
@@ -362,6 +373,7 @@ mod tests_read {
         assert_eq!(last.get_residue_name(), "LYS");
         assert_eq!(last.get_atom_name(), "SC2");
         assert_eq!(last.get_atom_number(), 50);
+        assert_eq!(last.get_chain().unwrap(), 'C');
 
         assert!(approx_eq!(f32, last.get_position().x, 4.706));
         assert!(approx_eq!(f32, last.get_position().y, 4.447));
@@ -409,6 +421,8 @@ mod tests_read {
 
             assert_eq!(ac.get_velocity(), anc.get_velocity());
             assert_eq!(ac.get_force(), anc.get_force());
+
+            assert_eq!(anc.get_chain(), None);
         }
     }
 
@@ -441,6 +455,7 @@ mod tests_read {
         assert_eq!(first.get_residue_name(), "THR");
         assert_eq!(first.get_atom_name(), "BB");
         assert_eq!(first.get_atom_number(), 1);
+        assert_eq!(first.get_chain().unwrap(), 'A');
 
         assert!(approx_eq!(f32, first.get_position().x, 1.660));
         assert!(approx_eq!(f32, first.get_position().y, 2.061));
@@ -452,6 +467,7 @@ mod tests_read {
         assert_eq!(middle.get_residue_name(), "LEU");
         assert_eq!(middle.get_atom_name(), "SC1");
         assert_eq!(middle.get_atom_number(), 25);
+        assert_eq!(middle.get_chain().unwrap(), 'A');
 
         assert!(approx_eq!(f32, middle.get_position().x, 3.161));
         assert!(approx_eq!(f32, middle.get_position().y, 2.868));
@@ -463,6 +479,7 @@ mod tests_read {
         assert_eq!(last.get_residue_name(), "LYS");
         assert_eq!(last.get_atom_name(), "SC2");
         assert_eq!(last.get_atom_number(), 50);
+        assert_eq!(last.get_chain().unwrap(), 'A');
 
         assert!(approx_eq!(f32, last.get_position().x, 4.706));
         assert!(approx_eq!(f32, last.get_position().y, 4.447));
@@ -641,6 +658,23 @@ mod tests_write {
             Ok(_) => panic!("Writing should have failed, but it did not."),
             Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
         }
+    }
+
+    #[test]
+    fn write_with_chains() {
+        let system = System::from_file("test_files/example.pdb").unwrap();
+
+        let pdb_output = NamedTempFile::new().unwrap();
+        let path_to_output = pdb_output.path();
+
+        if let Err(_) = system.write_pdb(path_to_output) {
+            panic!("Writing pdb file failed.");
+        }
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/example.pdb").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
     }
 
     #[test]

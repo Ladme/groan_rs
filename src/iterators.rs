@@ -421,10 +421,6 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        for atom in system.group_iter("ION").unwrap() {
-            println!("{:?}", atom);
-        }
-
         for (group_atom, system_atom) in system
             .group_iter("ION")
             .unwrap()
