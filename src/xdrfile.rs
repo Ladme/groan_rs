@@ -249,3 +249,14 @@ pub trait XdrWriter {
     /// Write the current state of the system into an open xdr file (xtc or trr).
     fn write_frame(&mut self) -> Result<(), WriteXdrError>;
 }
+
+/// Any structure implementing `XdrGroupWriter` can be used to write an xdr file.
+pub trait XdrGroupWriter {
+    /// Open a new xdr file for writing and associate a specific group from a specific system with it.
+    fn new(system: &System, group: &str, filename: impl AsRef<Path>) -> Result<Self, WriteXdrError>
+    where
+        Self: Sized;
+
+    /// Write the current state of the specified group into an open xdr file (xtc or trr).
+    fn write_frame(&mut self) -> Result<(), WriteXdrError>;
+}

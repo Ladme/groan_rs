@@ -67,26 +67,17 @@ impl fmt::Display for Dimension {
 impl Dimension {
     /// Return `true` if Dimension contains x-dimension.
     pub fn is_x(self) -> bool {
-        match self {
-            Dimension::X | Dimension::XY | Dimension::XZ | Dimension::XYZ => true,
-            _ => false,
-        }
+        matches!(self, Dimension::X | Dimension::XY | Dimension::XZ | Dimension::XYZ)
     }
 
     /// Return `true` if Dimension contains y-dimension.
     pub fn is_y(self) -> bool {
-        match self {
-            Dimension::Y | Dimension::XY | Dimension::YZ | Dimension::XYZ => true,
-            _ => false,
-        }
+        matches!(self, Dimension::Y | Dimension::XY | Dimension::YZ | Dimension::XYZ)
     }
 
     /// Return `true` if Dimension contains z-dimension.
     pub fn is_z(self) -> bool {
-        match self {
-            Dimension::Z | Dimension::XZ | Dimension::YZ | Dimension::XYZ => true,
-            _ => false,
-        }
+        matches!(self, Dimension::Z | Dimension::XZ | Dimension::YZ | Dimension::XYZ)
     }
 }
 

@@ -16,6 +16,7 @@ pub struct Atom {
     residue_name: String,
     atom_number: usize,
     atom_name: String,
+    chain: Option<char>,
     position: Vector3D,
     velocity: Vector3D,
     force: Vector3D,
@@ -23,6 +24,10 @@ pub struct Atom {
 
 impl Atom {
     /// Create new Atom structure with the specified properties.
+    ///
+    /// ## Notes
+    /// - By default, `Atom` structure is constructed with `chain` property set to `None`.
+    /// You can provide information about the `chain` using `Atom::with_chain` function.
     pub fn new(
         residue_number: usize,
         residue_name: &str,
@@ -37,10 +42,33 @@ impl Atom {
             residue_name: residue_name.to_string(),
             atom_number,
             atom_name: atom_name.to_string(),
+            chain: None,
             position,
             velocity,
             force,
         }
+    }
+
+    /// Add chain information to target atom.
+    ///
+    /// ## Example
+    /// ```
+    /// use groan_rs::prelude::*;
+    /// let atom = Atom::new(
+    ///     1,
+    ///     "LYS",
+    ///     1,
+    ///     "BB",
+    ///     [1.4, 1.5, 1.7].into(),
+    ///     Vector3D::default(),
+    ///     Vector3D::default(),
+    /// ).with_chain('A');
+    ///
+    /// assert_eq!(atom.get_chain().unwrap(), 'A');
+    /// ```
+    pub fn with_chain(mut self, chain: char) -> Self {
+        self.set_chain(chain);
+        self
     }
 
     /// Get the number of the residue to which the atom belongs.
@@ -81,6 +109,16 @@ impl Atom {
     /// Set the name of the atom.
     pub fn set_atom_name(&mut self, atomname: &str) {
         self.atom_name = atomname.to_string();
+    }
+
+    /// Get the chain this atom is part of.
+    pub fn get_chain(&self) -> Option<char> {
+        self.chain
+    }
+
+    /// Set the chain of the atom.
+    pub fn set_chain(&mut self, chain: char) {
+        self.chain = Some(chain);
     }
 
     /// Get the coordinates of the atom.
@@ -260,12 +298,15 @@ impl Atom {
             ),
         };
 
+        let format_chain = self.get_chain().unwrap_or(' ');
+
         writeln!(
             stream,
-            "ATOM  {:>5} {} {} {:>4}    {:>8.3}{:>8.3}{:>8.3}  1.00  0.00            ",
+            "ATOM  {:>5} {} {}{}{:>4}    {:>8.3}{:>8.3}{:>8.3}  1.00  0.00            ",
             self.get_atom_number() % 100000,
             format_atomname,
             format_resname,
+            format_chain,
             self.get_residue_number() % 10000,
             position.x * 10.0,
             position.y * 10.0,

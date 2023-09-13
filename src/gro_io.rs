@@ -157,7 +157,7 @@ pub fn read_gro(filename: impl AsRef<Path>) -> Result<System, ParseGroError> {
     let n_atoms = get_natoms(&mut buffer, filename.as_ref())?;
     let mut simulation_box = [0.0f32; 9].into();
 
-    let mut atoms: Vec<Atom> = Vec::with_capacity(n_atoms as usize);
+    let mut atoms: Vec<Atom> = Vec::with_capacity(n_atoms);
 
     // parse all remaining lines
     for (gmx_index, raw_line) in buffer.lines().enumerate() {
@@ -166,7 +166,7 @@ pub fn read_gro(filename: impl AsRef<Path>) -> Result<System, ParseGroError> {
             Err(_) => return Err(ParseGroError::LineNotFound(Box::from(filename.as_ref()))),
         };
 
-        if gmx_index == n_atoms as usize {
+        if gmx_index == n_atoms {
             simulation_box = line_as_box(&line)?;
         } else {
             let atom = line_as_atom(&line)?;
@@ -174,7 +174,7 @@ pub fn read_gro(filename: impl AsRef<Path>) -> Result<System, ParseGroError> {
         }
     }
 
-    if atoms.len() != n_atoms as usize {
+    if atoms.len() != n_atoms {
         return Err(ParseGroError::LineNotFound(Box::from(filename.as_ref())));
     }
 

@@ -8,18 +8,18 @@ use std::collections::HashSet;
 use std::path::Path;
 use thiserror::Error;
 
-fn path_to_yellow(path: &Box<Path>) -> ColoredString {
+fn path_to_yellow(path: &Path) -> ColoredString {
     path.to_str().unwrap().yellow()
 }
 
-fn unpack_set(set: &Box<HashSet<String>>) -> ColoredString {
+fn unpack_set(set: &HashSet<String>) -> ColoredString {
     let mut output = String::new();
     let len = set.len();
-    output.push_str("\n");
+    output.push('\n');
 
     for (i, key) in set.iter().enumerate() {
-        output.push_str(&key);
-        output.push_str("\n");
+        output.push_str(key);
+        output.push('\n');
 
         if i >= 9 && len != i + 1 {
             let and_more = format!("...and {} more...", len - i - 1);
@@ -173,6 +173,8 @@ pub enum WriteXdrError {
     CouldNotCreate(Box<Path>),
     #[error("{} could not write frame to an xdr file", "error:".red().bold())]
     CouldNotWrite,
+    #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
+    GroupNotFound(String),
 }
 
 /// Errors that can occur when parsing atom selection query.
@@ -194,6 +196,8 @@ pub enum SelectError {
     InvalidNumber(String),
     #[error("{} group '{}' does not exist", "error:".red().bold(), .0.to_string().yellow())]
     GroupNotFound(String),
+    #[error("{} invalid chain identifier(s) in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
+    InvalidChainId(String),
     #[error("{} the provided query '{}' could not be understood for unknown reason", "error:".red().bold(), .0.to_string().yellow())]
     UnknownError(String),
 }

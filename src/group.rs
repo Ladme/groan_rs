@@ -98,13 +98,22 @@ impl Group {
 
             Select::GmxAtomNumber(numbers) => Ok(numbers
                 .iter()
-                .any(|&(start, end)| atom_index + 1 >= start && atom_index + 1 <= end)),
+                .any(|&(start, end)| atom_index + 1 >= start && atom_index < end)),
 
             Select::AtomNumber(numbers) => {
                 let atomnum = system.get_atoms_as_ref()[atom_index].get_atom_number();
                 Ok(numbers
                     .iter()
                     .any(|&(start, end)| atomnum >= start && atomnum <= end))
+            }
+
+            Select::Chain(identifiers) => {
+                let chain = match system.get_atoms_as_ref()[atom_index].get_chain() {
+                    None => return Ok(false),
+                    Some(x) => x,
+                };
+
+                Ok(identifiers.iter().any(|&target| target == chain))
             }
 
             Select::GroupName(names) => {

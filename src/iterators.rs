@@ -24,7 +24,7 @@ pub struct AtomIterator<'a> {
 }
 
 impl<'a> AtomIterator<'a> {
-    fn new(atoms: &'a [Atom], atom_ranges: &'a [(usize, usize)], simbox: &'a SimBox) -> Self {
+    pub fn new(atoms: &'a [Atom], atom_ranges: &'a [(usize, usize)], simbox: &'a SimBox) -> Self {
         AtomIterator {
             atoms,
             atom_ranges,
@@ -74,7 +74,7 @@ impl<'a> Iterator for AtomIterator<'a> {
             }
 
             if self.current_index <= *end {
-                let atom = unsafe { self.atoms.get_unchecked(self.current_index as usize) };
+                let atom = unsafe { self.atoms.get_unchecked(self.current_index) };
                 self.current_index += 1;
                 return Some(atom);
             }
@@ -143,7 +143,11 @@ pub struct MutAtomIterator<'a> {
 }
 
 impl<'a> MutAtomIterator<'a> {
-    fn new(atoms: &'a mut [Atom], atom_ranges: &'a [(usize, usize)], simbox: &'a SimBox) -> Self {
+    pub fn new(
+        atoms: &'a mut [Atom],
+        atom_ranges: &'a [(usize, usize)],
+        simbox: &'a SimBox,
+    ) -> Self {
         MutAtomIterator {
             atoms: atoms as *mut [Atom],
             atom_ranges,
@@ -194,7 +198,7 @@ impl<'a> Iterator for MutAtomIterator<'a> {
             }
 
             if self.current_index <= *end {
-                let atom = unsafe { (*self.atoms).get_unchecked_mut(self.current_index as usize) };
+                let atom = unsafe { (*self.atoms).get_unchecked_mut(self.current_index) };
                 self.current_index += 1;
                 return Some(atom);
             }
@@ -313,7 +317,7 @@ impl System {
     ///     Err(e) => eprintln!("{}", e),
     /// };
     /// ```
-    pub fn group_iter_mut<'a>(&'a mut self, name: &str) -> Result<MutAtomIterator, GroupError> {
+    pub fn group_iter_mut(&mut self, name: &str) -> Result<MutAtomIterator, GroupError> {
         unsafe {
             let simbox = self.get_box_as_ref() as *const SimBox;
 
@@ -416,10 +420,6 @@ mod tests {
     fn group_iter_ion() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
-
-        for atom in system.group_iter("ION").unwrap() {
-            println!("{:?}", atom);
-        }
 
         for (group_atom, system_atom) in system
             .group_iter("ION")

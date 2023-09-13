@@ -220,7 +220,7 @@ impl Cylinder {
 impl Shape for Cylinder {
     /// Check if point is inside the cylinder.
     fn inside(&self, point: &Vector3D, simbox: &SimBox) -> bool {
-        let mut distance_axis = point.distance(&self.position, self.orientation, &simbox);
+        let mut distance_axis = point.distance(&self.position, self.orientation, simbox);
 
         if distance_axis < 0.0 {
             match self.orientation {
@@ -232,7 +232,7 @@ impl Shape for Cylinder {
         }
 
         if distance_axis > self.height
-            || point.distance(&self.position, self.plane, &simbox) > self.radius
+            || point.distance(&self.position, self.plane, simbox) > self.radius
         {
             return false;
         }
