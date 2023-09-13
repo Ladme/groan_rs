@@ -332,13 +332,11 @@ impl XdrGroupWriter for XtcGroupWriter {
         group_name: &str,
         filename: impl AsRef<Path>,
     ) -> Result<XtcGroupWriter, WriteXdrError> {
-        // check that the group exists
-        if !system.group_exists(group_name) {
-            return Err(WriteXdrError::GroupNotFound(group_name.to_owned()));
-        }
-
         // get copy of the group
-        let group = system.get_groups_as_ref().get(group_name).unwrap().clone();
+        let group = match system.get_groups_as_ref().get(group_name) {
+            None => return Err(WriteXdrError::GroupNotFound(group_name.to_owned())),
+            Some(g) => g.clone(),
+        };
 
         // create the xtc file and save a handle to it
         let xtc = match XdrFile::open_xdr(filename.as_ref(), OpenMode::Write) {

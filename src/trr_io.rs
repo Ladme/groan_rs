@@ -321,13 +321,11 @@ impl XdrGroupWriter for TrrGroupWriter {
         group_name: &str,
         filename: impl AsRef<Path>,
     ) -> Result<TrrGroupWriter, WriteXdrError> {
-        // check that the group exists
-        if !system.group_exists(group_name) {
-            return Err(WriteXdrError::GroupNotFound(group_name.to_owned()));
-        }
-
         // get copy of the group
-        let group = system.get_groups_as_ref().get(group_name).unwrap().clone();
+        let group = match system.get_groups_as_ref().get(group_name) {
+            None => return Err(WriteXdrError::GroupNotFound(group_name.to_owned())),
+            Some(g) => g.clone(),
+        };
 
         // create the trr file and save a handle to it
         let trr = match XdrFile::open_xdr(filename.as_ref(), OpenMode::Write) {

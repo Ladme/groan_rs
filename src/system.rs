@@ -594,6 +594,32 @@ impl System {
         }
     }
 
+    /// Make target group ndx-writable, i.e. the group will be written into an ndx file when using `System::write_ndx`.
+    ///
+    /// ## Returns
+    /// `Ok` if successful, `GroupError` in case the group does not exist.
+    pub fn group_make_writable(&mut self, name: &str) -> Result<(), GroupError> {
+        match self.groups.get_mut(name) {
+            None => return Err(GroupError::NotFound(name.to_owned())),
+            Some(group) => group.print_ndx = true,
+        }
+
+        Ok(())
+    }
+
+    /// Make target group ndx-nonwritable, i.e. the group will NOT be written into an ndx file when using `System::write_ndx`.
+    ///
+    /// ## Returns
+    /// `Ok` if successful, `GroupError` in case the group does not exist.
+    pub fn group_make_nonwritable(&mut self, name: &str) -> Result<(), GroupError> {
+        match self.groups.get_mut(name) {
+            None => return Err(GroupError::NotFound(name.to_owned())),
+            Some(group) => group.print_ndx = false,
+        }
+
+        Ok(())
+    }
+
     /**************************/
     /* OPERATIONS WITH GROUPS */
     /**************************/
@@ -710,15 +736,56 @@ impl System {
         }
     }
 
-    /// Get all group names associated with the system including default groups.
+    /// Get all group names associated with the system including ndx-nonwritable (default) groups.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    ///
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.group_create("Custom Group", "resid 1 to 3").unwrap();
+    ///
+    /// let names = system.group_names();
+    ///
+    /// // the `names` vector contains the user-created `Custom Group` as well as the groups
+    /// // `all` and `All` that are implicitly constructed when the `System` structure is created
+    /// assert_eq!(names.len(), 3);
+    /// assert!(names.contains(&"Custom Group".to_string()));
+    /// assert!(names.contains(&"all".to_string()));
+    /// assert!(names.contains(&"All".to_string()));
+    /// ```
     pub fn group_names(&self) -> Vec<String> {
-        let mut names = Vec::with_capacity(self.groups.len());
+        self.groups.keys().map(|key| key.to_owned()).collect()
+    }
 
-        for key in self.groups.keys() {
-            names.push(key.to_owned());
-        }
-
-        names
+    /// Get all group names assocaited with the system excluding ndx-nonwritable (default) groups.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    ///
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.group_create("Custom Group", "resid 1 to 3").unwrap();
+    ///
+    /// let names = system.group_names_writable();
+    ///
+    /// // the `names` vector only contains the user-created `Custom Group`
+    /// assert_eq!(names.len(), 1);
+    /// assert!(names.contains(&"Custom Group".to_string()));
+    /// assert!(!names.contains(&"all".to_string()));
+    /// assert!(!names.contains(&"All".to_string()));
+    /// ```
+    pub fn group_names_writable(&self) -> Vec<String> {
+        self.groups
+            .iter()
+            .filter_map(|(key, group)| {
+                if group.print_ndx {
+                    Some(key.to_owned())
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     /**************************/
@@ -1574,6 +1641,33 @@ mod tests {
     }
 
     #[test]
+    fn group_names_writable() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        system.group_create("Custom Group", "resname LYS").unwrap();
+
+        let names = system.group_names_writable();
+
+        assert_eq!(names.len(), 22);
+
+        for name in &names {
+            assert!(system.group_exists(name));
+        }
+
+        assert!(!names.contains(&"All".to_string()));
+        assert!(!names.contains(&"all".to_string()));
+
+        // set "Custom Group" to nonwritable
+        system.group_make_nonwritable("Custom Group").unwrap();
+
+        let new_names = system.group_names_writable();
+
+        assert_eq!(new_names.len(), 21);
+        assert!(!new_names.contains(&"Custom Group".to_string()));
+    }
+
+    #[test]
     fn atoms_extract() {
         let system = System::from_file("test_files/example.gro").unwrap();
 
@@ -1822,6 +1916,44 @@ mod tests {
         assert_eq!(system.group_get_n_atoms("resname POPC").unwrap(), 6144);
         assert_eq!(system.group_get_n_atoms("resname W").unwrap(), 10399);
         assert_eq!(system.group_get_n_atoms("resname ION").unwrap(), 240);
+    }
+
+    #[test]
+    fn group_make_writable() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        assert!(!system.groups.get("all").unwrap().print_ndx);
+        system.group_make_writable("all").unwrap();
+        assert!(system.groups.get("all").unwrap().print_ndx);
+    }
+
+    #[test]
+    fn group_make_writable_nonexistent() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        match system.group_make_writable("Protein") {
+            Ok(_) => panic!("Group should not exist."),
+            Err(e) => assert_eq!(e, GroupError::NotFound(String::from("Protein"))),
+        }
+    }
+
+    #[test]
+    fn group_make_nonwritable() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("Group", "resid 1").unwrap();
+
+        assert!(system.groups.get("Group").unwrap().print_ndx);
+        system.group_make_nonwritable("Group").unwrap();
+        assert!(!system.groups.get("Group").unwrap().print_ndx);
+    }
+
+    #[test]
+    fn group_make_nonwritable_nonexistent() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        match system.group_make_nonwritable("Protein") {
+            Ok(_) => panic!("Group should not exist."),
+            Err(e) => assert_eq!(e, GroupError::NotFound(String::from("Protein"))),
+        }
     }
 
     #[test]
