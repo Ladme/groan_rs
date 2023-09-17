@@ -1279,7 +1279,21 @@ mod tests {
     }
 
     #[test]
-    fn group_create_macro() {
+    fn group_create_macro_protein() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.group_create("Protein", "@protein").unwrap();
+
+        assert!(system.group_exists("Protein"));
+        assert_eq!(system.group_get_n_atoms("Protein").unwrap(), 61);
+
+        for i in 0..=60 {
+            assert!(system.group_isin("Protein", i).unwrap());
+        }
+    }
+
+    #[test]
+    fn group_create_macro_membrane() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
         system.group_create("Membrane", "@membrane").unwrap();
@@ -1289,15 +1303,58 @@ mod tests {
 
         for i in 61..=6204 {
             assert!(system.group_isin("Membrane", i).unwrap());
+        }   
+    }
+
+    #[test]
+    fn group_create_macro_water() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.group_create("Water", "@water").unwrap();
+        assert!(system.group_exists("Water"));
+        assert_eq!(system.group_get_n_atoms("Water").unwrap(), 10399);
+
+        for i in 6205..=16603 {
+            assert!(system.group_isin("Water", i).unwrap());
         }
+    }
 
-        system.group_create("Protein", "@protein").unwrap();
+    #[test]
+    fn group_create_macro_ion() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        assert!(system.group_exists("Protein"));
-        assert_eq!(system.group_get_n_atoms("Protein").unwrap(), 61);
+        system.group_create("Ion", "@ion").unwrap();
+        assert!(system.group_exists("Ion"));
+        assert_eq!(system.group_get_n_atoms("Ion").unwrap(), 240);
 
-        for i in 0..=60 {
-            assert!(system.group_isin("Protein", i).unwrap());
+        for i in 16604..=16843 {
+            assert!(system.group_isin("Ion", i).unwrap());
+        }
+    }
+
+    #[test]
+    fn group_create_macro_dna() {
+        let mut system = System::from_file("test_files/protein_with_dna.pdb").unwrap();
+
+        system.group_create("DNA", "@dna").unwrap();
+        assert!(system.group_exists("DNA"));
+        assert_eq!(system.group_get_n_atoms("DNA").unwrap(), 169);
+
+        for i in 0..=168 {
+            assert!(system.group_isin("DNA", i).unwrap());
+        }
+    }
+
+    #[test]
+    fn group_create_macro_rna() {
+        let mut system = System::from_file("test_files/rna.pdb").unwrap();
+
+        system.group_create("RNA", "@rna").unwrap();
+        assert!(system.group_exists("RNA"));
+        assert_eq!(system.group_get_n_atoms("RNA").unwrap(), 1108);
+
+        for i in 0..=1107 {
+            assert!(system.group_isin("RNA", i).unwrap());
         }
     }
 

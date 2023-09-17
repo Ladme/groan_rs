@@ -372,11 +372,15 @@
 //!
 //! **Selecting atoms by autodetection**
 //!
-//! You can select atoms using internally defined macros. Currently, `groan_rs` library provides four of such macros:
+//! You can select atoms using internally defined macros. Currently, `groan_rs` library provides six of such macros:
+//! - `@protein` will select all atoms corresponding to amino acids (supports some 140 different amino acids).
+//! - `@water` will select all atoms of water.
+//! - `@ions` will select all atoms of ions.
 //! - `@membrane` will select all atoms corresponding to membrane lipids (supports over 200 membrane lipid types).
-//! - `@protein` will select all atoms corresponding to either of the 20 standard amino acids.
-//! - `@water` will select all atoms of water. Using this macro is not recommended as it only supports some water models.
-//! - `@ions` will select all atoms of ions. Using this macro is not recommended as it only supports small number of ion types.
+//! - `@dna` will select all atoms belonging to a DNA molecule.
+//! - `@rna` will select all atoms belonging to an RNA molecule.
+//!
+//! Please be aware that while groan macros are generally dependable, there is no absolute guarantee that they will unfailingly identify all atoms correctly. Be careful when using them.
 //!
 //! **Selecting all atoms**
 //!

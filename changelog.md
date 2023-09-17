@@ -10,3 +10,6 @@
 - Implemented operations for ndx-writable and ndx-nonwritable groups, including `System::group_make_writable`, `System::group_make_nonwritable`, and `System::group_names_writable`.
 - Performed small code refactors.
 - Made minor documentation fixes.
+
+### Version 0.3.0
+- Updated selection macros according to Gromacs definitions, and introduced new macros for identifying DNA (`@dna`) and RNA (`@rna`).
