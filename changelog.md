@@ -13,3 +13,4 @@
 
 ### Version 0.3.0
 - Updated selection macros according to Gromacs definitions, and introduced new macros for identifying DNA (`@dna`) and RNA (`@rna`).
+- Introduced the `System::group_create_ignore_warnings` function, which replicates the behavior of `System::group_create` while ignoring any WARNINGS that may occur during its execution. This new function addresses the issue of easily filtering out warnings returned by `System::group_create`, which uses a generic `Box<dyn Error>` return type. All other errors are propagated as usual since they indicate that the function failed.

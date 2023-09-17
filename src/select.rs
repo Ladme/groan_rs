@@ -1624,7 +1624,8 @@ mod pass_tests {
         "@dna",
         Select::ResidueName(
             vec![
-                "DA", "DG", "DC", "DT", "DA5", "DG5", "DC5", "DT5", "DA3", "DG3", "DC3", "DT3", "DAN", "DGN", "DCN", "DTN"
+                "DA", "DG", "DC", "DT", "DA5", "DG5", "DC5", "DT5", "DA3", "DG3", "DC3", "DT3",
+                "DAN", "DGN", "DCN", "DTN"
             ]
             .iter()
             .map(|&s| s.to_string())
