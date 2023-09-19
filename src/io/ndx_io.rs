@@ -10,9 +10,9 @@ use std::path::Path;
 use indexmap::IndexMap;
 use std::collections::HashSet;
 
-use crate::atom::Atom;
 use crate::errors::{GroupError, ParseNdxError, WriteNdxError};
-use crate::system::System;
+use crate::structures::atom::Atom;
+use crate::system::general::System;
 
 impl System {
     /// Read an ndx file and create atom Groups in the System structure.

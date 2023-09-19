@@ -7,11 +7,9 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 
-use crate::atom::Atom;
 use crate::errors::{ParsePdbError, WritePdbError};
-use crate::simbox::SimBox;
-use crate::system::System;
-use crate::vector3d::Vector3D;
+use crate::structures::{atom::Atom, simbox::SimBox, vector3d::Vector3D};
+use crate::system::general::System;
 
 /// Read a pdb file and construct a System structure.
 ///

@@ -1,337 +1,18 @@
 // Released under MIT License.
 // Copyright (c) 2023 Ladislav Bartos
 
-//! Implementation of the System structure and its basic methods.
+//! Implementation of System methods for working with groups.
 
-use indexmap::IndexMap;
 use std::collections::HashSet;
 use std::error::Error;
-use std::path::Path;
 
-use crate::atom::Atom;
-use crate::errors::{AtomError, GroupError, ParseFileError};
-use crate::files::FileType;
-use crate::gro_io;
-use crate::group::Group;
-use crate::pdb_io;
-use crate::simbox::SimBox;
-use crate::vector3d::Vector3D;
+use indexmap::IndexMap;
 
-#[derive(Debug)]
-pub struct System {
-    /// Name of the molecular system.
-    name: String,
-    /// Vector of atoms in the system.
-    atoms: Vec<Atom>,
-    /// Size of the simulation box.
-    simulation_box: SimBox,
-    /// Groups of atoms associated with the system.
-    groups: IndexMap<String, Group>,
-    /// Current simulation step.
-    simulation_step: u64,
-    /// Current simulation time.
-    simulation_time: f32,
-    /// Precision of the coordinates.
-    coordinates_precision: u64,
-    /// Lambda
-    lambda: f32,
-}
+use crate::errors::GroupError;
+use crate::structures::group::Group;
+use crate::system::general::System;
 
 impl System {
-    /// Create new System structure with a given name from the provided vector of atoms and simulation box.
-    ///
-    /// ## Notes
-    /// - The returned `System` structure will contain two default groups "all" and "All",
-    /// each consisting of all the atoms in the system.
-    ///
-    /// ## Example 1: Manually creating a system
-    /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
-    /// let name = "My System";
-    /// let atoms = Vec::new();
-    ///
-    /// // ... fill the `atoms` vector with Atom structures ...
-    ///
-    /// let simulation_box = SimBox::from([10.0, 10.0, 12.0]);
-    ///
-    /// // construct the molecular system
-    /// let system = System::new(name, atoms, simulation_box);
-    /// ```
-    ///
-    /// ## Example 2: Creating system from other system using `extract`
-    /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
-    /// // load system from file
-    /// let mut original_system = System::from_file("system.gro").unwrap();
-    /// // create a group "Protein" consisting of atoms of residues 1 to 29
-    /// original_system.group_create("Protein", "resid 1 to 29").unwrap();
-    ///
-    /// // extract atoms from group "Protein"
-    /// let protein = original_system.group_extract("Protein").unwrap();
-    /// // create a new system containing only "Protein" atoms
-    /// let new_system = System::new(
-    ///     "System containing protein atoms only",
-    ///     protein,
-    ///     original_system.get_box_copy());
-    /// ```
-    ///
-    /// ## Example 3: Creating system from other system using iterators
-    /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
-    /// let mut original_system = System::from_file("system.gro").unwrap();
-    ///
-    /// // construct a sphere located at x = 1, y = 2, z = 3 with a radius of 2.5 nm
-    /// let sphere = Sphere::new([1.0, 2.0, 3.0].into(), 2.5);
-    ///
-    /// // create iterator over the atoms of the system
-    /// // only select atoms which are inside the above-defined sphere
-    /// let iterator = original_system
-    ///     .atoms_iter()
-    ///     .filter_geometry(sphere);
-    ///
-    /// let new_system = System::new(
-    ///     "System containing atoms located inside the sphere",
-    ///     iterator.cloned().collect(),
-    ///     original_system.get_box_copy());
-    /// ```
-    pub fn new(name: &str, atoms: Vec<Atom>, simulation_box: SimBox) -> Self {
-        let mut system = System {
-            name: name.to_string(),
-            atoms,
-            simulation_box,
-            groups: IndexMap::new(),
-            simulation_step: 0u64,
-            simulation_time: 0.0f32,
-            coordinates_precision: 100u64,
-            lambda: 0.0,
-        };
-
-        match system.group_create_all() {
-            Err(_) => {
-                panic!("Groan error. Group `all` or `All` already exists as System is created.")
-            }
-            Ok(_) => system,
-        }
-    }
-
-    /// Create a new System from gro file or pdb file.
-    /// The method will attempt to automatically recognize gro or pdb file based on the file extension.
-    ///
-    /// ## Returns
-    /// `System` structure if successful.
-    /// `ParseFileError` if the file format is not supported.
-    /// `ParseGroError` if parsing of the gro file fails.
-    /// `ParsePdbError` if parsing of the pdb file fails.
-    ///
-    /// ## Example
-    /// Reading gro file.
-    /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
-    /// let system = match System::from_file("system.gro") {
-    ///     Ok(x) => x,
-    ///     Err(e) => {
-    ///         eprintln!("{}", e);
-    ///         return;
-    ///     }
-    /// };
-    /// ```
-    /// ## Notes
-    /// - The returned System structure will contain two default groups "all" and "All"
-    /// consisting of all the atoms in the system.
-    pub fn from_file(filename: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
-        match FileType::from_name(&filename) {
-            FileType::GRO => gro_io::read_gro(filename).map_err(Box::from),
-            FileType::PDB => pdb_io::read_pdb(filename).map_err(Box::from),
-            _ => Err(Box::from(ParseFileError::UnknownExtension(Box::from(
-                filename.as_ref(),
-            )))),
-        }
-    }
-
-    /**************************/
-    /*  ACCESSING PROPERTIES  */
-    /**************************/
-
-    /// Get the name of the molecular system.
-    pub fn get_name(&self) -> &str {
-        &self.name
-    }
-
-    /// Get immutable reference to the atoms in the system.
-    pub fn get_atoms_as_ref(&self) -> &Vec<Atom> {
-        &self.atoms
-    }
-
-    /// Get mutable reference to the atoms in the system.
-    ///
-    /// ## Safety
-    /// - This function is unsafe as manually changing the `atoms` of the system
-    /// can cause the system to become invalid. Other functions may then not work correctly.
-    /// - Notably, no atoms can be added or removed from the `atoms` vector as such
-    /// operation would make all the groups associated with the system invalid. The same goes
-    /// for reordering the atoms.
-    /// - The properties of the individual atoms can however be safely changed.
-    pub unsafe fn get_atoms_as_ref_mut(&mut self) -> &mut Vec<Atom> {
-        &mut self.atoms
-    }
-
-    /// Get copy of the atoms in the system.
-    pub fn get_atoms_copy(&self) -> Vec<Atom> {
-        self.atoms.clone()
-    }
-
-    /// Get immutable reference to the groups in the system.
-    pub fn get_groups_as_ref(&self) -> &IndexMap<String, Group> {
-        &self.groups
-    }
-
-    /// Get mutable reference to the groups in the system.
-    ///
-    /// ## Safety
-    /// - This function is unsafe as manually changing the `groups` of the system
-    /// can cause the system to become invalid.
-    pub unsafe fn get_groups_as_ref_mut(&mut self) -> &mut IndexMap<String, Group> {
-        &mut self.groups
-    }
-
-    /// Get copy of the groups in the system.
-    pub fn get_groups_copy(&self) -> IndexMap<String, Group> {
-        self.groups.clone()
-    }
-
-    /// Get immutable reference to the simulation box.
-    pub fn get_box_as_ref(&self) -> &SimBox {
-        &self.simulation_box
-    }
-
-    /// Get center of the simulation box.
-    ///
-    /// ## Warning
-    /// Currently only implemented for orthogonal simulation boxes!
-    pub fn get_box_center(&self) -> Vector3D {
-        Vector3D {
-            x: self.simulation_box.x / 2.0f32,
-            y: self.simulation_box.y / 2.0f32,
-            z: self.simulation_box.z / 2.0f32,
-        }
-    }
-
-    /// Get mutable reference to the simulation box.
-    pub fn get_box_as_ref_mut(&mut self) -> &mut SimBox {
-        &mut self.simulation_box
-    }
-
-    /// Get copy of the simulation box.
-    pub fn get_box_copy(&self) -> SimBox {
-        self.simulation_box.clone()
-    }
-
-    /// Get the number of atoms in the system.
-    pub fn get_n_atoms(&self) -> usize {
-        self.atoms.len()
-    }
-
-    /// Get the number of groups in the system. This counts all groups, even the default ones.
-    pub fn get_n_groups(&self) -> usize {
-        self.groups.len()
-    }
-
-    /// Get the current simulation time.
-    pub fn get_simulation_time(&self) -> f32 {
-        self.simulation_time
-    }
-
-    /// Get the current simulation step.
-    pub fn get_simulation_step(&self) -> u64 {
-        self.simulation_step
-    }
-
-    /// Get the precision of the coordinates.
-    pub fn get_precision(&self) -> u64 {
-        self.coordinates_precision
-    }
-
-    /// Get the simulation lambda.
-    pub fn get_lambda(&self) -> f32 {
-        self.lambda
-    }
-
-    /// Set the simulation time.
-    pub fn set_simulation_time(&mut self, time: f32) {
-        self.simulation_time = time;
-    }
-
-    /// Set the simulation step.
-    pub fn set_simulation_step(&mut self, step: u64) {
-        self.simulation_step = step;
-    }
-
-    /// Set simulation box.
-    pub fn set_box(&mut self, sim_box: SimBox) {
-        self.simulation_box = sim_box;
-    }
-
-    /// Set precision of the coordinates.
-    pub fn set_precision(&mut self, precision: u64) {
-        self.coordinates_precision = precision;
-    }
-
-    /// Set the simulation lambda.
-    pub fn set_lambda(&mut self, lambda: f32) {
-        self.lambda = lambda;
-    }
-
-    /// Check whether velocities are present.
-    ///
-    /// ## Returns
-    /// `true` if any of the atoms in the system has non-zero velocity. `false` otherwise.
-    ///
-    /// ## Notes
-    /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
-    pub fn has_velocities(&self) -> bool {
-        self.atoms.iter().any(|atom| atom.has_velocity())
-    }
-
-    /// Check whether forces are present.
-    ///
-    /// ## Returns
-    /// `true` if any of the atoms in the system has non-zero force acting on it. `false` otherwise.
-    ///
-    /// ## Notes
-    /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
-    pub fn has_forces(&self) -> bool {
-        self.atoms.iter().any(|atom| atom.has_force())
-    }
-
-    /**************************/
-    /*    CREATING GROUPS     */
-    /**************************/
-
-    /// Create two groups each containing all atoms in the system: "all" and "All".
-    ///
-    /// ## Returns
-    /// - `Ok` if both groups were created or GroupError in case any group with the same name already exists.
-    fn group_create_all(&mut self) -> Result<(), GroupError> {
-        self.group_create_from_ranges("all", vec![(0, self.get_n_atoms())])?;
-        self.group_create_from_ranges("All", vec![(0, self.get_n_atoms())])?;
-
-        self.groups
-            .get_mut("all")
-            .expect("Groan error. Group `all` is not available after creating it.")
-            .print_ndx = false;
-
-        self.groups
-            .get_mut("All")
-            .expect("Groan error. Group `All` is not available after creating it.")
-            .print_ndx = false;
-
-        Ok(())
-    }
-
     /// Make a group with a given name from the given Groan selection language query.
     ///
     /// ## Returns
@@ -363,11 +44,13 @@ impl System {
 
         let group = Group::from_query(query, self)?;
 
-        match self.groups.insert(name.to_string(), group) {
-            None => Ok(()),
-            Some(_) => Err(Box::from(GroupError::AlreadyExistsWarning(
-                name.to_string(),
-            ))),
+        unsafe {
+            match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
+                None => Ok(()),
+                Some(_) => Err(Box::from(GroupError::AlreadyExistsWarning(
+                    name.to_string(),
+                ))),
+            }
         }
     }
 
@@ -467,9 +150,11 @@ impl System {
         }
 
         let group = Group::from_indices(atom_indices, self.get_n_atoms());
-        match self.groups.insert(name.to_string(), group) {
-            None => Ok(()),
-            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
+        unsafe {
+            match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
+                None => Ok(()),
+                Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
+            }
         }
     }
 
@@ -507,9 +192,12 @@ impl System {
         }
 
         let group = Group::from_ranges(atom_ranges, self.get_n_atoms());
-        match self.groups.insert(name.to_string(), group) {
-            None => Ok(()),
-            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
+
+        unsafe {
+            match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
+                None => Ok(()),
+                Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
+            }
         }
     }
 
@@ -763,11 +451,13 @@ impl System {
     /// Make target group ndx-writable, i.e. the group will be written into an ndx file when using `System::write_ndx`.
     ///
     /// ## Returns
-    /// `Ok` if successful, `GroupError` in case the group does not exist.
+    /// `Ok` if successful, `GroupError::NotFound` in case the group does not exist.
     pub fn group_make_writable(&mut self, name: &str) -> Result<(), GroupError> {
-        match self.groups.get_mut(name) {
-            None => return Err(GroupError::NotFound(name.to_owned())),
-            Some(group) => group.print_ndx = true,
+        unsafe {
+            match self.get_groups_as_ref_mut().get_mut(name) {
+                None => return Err(GroupError::NotFound(name.to_owned())),
+                Some(group) => group.print_ndx = true,
+            }
         }
 
         Ok(())
@@ -776,23 +466,66 @@ impl System {
     /// Make target group ndx-nonwritable, i.e. the group will NOT be written into an ndx file when using `System::write_ndx`.
     ///
     /// ## Returns
-    /// `Ok` if successful, `GroupError` in case the group does not exist.
+    /// `Ok` if successful, `GroupError::NotFound` in case the group does not exist.
     pub fn group_make_nonwritable(&mut self, name: &str) -> Result<(), GroupError> {
-        match self.groups.get_mut(name) {
-            None => return Err(GroupError::NotFound(name.to_owned())),
-            Some(group) => group.print_ndx = false,
+        unsafe {
+            match self.get_groups_as_ref_mut().get_mut(name) {
+                None => return Err(GroupError::NotFound(name.to_owned())),
+                Some(group) => group.print_ndx = false,
+            }
         }
 
         Ok(())
     }
 
-    /**************************/
-    /* OPERATIONS WITH GROUPS */
-    /**************************/
+    /// Remove target group from the system.
+    ///
+    /// ## Returns
+    /// `Ok` if successful, `GroupError::NotFound` in case the group does not exist.
+    ///
+    /// ## Safety
+    /// Do not use this function to remove any of the default groups ('all' or 'All').
+    /// Doing so would make many functions associated with the `System` structure invalid.
+    /// Removing other groups is generally safe to do.
+    pub unsafe fn group_remove(&mut self, name: &str) -> Result<(), GroupError> {
+        if self.get_groups_as_ref_mut().remove(name).is_none() {
+            Err(GroupError::NotFound(name.to_owned()))
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Rename target group in the system.
+    ///
+    /// ## Returns
+    /// `Ok` if successful, `GroupError::NotFound` in case the old name of the group does not exist,
+    /// `GroupError::AlreadyExistsWarning` in case the new name already exists (it is overwritten).
+    ///
+    /// ## Safety
+    /// Do not use this function to rename any of the default groups ('all' or 'All').
+    /// Doing so would make many functions associated with the `System` structure invalid.
+    /// Renaming other groups is generally safe to do.
+    ///
+    /// ## Notes
+    /// - Note that if the `new` name already matches name of another group in the `System`,
+    /// the previous group with this name is overwritten and `GroupError::AlreadyExistsWarning` is returned.
+    pub unsafe fn group_rename(&mut self, old: &str, new: &str) -> Result<(), GroupError> {
+        // get the old group
+        let group = match self.get_groups_as_ref_mut().remove(old) {
+            Some(x) => x,
+            None => return Err(GroupError::NotFound(old.to_owned())),
+        };
+
+        // reinsert the group with the new name
+        match self.get_groups_as_ref_mut().insert(new.to_owned(), group) {
+            Some(_) => Err(GroupError::AlreadyExistsWarning(new.to_owned())),
+            None => Ok(()),
+        }
+    }
 
     /// Check whether a group with a given name exists in the system.
     pub fn group_exists(&self, name: &str) -> bool {
-        self.groups.contains_key(name)
+        self.get_groups_as_ref().contains_key(name)
     }
 
     /// Check whether the target group contains the atom of target index.
@@ -808,7 +541,7 @@ impl System {
     /// where `n` is the number of atoms in the group.
     pub fn group_isin(&self, name: &str, index: usize) -> Result<bool, GroupError> {
         let group = self
-            .groups
+            .get_groups_as_ref()
             .get(name)
             .ok_or(GroupError::NotFound(name.to_string()))?;
 
@@ -844,7 +577,7 @@ impl System {
     /// ```
     pub fn group_get_n_atoms(&self, name: &str) -> Result<usize, GroupError> {
         let group = self
-            .groups
+            .get_groups_as_ref()
             .get(name)
             .ok_or(GroupError::NotFound(name.to_string()))?;
 
@@ -868,11 +601,11 @@ impl System {
         union: &str,
     ) -> Result<(), GroupError> {
         let group1 = self
-            .groups
+            .get_groups_as_ref()
             .get(group1)
             .ok_or(GroupError::NotFound(group1.to_string()))?;
         let group2 = self
-            .groups
+            .get_groups_as_ref()
             .get(group2)
             .ok_or(GroupError::NotFound(group2.to_string()))?;
 
@@ -882,9 +615,15 @@ impl System {
         atom_ranges.extend(group2.atom_ranges.iter());
 
         let group = Group::from_ranges(atom_ranges, self.get_n_atoms());
-        match self.groups.insert(union.to_string(), group) {
-            None => Ok(()),
-            Some(_) => Err(GroupError::AlreadyExistsWarning(union.to_string())),
+
+        unsafe {
+            match self
+                .get_groups_as_ref_mut()
+                .insert(union.to_string(), group)
+            {
+                None => Ok(()),
+                Some(_) => Err(GroupError::AlreadyExistsWarning(union.to_string())),
+            }
         }
     }
 
@@ -921,7 +660,10 @@ impl System {
     /// assert!(names.contains(&"All".to_string()));
     /// ```
     pub fn group_names(&self) -> Vec<String> {
-        self.groups.keys().map(|key| key.to_owned()).collect()
+        self.get_groups_as_ref()
+            .keys()
+            .map(|key| key.to_owned())
+            .collect()
     }
 
     /// Get all group names assocaited with the system excluding ndx-nonwritable (default) groups.
@@ -942,7 +684,7 @@ impl System {
     /// assert!(!names.contains(&"All".to_string()));
     /// ```
     pub fn group_names_writable(&self) -> Vec<String> {
-        self.groups
+        self.get_groups_as_ref()
             .iter()
             .filter_map(|(key, group)| {
                 if group.print_ndx {
@@ -953,184 +695,6 @@ impl System {
             })
             .collect()
     }
-
-    /**************************/
-    /* ITERATING & EXTRACTING */
-    /**************************/
-
-    /// Copy the atoms in the system into an independent vector.
-    /// Same as [`get_atoms_copy`].
-    ///
-    /// ## Example
-    /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
-    /// let system = System::from_file("system.gro").unwrap();
-    /// let extracted: Vec<Atom> = system.atoms_extract();
-    /// ```
-    /// [`get_atoms_copy`]: System::get_atoms_copy
-    pub fn atoms_extract(&self) -> Vec<Atom> {
-        self.atoms.clone()
-    }
-
-    /// Copy the atoms in a group into an independent vector.
-    ///
-    /// ## Returns
-    /// A vector containing copies of the atoms in the group.
-    /// `GroupError::NotFound` if the group does not exist.
-    ///
-    /// ## Example
-    /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
-    /// let mut system = System::from_file("system.gro").unwrap();
-    /// system.read_ndx("index.ndx").unwrap();
-    ///
-    /// let extracted_group: Vec<Atom> = match system.group_extract("Protein") {
-    ///     Ok(x) => x,
-    ///     Err(e) => {
-    ///         eprintln!("{}", e);
-    ///         return;
-    ///     }
-    /// };
-    /// ```
-    pub fn group_extract(&self, name: &str) -> Result<Vec<Atom>, GroupError> {
-        Ok(self.group_iter(name)?.cloned().collect())
-    }
-
-    /// Get immutable reference to an atom with target atom number.
-    ///
-    /// ## Returns
-    /// Reference to `Atom` structure or `AtomError::OutOfRange` if `gmx_number` is out of range.
-    pub fn get_atom_as_ref(&self, gmx_number: usize) -> Result<&Atom, AtomError> {
-        if gmx_number == 0 || gmx_number > self.atoms.len() {
-            return Err(AtomError::OutOfRange(gmx_number));
-        }
-
-        Ok(&self.atoms[gmx_number - 1])
-    }
-
-    /// Get mutable reference to an atom with target atom number.
-    ///
-    /// ## Returns
-    /// Mutable reference to `Atom` structure or `AtomError::OutOfRange` if `gmx_number` is out of range.
-    pub fn get_atom_as_ref_mut(&mut self, gmx_number: usize) -> Result<&mut Atom, AtomError> {
-        if gmx_number == 0 || gmx_number > self.atoms.len() {
-            return Err(AtomError::OutOfRange(gmx_number));
-        }
-
-        Ok(&mut self.atoms[gmx_number - 1])
-    }
-
-    /// Get copy of an atom with target atom number.
-    ///
-    /// ## Returns
-    /// Copy of an `Atom` structure or `AtomError::OutOfRange` if `gmx_number` is out of range
-    pub fn get_atom_copy(&self, gmx_number: usize) -> Result<Atom, AtomError> {
-        if gmx_number == 0 || gmx_number > self.atoms.len() {
-            return Err(AtomError::OutOfRange(gmx_number));
-        }
-
-        Ok(self.atoms[gmx_number - 1].clone())
-    }
-
-    /**************************/
-    /*    MODIFYING SYSTEM    */
-    /**************************/
-
-    /// Translate all atoms of a group by target vector.
-    ///
-    /// ## Returns
-    /// `Ok` or `GroupError::NotFound` in case the group does not exist.
-    ///
-    /// ## Example
-    /// Translating the atoms of the group "Protein".
-    /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
-    /// let mut system = System::from_file("system.gro").unwrap();
-    /// system.group_create("Protein", "resid 1 to 29");
-    ///
-    /// match system.group_translate("Protein", &[1.0, 2.0, -1.0].into()) {
-    ///     Err(e) => eprintln!("{}", e),
-    ///     Ok(_) => (),   
-    /// }
-    /// ```
-    pub fn group_translate(&mut self, name: &str, vector: &Vector3D) -> Result<(), GroupError> {
-        unsafe {
-            let simbox = &self.simulation_box as *const SimBox;
-
-            for atom in self.group_iter_mut(name)? {
-                atom.translate(
-                    vector,
-                    simbox
-                        .as_ref()
-                        .expect("Groan error. SimBox is NULL which is impossible."),
-                );
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Translate all atoms in the system by target vector.
-    ///
-    /// ## Example
-    /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
-    /// let mut system = System::from_file("system.gro").unwrap();
-    ///
-    /// system.atoms_translate(&[1.0, 2.0, -1.0].into());
-    /// ```
-    pub fn atoms_translate(&mut self, vector: &Vector3D) {
-        for atom in self.atoms.iter_mut() {
-            atom.translate(vector, &self.simulation_box);
-        }
-    }
-
-    /// Renumber all atoms of the system. This function will give a new atom number
-    /// to each atom depending on the index of the atom. The atom numbers start with 1.
-    ///
-    /// ## Example
-    /// Constructing a new system containing a dimer
-    /// of a protein from the original system.
-    /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
-    /// // load system and ndx groups from files
-    /// let mut system = System::from_file("system.gro").unwrap();
-    /// system.read_ndx("index.ndx").unwrap();
-    ///
-    /// // copy protein atoms to a new vector
-    /// let mut protein = system.group_extract("Protein").unwrap();
-    /// // copy protein atoms again (second protomer)
-    /// let mut protein2 = protein.clone();
-    ///
-    /// // translate atoms of the second protomer
-    /// let translate = Vector3D::from([2.0, 0.0, 0.0]);
-    /// for atom in protein2.iter_mut() {
-    ///     atom.translate_nopbc(&translate);
-    /// }
-    ///
-    /// // add atoms of the second protomer to the first protomer
-    /// protein.extend(protein2);
-    ///
-    /// // create new system
-    /// let mut new_system = System::new("New system", protein, system.get_box_copy());
-    /// // the atom numbers in this system will not be unique...
-    ///
-    /// // give new (correct) numbers to the atoms
-    /// new_system.atoms_renumber();
-    ///
-    /// // write a new gro file with correct atom numbers
-    /// new_system.write_gro("output.gro", true).unwrap();
-    /// ```
-    pub fn atoms_renumber(&mut self) {
-        for (i, atom) in self.atoms.iter_mut().enumerate() {
-            atom.set_atom_number(i + 1);
-        }
-    }
 }
 
 /******************************/
@@ -1140,199 +704,6 @@ impl System {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use float_cmp::assert_approx_eq;
-
-    #[test]
-    fn new() {
-        let system = System::new(
-            "System generated using the `groan_rs` library.",
-            Vec::new(),
-            [1.5, 3.3, 0.8].into(),
-        );
-
-        assert_eq!(
-            system.get_name(),
-            "System generated using the `groan_rs` library."
-        );
-        assert_eq!(system.get_atoms_as_ref().len(), 0);
-
-        assert_approx_eq!(f32, system.get_box_as_ref().v1x, 1.5f32);
-        assert_approx_eq!(f32, system.get_box_as_ref().v2y, 3.3f32);
-        assert_approx_eq!(f32, system.get_box_as_ref().v3z, 0.8f32);
-        assert_eq!(system.get_box_as_ref().v1y, 0.0f32);
-        assert_eq!(system.get_box_as_ref().v1z, 0.0f32);
-        assert_eq!(system.get_box_as_ref().v2x, 0.0f32);
-        assert_eq!(system.get_box_as_ref().v2z, 0.0f32);
-        assert_eq!(system.get_box_as_ref().v3x, 0.0f32);
-        assert_eq!(system.get_box_as_ref().v3y, 0.0f32);
-
-        assert!(system.group_exists("all"));
-    }
-
-    #[test]
-    fn from_file() {
-        let system_gro = System::from_file("test_files/example_novelocities.gro").unwrap();
-
-        assert_eq!(system_gro.get_name(), "Buforin II peptide P11L");
-        assert_eq!(system_gro.get_n_atoms(), 50);
-
-        let simbox = system_gro.get_box_as_ref();
-        assert_approx_eq!(f32, simbox.x, 6.08608);
-        assert_approx_eq!(f32, simbox.y, 6.08608);
-        assert_approx_eq!(f32, simbox.z, 6.08608);
-
-        assert_eq!(simbox.v1y, 0.0f32);
-        assert_eq!(simbox.v1z, 0.0f32);
-        assert_eq!(simbox.v2x, 0.0f32);
-
-        assert_eq!(simbox.v2z, 0.0f32);
-        assert_eq!(simbox.v3x, 0.0f32);
-        assert_eq!(simbox.v3y, 0.0f32);
-
-        let system_pdb = System::from_file("test_files/example.pdb").unwrap();
-        assert_eq!(system_pdb.get_name(), "Buforin II peptide P11L");
-        assert_eq!(system_pdb.get_n_atoms(), 50);
-
-        let simbox = system_pdb.get_box_as_ref();
-        assert_approx_eq!(f32, simbox.x, 6.0861);
-        assert_approx_eq!(f32, simbox.y, 6.0861);
-        assert_approx_eq!(f32, simbox.z, 6.0861);
-
-        assert_eq!(simbox.v1y, 0.0f32);
-        assert_eq!(simbox.v1z, 0.0f32);
-        assert_eq!(simbox.v2x, 0.0f32);
-
-        assert_eq!(simbox.v2z, 0.0f32);
-        assert_eq!(simbox.v3x, 0.0f32);
-        assert_eq!(simbox.v3y, 0.0f32);
-
-        // compare atoms from PDB an GRO file
-        for (groa, pdba) in system_gro.atoms_iter().zip(system_pdb.atoms_iter()) {
-            assert_eq!(groa.get_residue_number(), pdba.get_residue_number());
-            assert_eq!(groa.get_residue_name(), pdba.get_residue_name());
-            assert_eq!(groa.get_atom_number(), pdba.get_atom_number());
-            assert_eq!(groa.get_atom_name(), pdba.get_atom_name());
-            assert_approx_eq!(f32, groa.get_position().x, pdba.get_position().x);
-            assert_approx_eq!(f32, groa.get_position().y, pdba.get_position().y);
-            assert_approx_eq!(f32, groa.get_position().z, pdba.get_position().z);
-
-            assert_eq!(groa.get_velocity(), pdba.get_velocity());
-            assert_eq!(groa.get_force(), pdba.get_force());
-        }
-    }
-
-    #[test]
-    fn from_file_unknown() {
-        match System::from_file("test_files/index.ndx") {
-            Ok(_) => panic!("Parsing should have failed."),
-            Err(e) => assert!(e.to_string().contains("test_files/index.ndx")),
-        }
-    }
-
-    #[test]
-    fn from_file_no_extension() {
-        match System::from_file("LICENSE") {
-            Ok(_) => panic!("Parsing should have failed."),
-            Err(e) => assert!(e.to_string().contains("LICENSE")),
-        }
-    }
-
-    #[test]
-    fn get_n_atoms() {
-        let system = System::from_file("test_files/example.gro").unwrap();
-        assert_eq!(system.get_n_atoms(), 16844);
-    }
-
-    #[test]
-    fn test_get_name() {
-        let system = System::from_file("test_files/example.gro").unwrap();
-        assert_eq!(
-            system.get_name(),
-            "INSANE! Membrane UpperLeaflet>POPC=1 LowerLeaflet>POPC=1"
-        );
-    }
-
-    #[test]
-    fn get_box_copy() {
-        let system = System::from_file("test_files/example_box9.gro").unwrap();
-
-        let mut simbox = system.get_box_copy();
-
-        assert_approx_eq!(f32, simbox.x, system.get_box_as_ref().x);
-        assert_approx_eq!(f32, simbox.y, system.get_box_as_ref().y);
-        assert_approx_eq!(f32, simbox.z, system.get_box_as_ref().z);
-
-        assert_approx_eq!(f32, simbox.v1y, system.get_box_as_ref().v1y);
-        assert_approx_eq!(f32, simbox.v1z, system.get_box_as_ref().v1z);
-        assert_approx_eq!(f32, simbox.v2x, system.get_box_as_ref().v2x);
-
-        assert_approx_eq!(f32, simbox.v2z, system.get_box_as_ref().v2z);
-        assert_approx_eq!(f32, simbox.v3x, system.get_box_as_ref().v3x);
-        assert_approx_eq!(f32, simbox.v3y, system.get_box_as_ref().v3y);
-
-        simbox.v1x = 10.3;
-        simbox.v2x = 8.4;
-    }
-
-    #[test]
-    fn get_atoms_copy() {
-        let system = System::from_file("test_files/example.gro").unwrap();
-
-        let mut atoms = system.get_atoms_copy();
-
-        for (extracted_atom, system_atom) in atoms.iter().zip(system.get_atoms_as_ref().iter()) {
-            assert_eq!(
-                system_atom.get_atom_number(),
-                extracted_atom.get_atom_number()
-            );
-        }
-
-        let _ = atoms.pop();
-        assert_eq!(atoms.len(), 16843);
-        assert_eq!(system.get_atoms_as_ref().len(), 16844);
-    }
-
-    #[test]
-    fn get_groups_copy() {
-        let system = System::from_file("test_files/example_box9.gro").unwrap();
-
-        let mut groups = system.get_groups_copy();
-
-        assert!(groups.contains_key("all"));
-
-        let new_group = Group::from_indices(vec![1, 3, 6, 8], 1000);
-        groups.insert("Test".to_string(), new_group);
-
-        assert!(groups.contains_key("Test"));
-        assert!(!system.get_groups_as_ref().contains_key("Test"));
-    }
-
-    #[test]
-    fn has_velocities() {
-        let system = System::from_file("test_files/example.gro").unwrap();
-        assert!(system.has_velocities());
-
-        let system = System::from_file("test_files/example_novelocities.gro").unwrap();
-        assert!(!system.has_velocities());
-    }
-
-    #[test]
-    fn has_forces() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        assert!(!system.has_forces());
-
-        system
-            .trr_iter("test_files/short_trajectory.trr")
-            .unwrap()
-            .next();
-        assert!(system.has_forces());
-
-        system
-            .trr_iter("test_files/short_trajectory.trr")
-            .unwrap()
-            .nth(1);
-        assert!(!system.has_forces());
-    }
 
     #[test]
     fn group_create_basic() {
@@ -1790,296 +1161,6 @@ mod tests {
     }
 
     #[test]
-    fn atoms_translate() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-
-        system.atoms_translate(&Vector3D::from([3.5, -1.1, 5.4]));
-
-        let first = system.atoms_iter().next().unwrap();
-        let last = system.atoms_iter().last().unwrap();
-
-        let first_pos = first.get_position();
-        let last_pos = last.get_position();
-
-        assert_approx_eq!(f32, first_pos.x, 12.997);
-        assert_approx_eq!(f32, first_pos.y, 0.889);
-        assert_approx_eq!(f32, first_pos.z, 1.64453);
-
-        assert_approx_eq!(f32, last_pos.x, 12.329);
-        assert_approx_eq!(f32, last_pos.y, 10.086);
-        assert_approx_eq!(f32, last_pos.z, 7.475);
-    }
-
-    #[test]
-    fn group_translate() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-
-        system
-            .group_translate("all", &Vector3D::from([3.5, -1.1, 5.4]))
-            .unwrap();
-
-        let first = system.atoms_iter().next().unwrap();
-        let last = system.atoms_iter().last().unwrap();
-
-        let first_pos = first.get_position();
-        let last_pos = last.get_position();
-
-        assert_approx_eq!(f32, first_pos.x, 12.997);
-        assert_approx_eq!(f32, first_pos.y, 0.889);
-        assert_approx_eq!(f32, first_pos.z, 1.64453);
-
-        assert_approx_eq!(f32, last_pos.x, 12.329);
-        assert_approx_eq!(f32, last_pos.y, 10.086);
-        assert_approx_eq!(f32, last_pos.z, 7.475);
-    }
-
-    #[test]
-    fn group_union_simple() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        system.group_union("Protein", "W", "Protein_W").unwrap();
-
-        assert!(system.group_exists("Protein_W"));
-        assert_eq!(
-            system.group_get_n_atoms("Protein_W").unwrap(),
-            system.group_get_n_atoms("Protein").unwrap() + system.group_get_n_atoms("W").unwrap()
-        );
-    }
-
-    #[test]
-    fn group_union_overlap() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        system
-            .group_union("Membrane", "System", "Membrane_System")
-            .unwrap();
-
-        assert!(system.group_exists("Membrane_System"));
-        assert_eq!(
-            system.group_get_n_atoms("Membrane_System").unwrap(),
-            system.group_get_n_atoms("System").unwrap()
-        );
-    }
-
-    #[test]
-    fn group_union_already_exists() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        match system.group_union("Protein", "ION", "W_ION") {
-            Err(GroupError::AlreadyExistsWarning(e)) => assert_eq!(e, "W_ION"),
-            Ok(_) => panic!("Warning should have been returned, but it was not."),
-            Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
-        }
-
-        assert_eq!(
-            system.group_get_n_atoms("W_ION").unwrap(),
-            system.group_get_n_atoms("Protein").unwrap() + system.group_get_n_atoms("ION").unwrap()
-        );
-    }
-
-    #[test]
-    fn group_union_invalid_group1() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        match system.group_union("Nonexistent", "ION", "Test") {
-            Err(GroupError::NotFound(e)) => assert_eq!(e, "Nonexistent"),
-            Ok(_) => panic!("Creating union should have failed, but it was successful."),
-            Err(e) => panic!(
-                "Failed successfully but incorrect error type `{:?}` was returned.",
-                e
-            ),
-        }
-
-        assert!(!system.group_exists("Test"));
-    }
-
-    #[test]
-    fn group_union_invalid_group2() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        match system.group_union("ION", "Nonexistent", "Test") {
-            Err(GroupError::NotFound(e)) => assert_eq!(e, "Nonexistent"),
-            Ok(_) => panic!("Creating union should have failed, but it was successful."),
-            Err(e) => panic!(
-                "Failed successfully but incorrect error type `{:?}` was returned.",
-                e
-            ),
-        }
-
-        assert!(!system.group_exists("Test"));
-    }
-
-    #[test]
-    fn group_extend_simple() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        let old_n_atoms = system.group_get_n_atoms("Protein").unwrap();
-
-        system.group_extend("Protein", "ION").unwrap();
-        assert_eq!(
-            system.group_get_n_atoms("Protein").unwrap(),
-            old_n_atoms + system.group_get_n_atoms("ION").unwrap()
-        );
-    }
-
-    #[test]
-    fn group_extend_overlap() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        let old_n_atoms = system.group_get_n_atoms("Protein_Membrane").unwrap();
-
-        system.group_extend("Protein_Membrane", "Membrane").unwrap();
-        assert_eq!(
-            system.group_get_n_atoms("Protein_Membrane").unwrap(),
-            old_n_atoms
-        );
-    }
-
-    #[test]
-    fn group_names() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        system.group_create("Custom Group", "resname LYS").unwrap();
-
-        let names = system.group_names();
-
-        assert_eq!(names.len(), 24);
-
-        for name in names {
-            assert!(system.group_exists(&name));
-        }
-    }
-
-    #[test]
-    fn group_names_writable() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        system.group_create("Custom Group", "resname LYS").unwrap();
-
-        let names = system.group_names_writable();
-
-        assert_eq!(names.len(), 22);
-
-        for name in &names {
-            assert!(system.group_exists(name));
-        }
-
-        assert!(!names.contains(&"All".to_string()));
-        assert!(!names.contains(&"all".to_string()));
-
-        // set "Custom Group" to nonwritable
-        system.group_make_nonwritable("Custom Group").unwrap();
-
-        let new_names = system.group_names_writable();
-
-        assert_eq!(new_names.len(), 21);
-        assert!(!new_names.contains(&"Custom Group".to_string()));
-    }
-
-    #[test]
-    fn atoms_extract() {
-        let system = System::from_file("test_files/example.gro").unwrap();
-
-        let mut atoms = system.atoms_extract();
-
-        for (extracted_atom, system_atom) in atoms.iter().zip(system.get_atoms_as_ref().iter()) {
-            assert_eq!(
-                system_atom.get_atom_number(),
-                extracted_atom.get_atom_number()
-            );
-        }
-
-        let _ = atoms.pop();
-        assert_eq!(atoms.len(), 16843);
-        assert_eq!(system.get_atoms_as_ref().len(), 16844);
-    }
-
-    #[test]
-    fn group_extract() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        let mut ions = system.group_extract("ION").unwrap();
-
-        for (extracted_atom, system_atom) in ions.iter().zip(system.group_iter("ION").unwrap()) {
-            assert_eq!(
-                system_atom.get_atom_number(),
-                extracted_atom.get_atom_number()
-            );
-        }
-
-        let _ = ions.pop();
-        assert_eq!(ions.len(), 239);
-        assert_eq!(system.group_get_n_atoms("ION").unwrap(), 240);
-    }
-
-    #[test]
-    fn group_extract_nonexistent() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        match system.group_extract("Nonexistent") {
-            Err(GroupError::NotFound(e)) => assert_eq!(e, "Nonexistent"),
-            Ok(_) => panic!("Group extracting should have failed, but it was successful."),
-            Err(e) => panic!(
-                "Failed successfully but incorrect error type `{:?}` was returned.",
-                e
-            ),
-        }
-    }
-
-    #[test]
-    fn get_atom_as_ref() {
-        let system = System::from_file("test_files/example.gro").unwrap();
-
-        assert!(system.get_atom_as_ref(0).is_err());
-        assert!(system.get_atom_as_ref(16845).is_err());
-
-        let atom = system.get_atom_as_ref(1).unwrap();
-        assert_eq!(atom.get_atom_number(), 1);
-
-        let atom = system.get_atom_as_ref(16844).unwrap();
-        assert_eq!(atom.get_atom_number(), 16844);
-    }
-
-    #[test]
-    fn get_atom_as_ref_mut() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-
-        assert!(system.get_atom_as_ref_mut(0).is_err());
-        assert!(system.get_atom_as_ref_mut(16845).is_err());
-
-        let atom = system.get_atom_as_ref_mut(1).unwrap();
-        assert_eq!(atom.get_atom_number(), 1);
-
-        let atom = system.get_atom_as_ref_mut(16844).unwrap();
-        assert_eq!(atom.get_atom_number(), 16844);
-    }
-
-    #[test]
-    fn get_atom_copy() {
-        let system = System::from_file("test_files/example.gro").unwrap();
-
-        assert!(system.get_atom_copy(0).is_err());
-        assert!(system.get_atom_copy(16845).is_err());
-
-        let atom = system.get_atom_copy(1).unwrap();
-        assert_eq!(atom.get_atom_number(), 1);
-
-        let atom = system.get_atom_copy(16844).unwrap();
-        assert_eq!(atom.get_atom_number(), 16844);
-    }
-
-    #[test]
     fn split_by_resid() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
@@ -2393,9 +1474,9 @@ mod tests {
     #[test]
     fn group_make_writable() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
-        assert!(!system.groups.get("all").unwrap().print_ndx);
+        assert!(!system.get_groups_as_ref().get("all").unwrap().print_ndx);
         system.group_make_writable("all").unwrap();
-        assert!(system.groups.get("all").unwrap().print_ndx);
+        assert!(system.get_groups_as_ref().get("all").unwrap().print_ndx);
     }
 
     #[test]
@@ -2413,9 +1494,9 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.group_create("Group", "resid 1").unwrap();
 
-        assert!(system.groups.get("Group").unwrap().print_ndx);
+        assert!(system.get_groups_as_ref().get("Group").unwrap().print_ndx);
         system.group_make_nonwritable("Group").unwrap();
-        assert!(!system.groups.get("Group").unwrap().print_ndx);
+        assert!(!system.get_groups_as_ref().get("Group").unwrap().print_ndx);
     }
 
     #[test]
@@ -2429,17 +1510,232 @@ mod tests {
     }
 
     #[test]
-    fn atoms_renumber() {
+    fn group_union_simple() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
 
-        for atom in system.atoms_iter_mut() {
-            atom.set_atom_number(1);
+        system.group_union("Protein", "W", "Protein_W").unwrap();
+
+        assert!(system.group_exists("Protein_W"));
+        assert_eq!(
+            system.group_get_n_atoms("Protein_W").unwrap(),
+            system.group_get_n_atoms("Protein").unwrap() + system.group_get_n_atoms("W").unwrap()
+        );
+    }
+
+    #[test]
+    fn group_union_overlap() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        system
+            .group_union("Membrane", "System", "Membrane_System")
+            .unwrap();
+
+        assert!(system.group_exists("Membrane_System"));
+        assert_eq!(
+            system.group_get_n_atoms("Membrane_System").unwrap(),
+            system.group_get_n_atoms("System").unwrap()
+        );
+    }
+
+    #[test]
+    fn group_union_already_exists() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.group_union("Protein", "ION", "W_ION") {
+            Err(GroupError::AlreadyExistsWarning(e)) => assert_eq!(e, "W_ION"),
+            Ok(_) => panic!("Warning should have been returned, but it was not."),
+            Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
         }
 
-        system.atoms_renumber();
+        assert_eq!(
+            system.group_get_n_atoms("W_ION").unwrap(),
+            system.group_get_n_atoms("Protein").unwrap() + system.group_get_n_atoms("ION").unwrap()
+        );
+    }
 
-        for (i, atom) in system.atoms_iter().enumerate() {
-            assert_eq!(atom.get_atom_number(), i + 1);
+    #[test]
+    fn group_union_invalid_group1() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.group_union("Nonexistent", "ION", "Test") {
+            Err(GroupError::NotFound(e)) => assert_eq!(e, "Nonexistent"),
+            Ok(_) => panic!("Creating union should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+
+        assert!(!system.group_exists("Test"));
+    }
+
+    #[test]
+    fn group_union_invalid_group2() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.group_union("ION", "Nonexistent", "Test") {
+            Err(GroupError::NotFound(e)) => assert_eq!(e, "Nonexistent"),
+            Ok(_) => panic!("Creating union should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+
+        assert!(!system.group_exists("Test"));
+    }
+
+    #[test]
+    fn group_extend_simple() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let old_n_atoms = system.group_get_n_atoms("Protein").unwrap();
+
+        system.group_extend("Protein", "ION").unwrap();
+        assert_eq!(
+            system.group_get_n_atoms("Protein").unwrap(),
+            old_n_atoms + system.group_get_n_atoms("ION").unwrap()
+        );
+    }
+
+    #[test]
+    fn group_extend_overlap() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let old_n_atoms = system.group_get_n_atoms("Protein_Membrane").unwrap();
+
+        system.group_extend("Protein_Membrane", "Membrane").unwrap();
+        assert_eq!(
+            system.group_get_n_atoms("Protein_Membrane").unwrap(),
+            old_n_atoms
+        );
+    }
+
+    #[test]
+    fn group_names() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        system.group_create("Custom Group", "resname LYS").unwrap();
+
+        let names = system.group_names();
+
+        assert_eq!(names.len(), 24);
+
+        for name in names {
+            assert!(system.group_exists(&name));
+        }
+    }
+
+    #[test]
+    fn group_names_writable() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        system.group_create("Custom Group", "resname LYS").unwrap();
+
+        let names = system.group_names_writable();
+
+        assert_eq!(names.len(), 22);
+
+        for name in &names {
+            assert!(system.group_exists(name));
+        }
+
+        assert!(!names.contains(&"All".to_string()));
+        assert!(!names.contains(&"all".to_string()));
+
+        // set "Custom Group" to nonwritable
+        system.group_make_nonwritable("Custom Group").unwrap();
+
+        let new_names = system.group_names_writable();
+
+        assert_eq!(new_names.len(), 21);
+        assert!(!new_names.contains(&"Custom Group".to_string()));
+    }
+
+    #[test]
+    fn group_remove() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        unsafe {
+            system.group_remove("Protein").unwrap();
+        }
+
+        assert!(!system.group_exists("Protein"));
+    }
+
+    #[test]
+    fn group_remove_nonexistent() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        unsafe {
+            match system.group_remove("Proin") {
+                Err(GroupError::NotFound(e)) => assert_eq!("Proin", e),
+                Ok(_) => panic!("Function should have failed, but it was successful."),
+                Err(e) => panic!("Incorrect error type returned: {:?}", e),
+            }
+        }
+    }
+
+    #[test]
+    fn group_rename() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        unsafe {
+            system.group_rename("Protein", "My Protein Group").unwrap();
+        }
+
+        assert!(!system.group_exists("Protein"));
+        assert!(system.group_exists("My Protein Group"));
+
+        for index in 0..61 {
+            assert!(system.group_isin("My Protein Group", index).unwrap());
+        }
+    }
+
+    #[test]
+    fn group_rename_nonexistent() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        unsafe {
+            match system.group_rename("Proin", "Protein") {
+                Err(GroupError::NotFound(e)) => assert_eq!("Proin", e),
+                Ok(_) => panic!("Function should have failed, but it was successful."),
+                Err(e) => panic!("Incorrect error type returned: {:?}", e),
+            }
+        }
+    }
+
+    #[test]
+    fn group_rename_overwrite() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        unsafe {
+            match system.group_rename("Protein", "Membrane") {
+                Err(GroupError::AlreadyExistsWarning(e)) => assert_eq!("Membrane", e),
+                Ok(_) => panic!("Function should have raised warning, but it did not."),
+                Err(e) => panic!("Incorrect error type returned: {:?}", e),
+            }
+        }
+
+        assert!(!system.group_exists("Protein"));
+        assert!(system.group_exists("Membrane"));
+
+        for index in 0..61 {
+            assert!(system.group_isin("Membrane", index).unwrap());
         }
     }
 }

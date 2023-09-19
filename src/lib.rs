@@ -73,7 +73,6 @@
 //!     // note that
 //!     // a) each atom can be in any number of groups
 //!     // b) the group names are case-sensitive
-//!     // c) the groups can not be removed
 //!     system.group_create("my group", "'My Group' || resid 87 to 124")?;
 //!
 //!     // we can then perform operations with the groups, e.g. write them into separate pdb files
@@ -462,36 +461,43 @@
 /// Current version of the `groan_rs` library.
 pub const GROAN_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-mod analysis;
-//pub mod analyzer;
-pub mod atom;
-pub mod dimension;
 pub mod errors;
 pub mod files;
-mod gro_io;
-mod group;
+pub mod io {
+    pub mod gro_io;
+    mod ndx_io;
+    pub mod pdb_io;
+    pub mod trr_io;
+    pub mod xdrfile;
+    pub mod xtc_io;
+}
 pub mod iterators;
-mod ndx_io;
-mod pdb_io;
 mod select;
-pub mod shape;
-pub mod simbox;
-pub mod system;
-pub mod trr_io;
-mod utility;
-pub mod vector3d;
-mod xdrfile;
-pub mod xtc_io;
+pub mod structures {
+    pub mod atom;
+    pub mod dimension;
+    pub mod group;
+    pub mod shape;
+    pub mod simbox;
+    pub mod vector3d;
+}
+pub mod system {
+    mod analysis;
+    pub mod general;
+    mod groups;
+    mod modifying;
+    mod utility;
+}
 
 /// Reexported basic `groan_rs` structures and traits.
 pub mod prelude {
-    pub use crate::atom::Atom;
-    pub use crate::dimension::Dimension;
-    pub use crate::shape::{Cylinder, Rectangular, Shape, Sphere};
-    pub use crate::simbox::SimBox;
-    pub use crate::system::System;
-    pub use crate::trr_io::{TrrGroupWriter, TrrReader, TrrWriter};
-    pub use crate::vector3d::Vector3D;
-    pub use crate::xdrfile::{XdrGroupWriter, XdrReader, XdrWriter};
-    pub use crate::xtc_io::{XtcGroupWriter, XtcReader, XtcWriter};
+    pub use crate::io::trr_io::{TrrGroupWriter, TrrReader, TrrWriter};
+    pub use crate::io::xdrfile::{XdrGroupWriter, XdrReader, XdrWriter};
+    pub use crate::io::xtc_io::{XtcGroupWriter, XtcReader, XtcWriter};
+    pub use crate::structures::atom::Atom;
+    pub use crate::structures::dimension::Dimension;
+    pub use crate::structures::shape::{Cylinder, Rectangular, Shape, Sphere};
+    pub use crate::structures::simbox::SimBox;
+    pub use crate::structures::vector3d::Vector3D;
+    pub use crate::system::general::System;
 }

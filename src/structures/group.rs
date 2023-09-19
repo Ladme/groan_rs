@@ -7,7 +7,11 @@ use std::io::Write;
 
 use crate::errors::{SelectError, WriteNdxError};
 use crate::select::{self, Select};
-use crate::system::System;
+use crate::system::general::System;
+
+/******************************/
+/*       GROUP STRUCTURE      */
+/******************************/
 
 /// Group of atoms in target system.
 #[derive(Debug, Clone)]
@@ -279,7 +283,7 @@ impl Group {
 }
 
 /******************************/
-/*         UNIT TESTS         */
+/*    UNIT TESTS FOR GROUP    */
 /******************************/
 
 #[cfg(test)]

@@ -3,10 +3,9 @@
 
 //! Implementation of some higher level functions for `groan_rs` programs.
 
-use crate::dimension::Dimension;
 use crate::errors::{GroupError, ParseNdxError};
-use crate::system::System;
-use crate::vector3d::Vector3D;
+use crate::structures::{dimension::Dimension, vector3d::Vector3D};
+use crate::system::general::System;
 
 impl System {
     /// Read ndx file using the provided default if index is None.

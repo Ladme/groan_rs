@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 use crate::errors::SelectError;
-use crate::group::Group;
+use crate::structures::group::Group;
 
 #[derive(Debug, PartialEq)]
 pub enum Select {

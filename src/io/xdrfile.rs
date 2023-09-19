@@ -14,8 +14,8 @@ use std::{
 };
 
 use crate::errors::{ReadXdrError, WriteXdrError, XdrError};
-use crate::simbox::SimBox;
-use crate::system::System;
+use crate::structures::simbox::SimBox;
+use crate::system::general::System;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
