@@ -526,7 +526,7 @@ impl System {
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
-    /// let (result, residues) = system.group_by_resid();
+    /// let (result, residues) = system.atoms_split_by_resid();
     /// if let Err(e) = result {
     ///     eprintln!("{}", e);
     /// }
@@ -545,31 +545,84 @@ impl System {
     /// - The atoms will not be sorted, i.e. their position in the groups will be the same as in the System structure.
     /// - The order of the group names in the output vector will be the same as the order of residues in the system.
     /// - The properties of the atoms are not changed.
-    pub fn group_by_resid(&mut self) -> (Result<(), GroupError>, Vec<String>) {
-        // split all atoms into residues by their number
+    pub fn atoms_split_by_resid(&mut self) -> (Result<(), GroupError>, Vec<String>) {
+        match self.group_split_by_resid("all") {
+            (Err(GroupError::NotFound(_)), _) => {
+                panic!("Groan error. Default group `all` does not exist for the system.")
+            }
+            (result, vec) => (result, vec),
+        }
+    }
+
+    /// Split atoms of a given group by their residue numbers creating a group for each residue number.
+    ///
+    /// ## Returns
+    /// A tuple of the following form:
+    /// - First item:
+    ///     - `GroupError::NotFound` if the given group does not exist.
+    ///     - `GroupError::MultipleAlreadyExistWarning` if any new group has overwritten a previous group.     
+    ///     - `Ok` otherwise.
+    /// - Second item: Vector containing all the names of the generated groups.
+    ///
+    /// ## Example
+    /// Creating a group for each residue of the group 'Protein', i.e. creating a group for each amino acid.
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    ///
+    /// let mut system = System::from_file("system.gro").unwrap();
+    ///
+    /// system.read_ndx("index.ndx").unwrap();
+    ///
+    /// let (result, residues) = system.group_split_by_resid("Protein");
+    /// if let Err(e) = result {
+    ///     eprintln!("{}", e);
+    /// }
+    ///
+    /// // iterate through residues of the group `Protein`
+    /// for resid in residues.iter() {
+    ///     for atom in system.group_iter(resid).unwrap() {
+    ///         println!("{:?}", atom);
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// ## Notes
+    /// - The names of the groups have the following format: 'resid X' where 'X' is the residue number.
+    /// - The atoms of the residues do not have positioned to be next to each other, i.e. groups can be broken.
+    /// - The atoms will not be sorted, i.e. their position in the groups will be the same as in the System structure.
+    /// - The order of the group names in the output vector will be the same as the order of residues in the system.
+    /// - The properties of the atoms are not changed.
+    pub fn group_split_by_resid(&mut self, name: &str) -> (Result<(), GroupError>, Vec<String>) {
         let mut groups: IndexMap<String, Vec<usize>> = IndexMap::new();
 
-        for (atomid, atom) in self.atoms.iter().enumerate() {
-            let res = atom.get_residue_number();
-            let groupname = format!("resid {}", res);
+        let iterator = match self.group_iter(name) {
+            Ok(i) => i,
+            Err(e) => return (Err(e), Vec::new()),
+        };
 
-            match groups.get_mut(&groupname) {
+        // collect atoms into groups
+        for (atomid, atom) in iterator.enumerate() {
+            let res = atom.get_residue_number();
+            let group_name = format!("resid {}", res);
+
+            match groups.get_mut(&group_name) {
                 Some(group) => group.push(atomid),
                 None => {
-                    groups.insert(groupname, vec![atomid]);
+                    groups.insert(group_name, vec![atomid]);
                 }
             }
         }
 
         let mut duplicate_names: HashSet<String> = HashSet::new();
 
-        // create groups
-        for (groupname, atoms) in groups.iter() {
+        // create the groups
+        for (group_name, atoms) in groups.iter() {
             if self
-                .group_create_from_indices(groupname, atoms.clone())
+                .group_create_from_indices(group_name, atoms.clone())
                 .is_err()
+            // we know that the only possible error to be returned is `GroupError::AlreadyExistsWarning`
             {
-                duplicate_names.insert(groupname.to_string());
+                duplicate_names.insert(group_name.to_string());
             }
         }
 
@@ -598,7 +651,7 @@ impl System {
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
-    /// let (result, residues) = system.group_by_resname();
+    /// let (result, residues) = system.atoms_split_by_resname();
     /// if let Err(e) = result {
     ///     eprintln!("{}", e);
     /// }
@@ -616,18 +669,68 @@ impl System {
     /// - The atoms will not be sorted, i.e. their position in the groups will be the same as in the System structure.
     /// - The order of the group names in the output vector will be the same as the order of residues in the system.
     /// - The properties of the atoms are not changed.
-    pub fn group_by_resname(&mut self) -> (Result<(), GroupError>, Vec<String>) {
-        // split all atoms into residues by their name
+    pub fn atoms_split_by_resname(&mut self) -> (Result<(), GroupError>, Vec<String>) {
+        match self.group_split_by_resname("all") {
+            (Err(GroupError::NotFound(_)), _) => {
+                panic!("Groan error. Default group `all` does not exist for the system.")
+            }
+            (result, vec) => (result, vec),
+        }
+    }
+
+    /// Split atoms of a given group by their residue names creating a group for each unique residue name.
+    ///
+    /// ## Returns
+    /// A tuple of the following form:
+    /// - First item:
+    ///     - `GroupError::NotFound` if the given group does not exist.
+    ///     - `GroupError::MultipleAlreadyExistWarning` if any new group has overwritten a previous group.     
+    ///     - `Ok` otherwise.
+    /// - Second item: Vector containing all the names of the generated groups.
+    ///
+    /// ## Example
+    /// Creating a group for each residue type of the group 'Protein', i.e. creating a group for each amino acid type.
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    ///
+    /// let mut system = System::from_file("system.gro").unwrap();
+    ///
+    /// system.read_ndx("index.ndx").unwrap();
+    ///
+    /// let (result, residues) = system.group_split_by_resname("Protein");
+    /// if let Err(e) = result {
+    ///     eprintln!("{}", e);
+    /// }
+    ///
+    /// // iterate through residue types of the system
+    /// for resid in residues.iter() {
+    ///     for atom in system.group_iter(resid).unwrap() {
+    ///         println!("{:?}", atom);
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// ## Notes
+    /// - The names of the groups have the following format: 'resname ABC' where 'ABC' is the residue name.
+    /// - The atoms will not be sorted, i.e. their position in the groups will be the same as in the System structure.
+    /// - The order of the group names in the output vector will be the same as the order of residues in the system.
+    /// - The properties of the atoms are not changed.
+    pub fn group_split_by_resname(&mut self, name: &str) -> (Result<(), GroupError>, Vec<String>) {
         let mut groups: IndexMap<String, Vec<usize>> = IndexMap::new();
 
-        for (atomid, atom) in self.atoms.iter().enumerate() {
-            let res = atom.get_residue_name();
-            let groupname = format!("resname {}", res);
+        let iterator = match self.group_iter(name) {
+            Ok(i) => i,
+            Err(e) => return (Err(e), Vec::new()),
+        };
 
-            match groups.get_mut(&groupname) {
+        for (atomid, atom) in iterator.enumerate() {
+            let res = atom.get_residue_name();
+            let group_name = format!("resname {}", res);
+
+            match groups.get_mut(&group_name) {
                 Some(group) => group.push(atomid),
                 None => {
-                    groups.insert(groupname, vec![atomid]);
+                    groups.insert(group_name, vec![atomid]);
                 }
             }
         }
@@ -635,12 +738,13 @@ impl System {
         let mut duplicate_names: HashSet<String> = HashSet::new();
 
         // create groups
-        for (groupname, atoms) in groups.iter() {
+        for (group_name, atoms) in groups.iter() {
             if self
-                .group_create_from_indices(groupname, atoms.clone())
+                .group_create_from_indices(group_name, atoms.clone())
                 .is_err()
+            // we know that the only possible error to be returned is `GroupError::AlreadyExistsWarning`
             {
-                duplicate_names.insert(groupname.to_string());
+                duplicate_names.insert(group_name.to_string());
             }
         }
 
@@ -1976,12 +2080,12 @@ mod tests {
     }
 
     #[test]
-    fn group_by_resid() {
+    fn split_by_resid() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        let (code, residues) = system.group_by_resid();
+        let (code, residues) = system.atoms_split_by_resid();
         if let Err(_) = code {
-            panic!("Overlapping groups in group_by_resid.");
+            panic!("Overlapping groups in atoms_split_by_resid.");
         }
 
         assert_eq!(residues.len(), 11180);
@@ -2003,13 +2107,13 @@ mod tests {
     }
 
     #[test]
-    fn group_by_resid_warnings() {
+    fn split_by_resid_warnings() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system
             .read_ndx("test_files/index_group_by_res.ndx")
             .unwrap();
 
-        let (code, residues) = system.group_by_resid();
+        let (code, residues) = system.atoms_split_by_resid();
         match code {
             Err(GroupError::MultipleAlreadyExistWarning(e)) => assert_eq!(
                 e,
@@ -2036,12 +2140,12 @@ mod tests {
     }
 
     #[test]
-    fn group_by_resid_broken() {
+    fn split_by_resid_broken() {
         let mut system = System::from_file("test_files/example_shuffled_residues.gro").unwrap();
 
-        let (code, residues) = system.group_by_resid();
+        let (code, residues) = system.atoms_split_by_resid();
         if let Err(_) = code {
-            panic!("Overlapping groups in group_by_resid.");
+            panic!("Overlapping groups in atoms_split_by_resid.");
         }
 
         assert_eq!(residues.len(), 21);
@@ -2068,12 +2172,95 @@ mod tests {
     }
 
     #[test]
-    fn group_by_resname() {
+    fn group_split_by_resid() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        let (code, residues) = system.group_by_resname();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let (code, residues) = system.group_split_by_resid("Protein");
         if let Err(_) = code {
-            panic!("Overlapping groups in group_by_resname.");
+            panic!("Error occured when using `System::group_split_by_resid`");
+        }
+
+        assert_eq!(residues.len(), 29);
+        for groupname in residues.iter() {
+            assert!(system.group_exists(groupname));
+            assert!(system.group_get_n_atoms(groupname).unwrap() > 0);
+        }
+
+        assert_eq!(system.group_get_n_atoms("resid 1").unwrap(), 1);
+        assert_eq!(system.group_get_n_atoms("resid 2").unwrap(), 3);
+        assert_eq!(system.group_get_n_atoms("resid 15").unwrap(), 2);
+        assert_eq!(system.group_get_n_atoms("resid 29").unwrap(), 2);
+
+        // check order of the group names in the `residues` vector
+        for i in 1..=29 {
+            let resname = format!("resid {}", i);
+            assert_eq!(residues[i - 1], resname);
+        }
+    }
+
+    #[test]
+    fn group_split_by_resid_warnings() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.read_ndx("test_files/index.ndx").unwrap();
+        system
+            .read_ndx("test_files/index_group_by_res.ndx")
+            .unwrap();
+
+        let (code, residues) = system.group_split_by_resid("Protein");
+        match code {
+            Err(GroupError::MultipleAlreadyExistWarning(e)) => assert_eq!(
+                e,
+                Box::new(HashSet::from([
+                    "resid 6".to_string(),
+                    "resid 27".to_string(),
+                ]))
+            ),
+            Ok(_) => panic!("Warning should have been returned, but it was not."),
+            Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
+        }
+
+        assert_eq!(residues.len(), 29);
+        for groupname in residues.iter() {
+            assert!(system.group_exists(groupname));
+            assert!(system.group_get_n_atoms(groupname).unwrap() > 0);
+        }
+
+        assert_eq!(system.group_get_n_atoms("resid 1").unwrap(), 1);
+        assert_eq!(system.group_get_n_atoms("resid 2").unwrap(), 3);
+        assert_eq!(system.group_get_n_atoms("resid 15").unwrap(), 2);
+        assert_eq!(system.group_get_n_atoms("resid 29").unwrap(), 2);
+
+        // check order of the group names in the `residues` vector
+        for i in 1..=29 {
+            let resname = format!("resid {}", i);
+            assert_eq!(residues[i - 1], resname);
+        }
+    }
+
+    #[test]
+    fn group_split_by_resid_nonexistent() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        let (code, residues) = system.group_split_by_resid("Protein");
+        match code {
+            Err(GroupError::NotFound(e)) => assert_eq!(e, "Protein"),
+            Ok(_) => panic!("Function should have failed but it succeeded."),
+            Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
+        }
+
+        assert_eq!(residues.len(), 0);
+    }
+
+    #[test]
+    fn split_by_resname() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        let (code, residues) = system.atoms_split_by_resname();
+        if let Err(_) = code {
+            panic!("Overlapping groups in atoms_split_by_resname.");
         }
 
         assert_eq!(residues.len(), 9);
@@ -2094,14 +2281,14 @@ mod tests {
     }
 
     #[test]
-    fn group_by_resname_warnings() {
+    fn split_by_resname_warnings() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
         system
             .read_ndx("test_files/index_group_by_resname.ndx")
             .unwrap();
 
-        let (code, residues) = system.group_by_resname();
+        let (code, residues) = system.atoms_split_by_resname();
         match code {
             Err(GroupError::MultipleAlreadyExistWarning(e)) => assert_eq!(
                 e,
@@ -2130,6 +2317,77 @@ mod tests {
         assert_eq!(system.group_get_n_atoms("resname POPC").unwrap(), 6144);
         assert_eq!(system.group_get_n_atoms("resname W").unwrap(), 10399);
         assert_eq!(system.group_get_n_atoms("resname ION").unwrap(), 240);
+    }
+
+    #[test]
+    fn group_split_by_resname() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let (code, residues) = system.group_split_by_resname("Protein");
+        if let Err(_) = code {
+            panic!("Error occured when using `System::group_split_by_resname`");
+        }
+
+        assert_eq!(residues.len(), 6);
+        for groupname in residues.iter() {
+            assert!(system.group_exists(groupname));
+            assert!(system.group_get_n_atoms(groupname).unwrap() > 0);
+        }
+
+        assert_eq!(system.group_get_n_atoms("resname GLY").unwrap(), 1);
+        assert_eq!(system.group_get_n_atoms("resname LYS").unwrap(), 12);
+        assert_eq!(system.group_get_n_atoms("resname VAL").unwrap(), 22);
+        assert_eq!(system.group_get_n_atoms("resname LEU").unwrap(), 2);
+        assert_eq!(system.group_get_n_atoms("resname ALA").unwrap(), 22);
+        assert_eq!(system.group_get_n_atoms("resname CYS").unwrap(), 2);
+    }
+
+    #[test]
+    fn group_split_by_resname_warnings() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.read_ndx("test_files/index.ndx").unwrap();
+        system
+            .read_ndx("test_files/index_group_by_resname.ndx")
+            .unwrap();
+
+        let (code, residues) = system.group_split_by_resname("Protein");
+        match code {
+            Err(GroupError::MultipleAlreadyExistWarning(e)) => {
+                assert_eq!(e, Box::new(HashSet::from(["resname LYS".to_string(),])))
+            }
+            Ok(_) => panic!("Warning should have been returned, but it was not."),
+            Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
+        }
+
+        assert_eq!(residues.len(), 6);
+        for groupname in residues.iter() {
+            assert!(system.group_exists(groupname));
+            assert!(system.group_get_n_atoms(groupname).unwrap() > 0);
+        }
+
+        assert_eq!(system.group_get_n_atoms("resname GLY").unwrap(), 1);
+        assert_eq!(system.group_get_n_atoms("resname LYS").unwrap(), 12);
+        assert_eq!(system.group_get_n_atoms("resname VAL").unwrap(), 22);
+        assert_eq!(system.group_get_n_atoms("resname LEU").unwrap(), 2);
+        assert_eq!(system.group_get_n_atoms("resname ALA").unwrap(), 22);
+        assert_eq!(system.group_get_n_atoms("resname CYS").unwrap(), 2);
+    }
+
+    #[test]
+    fn group_split_by_resname_nonexistent() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        let (code, residues) = system.group_split_by_resname("Protein");
+        match code {
+            Err(GroupError::NotFound(e)) => assert_eq!(e, "Protein"),
+            Ok(_) => panic!("Function should have failed but it succeeded."),
+            Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
+        }
+
+        assert_eq!(residues.len(), 0);
     }
 
     #[test]
