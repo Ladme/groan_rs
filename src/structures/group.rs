@@ -7,6 +7,7 @@ use std::io::Write;
 
 use crate::errors::{SelectError, WriteNdxError};
 use crate::select::{self, Select};
+use crate::structures::shape::Shape;
 use crate::system::general::System;
 
 /******************************/
@@ -26,12 +27,24 @@ impl Group {
         &self.atom_ranges
     }
 
-    /// Create a new valid Group structure from string query in Groan Selection Language.
+    /// Create a new valid `Group` structure from query in Groan Selection Language.
     pub fn from_query(query: &str, system: &System) -> Result<Self, SelectError> {
         // parse groan selection language query into binary selection tree
         let select = select::parse_query(query)?;
         // apply the selection tree to the system
         Group::from_select(select, system)
+    }
+
+    /// Create a new valid `Group` structure from query in Groan Selection Language and from geometry constraint.
+    pub fn from_query_and_geometry(
+        query: &str,
+        geometry: impl Shape,
+        system: &System,
+    ) -> Result<Self, SelectError> {
+        // create group from query
+        let group = Group::from_query(query, system)?;
+        // now apply geometry to the group
+        Ok(group.apply_geometry(geometry, system))
     }
 
     /// Create a new valid Group structure from atom ranges.
@@ -52,7 +65,7 @@ impl Group {
     ///
     /// ## Parameters
     /// Expects a vector of atom indices and the total number of atoms in the system.
-    /// There can be duplicate atoms in the "atom indices". In the final Group structure, they will be removed.
+    /// There can be duplicate atoms in the 'atom indices'. In the final Group structure, they will be removed.
     pub fn from_indices(atom_indices: Vec<usize>, n_atoms: usize) -> Self {
         let ranges = Group::make_atom_ranges(atom_indices, n_atoms);
         Group {
@@ -76,6 +89,30 @@ impl Group {
             atom_ranges: ranges,
             print_ndx: true,
         })
+    }
+
+    /// Consumes self returning a new `Group` which only contains atoms fullfilling the geometry condition.
+    fn apply_geometry(self, geometry: impl Shape, system: &System) -> Self {
+        let mut indices = Vec::new();
+
+        let atoms = system.get_atoms_as_ref();
+        let simbox = system.get_box_as_ref();
+
+        // iterate through the atoms of the old group and select atoms fullfilling the geometry condition
+        for (min, max) in self.atom_ranges {
+            for (i, atom) in atoms.iter().enumerate().take(max + 1).skip(min) {
+                if geometry.inside(atom.get_position(), simbox) {
+                    indices.push(i);
+                }
+            }
+        }
+
+        let ranges = Group::make_atom_ranges(indices, system.get_n_atoms());
+
+        Group {
+            atom_ranges: ranges,
+            print_ndx: true,
+        }
     }
 
     /// Check whether properties of target atom match conditions prescribed by target Select tree.

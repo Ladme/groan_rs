@@ -17,6 +17,7 @@
 - **Breaking Change:** Renamed functions `System::group_by_resid` and `System::group_by_resname` to `System::atoms_split_by_resid` and `System::atoms_split_by_resname`, respectively.
 - Introduced new functions: `System::group_split_by_resid` for splitting groups of atoms by their residue ID and `System::group_split_by_resname` for splitting by residue name.
 - Added functions `System::group_remove` for removing groups and `System::group_rename` for renaming them.
+- Introduced `System::group_create_from_geometry` which allows to construct groups of atoms that are inside some geometric shape in the current simulation frame.
 - Restructured codebase:
   - Split the `system.rs` file into multiple smaller files.
   - Grouped files related to IO operations into a dedicated directory.

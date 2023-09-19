@@ -10,6 +10,7 @@ use indexmap::IndexMap;
 
 use crate::errors::GroupError;
 use crate::structures::group::Group;
+use crate::structures::shape::Shape;
 use crate::system::general::System;
 
 impl System {
@@ -113,6 +114,62 @@ impl System {
             }
             // propagate the other errors
             Err(e) => Err(e),
+        }
+    }
+
+    /// Make a group with a given name from the given Groan selection language query and geometry specification.
+    /// The group is NOT dynamically updated.
+    ///
+    /// ## Returns
+    /// - `Ok` if the group was successfully created.
+    /// - `GroupError::AlreadyExistsWarning` if the new group has overwritten a previous group.
+    /// - `GroupError::InvalidName` if the name of the group is invalid (no group created).
+    /// - `SelectError` if the query could not be parsed.
+    ///
+    /// ## Example
+    /// Select phosphori atoms which are inside a z-axis oriented cylinder
+    /// with a radius of 2 nm and height of 4 nm located at coordinates x = 5 nm, y = 5 nm, z = 3 nm.
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    ///
+    /// let mut system = System::from_file("system.gro").unwrap();
+    ///
+    /// let cylinder = Cylinder::new([5.0, 5.0, 3.0].into(), 2.0, 4.0, Dimension::Z);
+    ///
+    /// if let Err(e) = system.group_create_from_geometry("Phosphori", "name P", cylinder) {
+    ///     eprintln!("{}", e);
+    ///     return;
+    /// }
+    /// ```
+    ///
+    /// ## Warning
+    /// - If you construct the group and then iterate through a trajectory, the group will still contain
+    /// the same atoms as initially. In other words, the group is NOT dynamically updated.
+    /// - If you want to choose atoms dynamically, it is better to use `AtomIterator` and `filter_geometry` function in each simulation frame.
+    ///
+    /// ## Notes
+    /// - In case a group with the given name already exists, it is replaced with the new group.
+    /// - The following characters are not allowed in group names: '"&|!@()
+    /// - The group will be created even if no atoms are selected.
+    pub fn group_create_from_geometry(
+        &mut self,
+        name: &str,
+        query: &str,
+        geometry: impl Shape,
+    ) -> Result<(), Box<dyn Error>> {
+        if !Group::name_is_valid(name) {
+            return Err(Box::from(GroupError::InvalidName(name.to_string())));
+        }
+
+        let group = Group::from_query_and_geometry(query, geometry, self)?;
+
+        unsafe {
+            match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
+                None => Ok(()),
+                Some(_) => Err(Box::from(GroupError::AlreadyExistsWarning(
+                    name.to_string(),
+                ))),
+            }
         }
     }
 
@@ -704,6 +761,8 @@ impl System {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::structures::dimension::Dimension;
+    use crate::structures::shape::*;
 
     #[test]
     fn group_create_basic() {
@@ -1012,6 +1071,73 @@ mod tests {
 
         system.group_create("Atomid 10", "atomid 10").unwrap();
         assert_eq!(system.group_get_n_atoms("Atomid 10").unwrap(), 0);
+    }
+
+    #[test]
+    fn group_create_from_geometry_cylinder() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let cylinder = Cylinder::new([5.0, 8.0, 3.0].into(), 2.0, 6.0, Dimension::Y);
+
+        system
+            .group_create_from_geometry("Selected Membrane", "Membrane", cylinder.clone())
+            .unwrap();
+
+        assert!(system.group_exists("Selected Membrane"));
+        assert_eq!(system.group_get_n_atoms("Selected Membrane").unwrap(), 206);
+
+        for atom in system.group_iter("Selected Membrane").unwrap() {
+            assert_eq!(atom.get_residue_name(), "POPC");
+            assert!(cylinder.inside(atom.get_position(), system.get_box_as_ref()));
+        }
+    }
+
+    #[test]
+    fn group_create_from_geometry_sphere() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let sphere = Sphere::new([0.5, 4.5, 3.5].into(), 4.6);
+
+        system
+            .group_create_from_geometry("Selected Water", "resname W", sphere.clone())
+            .unwrap();
+
+        assert!(system.group_exists("Selected Water"));
+        assert_eq!(system.group_get_n_atoms("Selected Water").unwrap(), 1881);
+
+        for atom in system.group_iter("Selected Water").unwrap() {
+            assert_eq!(atom.get_residue_name(), "W");
+            assert!(sphere.inside(atom.get_position(), system.get_box_as_ref()));
+        }
+    }
+
+    #[test]
+    fn group_create_from_geometry_rectangular() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let rectangular = Rectangular::new([5.0, 0.0, 2.0].into(), 5.0, 4.0, 4.3);
+
+        system
+            .group_create_from_geometry("Selected Protein", "@protein", rectangular.clone())
+            .unwrap();
+
+        assert!(system.group_exists("Selected Protein"));
+        assert_eq!(system.group_get_n_atoms("Selected Protein").unwrap(), 25);
+
+        for atom in system.group_iter("Selected Protein").unwrap() {
+            let resname = atom.get_residue_name();
+            assert!(
+                resname == "VAL"
+                    || resname == "LEU"
+                    || resname == "ALA"
+                    || resname == "LYS"
+                    || resname == "CYS"
+            );
+            assert!(rectangular.inside(atom.get_position(), system.get_box_as_ref()));
+        }
     }
 
     #[test]
