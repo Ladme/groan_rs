@@ -12,9 +12,9 @@
 - Made minor documentation fixes.
 
 ### Version 0.3.0
-- Updated selection macros according to Gromacs definitions, and introduced new macros for identifying DNA (`@dna`) and RNA (`@rna`).
-- Introduced the `System::group_create_ignore_warnings` function, which replicates the behavior of `System::group_create` while ignoring any WARNINGS that may occur during its execution. This new function addresses the issue of easily filtering out warnings returned by `System::group_create`, which uses a generic `Box<dyn Error>` return type. All other errors are propagated as usual since they indicate that the function failed.
 - **Breaking Change:** Renamed functions `System::group_by_resid` and `System::group_by_resname` to `System::atoms_split_by_resid` and `System::atoms_split_by_resname`, respectively.
+- **Breaking Change:** Revised the return type of `System::group_create` from `Result<(), Box<dyn Error>>` to `Result<(), GroupError>`. This change simplifies pattern matching when handling the result of the function. Additionally, the error type `SelectError`, previously returned by the function, is now encapsulated within the new error variant `GroupError::InvalidQuery`.
+- Updated selection macros according to Gromacs definitions, and introduced new macros for identifying DNA (`@dna`) and RNA (`@rna`).
 - Introduced new functions: `System::group_split_by_resid` for splitting groups of atoms by their residue ID and `System::group_split_by_resname` for splitting by residue name.
 - Added functions `System::group_remove` for removing groups and `System::group_rename` for renaming them.
 - Introduced `System::group_create_from_geometry` which allows to construct groups of atoms that are inside some geometric shape in the current simulation frame.

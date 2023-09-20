@@ -105,6 +105,8 @@ pub enum GroupError {
     MultipleAlreadyExistWarning(Box<HashSet<String>>),
     #[error("{} name '{}' contains invalid characters", "error:".red().bold(), .0.yellow())]
     InvalidName(String),
+    #[error("{}", .0)]
+    InvalidQuery(SelectError),
 }
 
 /// Errors that can occur when working with atoms in a system.

@@ -4,7 +4,6 @@
 //! Implementation of System methods for working with groups.
 
 use std::collections::HashSet;
-use std::error::Error;
 
 use indexmap::IndexMap;
 
@@ -20,7 +19,7 @@ impl System {
     /// - `Ok` if the group was successfully created.
     /// - `GroupError::AlreadyExistsWarning` if the new group has overwritten a previous group.
     /// - `GroupError::InvalidName` if the name of the group is invalid (no group created).
-    /// - `SelectError` if the query could not be parsed.
+    /// - `GroupError::InvalidQuery` if the query could not be parsed.
     ///
     /// ## Example
     /// ```no_run
@@ -38,82 +37,21 @@ impl System {
     /// - In case a group with the given name already exists, it is replaced with the new group.
     /// - The following characters are not allowed in group names: '"&|!@()
     /// - The group will be created even if the query selects no atoms.
-    pub fn group_create(&mut self, name: &str, query: &str) -> Result<(), Box<dyn Error>> {
+    pub fn group_create(&mut self, name: &str, query: &str) -> Result<(), GroupError> {
         if !Group::name_is_valid(name) {
-            return Err(Box::from(GroupError::InvalidName(name.to_string())));
+            return Err(GroupError::InvalidName(name.to_string()));
         }
 
-        let group = Group::from_query(query, self)?;
+        let group = match Group::from_query(query, self) {
+            Ok(x) => x,
+            Err(e) => return Err(GroupError::InvalidQuery(e)),
+        };
 
         unsafe {
             match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
                 None => Ok(()),
-                Some(_) => Err(Box::from(GroupError::AlreadyExistsWarning(
-                    name.to_string(),
-                ))),
+                Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
             }
-        }
-    }
-
-    /// Make a group with a given name from the given Groan selection language query.
-    /// Ignore all warnings returned by this function but propagate actual errors.
-    ///
-    /// ## Returns
-    /// - `Ok` if the group was successfully created.
-    ///   `Ok` will be returned even if the new group has overwritten a previous group.
-    /// - `GroupError::InvalidName` if the name of the group is invalid (no group created).
-    /// - `SelectError` if the query could not be parsed.
-    ///
-    /// ## Example
-    /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
-    /// let mut system = System::from_file("system.gro").unwrap();
-    ///
-    /// // create a group 'Phosphori'
-    /// if let Err(e) = system.group_create("Phosphori", "resname POPE POPG and name P") {
-    ///     eprintln!("{}", e);
-    ///     return;
-    /// }
-    ///
-    /// // if we attempt to overwrite the group 'Phosphori' using `System::group_create`
-    /// // we get an error `GroupError::AlreadyExistsWarning`
-    /// if let Err(e) = system.group_create("Phosphori", "resname POPE and name P") {
-    ///     eprintln!("{}", e);
-    ///     return;
-    /// }
-    ///
-    /// // we can ignore this warning by using `System::group_create_ignore_warnings`
-    /// if let Err(e) = system.group_create_ignore_warnings("Phosphori", "resname POPE and name P") {
-    ///     // only print actual errors
-    ///     eprintln!("{}", e);
-    ///     return;
-    /// }
-    /// ```
-    ///
-    /// ## Notes
-    /// - In case a group with the given name already exists, it is replaced with the new group. No warning is raised.
-    /// - The following characters are not allowed in group names: '"&|!@()
-    /// - The group will be created even if the query selects no atoms.
-    pub fn group_create_ignore_warnings(
-        &mut self,
-        name: &str,
-        query: &str,
-    ) -> Result<(), Box<dyn Error>> {
-        match self.group_create(name, query) {
-            Ok(()) => Ok(()),
-            Err(e) if e.is::<GroupError>() => {
-                let group_error = e.downcast::<GroupError>().unwrap();
-                match *group_error {
-                    // ignore warnings
-                    GroupError::AlreadyExistsWarning(_)
-                    | GroupError::MultipleAlreadyExistWarning(_) => Ok(()),
-                    // propagate the other errors
-                    _ => Err(group_error),
-                }
-            }
-            // propagate the other errors
-            Err(e) => Err(e),
         }
     }
 
@@ -124,7 +62,7 @@ impl System {
     /// - `Ok` if the group was successfully created.
     /// - `GroupError::AlreadyExistsWarning` if the new group has overwritten a previous group.
     /// - `GroupError::InvalidName` if the name of the group is invalid (no group created).
-    /// - `SelectError` if the query could not be parsed.
+    /// - `GroupError::InvalidQuery` if the query could not be parsed.
     ///
     /// ## Example
     /// Select phosphori atoms which are inside a z-axis oriented cylinder
@@ -145,7 +83,8 @@ impl System {
     /// ## Warning
     /// - If you construct the group and then iterate through a trajectory, the group will still contain
     /// the same atoms as initially. In other words, the group is NOT dynamically updated.
-    /// - If you want to choose atoms dynamically, it is better to use `AtomIterator` and `filter_geometry` function in each simulation frame.
+    /// - If you want to choose atoms dynamically, it is better to use `AtomIterator` and `filter_geometry` function
+    /// while iterating through the trajectory.
     ///
     /// ## Notes
     /// - In case a group with the given name already exists, it is replaced with the new group.
@@ -156,19 +95,20 @@ impl System {
         name: &str,
         query: &str,
         geometry: impl Shape,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), GroupError> {
         if !Group::name_is_valid(name) {
-            return Err(Box::from(GroupError::InvalidName(name.to_string())));
+            return Err(GroupError::InvalidName(name.to_string()));
         }
 
-        let group = Group::from_query_and_geometry(query, geometry, self)?;
+        let group = match Group::from_query_and_geometry(query, geometry, self) {
+            Ok(x) => x,
+            Err(e) => return Err(GroupError::InvalidQuery(e)),
+        };
 
         unsafe {
             match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
                 None => Ok(()),
-                Some(_) => Err(Box::from(GroupError::AlreadyExistsWarning(
-                    name.to_string(),
-                ))),
+                Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
             }
         }
     }
@@ -839,68 +779,6 @@ mod tests {
         for i in 61..=6204 {
             assert!(system.group_isin("Membrane", i).unwrap());
         }
-    }
-
-    #[test]
-    fn group_create_ignore_warnings_overwrite() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-
-        system.group_create("Membrane", "serial 1").unwrap();
-
-        // overwritting previous group without warning
-        system
-            .group_create_ignore_warnings("Membrane", "resname POPC")
-            .unwrap();
-
-        assert!(system.group_exists("Membrane"));
-        assert_eq!(system.group_get_n_atoms("Membrane").unwrap(), 6144);
-        for i in 61..=6204 {
-            assert!(system.group_isin("Membrane", i).unwrap());
-        }
-    }
-
-    #[test]
-    fn group_create_ignore_warnings_fail() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-
-        system.group_create("Membrane", "serial 1").unwrap();
-
-        // attempting overwrite but with incorrect query which should result in an error
-        match system.group_create_ignore_warnings("Membrane", "resame POPC") {
-            Ok(_) => panic!("Function did not fail but it should."),
-            Err(e) if e.is::<GroupError>() => match *(e.downcast::<GroupError>().unwrap()) {
-                GroupError::AlreadyExistsWarning(_) => {
-                    panic!("Function did not filter out the warning")
-                }
-                _ => (),
-            },
-            Err(_) => (),
-        }
-
-        // the group should not be changed
-        assert!(system.group_exists("Membrane"));
-        assert_eq!(system.group_get_n_atoms("Membrane").unwrap(), 1);
-        assert!(system.group_isin("Membrane", 0).unwrap());
-    }
-
-    #[test]
-    fn group_create_ignore_warnings_fail2() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-
-        // attempting to write a new group but with invalid name which should result in an error
-        match system.group_create_ignore_warnings("Membr@ne", "resname POPC") {
-            Ok(_) => panic!("Function did not fail but it should."),
-            Err(e) if e.is::<GroupError>() => match *(e.downcast::<GroupError>().unwrap()) {
-                GroupError::AlreadyExistsWarning(_) => {
-                    panic!("Function did not filter out the warning")
-                }
-                _ => (),
-            },
-            Err(_) => (),
-        }
-
-        // the group should not exist
-        assert!(!system.group_exists("Membr@ne"));
     }
 
     #[test]
