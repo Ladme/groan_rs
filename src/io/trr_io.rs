@@ -7,13 +7,11 @@ use std::marker::PhantomData;
 use std::os::raw::{c_float, c_int};
 use std::path::Path;
 
-use crate::atom::Atom;
 use crate::errors::{ReadXdrError, WriteXdrError, XdrError};
-use crate::group::Group;
+use crate::io::xdrfile::{self, OpenMode, XdrFile, XdrGroupWriter, XdrReader, XdrWriter};
 use crate::iterators::AtomIterator;
-use crate::system::System;
-use crate::vector3d::Vector3D;
-use crate::xdrfile::{self, OpenMode, XdrFile, XdrGroupWriter, XdrReader, XdrWriter};
+use crate::structures::{atom::Atom, group::Group, vector3d::Vector3D};
+use crate::system::general::System;
 
 /**************************/
 /*      READING TRR       */
@@ -119,6 +117,7 @@ impl<'a> Iterator for TrrReader<'a> {
     }
 }
 
+/// ## Methods for reading trr files.
 impl System {
     /// Create a `TrrReader` structure which is an iterator over a trr file.
     ///

@@ -1,18 +1,18 @@
 // Released under MIT License.
 // Copyright (c) 2023 Ladislav Bartos
 
-//! Implementation of various methods for analysis.
+//! Implementation of various methods for analysis of `System`.
 
-use crate::dimension::Dimension;
 use crate::errors::GroupError;
-use crate::system::System;
-use crate::vector3d::Vector3D;
+use crate::structures::{dimension::Dimension, vector3d::Vector3D};
+use crate::system::general::System;
 
 use std::f32::consts;
 
 // PI times 2.
 const PI_X2: f32 = consts::PI * 2.0f32;
 
+/// ## Methods for analyzing the properties of the system.
 impl System {
     /// Calculate center of geometry of a group in `System`.
     /// Takes periodic boundary conditions into consideration.
@@ -196,7 +196,7 @@ mod tests {
     use super::*;
     use float_cmp::assert_approx_eq;
 
-    use crate::atom::Atom;
+    use crate::structures::atom::Atom;
 
     #[test]
     fn center_single_atom() {

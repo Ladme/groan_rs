@@ -5,10 +5,8 @@
 
 use std::io::Write;
 
-use crate::dimension::Dimension;
 use crate::errors::{WriteGroError, WritePdbError};
-use crate::simbox::SimBox;
-use crate::vector3d::Vector3D;
+use crate::structures::{dimension::Dimension, simbox::SimBox, vector3d::Vector3D};
 
 #[derive(Debug, Clone)]
 pub struct Atom {

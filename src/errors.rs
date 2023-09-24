@@ -99,12 +99,14 @@ pub enum WritePdbError {
 pub enum GroupError {
     #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
     NotFound(String),
-    #[error("{} group '{}' already exists", "warning:".yellow().bold(), .0.yellow())]
+    #[error("{} group '{}' already existed and has been overwritten", "warning:".yellow().bold(), .0.yellow())]
     AlreadyExistsWarning(String),
-    #[error("{} following groups already exist and have been overwritten: {}", "warning:".yellow().bold(), unpack_set(.0))]
+    #[error("{} following groups already existed and have been overwritten: {}", "warning:".yellow().bold(), unpack_set(.0))]
     MultipleAlreadyExistWarning(Box<HashSet<String>>),
     #[error("{} name '{}' contains invalid characters", "error:".red().bold(), .0.yellow())]
     InvalidName(String),
+    #[error("{}", .0)]
+    InvalidQuery(SelectError),
 }
 
 /// Errors that can occur when working with atoms in a system.

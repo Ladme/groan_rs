@@ -3,8 +3,7 @@
 
 //! Implementation of methods for three-dimensional vector.
 
-use crate::dimension::Dimension;
-use crate::simbox::SimBox;
+use crate::structures::{dimension::Dimension, simbox::SimBox};
 
 /// Function replicating the behavior of Python '%'.
 fn floor_mod(x: f32, y: f32) -> f32 {

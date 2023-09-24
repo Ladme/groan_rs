@@ -10,10 +10,11 @@ use std::path::Path;
 use indexmap::IndexMap;
 use std::collections::HashSet;
 
-use crate::atom::Atom;
 use crate::errors::{GroupError, ParseNdxError, WriteNdxError};
-use crate::system::System;
+use crate::structures::atom::Atom;
+use crate::system::general::System;
 
+/// ## Methods for reading and writing ndx files.
 impl System {
     /// Read an ndx file and create atom Groups in the System structure.
     ///
@@ -124,7 +125,7 @@ impl System {
     /// use groan_rs::prelude::*;
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
-    /// let (_, _residues) = system.group_by_resname();
+    /// let (_, _residues) = system.atoms_split_by_resname();
     /// if let Err(e) = system.write_ndx("output.ndx") {
     ///     eprintln!("{}", e);
     ///     return;

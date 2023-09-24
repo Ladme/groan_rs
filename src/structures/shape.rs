@@ -3,9 +3,7 @@
 
 //! Implementation of shapes for geometry selection.
 
-use crate::dimension::Dimension;
-use crate::simbox::SimBox;
-use crate::vector3d::Vector3D;
+use crate::structures::{dimension::Dimension, simbox::SimBox, vector3d::Vector3D};
 
 /// Structure describing a sphere for geometry selections.
 #[derive(Debug, Clone)]

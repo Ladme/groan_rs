@@ -73,7 +73,6 @@
 //!     // note that
 //!     // a) each atom can be in any number of groups
 //!     // b) the group names are case-sensitive
-//!     // c) the groups can not be removed
 //!     system.group_create("my group", "'My Group' || resid 87 to 124")?;
 //!
 //!     // we can then perform operations with the groups, e.g. write them into separate pdb files
@@ -372,11 +371,15 @@
 //!
 //! **Selecting atoms by autodetection**
 //!
-//! You can select atoms using internally defined macros. Currently, `groan_rs` library provides four of such macros:
+//! You can select atoms using internally defined macros. Currently, `groan_rs` library provides six of such macros:
+//! - `@protein` will select all atoms corresponding to amino acids (supports some 140 different amino acids).
+//! - `@water` will select all atoms of water.
+//! - `@ions` will select all atoms of ions.
 //! - `@membrane` will select all atoms corresponding to membrane lipids (supports over 200 membrane lipid types).
-//! - `@protein` will select all atoms corresponding to either of the 20 standard amino acids.
-//! - `@water` will select all atoms of water. Using this macro is not recommended as it only supports some water models.
-//! - `@ions` will select all atoms of ions. Using this macro is not recommended as it only supports small number of ion types.
+//! - `@dna` will select all atoms belonging to a DNA molecule.
+//! - `@rna` will select all atoms belonging to an RNA molecule.
+//!
+//! Please be aware that while groan macros are generally dependable, there is no absolute guarantee that they will unfailingly identify all atoms correctly. Be careful when using them.
 //!
 //! **Selecting all atoms**
 //!
@@ -458,36 +461,43 @@
 /// Current version of the `groan_rs` library.
 pub const GROAN_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-mod analysis;
-//pub mod analyzer;
-pub mod atom;
-pub mod dimension;
 pub mod errors;
 pub mod files;
-mod gro_io;
-mod group;
+pub mod io {
+    pub mod gro_io;
+    mod ndx_io;
+    pub mod pdb_io;
+    pub mod trr_io;
+    pub mod xdrfile;
+    pub mod xtc_io;
+}
 pub mod iterators;
-mod ndx_io;
-mod pdb_io;
 mod select;
-pub mod shape;
-pub mod simbox;
-pub mod system;
-pub mod trr_io;
-mod utility;
-pub mod vector3d;
-mod xdrfile;
-pub mod xtc_io;
+pub mod structures {
+    pub mod atom;
+    pub mod dimension;
+    pub mod group;
+    pub mod shape;
+    pub mod simbox;
+    pub mod vector3d;
+}
+pub mod system {
+    mod analysis;
+    pub mod general;
+    mod groups;
+    mod modifying;
+    mod utility;
+}
 
 /// Reexported basic `groan_rs` structures and traits.
 pub mod prelude {
-    pub use crate::atom::Atom;
-    pub use crate::dimension::Dimension;
-    pub use crate::shape::{Cylinder, Rectangular, Shape, Sphere};
-    pub use crate::simbox::SimBox;
-    pub use crate::system::System;
-    pub use crate::trr_io::{TrrGroupWriter, TrrReader, TrrWriter};
-    pub use crate::vector3d::Vector3D;
-    pub use crate::xdrfile::{XdrGroupWriter, XdrReader, XdrWriter};
-    pub use crate::xtc_io::{XtcGroupWriter, XtcReader, XtcWriter};
+    pub use crate::io::trr_io::{TrrGroupWriter, TrrReader, TrrWriter};
+    pub use crate::io::xdrfile::{XdrGroupWriter, XdrReader, XdrWriter};
+    pub use crate::io::xtc_io::{XtcGroupWriter, XtcReader, XtcWriter};
+    pub use crate::structures::atom::Atom;
+    pub use crate::structures::dimension::Dimension;
+    pub use crate::structures::shape::{Cylinder, Rectangular, Shape, Sphere};
+    pub use crate::structures::simbox::SimBox;
+    pub use crate::structures::vector3d::Vector3D;
+    pub use crate::system::general::System;
 }

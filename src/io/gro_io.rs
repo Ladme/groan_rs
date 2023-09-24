@@ -7,11 +7,11 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 
-use crate::atom::Atom;
 use crate::errors::{ParseGroError, WriteGroError};
-use crate::simbox::SimBox;
-use crate::system::System;
+use crate::structures::{atom::Atom, simbox::SimBox};
+use crate::system::general::System;
 
+/// ## Methods for reading gro files.
 impl System {
     /// Write all atoms of the `System` into a gro file with the given name.
     ///

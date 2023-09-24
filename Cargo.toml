@@ -1,7 +1,7 @@
 [package]
 name = "groan_rs"
 description = "Gromacs Analysis Library for Rust"
-version = "0.2.0"
+version = "0.3.0"
 license = "MIT"
 edition = "2021"
 repository = "https://github.com/Ladme/groan_rs"
@@ -11,14 +11,14 @@ build = "build.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-colored   = "2.0.0"
-indexmap  = "1.9.3"
-thiserror = "1.0.40"
+colored   = "2.0.4"
+indexmap  = "2.0.0"
+thiserror = "1.0.48"
 
 [dev-dependencies]
 float-cmp = "0.9.0"
 file_diff = "1.0.0"
-tempfile  = "3.5.0"
+tempfile  = "3.8.0"
 rand      = "0.8.5"
 
 [build-dependencies]

@@ -3,12 +3,9 @@
 
 //! Implementation of iterators over atoms and filter functions.
 
-use crate::atom::Atom;
 use crate::errors::GroupError;
-use crate::group::Group;
-use crate::shape::Shape;
-use crate::simbox::SimBox;
-use crate::system::System;
+use crate::structures::{atom::Atom, group::Group, shape::Shape, simbox::SimBox};
+use crate::system::general::System;
 
 /**************************/
 /*  IMMUTABLE ITERATORS   */
@@ -257,6 +254,7 @@ where
 /*    ITERATING SYSTEM    */
 /**************************/
 
+/// ## Methods for iterating over atoms of the system.
 impl System {
     /// Create an iterator over a group of atoms. The atoms are immutable.
     ///
@@ -383,9 +381,8 @@ impl System {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dimension::Dimension;
-    use crate::shape::{Cylinder, Rectangular, Sphere};
-    use crate::vector3d::Vector3D;
+    use crate::structures::{dimension::Dimension, shape::*, vector3d::Vector3D};
+
     use float_cmp::assert_approx_eq;
 
     #[test]
