@@ -7,6 +7,7 @@ use crate::errors::GroupError;
 use crate::structures::{simbox::SimBox, vector3d::Vector3D};
 use crate::system::general::System;
 
+/// ## Methods for modifying the properties of the system.
 impl System {
     /// Translate all atoms of a group by target vector.
     ///

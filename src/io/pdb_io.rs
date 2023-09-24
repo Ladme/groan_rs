@@ -65,6 +65,7 @@ pub fn read_pdb(filename: impl AsRef<Path>) -> Result<System, ParsePdbError> {
     Ok(System::new(&title, atoms, simbox))
 }
 
+/// ## Methods for writing pdb files.
 impl System {
     /// Write all atoms of the `System` into a pdb file with the given name.
     ///

@@ -33,6 +33,7 @@ pub struct System {
     lambda: f32,
 }
 
+/// ## Methods for creating `System` structures and accessing their properties.
 impl System {
     /// Create new System structure with a given name from the provided vector of atoms and simulation box.
     ///

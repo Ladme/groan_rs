@@ -254,6 +254,7 @@ where
 /*    ITERATING SYSTEM    */
 /**************************/
 
+/// ## Methods for iterating over atoms of the system.
 impl System {
     /// Create an iterator over a group of atoms. The atoms are immutable.
     ///

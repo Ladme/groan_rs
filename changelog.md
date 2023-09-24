@@ -23,3 +23,4 @@
   - Grouped files related to IO operations into a dedicated directory.
   - Organized files containing `System`-related methods into a separate directory.
   - Placed files defining fundamental data structures into their own directory.
+- Made minor documentation tweaks.

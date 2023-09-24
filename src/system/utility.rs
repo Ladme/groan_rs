@@ -7,6 +7,7 @@ use crate::errors::{GroupError, ParseNdxError};
 use crate::structures::{dimension::Dimension, vector3d::Vector3D};
 use crate::system::general::System;
 
+/// ## Methods providing higher level utilities to the `System` structure.
 impl System {
     /// Read ndx file using the provided default if index is None.
     ///

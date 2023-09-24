@@ -12,6 +12,7 @@ use std::f32::consts;
 // PI times 2.
 const PI_X2: f32 = consts::PI * 2.0f32;
 
+/// ## Methods for analyzing the properties of the system.
 impl System {
     /// Calculate center of geometry of a group in `System`.
     /// Takes periodic boundary conditions into consideration.

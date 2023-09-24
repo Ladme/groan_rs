@@ -12,6 +12,7 @@ use crate::structures::group::Group;
 use crate::structures::shape::Shape;
 use crate::system::general::System;
 
+/// ## Methods for working with groups of atoms.
 impl System {
     /// Make a group with a given name from the given Groan selection language query.
     ///

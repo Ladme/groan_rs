@@ -117,6 +117,7 @@ impl<'a> Iterator for TrrReader<'a> {
     }
 }
 
+/// ## Methods for reading trr files.
 impl System {
     /// Create a `TrrReader` structure which is an iterator over a trr file.
     ///

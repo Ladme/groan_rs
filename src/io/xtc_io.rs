@@ -113,6 +113,7 @@ impl<'a> Iterator for XtcReader<'a> {
     }
 }
 
+/// ## Methods for reading xtc files.
 impl System {
     /// Create an `XtcReader` structure which is an iterator over an xtc file.
     ///

@@ -14,6 +14,7 @@ use crate::errors::{GroupError, ParseNdxError, WriteNdxError};
 use crate::structures::atom::Atom;
 use crate::system::general::System;
 
+/// ## Methods for reading and writing ndx files.
 impl System {
     /// Read an ndx file and create atom Groups in the System structure.
     ///
