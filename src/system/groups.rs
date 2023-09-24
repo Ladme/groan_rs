@@ -771,7 +771,7 @@ mod tests {
         match system.group_create("Membrane", "resname POPC") {
             Ok(_) => panic!("Warning was not raised."),
             Err(e) => {
-                assert!(e.to_string().contains("already exists"));
+                assert!(e.to_string().contains("already existed"));
             }
         }
 
