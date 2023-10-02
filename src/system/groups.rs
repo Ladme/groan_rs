@@ -883,6 +883,19 @@ mod tests {
     }
 
     #[test]
+    fn group_create_macro_ion_all_atom() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+
+        system.group_create("Ion", "@ion").unwrap();
+        assert!(system.group_exists("Ion"));
+        assert_eq!(system.group_get_n_atoms("Ion").unwrap(), 29);
+
+        for i in 32788..=32816 {
+            assert!(system.group_isin("Ion", i).unwrap());
+        }
+    }
+
+    #[test]
     fn group_create_macro_dna() {
         let mut system = System::from_file("test_files/protein_with_dna.pdb").unwrap();
 

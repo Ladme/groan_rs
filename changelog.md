@@ -30,3 +30,6 @@
 
 ### Version 0.3.2
 - `@water` macro should no longer identify N-terminal (or any other) protein hydrogens as water hydrogens.
+
+### Version 0.3.3
+- `@ion` macro should no longer identify any part of proteins as ions.
