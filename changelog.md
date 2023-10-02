@@ -24,3 +24,9 @@
   - Organized files containing `System`-related methods into a separate directory.
   - Placed files defining fundamental data structures into their own directory.
 - Made minor documentation tweaks.
+
+### Version 0.3.1
+- Fixed failing test which occured due to the change in `GroupError::AlreadyExistsWarning` error message.
+
+### Version 0.3.2
+- `@water` macro should no longer identify N-terminal (or any other) protein hydrogens as water hydrogens.

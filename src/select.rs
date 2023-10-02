@@ -231,7 +231,7 @@ fn get_macros() -> HashMap<&'static str, &'static str> {
     );
     macros.insert(
         "@water",
-        "(name W OW HW1 HW2 OH2 H1 H2 or resname SOL WAT HOH OHH TIP T3P T4P T5P T3H W TIP3 TIP4 SPC SPCE)",
+        "(name W OW HW1 HW2 OH2 H1 H2 and resname SOL WAT HOH OHH TIP T3P T4P T5P T3H W TIP3 TIP4 SPC SPCE)",
     );
     macros.insert(
         "@ion",
