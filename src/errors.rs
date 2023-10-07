@@ -257,6 +257,9 @@ pub enum SelectError {
     /// Used when an invalid identifier of a chain (i.e. longer than one character) is used in the groan selection language query.
     #[error("{} invalid chain identifier(s) in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
     InvalidChainId(String),
+    /// Used when the provided string is not a valid regular expression.
+    #[error("{} string '{}' is not a valid regular expression", "error:".red().bold(), .0.to_string().yellow())]
+    InvalidRegex(String),
     /// Used when an unknown error which does not have a specific `SelectError` variant occurs while parsing the groan selection language query.
     #[error("{} the provided query '{}' could not be understood for unknown reason", "error:".red().bold(), .0.to_string().yellow())]
     UnknownError(String),

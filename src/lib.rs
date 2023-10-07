@@ -477,6 +477,7 @@ pub mod io {
 }
 pub mod iterators;
 mod selections {
+    mod name;
     mod numbers;
     pub mod select;
 }

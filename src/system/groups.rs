@@ -1072,6 +1072,36 @@ mod tests {
     }
 
     #[test]
+    fn group_create_regex() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system
+            .group_create("LysLeuAla", "resname r'^[LA].*'")
+            .unwrap();
+
+        assert!(system.group_exists("LysLeuAla"));
+        assert_eq!(system.group_get_n_atoms("LysLeuAla").unwrap(), 36);
+
+        assert!(system.group_isin("LysLeuAla", 1).unwrap());
+        assert!(system.group_isin("LysLeuAla", 58).unwrap());
+
+        system
+            .group_create("Tails", "resname POPC and name r'^[CD][124][AB]'")
+            .unwrap();
+
+        assert!(system.group_exists("Tails"));
+        assert_eq!(system.group_get_n_atoms("Tails").unwrap(), 3072);
+
+        assert!(system.group_isin("Tails", 65).unwrap());
+        assert!(system.group_isin("Tails", 6204).unwrap());
+    }
+
+    /*#[test]
+    fn group_create_regex_aa() {
+        let mut system = System::from_file()
+    }*/
+
+    #[test]
     fn group_create_invalid_names() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 

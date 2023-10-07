@@ -159,11 +159,11 @@ impl Group {
 
             Select::GroupName(names) => {
                 for name in names.iter() {
-                    match system.group_isin(name, atom_index) {
+                    match system.group_isin(name.to_str(), atom_index) {
                         Ok(true) => return Ok(true),
                         Ok(false) => (),
                         // if the group does not exist, return an error
-                        Err(_) => return Err(SelectError::GroupNotFound(name.to_string())),
+                        Err(_) => return Err(SelectError::GroupNotFound(name.to_str().to_owned())),
                     }
                 }
 

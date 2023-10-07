@@ -13,6 +13,7 @@ build = "build.rs"
 [dependencies]
 colored   = "2.0.4"
 indexmap  = "2.0.0"
+regex = "1.9.6"
 thiserror = "1.0.48"
 
 [dev-dependencies]

@@ -6,18 +6,18 @@
 use std::collections::HashMap;
 
 use crate::errors::SelectError;
-use crate::selections::numbers;
+use crate::selections::{name::Name, numbers};
 use crate::structures::group::Group;
 
 #[derive(Debug, PartialEq)]
 pub enum Select {
-    ResidueName(Vec<String>),
-    AtomName(Vec<String>),
+    ResidueName(Vec<Name>),
+    AtomName(Vec<Name>),
     ResidueNumber(Vec<(usize, usize)>),
     GmxAtomNumber(Vec<(usize, usize)>),
     AtomNumber(Vec<(usize, usize)>),
     Chain(Vec<char>),
-    GroupName(Vec<String>),
+    GroupName(Vec<Name>),
     And(Box<Select>, Box<Select>),
     Or(Box<Select>, Box<Select>),
     Not(Box<Select>),
@@ -338,10 +338,28 @@ fn split_with_quotes(string: &str) -> Vec<String> {
     let mut result = vec![String::new()];
     let mut inside = false;
     let mut block = 0;
+    let mut regex = false;
 
-    for c in string.chars() {
+    let mut iterator = string.chars().peekable();
+
+    while let Some(c) = iterator.next() {
+        if c == 'r' && !inside {
+            if let Some('\'') = iterator.peek() {
+                regex = true;
+                inside = !inside;
+                result[block].push('r');
+                result[block].push('\'');
+                iterator.next();
+                continue;
+            }
+        }
+
         if c == '\'' || c == '"' {
             inside = !inside;
+            if regex == true {
+                result[block].push(c);
+                regex = false;
+            }
             continue;
         }
 
@@ -361,6 +379,13 @@ fn split_with_quotes(string: &str) -> Vec<String> {
         .collect()
 }
 
+/// Collect words from the query and conver them to the `Name` enum.
+fn collect_words(token: &[String]) -> Result<Vec<Name>, SelectError> {
+    let names: Result<Vec<Name>, SelectError> = token.iter().map(|s| Name::new(s)).collect();
+
+    names
+}
+
 fn parse_token(string: &str) -> Result<Select, SelectError> {
     if string.trim().is_empty() {
         return Err(SelectError::MissingArgument("".to_string()));
@@ -374,14 +399,14 @@ fn parse_token(string: &str) -> Result<Select, SelectError> {
                 return Err(SelectError::EmptyArgument("".to_string()));
             }
 
-            Ok(Select::ResidueName(token[1..].to_vec()))
+            Ok(Select::ResidueName(collect_words(&token[1..])?))
         }
         "name" | "atomname" => {
             if token.len() <= 1 {
                 return Err(SelectError::EmptyArgument("".to_string()));
             }
 
-            Ok(Select::AtomName(token[1..].to_vec()))
+            Ok(Select::AtomName(collect_words(&token[1..])?))
         }
         "resid" | "resnum" => {
             if token.len() <= 1 {
@@ -443,10 +468,10 @@ fn parse_token(string: &str) -> Result<Select, SelectError> {
                 return Err(SelectError::EmptyArgument("".to_string()));
             }
 
-            Ok(Select::GroupName(token[1..].to_vec()))
+            Ok(Select::GroupName(collect_words(&token[1..])?))
         }
         // it is not necessary to provide group identifier for groups
-        _ => Ok(Select::GroupName(token)),
+        _ => Ok(Select::GroupName(collect_words(&token)?)),
     }
 }
 
@@ -492,32 +517,32 @@ mod pass_tests {
     parsing_success!(
         simple_resname,
         "resname LYS",
-        Select::ResidueName(vec!["LYS".to_string()])
+        Select::ResidueName(vec![Name::new("LYS").unwrap()])
     );
     parsing_success!(
         multiple_resname,
         "resname  LYS   CYS   LEU  POPE ",
         Select::ResidueName(vec![
-            "LYS".to_string(),
-            "CYS".to_string(),
-            "LEU".to_string(),
-            "POPE".to_string()
+            Name::new("LYS").unwrap(),
+            Name::new("CYS").unwrap(),
+            Name::new("LEU").unwrap(),
+            Name::new("POPE").unwrap()
         ])
     );
     parsing_success!(
         simple_atomname,
         "name BB",
-        Select::AtomName(vec!["BB".to_string()])
+        Select::AtomName(vec![Name::new("BB").unwrap()])
     );
     parsing_success!(
         multiple_atomname,
         "  name   BB SC1   PO4   C1 C2B",
         Select::AtomName(vec![
-            "BB".to_string(),
-            "SC1".to_string(),
-            "PO4".to_string(),
-            "C1".to_string(),
-            "C2B".to_string()
+            Name::new("BB").unwrap(),
+            Name::new("SC1").unwrap(),
+            Name::new("PO4").unwrap(),
+            Name::new("C1").unwrap(),
+            Name::new("C2B").unwrap()
         ])
     );
 
@@ -782,16 +807,16 @@ mod pass_tests {
         simple_not_resname,
         "!resname LYS   SER",
         Select::Not(Box::from(Select::ResidueName(vec![
-            "LYS".to_string(),
-            "SER".to_string()
+            Name::new("LYS").unwrap(),
+            Name::new("SER").unwrap()
         ])))
     );
     parsing_success!(
         simple_not_name,
         " not name   BB SC1",
         Select::Not(Box::from(Select::AtomName(vec![
-            "BB".to_string(),
-            "SC1".to_string()
+            Name::new("BB").unwrap(),
+            Name::new("SC1").unwrap()
         ])))
     );
     parsing_success!(
@@ -808,31 +833,31 @@ mod pass_tests {
         simple_not_explicit_group,
         "! group Protein Membrane",
         Select::Not(Box::from(Select::GroupName(vec![
-            "Protein".to_string(),
-            "Membrane".to_string()
+            Name::new("Protein").unwrap(),
+            Name::new("Membrane").unwrap()
         ])))
     );
     parsing_success!(
         simple_not_explicit,
         "! Protein Membrane",
         Select::Not(Box::from(Select::GroupName(vec![
-            "Protein".to_string(),
-            "Membrane".to_string()
+            Name::new("Protein").unwrap(),
+            Name::new("Membrane").unwrap()
         ])))
     );
     parsing_success!(
         simple_not_not,
         " not ! name BB SC1",
         Select::Not(Box::from(Select::Not(Box::from(Select::AtomName(vec![
-            "BB".to_string(),
-            "SC1".to_string()
+            Name::new("BB").unwrap(),
+            Name::new("SC1").unwrap()
         ])))))
     );
     parsing_success!(
         simple_not_not_not,
         "!!! name BB SC1",
         Select::Not(Box::from(Select::Not(Box::from(Select::Not(Box::from(
-            Select::AtomName(vec!["BB".to_string(), "SC1".to_string()])
+            Select::AtomName(vec![Name::new("BB").unwrap(), Name::new("SC1").unwrap()])
         ))))))
     );
 
@@ -840,8 +865,8 @@ mod pass_tests {
         not_parentheses_1,
         "! (name BB or resname LYS)",
         Select::Not(Box::from(Select::Or(
-            Box::from(Select::AtomName(vec!["BB".to_string()])),
-            Box::from(Select::ResidueName(vec!["LYS".to_string()]))
+            Box::from(Select::AtomName(vec![Name::new("BB").unwrap()])),
+            Box::from(Select::ResidueName(vec![Name::new("LYS").unwrap()]))
         )))
     );
 
@@ -850,8 +875,8 @@ mod pass_tests {
         "not(name BB or resname LYS) ||serial 1-5",
         Select::Or(
             Box::from(Select::Not(Box::from(Select::Or(
-                Box::from(Select::AtomName(vec!["BB".to_string()])),
-                Box::from(Select::ResidueName(vec!["LYS".to_string()]))
+                Box::from(Select::AtomName(vec![Name::new("BB").unwrap()])),
+                Box::from(Select::ResidueName(vec![Name::new("LYS").unwrap()]))
             )))),
             Box::from(Select::GmxAtomNumber(vec![(1, 5)]))
         )
@@ -862,8 +887,8 @@ mod pass_tests {
         "(name BB or resname LYS) || ! serial 1-5",
         Select::Or(
             Box::from(Select::Or(
-                Box::from(Select::AtomName(vec!["BB".to_string()])),
-                Box::from(Select::ResidueName(vec!["LYS".to_string()]))
+                Box::from(Select::AtomName(vec![Name::new("BB").unwrap()])),
+                Box::from(Select::ResidueName(vec![Name::new("LYS").unwrap()]))
             )),
             Box::from(Select::Not(Box::from(Select::GmxAtomNumber(vec![(1, 5)]))))
         )
@@ -874,9 +899,9 @@ mod pass_tests {
         "not(name BB or not resname LYS) ||serial 1-5",
         Select::Or(
             Box::from(Select::Not(Box::from(Select::Or(
-                Box::from(Select::AtomName(vec!["BB".to_string()])),
+                Box::from(Select::AtomName(vec![Name::new("BB").unwrap()])),
                 Box::from(Select::Not(Box::from(Select::ResidueName(vec![
-                    "LYS".to_string()
+                    Name::new("LYS").unwrap()
                 ]))))
             )))),
             Box::from(Select::GmxAtomNumber(vec![(1, 5)]))
@@ -957,89 +982,89 @@ mod pass_tests {
     parsing_success!(
         simple_group,
         "Protein",
-        Select::GroupName(vec!["Protein".to_string()])
+        Select::GroupName(vec![Name::new("Protein").unwrap()])
     );
     parsing_success!(
         simple_explicit_group,
         "group Protein",
-        Select::GroupName(vec!["Protein".to_string()])
+        Select::GroupName(vec![Name::new("Protein").unwrap()])
     );
     parsing_success!(
         multiword_group_1,
         "  'Protein Membrane ION'  ",
-        Select::GroupName(vec!["Protein Membrane ION".to_string()])
+        Select::GroupName(vec![Name::new("Protein Membrane ION").unwrap()])
     );
     parsing_success!(
         multiword_group_2,
         "\"Protein   Membrane  ION  \"",
-        Select::GroupName(vec!["Protein   Membrane  ION  ".to_string()])
+        Select::GroupName(vec![Name::new("Protein   Membrane  ION  ").unwrap()])
     );
     parsing_success!(
         multiword_explicit_group,
         "  group  '  Protein Membrane ION'  ",
-        Select::GroupName(vec!["  Protein Membrane ION".to_string()])
+        Select::GroupName(vec![Name::new("  Protein Membrane ION").unwrap()])
     );
     parsing_success!(
         multiple_groups,
         "Protein Membrane ION",
         Select::GroupName(vec![
-            "Protein".to_string(),
-            "Membrane".to_string(),
-            "ION".to_string()
+            Name::new("Protein").unwrap(),
+            Name::new("Membrane").unwrap(),
+            Name::new("ION").unwrap()
         ])
     );
     parsing_success!(
         multiple_explicit_groups,
         "group Protein Membrane ION",
         Select::GroupName(vec![
-            "Protein".to_string(),
-            "Membrane".to_string(),
-            "ION".to_string()
+            Name::new("Protein").unwrap(),
+            Name::new("Membrane").unwrap(),
+            Name::new("ION").unwrap()
         ])
     );
     parsing_success!(
         multiple_multiword_groups,
         "Protein 'Membrane Only POPC  ' ' ION with  Water'",
         Select::GroupName(vec![
-            "Protein".to_string(),
-            "Membrane Only POPC  ".to_string(),
-            " ION with  Water".to_string()
+            Name::new("Protein").unwrap(),
+            Name::new("Membrane Only POPC  ").unwrap(),
+            Name::new(" ION with  Water").unwrap()
         ])
     );
     parsing_success!(
         multiple_multiword_explicit_groups,
         "group Protein 'Membrane Only POPC  ' ' ION with  Water'",
         Select::GroupName(vec![
-            "Protein".to_string(),
-            "Membrane Only POPC  ".to_string(),
-            " ION with  Water".to_string()
+            Name::new("Protein").unwrap(),
+            Name::new("Membrane Only POPC  ").unwrap(),
+            Name::new(" ION with  Water").unwrap()
         ])
     );
     parsing_success!(
         hyphen_group,
         "Protein-No1",
-        Select::GroupName(vec!["Protein-No1".to_string()])
+        Select::GroupName(vec![Name::new("Protein-No1").unwrap()])
     );
     parsing_success!(
         hyphen_multiword_group,
         "'Protein - No1'",
-        Select::GroupName(vec!["Protein - No1".to_string()])
+        Select::GroupName(vec![Name::new("Protein - No1").unwrap()])
     );
     parsing_success!(
         group_with_unfortunate_name,
         "group resname",
-        Select::GroupName(vec!["resname".to_string()])
+        Select::GroupName(vec![Name::new("resname").unwrap()])
     );
     parsing_success!(
         group_with_very_unfortunate_name,
         "group group",
-        Select::GroupName(vec!["group".to_string()])
+        Select::GroupName(vec![Name::new("group").unwrap()])
     );
 
     parsing_success!(
         simple_parentheses,
         "(resname LYS)",
-        Select::ResidueName(vec!["LYS".to_string()])
+        Select::ResidueName(vec![Name::new("LYS").unwrap()])
     );
 
     // residue names
@@ -1048,11 +1073,11 @@ mod pass_tests {
         "resname POPE  'LYS' LEU or resname POPG",
         Select::Or(
             Box::from(Select::ResidueName(vec![
-                "POPE".to_string(),
-                "LYS".to_string(),
-                "LEU".to_string()
+                Name::new("POPE").unwrap(),
+                Name::new("LYS").unwrap(),
+                Name::new("LEU").unwrap(),
             ])),
-            Box::from(Select::ResidueName(vec!["POPG".to_string()]))
+            Box::from(Select::ResidueName(vec![Name::new("POPG").unwrap()]))
         )
     );
 
@@ -1061,11 +1086,11 @@ mod pass_tests {
         "resname POPE   LYS LEU ||resname POPG",
         Select::Or(
             Box::from(Select::ResidueName(vec![
-                "POPE".to_string(),
-                "LYS".to_string(),
-                "LEU".to_string()
+                Name::new("POPE").unwrap(),
+                Name::new("LYS").unwrap(),
+                Name::new("LEU").unwrap(),
             ])),
-            Box::from(Select::ResidueName(vec!["POPG".to_string()]))
+            Box::from(Select::ResidueName(vec![Name::new("POPG").unwrap()]))
         )
     );
 
@@ -1074,11 +1099,11 @@ mod pass_tests {
         "resname 'POPE' LYS LEU and resname 'POPG'",
         Select::And(
             Box::from(Select::ResidueName(vec![
-                "POPE".to_string(),
-                "LYS".to_string(),
-                "LEU".to_string()
+                Name::new("POPE").unwrap(),
+                Name::new("LYS").unwrap(),
+                Name::new("LEU").unwrap(),
             ])),
-            Box::from(Select::ResidueName(vec!["POPG".to_string()]))
+            Box::from(Select::ResidueName(vec![Name::new("POPG").unwrap()]))
         )
     );
 
@@ -1087,11 +1112,11 @@ mod pass_tests {
         "resname POPE LYS LEU&& resname POPG",
         Select::And(
             Box::from(Select::ResidueName(vec![
-                "POPE".to_string(),
-                "LYS".to_string(),
-                "LEU".to_string()
+                Name::new("POPE").unwrap(),
+                Name::new("LYS").unwrap(),
+                Name::new("LEU").unwrap(),
             ])),
-            Box::from(Select::ResidueName(vec!["POPG".to_string()]))
+            Box::from(Select::ResidueName(vec![Name::new("POPG").unwrap()]))
         )
     );
 
@@ -1101,13 +1126,13 @@ mod pass_tests {
         Select::Or(
             Box::from(Select::And(
                 Box::from(Select::ResidueName(vec![
-                    "POPE".to_string(),
-                    "LYS".to_string(),
-                    "LEU".to_string()
+                    Name::new("POPE").unwrap(),
+                    Name::new("LYS").unwrap(),
+                    Name::new("LEU").unwrap(),
                 ])),
-                Box::from(Select::ResidueName(vec!["POPG".to_string()]))
+                Box::from(Select::ResidueName(vec![Name::new("POPG").unwrap()]))
             )),
-            Box::from(Select::ResidueName(vec!["LYS".to_string()]))
+            Box::from(Select::ResidueName(vec![Name::new("LYS").unwrap()]))
         )
     );
 
@@ -1117,13 +1142,13 @@ mod pass_tests {
         Select::Or(
             Box::from(Select::And(
                 Box::from(Select::ResidueName(vec![
-                    "POPE".to_string(),
-                    "LYS".to_string(),
-                    "LEU".to_string()
+                    Name::new("POPE").unwrap(),
+                    Name::new("LYS").unwrap(),
+                    Name::new("LEU").unwrap(),
                 ])),
-                Box::from(Select::ResidueName(vec!["POPG".to_string()]))
+                Box::from(Select::ResidueName(vec![Name::new("POPG").unwrap()]))
             )),
-            Box::from(Select::ResidueName(vec!["LYS".to_string()]))
+            Box::from(Select::ResidueName(vec![Name::new("LYS").unwrap()]))
         )
     );
 
@@ -1132,13 +1157,13 @@ mod pass_tests {
         "resname 'POPE' LYS LEU&& (resname POPG   ||   resname LYS)",
         Select::And(
             Box::from(Select::ResidueName(vec![
-                "POPE".to_string(),
-                "LYS".to_string(),
-                "LEU".to_string()
+                Name::new("POPE").unwrap(),
+                Name::new("LYS").unwrap(),
+                Name::new("LEU").unwrap(),
             ])),
             Box::from(Select::Or(
-                Box::from(Select::ResidueName(vec!["POPG".to_string()])),
-                Box::from(Select::ResidueName(vec!["LYS".to_string()]))
+                Box::from(Select::ResidueName(vec![Name::new("POPG").unwrap()])),
+                Box::from(Select::ResidueName(vec![Name::new("LYS").unwrap()]))
             )),
         )
     );
@@ -1149,11 +1174,11 @@ mod pass_tests {
         "name BB  'PO4' D2A or name W",
         Select::Or(
             Box::from(Select::AtomName(vec![
-                "BB".to_string(),
-                "PO4".to_string(),
-                "D2A".to_string()
+                Name::new("BB").unwrap(),
+                Name::new("PO4").unwrap(),
+                Name::new("D2A").unwrap(),
             ])),
-            Box::from(Select::AtomName(vec!["W".to_string()]))
+            Box::from(Select::AtomName(vec![Name::new("W").unwrap()]))
         )
     );
 
@@ -1162,11 +1187,11 @@ mod pass_tests {
         "name BB   PO4 D2A ||atomname W",
         Select::Or(
             Box::from(Select::AtomName(vec![
-                "BB".to_string(),
-                "PO4".to_string(),
-                "D2A".to_string()
+                Name::new("BB").unwrap(),
+                Name::new("PO4").unwrap(),
+                Name::new("D2A").unwrap(),
             ])),
-            Box::from(Select::AtomName(vec!["W".to_string()]))
+            Box::from(Select::AtomName(vec![Name::new("W").unwrap()]))
         )
     );
 
@@ -1175,11 +1200,11 @@ mod pass_tests {
         "atomname 'BB' PO4 D2A and name 'W'",
         Select::And(
             Box::from(Select::AtomName(vec![
-                "BB".to_string(),
-                "PO4".to_string(),
-                "D2A".to_string()
+                Name::new("BB").unwrap(),
+                Name::new("PO4").unwrap(),
+                Name::new("D2A").unwrap(),
             ])),
-            Box::from(Select::AtomName(vec!["W".to_string()]))
+            Box::from(Select::AtomName(vec![Name::new("W").unwrap()]))
         )
     );
 
@@ -1188,11 +1213,11 @@ mod pass_tests {
         "atomname BB PO4 D2A&& atomname W",
         Select::And(
             Box::from(Select::AtomName(vec![
-                "BB".to_string(),
-                "PO4".to_string(),
-                "D2A".to_string()
+                Name::new("BB").unwrap(),
+                Name::new("PO4").unwrap(),
+                Name::new("D2A").unwrap(),
             ])),
-            Box::from(Select::AtomName(vec!["W".to_string()]))
+            Box::from(Select::AtomName(vec![Name::new("W").unwrap()]))
         )
     );
 
@@ -1202,13 +1227,13 @@ mod pass_tests {
         Select::Or(
             Box::from(Select::And(
                 Box::from(Select::AtomName(vec![
-                    "BB".to_string(),
-                    "PO4".to_string(),
-                    "D2A".to_string()
+                    Name::new("BB").unwrap(),
+                    Name::new("PO4").unwrap(),
+                    Name::new("D2A").unwrap(),
                 ])),
-                Box::from(Select::AtomName(vec!["W".to_string()]))
+                Box::from(Select::AtomName(vec![Name::new("W").unwrap()]))
             )),
-            Box::from(Select::AtomName(vec!["PO4".to_string()]))
+            Box::from(Select::AtomName(vec![Name::new("PO4").unwrap()]))
         )
     );
 
@@ -1218,13 +1243,13 @@ mod pass_tests {
         Select::Or(
             Box::from(Select::And(
                 Box::from(Select::AtomName(vec![
-                    "BB".to_string(),
-                    "PO4".to_string(),
-                    "D2A".to_string()
+                    Name::new("BB").unwrap(),
+                    Name::new("PO4").unwrap(),
+                    Name::new("D2A").unwrap(),
                 ])),
-                Box::from(Select::AtomName(vec!["W".to_string()]))
+                Box::from(Select::AtomName(vec![Name::new("W").unwrap()]))
             )),
-            Box::from(Select::AtomName(vec!["PO4".to_string()]))
+            Box::from(Select::AtomName(vec![Name::new("PO4").unwrap()]))
         )
     );
 
@@ -1233,13 +1258,13 @@ mod pass_tests {
         "atomname 'BB' PO4 D2A&& (name W   ||   atomname PO4)",
         Select::And(
             Box::from(Select::AtomName(vec![
-                "BB".to_string(),
-                "PO4".to_string(),
-                "D2A".to_string()
+                Name::new("BB").unwrap(),
+                Name::new("PO4").unwrap(),
+                Name::new("D2A").unwrap(),
             ])),
             Box::from(Select::Or(
-                Box::from(Select::AtomName(vec!["W".to_string()])),
-                Box::from(Select::AtomName(vec!["PO4".to_string()]))
+                Box::from(Select::AtomName(vec![Name::new("W").unwrap()])),
+                Box::from(Select::AtomName(vec![Name::new("PO4").unwrap()]))
             )),
         )
     );
@@ -1395,14 +1420,14 @@ mod pass_tests {
     Select::Or(
         Box::from(Select::Or(
             Box::from(Select::And(
-                Box::from(Select::ResidueName(vec!["POPE".to_string(), "LYS".to_string(), "LEU".to_string()])),
-                Box::from(Select::AtomName(vec!["BB".to_string(), "PO4".to_string(), "D2A".to_string()]))
+                Box::from(Select::ResidueName(vec![Name::new("POPE").unwrap(), Name::new("LYS").unwrap(), Name::new("LEU").unwrap()])),
+                Box::from(Select::AtomName(vec![Name::new("BB").unwrap(), Name::new("PO4").unwrap(), Name::new("D2A").unwrap()]))
             )),
-            Box::from(Select::AtomName(vec!["C1A".to_string()]))
+            Box::from(Select::AtomName(vec![Name::new("C1A").unwrap()]))
         )),
         Box::from(Select::And(
-            Box::from(Select::ResidueName(vec!["ION".to_string()])),
-            Box::from(Select::AtomName(vec!["CL".to_string()]))
+            Box::from(Select::ResidueName(vec![Name::new("ION").unwrap()])),
+            Box::from(Select::AtomName(vec![Name::new("CL").unwrap()]))
         ))
     ));
 
@@ -1411,13 +1436,13 @@ mod pass_tests {
     Select::Or(
         Box::from(Select::Or(
             Box::from(Select::And(
-                Box::from(Select::ResidueName(vec!["POPE".to_string(), "LYS".to_string(), "LEU".to_string()])),
+                Box::from(Select::ResidueName(vec![Name::new("POPE").unwrap(), Name::new("LYS").unwrap(), Name::new("LEU").unwrap()])),
                 Box::from(Select::ResidueNumber(vec![(15, 15), (22, 25), (33, 33)]))
             )),
             Box::from(Select::ResidueNumber(vec![(5, 10)]))
         )),
         Box::from(Select::And(
-            Box::from(Select::ResidueName(vec!["ION".to_string()])),
+            Box::from(Select::ResidueName(vec![Name::new("ION").unwrap()])),
             Box::from(Select::ResidueNumber(vec![(6, 6)]))
         ))
     ));
@@ -1427,13 +1452,13 @@ mod pass_tests {
     Select::Or(
         Box::from(Select::Or(
             Box::from(Select::And(
-                Box::from(Select::ResidueName(vec!["POPE".to_string(), "LYS".to_string(), "LEU".to_string()])),
+                Box::from(Select::ResidueName(vec![Name::new("POPE").unwrap(), Name::new("LYS").unwrap(), Name::new("LEU").unwrap()])),
                 Box::from(Select::GmxAtomNumber(vec![(15, 15), (22, 25), (33, 33)]))
             )),
             Box::from(Select::AtomNumber(vec![(5, 10)]))
         )),
         Box::from(Select::And(
-            Box::from(Select::ResidueName(vec!["ION".to_string()])),
+            Box::from(Select::ResidueName(vec![Name::new("ION").unwrap()])),
             Box::from(Select::AtomNumber(vec![(6, 6)]))
         ))
     ));
@@ -1443,14 +1468,14 @@ mod pass_tests {
     Select::Or(
         Box::from(Select::Or(
             Box::from(Select::And(
-                Box::from(Select::ResidueName(vec!["POPE".to_string(), "LYS".to_string(), "LEU".to_string()])),
-                Box::from(Select::GroupName(vec!["Protein".to_string()]))
+                Box::from(Select::ResidueName(vec![Name::new("POPE").unwrap(), Name::new("LYS").unwrap(), Name::new("LEU").unwrap()])),
+                Box::from(Select::GroupName(vec![Name::new("Protein").unwrap()]))
             )),
-            Box::from(Select::GroupName(vec!["Charged   Membrane".to_string()]))
+            Box::from(Select::GroupName(vec![Name::new("Charged   Membrane").unwrap()]))
         )),
         Box::from(Select::And(
-            Box::from(Select::ResidueName(vec!["ION".to_string()])),
-            Box::from(Select::GroupName(vec!["Membrane".to_string(), "ION".to_string(), "W".to_string()]))
+            Box::from(Select::ResidueName(vec![Name::new("ION").unwrap()])),
+            Box::from(Select::GroupName(vec![Name::new("Membrane").unwrap(), Name::new("ION").unwrap(), Name::new("W").unwrap()]))
         ))
     ));
 
@@ -1459,13 +1484,13 @@ mod pass_tests {
     Select::Or(
         Box::from(Select::Or(
             Box::from(Select::And(
-                Box::from(Select::AtomName(vec!["BB".to_string(), "PO4".to_string(), "D2A".to_string()])),
+                Box::from(Select::AtomName(vec![Name::new("BB").unwrap(), Name::new("PO4").unwrap(), Name::new("D2A").unwrap()])),
                 Box::from(Select::ResidueNumber(vec![(15, 15), (22, 25), (33, 33)]))
             )),
             Box::from(Select::ResidueNumber(vec![(5, 10)]))
         )),
         Box::from(Select::And(
-            Box::from(Select::AtomName(vec!["NA".to_string()])),
+            Box::from(Select::AtomName(vec![Name::new("NA").unwrap()])),
             Box::from(Select::ResidueNumber(vec![(6, 6)]))
         ))
     ));
@@ -1475,13 +1500,13 @@ mod pass_tests {
     Select::Or(
         Box::from(Select::Or(
             Box::from(Select::And(
-                Box::from(Select::AtomName(vec!["BB".to_string(), "PO4".to_string(), "D2A".to_string()])),
+                Box::from(Select::AtomName(vec![Name::new("BB").unwrap(), Name::new("PO4").unwrap(), Name::new("D2A").unwrap()])),
                 Box::from(Select::AtomNumber(vec![(15, 15), (22, 25), (33, 33)]))
             )),
             Box::from(Select::GmxAtomNumber(vec![(5, 10)]))
         )),
         Box::from(Select::And(
-            Box::from(Select::AtomName(vec!["NA".to_string()])),
+            Box::from(Select::AtomName(vec![Name::new("NA").unwrap()])),
             Box::from(Select::AtomNumber(vec![(6, 6)]))
         ))
     ));
@@ -1491,14 +1516,14 @@ mod pass_tests {
     Select::Or(
         Box::from(Select::Or(
             Box::from(Select::And(
-                Box::from(Select::AtomName(vec!["BB".to_string(), "PO4".to_string(), "D2A".to_string()])),
-                Box::from(Select::GroupName(vec!["Protein".to_string()]))
+                Box::from(Select::AtomName(vec![Name::new("BB").unwrap(), Name::new("PO4").unwrap(), Name::new("D2A").unwrap()])),
+                Box::from(Select::GroupName(vec![Name::new("Protein").unwrap()]))
             )),
-            Box::from(Select::GroupName(vec!["Charged   Membrane".to_string(), "W".to_string()]))
+            Box::from(Select::GroupName(vec![Name::new("Charged   Membrane").unwrap(), Name::new("W").unwrap()]))
         )),
         Box::from(Select::And(
-            Box::from(Select::AtomName(vec!["NA".to_string()])),
-            Box::from(Select::GroupName(vec!["Membrane".to_string()]))
+            Box::from(Select::AtomName(vec![Name::new("NA").unwrap()])),
+            Box::from(Select::GroupName(vec![Name::new("Membrane").unwrap()]))
         ))
     ));
 
@@ -1523,13 +1548,13 @@ mod pass_tests {
     Select::Or(
         Box::from(Select::Or(
             Box::from(Select::And(
-                Box::from(Select::GroupName(vec!["Protein".to_string(), "Membrane".to_string()])),
+                Box::from(Select::GroupName(vec![Name::new("Protein").unwrap(), Name::new("Membrane").unwrap()])),
                 Box::from(Select::ResidueNumber(vec![(15, 15), (22, 25), (33, 33)]))
             )),
             Box::from(Select::ResidueNumber(vec![(5, 10)]))
         )),
         Box::from(Select::And(
-            Box::from(Select::GroupName(vec!["Water with Ions".to_string()])),
+            Box::from(Select::GroupName(vec![Name::new("Water with Ions").unwrap()])),
             Box::from(Select::ResidueNumber(vec![(6, 6)]))
         ))
     ));
@@ -1538,13 +1563,13 @@ mod pass_tests {
     Select::Or(
         Box::from(Select::Or(
             Box::from(Select::And(
-                Box::from(Select::GroupName(vec!["Protein".to_string(), "Membrane".to_string()])),
+                Box::from(Select::GroupName(vec![Name::new("Protein").unwrap(), Name::new("Membrane").unwrap()])),
                 Box::from(Select::GmxAtomNumber(vec![(15, 15), (22, 25), (33, 33)]))
             )),
             Box::from(Select::AtomNumber(vec![(5, 10)]))
         )),
         Box::from(Select::And(
-            Box::from(Select::GroupName(vec!["Water with Ions".to_string()])),
+            Box::from(Select::GroupName(vec![Name::new("Water with Ions").unwrap()])),
             Box::from(Select::AtomNumber(vec![(6, 6)]))
         ))
     ));
@@ -1554,14 +1579,14 @@ mod pass_tests {
         Box::from(Select::Not(
             Box::from(Select::Or(
                 Box::from(Select::And(
-                    Box::from(Select::AtomName(vec!["BB".to_string(), "PO4".to_string(), "D2A".to_string()])),
+                    Box::from(Select::AtomName(vec![Name::new("BB").unwrap(), Name::new("PO4").unwrap(), Name::new("D2A").unwrap()])),
                     Box::from(Select::AtomNumber(vec![(15, 15), (22, 25), (33, 33)]))
                 )),
                 Box::from(Select::GmxAtomNumber(vec![(5, 10)]))
             ))
         )),
         Box::from(Select::And(
-            Box::from(Select::AtomName(vec!["NA".to_string()])),
+            Box::from(Select::AtomName(vec![Name::new("NA").unwrap()])),
             Box::from(Select::AtomNumber(vec![(6, 6)]))
         ))
     ));
@@ -1570,15 +1595,15 @@ mod pass_tests {
     Select::Or(
         Box::from(Select::Or(
             Box::from(Select::And(
-                Box::from(Select::ResidueName(vec!["POPE".to_string(), "LYS".to_string(), "LEU".to_string()])),
-                Box::from(Select::AtomName(vec!["BB".to_string(), "PO4".to_string(), "D2A".to_string()]))
+                Box::from(Select::ResidueName(vec![Name::new("POPE").unwrap(), Name::new("LYS").unwrap(), Name::new("LEU").unwrap()])),
+                Box::from(Select::AtomName(vec![Name::new("BB").unwrap(), Name::new("PO4").unwrap(), Name::new("D2A").unwrap()]))
             )),
-            Box::from(Select::AtomName(vec!["C1A".to_string()]))
+            Box::from(Select::AtomName(vec![Name::new("C1A").unwrap()]))
         )),
         Box::from(Select::Not(
             Box::from(Select::And(
-                Box::from(Select::ResidueName(vec!["ION".to_string()])),
-                Box::from(Select::AtomName(vec!["CL".to_string()]))
+                Box::from(Select::ResidueName(vec![Name::new("ION").unwrap()])),
+                Box::from(Select::AtomName(vec![Name::new("CL").unwrap()]))
             ))
         ))
     ));
@@ -1589,17 +1614,17 @@ mod pass_tests {
             Box::from(Select::Not(
                 Box::from(Select::Or(
                     Box::from(Select::And(
-                        Box::from(Select::ResidueName(vec!["POPE".to_string(), "LYS".to_string(), "LEU".to_string()])),
+                        Box::from(Select::ResidueName(vec![Name::new("POPE").unwrap(), Name::new("LYS").unwrap(), Name::new("LEU").unwrap()])),
                         Box::from(Select::Not(
-                            Box::from(Select::AtomName(vec!["BB".to_string(), "PO4".to_string(), "D2A".to_string()]))
+                            Box::from(Select::AtomName(vec![Name::new("BB").unwrap(), Name::new("PO4").unwrap(), Name::new("D2A").unwrap()]))
                         ))
                     )),
-                    Box::from(Select::Not(Box::from(Select::AtomName(vec!["C1A".to_string()]))))
+                    Box::from(Select::Not(Box::from(Select::AtomName(vec![Name::new("C1A").unwrap()]))))
                 ))
             )),
             Box::from(Select::And(
-                Box::from(Select::ResidueName(vec!["ION".to_string()])),
-                Box::from(Select::AtomName(vec!["CL".to_string()]))
+                Box::from(Select::ResidueName(vec![Name::new("ION").unwrap()])),
+                Box::from(Select::AtomName(vec![Name::new("CL").unwrap()]))
             ))
         ))
     ));
@@ -1614,41 +1639,44 @@ mod pass_tests {
             Box::from(Select::Not(Box::from(Select::Or(
                 Box::from(Select::And(
                     Box::from(Select::ResidueName(vec![
-                        "POPE".to_string(),
-                        "LYS".to_string(),
-                        "LEU".to_string()
+                        Name::new("POPE").unwrap(),
+                        Name::new("LYS").unwrap(),
+                        Name::new("LEU").unwrap(),
                     ])),
                     Box::from(Select::Not(Box::from(Select::AtomName(vec![
-                        "BB".to_string(),
-                        "PO4".to_string(),
-                        "D2A".to_string()
+                        Name::new("BB").unwrap(),
+                        Name::new("PO4").unwrap(),
+                        Name::new("D2A").unwrap(),
                     ]))))
                 )),
-                Box::from(Select::Not(Box::from(Select::AtomName(vec![
-                    "C1A".to_string()
-                ]))))
+                Box::from(Select::Not(Box::from(Select::AtomName(vec![Name::new(
+                    "C1A"
+                )
+                .unwrap()]))))
             )))),
             Box::from(Select::And(
-                Box::from(Select::ResidueName(vec!["ION".to_string()])),
-                Box::from(Select::AtomName(vec!["CL".to_string()]))
+                Box::from(Select::ResidueName(vec![Name::new("ION").unwrap()])),
+                Box::from(Select::AtomName(vec![Name::new("CL").unwrap()]))
             ))
         )))
     );
 
     parsing_success_string!(complex_parentheses_1,
         "!(!(name BB and resid 15 to 18) || ((resname   POPE POPG &&name PO4  )or not(name C1A||(serial 5 to 12 or group 'Protein 2' Membrane and !resid 1 2 3) )))",
-        "Not(Or(Not(And(AtomName([\"BB\"]), ResidueNumber([(15, 18)]))), Or(And(ResidueName([\"POPE\", \"POPG\"]), AtomName([\"PO4\"])), Not(Or(AtomName([\"C1A\"]), And(Or(GmxAtomNumber([(5, 12)]), GroupName([\"Protein 2\", \"Membrane\"])), Not(ResidueNumber([(1, 3)]))))))))"
+        "Not(Or(Not(And(AtomName([String(\"BB\")]), ResidueNumber([(15, 18)]))), Or(And(ResidueName([String(\"POPE\"), String(\"POPG\")]), AtomName([String(\"PO4\")])), Not(Or(AtomName([String(\"C1A\")]), And(Or(GmxAtomNumber([(5, 12)]), GroupName([String(\"Protein 2\"), String(\"Membrane\")])), Not(ResidueNumber([(1, 3)]))))))))"
     );
 
     parsing_success!(
         keywords_in_quotes,
         "group 'Protein and  Membrane' or Membrane ' W or not ION' \"Lipids   to Count\"",
         Select::Or(
-            Box::from(Select::GroupName(vec!["Protein and  Membrane".to_string()])),
             Box::from(Select::GroupName(vec![
-                "Membrane".to_string(),
-                " W or not ION".to_string(),
-                "Lipids   to Count".to_string()
+                Name::new("Protein and  Membrane").unwrap()
+            ])),
+            Box::from(Select::GroupName(vec![
+                Name::new("Membrane").unwrap(),
+                Name::new(" W or not ION").unwrap(),
+                Name::new("Lipids   to Count").unwrap()
             ]))
         )
     );
@@ -1657,11 +1685,11 @@ mod pass_tests {
         coalesced_keywords_1,
         "resname BB andserial 1 2 3",
         Select::ResidueName(vec![
-            "BB".to_string(),
-            "andserial".to_string(),
-            "1".to_string(),
-            "2".to_string(),
-            "3".to_string()
+            Name::new("BB").unwrap(),
+            Name::new("andserial").unwrap(),
+            Name::new("1").unwrap(),
+            Name::new("2").unwrap(),
+            Name::new("3").unwrap(),
         ])
     );
 
@@ -1669,12 +1697,12 @@ mod pass_tests {
         coalesced_keywords_2,
         "resname BB or notserial 1 2 3",
         Select::Or(
-            Box::from(Select::ResidueName(vec!["BB".to_string()])),
+            Box::from(Select::ResidueName(vec![Name::new("BB").unwrap()])),
             Box::from(Select::GroupName(vec![
-                "notserial".to_string(),
-                "1".to_string(),
-                "2".to_string(),
-                "3".to_string()
+                Name::new("notserial").unwrap(),
+                Name::new("1").unwrap(),
+                Name::new("2").unwrap(),
+                Name::new("3").unwrap(),
             ]))
         )
     );
@@ -1688,8 +1716,20 @@ mod pass_tests {
                 "DAN", "DGN", "DCN", "DTN"
             ]
             .iter()
-            .map(|&s| s.to_string())
+            .map(|&s| Name::new(s).unwrap())
             .collect()
+        )
+    );
+
+    parsing_success!(
+        regex_1,
+        "resname r'^.*L.*' and name CA r'^[0-9]*H.*'",
+        Select::And(
+            Box::from(Select::ResidueName(vec![Name::new("r'^.*L.*'").unwrap()])),
+            Box::from(Select::AtomName(vec![
+                Name::new("CA").unwrap(),
+                Name::new("r'^[0-9]*H.*'").unwrap()
+            ]))
         )
     );
 }
