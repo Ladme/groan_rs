@@ -1181,8 +1181,6 @@ mod tests {
         system.group_create("Regex4", "group r'X'").unwrap();
         assert!(system.group_exists("Regex4"));
         assert_eq!(system.group_get_n_atoms("Regex4").unwrap(), 0);
-
-        
     }
 
     #[test]
