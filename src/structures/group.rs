@@ -6,7 +6,7 @@
 use std::io::Write;
 
 use crate::errors::{SelectError, WriteNdxError};
-use crate::select::{self, Select};
+use crate::selections::select::{self, Select};
 use crate::structures::shape::Shape;
 use crate::system::general::System;
 
@@ -301,13 +301,13 @@ impl Group {
     }
 
     /// Check whether the name for the group is a valid group name.
-    /// Characters '"&|!@() are not allowed. Names containing whitespace only are also not allowed.
+    /// Characters '"&|!@()<>= are not allowed. Names containing whitespace only are also not allowed.
     pub fn name_is_valid(string: &str) -> bool {
         if string.trim().is_empty() {
             return false;
         }
 
-        let forbidden_chars = "'\"&|!@()";
+        let forbidden_chars = "'\"&|!@()<>=";
 
         for c in string.chars() {
             if forbidden_chars.contains(c) {

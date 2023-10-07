@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 
 use crate::errors::SelectError;
+use crate::selections::numbers;
 use crate::structures::group::Group;
 
 #[derive(Debug, PartialEq)]
@@ -387,7 +388,7 @@ fn parse_token(string: &str) -> Result<Select, SelectError> {
                 return Err(SelectError::EmptyArgument("".to_string()));
             }
 
-            let range = parse_numbers(&token[1..])?;
+            let range = numbers::parse_numbers(&token[1..])?;
             Ok(Select::ResidueNumber(Group::fix_atom_ranges(
                 range,
                 usize::MAX,
@@ -398,7 +399,7 @@ fn parse_token(string: &str) -> Result<Select, SelectError> {
                 return Err(SelectError::EmptyArgument("".to_string()));
             }
 
-            let range = parse_numbers(&token[1..])?;
+            let range = numbers::parse_numbers(&token[1..])?;
             Ok(Select::GmxAtomNumber(Group::fix_atom_ranges(
                 range,
                 usize::MAX,
@@ -410,7 +411,7 @@ fn parse_token(string: &str) -> Result<Select, SelectError> {
                 return Err(SelectError::EmptyArgument("".to_string()));
             }
 
-            let range = parse_numbers(&token[1..])?;
+            let range = numbers::parse_numbers(&token[1..])?;
             Ok(Select::AtomNumber(Group::fix_atom_ranges(
                 range,
                 usize::MAX,
@@ -447,120 +448,6 @@ fn parse_token(string: &str) -> Result<Select, SelectError> {
         // it is not necessary to provide group identifier for groups
         _ => Ok(Select::GroupName(token)),
     }
-}
-
-/// Parse resid or serial numbers.
-fn parse_numbers(token: &[String]) -> Result<Vec<(usize, usize)>, SelectError> {
-    let mut numbers: Vec<(usize, usize)> = Vec::new();
-
-    let mut previous: Option<usize> = None;
-    let mut range = false;
-    for segment in token {
-        let segment = segment.trim();
-
-        // ABC - DEF
-        if segment == "-" {
-            if previous.is_none() {
-                return Err(SelectError::InvalidNumber("".to_string()));
-            }
-            range = true;
-        }
-        // ABC-
-        else if segment.ends_with('-') {
-            let number = segment[0..(segment.len() - 1)]
-                .trim()
-                .parse::<usize>()
-                .map_err(|_| SelectError::InvalidNumber("".to_string()))?;
-
-            if range {
-                if let Some(p) = previous {
-                    if p > number {
-                        return Err(SelectError::InvalidNumber("".to_string()));
-                    }
-                    numbers.push((p, number));
-                } else {
-                    return Err(SelectError::InvalidNumber("".to_string()));
-                }
-            }
-
-            previous = Some(number);
-            range = true;
-        }
-        // -DEF
-        else if let Some(stripped) = segment.strip_prefix('-') {
-            if let Some(p) = previous {
-                let end = stripped
-                    .parse::<usize>()
-                    .map_err(|_| SelectError::InvalidNumber("".to_string()))?;
-                if p > end {
-                    return Err(SelectError::InvalidNumber("".to_string()));
-                }
-                numbers.push((p, end));
-                previous = Some(end);
-            } else {
-                return Err(SelectError::InvalidNumber("".to_string()));
-            }
-
-        // ABC-DEF
-        } else if segment.contains('-') {
-            let split: Vec<&str> = segment.split('-').collect();
-
-            if split.len() != 2 {
-                return Err(SelectError::InvalidNumber("".to_string()));
-            }
-
-            let start = split[0]
-                .trim()
-                .parse::<usize>()
-                .map_err(|_| SelectError::InvalidNumber("".to_string()))?;
-            let end = split[1]
-                .trim()
-                .parse::<usize>()
-                .map_err(|_| SelectError::InvalidNumber("".to_string()))?;
-
-            if range {
-                if let Some(p) = previous {
-                    if p > start {
-                        return Err(SelectError::InvalidNumber("".to_string()));
-                    }
-                    numbers.push((p, start));
-                } else {
-                    return Err(SelectError::InvalidNumber("".to_string()));
-                }
-            }
-
-            if start > end {
-                return Err(SelectError::InvalidNumber("".to_string()));
-            }
-            numbers.push((start, end));
-            previous = Some(end);
-            range = false;
-        }
-        // ABC
-        else {
-            let number = segment
-                .parse::<usize>()
-                .map_err(|_| SelectError::InvalidNumber("".to_string()))?;
-
-            if range {
-                if let Some(p) = previous {
-                    if p > number {
-                        return Err(SelectError::InvalidNumber("".to_string()));
-                    }
-                    numbers.push((p, number));
-                } else {
-                    return Err(SelectError::InvalidNumber("".to_string()));
-                }
-            } else {
-                numbers.push((number, number));
-            }
-
-            previous = Some(number);
-            range = false;
-        }
-    }
-
-    Ok(numbers)
 }
 
 /******************************/
@@ -722,6 +609,169 @@ mod pass_tests {
         "  atomid 4to 11   ",
         Select::AtomNumber(vec![(4, 11)])
     );
+
+    parsing_success!(
+        open_ended_range_1,
+        "serial  <   44",
+        Select::GmxAtomNumber(vec![(1, 43)])
+    );
+
+    parsing_success!(
+        open_ended_range_2,
+        "atomid <44",
+        Select::AtomNumber(vec![(1, 43)])
+    );
+
+    parsing_success!(
+        open_ended_range_3,
+        "  resid    <    30   ",
+        Select::ResidueNumber(vec![(1, 29)])
+    );
+
+    parsing_success!(
+        open_ended_range_4,
+        "serial  <=44",
+        Select::GmxAtomNumber(vec![(1, 44)])
+    );
+
+    parsing_success!(
+        open_ended_range_5,
+        "atomid  <=  44",
+        Select::AtomNumber(vec![(1, 44)])
+    );
+
+    parsing_success!(
+        open_ended_range_6,
+        " resnum  >44",
+        Select::ResidueNumber(vec![(45, usize::MAX - 1)])
+    );
+
+    parsing_success!(
+        open_ended_range_7,
+        "serial  >  44",
+        Select::GmxAtomNumber(vec![(45, usize::MAX - 1)])
+    );
+
+    parsing_success!(
+        open_ended_range_8,
+        "atomnum  >=44",
+        Select::AtomNumber(vec![(44, usize::MAX - 1)])
+    );
+
+    parsing_success!(
+        open_ended_range_9,
+        "resid  >=  44   ",
+        Select::ResidueNumber(vec![(44, usize::MAX - 1)])
+    );
+
+    parsing_success!(
+        open_ended_range_10,
+        "serial 1 4 > 50 7-11",
+        Select::GmxAtomNumber(vec![(1, 1), (4, 4), (7, 11), (51, usize::MAX - 1)])
+    );
+
+    parsing_success!(
+        open_ended_range_11,
+        "resid   1   4 >50 7 - 11",
+        Select::ResidueNumber(vec![(1, 1), (4, 4), (7, 11), (51, usize::MAX - 1)])
+    );
+
+    parsing_success!(
+        open_ended_range_12,
+        "atomid 1 4 >= 50 7-11",
+        Select::AtomNumber(vec![(1, 1), (4, 4), (7, 11), (50, usize::MAX - 1)])
+    );
+
+    parsing_success!(
+        open_ended_range_13,
+        "serial 1 4 >=50 7-11",
+        Select::GmxAtomNumber(vec![(1, 1), (4, 4), (7, 11), (50, usize::MAX - 1)])
+    );
+
+    parsing_success!(
+        open_ended_range_14,
+        "serial 1 4>=50 7-11",
+        Select::GmxAtomNumber(vec![(1, 1), (4, 4), (7, 11), (50, usize::MAX - 1)])
+    );
+
+    parsing_success!(
+        open_ended_range_15,
+        "resid 4>50",
+        Select::ResidueNumber(vec![(4, 4), (51, usize::MAX - 1)])
+    );
+
+    parsing_success!(
+        open_ended_range_16,
+        "atomid 50<20",
+        Select::AtomNumber(vec![(1, 19), (50, 50)])
+    );
+
+    parsing_success!(
+        open_ended_range_17,
+        "serial 50<=20",
+        Select::GmxAtomNumber(vec![(1, 20), (50, 50)])
+    );
+
+    parsing_success!(
+        open_ended_range_18,
+        "serial 50<=20 - 25",
+        Select::GmxAtomNumber(vec![(1, 25), (50, 50)])
+    );
+
+    parsing_success!(
+        open_ended_range_19,
+        "serial <= 20 -40",
+        Select::GmxAtomNumber(vec![(1, 40)])
+    );
+
+    parsing_success!(
+        open_ended_range_20,
+        "resnum 5> 20",
+        Select::ResidueNumber(vec![(5, 5), (21, usize::MAX - 1)])
+    );
+
+    parsing_success!(
+        open_ended_range_21,
+        "serial 5>= 20",
+        Select::GmxAtomNumber(vec![(5, 5), (20, usize::MAX - 1)])
+    );
+
+    parsing_success!(
+        open_ended_range_22,
+        "serial 24-37<=10 55",
+        Select::GmxAtomNumber(vec![(1, 10), (24, 37), (55, 55)])
+    );
+
+    parsing_success!(
+        open_ended_range_23,
+        "serial 24-37<=10-13to17>88",
+        Select::GmxAtomNumber(vec![(1, 17), (24, 37), (89, usize::MAX - 1)])
+    );
+
+    parsing_success!(
+        open_ended_range_24,
+        "serial < 0",
+        Select::GmxAtomNumber(vec![])
+    );
+
+    parsing_success!(
+        open_ended_range_25,
+        "serial < 1",
+        Select::GmxAtomNumber(vec![])
+    );
+
+    parsing_success!(
+        open_ended_range_26,
+        "serial <= 1",
+        Select::GmxAtomNumber(vec![(1, 1)])
+    );
+
+    parsing_success!(
+        open_ended_range_negation_1,
+        "not resid >20",
+        Select::Not(Box::from(Select::ResidueNumber(vec![(21, usize::MAX - 1)])))
+    );
+
     parsing_success!(
         complex_serial,
         "serial 4 8   to 11 to 14   20  21",
@@ -872,6 +922,16 @@ mod pass_tests {
         advanced_ranges_8,
         "atomnum 1 15 4- 6-12",
         Select::AtomNumber(vec![(1, 1), (4, 12), (15, 15)])
+    );
+    parsing_success!(
+        advanced_ranges_9,
+        "atomnum 1 15 4-6-12-18",
+        Select::AtomNumber(vec![(1, 1), (4, 18)])
+    );
+    parsing_success!(
+        advanced_ranges_10,
+        "resid 1 15 4-6-12-18 23",
+        Select::ResidueNumber(vec![(1, 1), (4, 18), (23, 23)])
     );
 
     parsing_success!(chain_simple, "chain B", Select::Chain(vec!['B']));
@@ -1705,6 +1765,37 @@ mod fail_tests {
     parsing_fails!(invalid_range_2, "resid 25 -20", SelectError::InvalidNumber);
     parsing_fails!(invalid_range_3, "resid 25- 20", SelectError::InvalidNumber);
     parsing_fails!(invalid_range_4, "resid 25 - 20", SelectError::InvalidNumber);
+
+    parsing_fails!(
+        invalid_open_ended_range_1,
+        "serial <",
+        SelectError::InvalidNumber
+    );
+    parsing_fails!(
+        invalid_open_ended_range_2,
+        "serial <==7",
+        SelectError::InvalidNumber
+    );
+    parsing_fails!(
+        invalid_open_ended_range_3,
+        "resid <<=  7",
+        SelectError::InvalidNumber
+    );
+    parsing_fails!(
+        invalid_open_ended_range_4,
+        "atomnum <<=7",
+        SelectError::InvalidNumber
+    );
+    parsing_fails!(
+        invalid_open_ended_range_5,
+        "atomnum 1 5 >",
+        SelectError::InvalidNumber
+    );
+    parsing_fails!(
+        invalid_open_ended_range_6,
+        "atomnum 1 -> 8",
+        SelectError::InvalidNumber
+    );
 
     parsing_fails!(chain_multichar_1, "chain AB", SelectError::InvalidChainId);
     parsing_fails!(

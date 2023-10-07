@@ -36,7 +36,7 @@ impl System {
     ///
     /// ## Notes
     /// - In case a group with the given name already exists, it is replaced with the new group.
-    /// - The following characters are not allowed in group names: '"&|!@()
+    /// - The following characters are not allowed in group names: '"&|!@()<>=
     /// - The group will be created even if the query selects no atoms.
     pub fn group_create(&mut self, name: &str, query: &str) -> Result<(), GroupError> {
         if !Group::name_is_valid(name) {
@@ -89,7 +89,7 @@ impl System {
     ///
     /// ## Notes
     /// - In case a group with the given name already exists, it is replaced with the new group.
-    /// - The following characters are not allowed in group names: '"&|!@()
+    /// - The following characters are not allowed in group names: '"&|!@()<>=
     /// - The group will be created even if no atoms are selected.
     pub fn group_create_from_geometry(
         &mut self,
@@ -136,7 +136,7 @@ impl System {
     ///
     /// ## Notes
     /// - In case a group with the given name already exists, it is replaced with the new group.
-    /// - The following characters are not allowed in group names: '"&|!@()
+    /// - The following characters are not allowed in group names: '"&|!@()<>=
     /// - The created Group will be valid even if the input `atom_indices` vector contains multiple identical indices.
     pub fn group_create_from_indices(
         &mut self,
@@ -178,7 +178,7 @@ impl System {
     ///
     /// ## Notes
     /// - In case a group with the given name already exists, it is replaced with the new group.
-    /// - The following characters are not allowed in group names: '"&|!@()
+    /// - The following characters are not allowed in group names: '"&|!@()<>=
     /// - The created Group will be valid even if the input `atom_ranges` vector contains overlapping atom ranges.
     pub fn group_create_from_ranges(
         &mut self,
@@ -1020,6 +1020,86 @@ mod tests {
     }
 
     #[test]
+    fn group_create_open_ended_ranges() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.group_create("Group1", "resid < 380").unwrap();
+
+        assert!(system.group_exists("Group1"));
+        assert_eq!(system.group_get_n_atoms("Group1").unwrap(), 4261);
+
+        for i in 0..4261 {
+            assert!(system.group_isin("Group1", i).unwrap());
+        }
+
+        system.group_create("Group2", "resid <= 380").unwrap();
+        assert!(system.group_exists("Group2"));
+        assert_eq!(system.group_get_n_atoms("Group2").unwrap(), 4273);
+
+        for i in 0..4273 {
+            assert!(system.group_isin("Group2", i).unwrap());
+        }
+
+        system.group_create("Group3", "serial > 9143").unwrap();
+        assert!(system.group_exists("Group3"));
+        assert_eq!(system.group_get_n_atoms("Group3").unwrap(), 7701);
+
+        for i in 9143..16844 {
+            assert!(system.group_isin("Group3", i).unwrap());
+        }
+
+        system.group_create("Group4", "serial >= 9143").unwrap();
+        assert!(system.group_exists("Group4"));
+        assert_eq!(system.group_get_n_atoms("Group4").unwrap(), 7702);
+
+        for i in 9142..16844 {
+            assert!(system.group_isin("Group4", i).unwrap());
+        }
+
+        system
+            .group_create("Group 5", "serial <= 10000 10005-10010")
+            .unwrap();
+        assert!(system.group_exists("Group 5"));
+        assert_eq!(system.group_get_n_atoms("Group 5").unwrap(), 10006);
+
+        for i in 0..10000 {
+            assert!(system.group_isin("Group 5", i).unwrap());
+        }
+
+        for i in 10004..10010 {
+            assert!(system.group_isin("Group 5", i).unwrap());
+        }
+    }
+
+    #[test]
+    fn group_create_invalid_names() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        let names = vec![
+            "Invalid&name",
+            "Invalid| name",
+            "Invalid(name",
+            "Invalid)name",
+            "Invalidn@me",
+            "!nvalidname",
+            "Inval'idname",
+            "Inval\"idname",
+            "    ",
+            "Inval=idname",
+            "Inval<idname",
+            ">Invalidname",
+        ];
+
+        for name in names {
+            assert_eq!(
+                system.group_create(name, "serial 1 to 3"),
+                Err(GroupError::InvalidName(name.to_string()))
+            );
+            assert!(!system.group_exists(name));
+        }
+    }
+
+    #[test]
     fn group_create_from_indices() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
@@ -1054,6 +1134,9 @@ mod tests {
             "Inval'idname",
             "Inval\"idname",
             "    ",
+            "Inval=idname",
+            "Inval<idname",
+            ">Invalidname",
         ];
 
         for name in names {
@@ -1100,6 +1183,9 @@ mod tests {
             "Inval'idname",
             "Inval\"idname",
             "    ",
+            "Inval=idname",
+            "Inval<idname",
+            ">Invalidname",
         ];
 
         for name in names {
