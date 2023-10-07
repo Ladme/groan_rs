@@ -38,3 +38,4 @@
 - **Breaking Change:** Characters '<', '>', and '=' are no longer allowed in group names.
 - Introduced operators for open-ended ranges (<, >, <=, and =>) to the groan selection language.
 - Introduced new tokenizer for groan selection language atom and residue numbers.
+- Added better documentation for the individual error variants in the `errors` module.
