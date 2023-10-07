@@ -1120,12 +1120,83 @@ mod tests {
 
         assert!(system.group_isin("Tails", 65).unwrap());
         assert!(system.group_isin("Tails", 6204).unwrap());
+
+        system
+            .group_create("Group3", "resname r'^..PC' r'L'")
+            .unwrap();
+
+        assert!(system.group_exists("Group3"));
+        assert_eq!(system.group_get_n_atoms("Group3").unwrap(), 6203);
+
+        assert!(system.group_isin("Group3", 0).unwrap());
+        assert!(system.group_isin("Group3", 6204).unwrap());
     }
 
-    /*#[test]
+    #[test]
     fn group_create_regex_aa() {
-        let mut system = System::from_file()
-    }*/
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+
+        system
+            .group_create("Hydrogens", "name r'^[1-9]?H.*'")
+            .unwrap();
+
+        assert!(system.group_exists("Hydrogens"));
+        assert_eq!(system.group_get_n_atoms("Hydrogens").unwrap(), 20875);
+
+        assert!(system.group_isin("Hydrogens", 32787).unwrap());
+        assert!(system.group_isin("Hydrogens", 1).unwrap());
+    }
+
+    #[test]
+    fn group_create_regex_groups() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        system.group_create("Regex1", "r'^Transmembrane'").unwrap();
+        assert!(system.group_exists("Regex1"));
+        assert_eq!(system.group_get_n_atoms("Regex1").unwrap(), 61);
+
+        assert!(system.group_isin("Regex1", 0).unwrap());
+        assert!(system.group_isin("Regex1", 60).unwrap());
+        assert!(!system.group_isin("Regex1", 61).unwrap());
+
+        system.group_create("Regex2", "r'^Transmembrane$'").unwrap();
+        assert!(system.group_exists("Regex2"));
+        assert_eq!(system.group_get_n_atoms("Regex2").unwrap(), 29);
+
+        assert!(system.group_isin("Regex2", 0).unwrap());
+        assert!(system.group_isin("Regex2", 59).unwrap());
+        assert!(!system.group_isin("Regex2", 60).unwrap());
+
+        system.group_create("Regex3", "group r'^P' ION").unwrap();
+        assert!(system.group_exists("Regex3"));
+        assert_eq!(system.group_get_n_atoms("Regex3").unwrap(), 6445);
+
+        assert!(system.group_isin("Regex3", 0).unwrap());
+        assert!(system.group_isin("Regex3", 16843).unwrap());
+        assert!(!system.group_isin("Regex3", 16603).unwrap());
+        assert!(!system.group_isin("Regex3", 6205).unwrap());
+
+        // no matching group
+        system.group_create("Regex4", "group r'X'").unwrap();
+        assert!(system.group_exists("Regex4"));
+        assert_eq!(system.group_get_n_atoms("Regex4").unwrap(), 0);
+
+        
+    }
+
+    #[test]
+    fn group_create_macro_hydrogen() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+
+        system.group_create("Hydrogens", "@hydrogen").unwrap();
+
+        assert!(system.group_exists("Hydrogens"));
+        assert_eq!(system.group_get_n_atoms("Hydrogens").unwrap(), 20875);
+
+        assert!(system.group_isin("Hydrogens", 32787).unwrap());
+        assert!(system.group_isin("Hydrogens", 1).unwrap());
+    }
 
     #[test]
     fn group_create_invalid_names() {

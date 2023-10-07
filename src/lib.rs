@@ -371,13 +371,14 @@
 //!
 //! **Selecting atoms by autodetection**
 //!
-//! You can select atoms using internally defined macros. Currently, `groan_rs` library provides six of such macros:
+//! You can select atoms using internally defined macros. Currently, `groan_rs` library provides seven of such macros:
 //! - `@protein` will select all atoms corresponding to amino acids (supports some 140 different amino acids).
 //! - `@water` will select all atoms of water.
-//! - `@ions` will select all atoms of ions.
+//! - `@ion` will select all atoms of ions.
 //! - `@membrane` will select all atoms corresponding to membrane lipids (supports over 200 membrane lipid types).
 //! - `@dna` will select all atoms belonging to a DNA molecule.
 //! - `@rna` will select all atoms belonging to an RNA molecule.
+//! - `@hydrogen` will select all hydrogen atoms.
 //!
 //! Please be aware that while groan macros are generally dependable, there is no absolute guarantee that they will unfailingly identify all atoms correctly. Be careful when using them.
 //!
@@ -422,6 +423,14 @@
 //! You can place parenthetical expressions into other parenthetical expressions. For example `serial 1 to 6 or (name CA and resname POPE || (resid 1 to 7 or serial 123 to 128)) and Protein` is a valid query, albeit possibly way too convoluted.
 //!
 //! You can also place `not` (`!`) operator in front of a parenthetical expression. For example, `!(serial 1 to 6 && name P)` will select all atoms that do **not** have atom number between 1 and 6 while also having the atom name P.
+//!
+//! **Regular expressions**
+//!
+//! Atom, residue, and group names can be specified using regular expressions. For instance all hydrogens atoms in the system can be selected using `name r'^[1-9]?H.*'` (or using the `@hydrogen` macro which expands to the same regular expression). Similarly, all phosphatidylcholine lipids can be selected using `resname r'^.*PC'`. Query `group r'^P'` or just `r'^P'` will then select atoms of all groups which name starts with 'P' (case sensitive).
+//!
+//! Note that the regular expression must be enclosed inside "regular expression block" starting with `r'` and ending with `'`. You can specify multiple regular expressions in a single query and use them alongside normal strings.
+//!
+//! Regular expressions are evaluated using the `regex crate`. For more information about the supported regular expressions, visit <https://docs.rs/regex/latest/regex/>.
 //!
 //! **Note about whitespace**
 //!

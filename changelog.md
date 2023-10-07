@@ -36,6 +36,8 @@
 
 ### Version 0.4.0
 - **Breaking Change:** Characters '<', '>', and '=' are no longer allowed in group names.
+- Atom, residue, and group names can be now specified using regular expressions.
 - Introduced operators for open-ended ranges (<, >, <=, and =>) to the groan selection language.
+- Added `@hydrogen` macro which can autodetect hydrogen atoms.
 - Introduced new tokenizer for groan selection language atom and residue numbers.
 - Added better documentation for the individual error variants in the `errors` module.

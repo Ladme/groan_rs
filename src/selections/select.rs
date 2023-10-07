@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use crate::errors::SelectError;
 use crate::selections::{name::Name, numbers};
 use crate::structures::group::Group;
+use crate::system::general::System;
 
 #[derive(Debug, PartialEq)]
 pub enum Select {
@@ -28,6 +29,48 @@ enum Operator {
     And,
     Or,
     Not,
+}
+
+impl Select {
+    /// Expand each Name::Regex for GroupName into all actual group names matching the regex.
+    /// Performing this expansion once before applying the `Select` is more efficient than performing
+    /// similar expansion for each individual atom.
+    pub fn expand_regex_group(self, system: &System) -> Self {
+        match self {
+            Select::GroupName(vector) => {
+                let mut new_vector = Vec::new();
+
+                for name in vector {
+                    match name {
+                        Name::String(s) => new_vector.push(Name::String(s)),
+                        Name::Regex(r) => {
+                            for group in system.get_groups_as_ref().keys() {
+                                if r.is_match(group) {
+                                    new_vector.push(Name::String(group.to_owned()))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Select::GroupName(new_vector)
+            }
+
+            Select::And(left, right) => Select::And(
+                Box::from(left.expand_regex_group(system)),
+                Box::from(right.expand_regex_group(system)),
+            ),
+
+            Select::Or(left, right) => Select::Or(
+                Box::from(left.expand_regex_group(system)),
+                Box::from(right.expand_regex_group(system)),
+            ),
+
+            Select::Not(op) => Select::Not(Box::from(op.expand_regex_group(system))),
+
+            other => other,
+        }
+    }
 }
 
 pub fn parse_query(query: &str) -> Result<Box<Select>, SelectError> {
@@ -70,6 +113,7 @@ pub fn parse_query(query: &str) -> Result<Box<Select>, SelectError> {
         }
         Err(SelectError::InvalidNumber(_)) => Err(SelectError::InvalidNumber(query.to_string())),
         Err(SelectError::InvalidChainId(_)) => Err(SelectError::InvalidChainId(query.to_string())),
+        Err(SelectError::InvalidRegex(e)) => Err(SelectError::InvalidRegex(e)),
         Err(_) => Err(SelectError::UnknownError(query.to_string())),
     }
 }
@@ -246,6 +290,7 @@ fn get_macros() -> HashMap<&'static str, &'static str> {
         "@rna",
         "(resname A U C G RA RU RC RG RA5 RT5 RU5 RC5 RG5 RA3 RT3 RU3 RC3 RG3 RAN RTN RUN RCN RGN)",
     );
+    macros.insert("@hydrogen", "(name r'^[1-9]?H.*')");
 
     macros
 }
@@ -356,7 +401,7 @@ fn split_with_quotes(string: &str) -> Vec<String> {
 
         if c == '\'' || c == '"' {
             inside = !inside;
-            if regex == true {
+            if regex {
                 result[block].push(c);
                 regex = false;
             }
@@ -1732,6 +1777,22 @@ mod pass_tests {
             ]))
         )
     );
+
+    parsing_success!(
+        regex_2,
+        "name r'^C.*' r'^[0-9]*H.*' r'.*'",
+        Select::AtomName(vec![
+            Name::new("r'^C.*'").unwrap(),
+            Name::new("r'^[0-9]*H.*'").unwrap(),
+            Name::new("r'.*'").unwrap()
+        ])
+    );
+
+    parsing_success!(
+        hydrogen_macro,
+        "@hydrogen",
+        Select::AtomName(vec![Name::new("r'^[1-9]?H.*'").unwrap()])
+    );
 }
 
 #[cfg(test)]
@@ -1934,6 +1995,40 @@ mod fail_tests {
         SelectError::InvalidOperator
     );
 
+    #[test]
+    fn invalid_regex() {
+        let query = "name r'*L*'";
+
+        match parse_query(query) {
+            Err(SelectError::InvalidRegex(e)) => assert_eq!(e, "r'*L*'"),
+            Ok(_) => panic!("Parsing should have failed, but it succeeded."),
+            Err(e) => panic!(
+                "Parsing successfully failed but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
     parsing_fails!(deep_error_1, "!(!(name BB and resid 15 to 18) || ((resname   POPE POPG &&name PO4  )or not(name C1A||(serial x to 12 or group 'Protein 2' Membrane and !resid 1 2 3) )))", 
     SelectError::InvalidNumber);
+}
+
+#[cfg(test)]
+mod select_impl {
+    use super::*;
+
+    #[test]
+    fn expand_regex_group() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let selection =
+            parse_query("(Protein r'membrane$' or r'^P' Nonexistent r'-') and !r'C'").unwrap();
+
+        let selection = selection.expand_regex_group(&system);
+
+        let string = format!("{:?}", selection);
+        assert_eq!(string, "And(Or(GroupName([String(\"Protein\"), String(\"Transmembrane\")]), GroupName([String(\"Protein\"), String(\"Protein-H\"), String(\"Prot-Masses\"), String(\"POPC\"), String(\"Protein_Membrane\"), String(\"Nonexistent\"), String(\"Protein-H\"), String(\"C-alpha\"), String(\"SideChain-H\"), String(\"Prot-Masses\"), String(\"non-Protein\")])), Not(GroupName([String(\"C-alpha\"), String(\"MainChain\"), String(\"MainChain+Cb\"), String(\"MainChain+H\"), String(\"SideChain\"), String(\"SideChain-H\"), String(\"POPC\")])))");
+    }
 }

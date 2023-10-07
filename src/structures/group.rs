@@ -76,13 +76,18 @@ impl Group {
 
     /// Create a new valid Group structure using Select tree.
     fn from_select(select: Box<Select>, system: &System) -> Result<Self, SelectError> {
-        let mut indices = Vec::new();
+        // expand regex group names
+        let select = Box::new(select.expand_regex_group(system));
 
-        for i in 0usize..system.get_n_atoms() {
-            if Group::matches_select(i, &select, system)? {
-                indices.push(i);
-            }
-        }
+        let indices: Vec<usize> = (0usize..system.get_n_atoms())
+            .filter_map(|i| {
+                if Group::matches_select(i, &select, system).ok()? {
+                    Some(i)
+                } else {
+                    None
+                }
+            })
+            .collect();
 
         let ranges = Group::make_atom_ranges(indices, system.get_n_atoms());
         Ok(Group {
@@ -159,11 +164,10 @@ impl Group {
 
             Select::GroupName(names) => {
                 for name in names.iter() {
-                    match system.group_isin(name.to_str(), atom_index) {
+                    match name.match_groups(system, atom_index) {
                         Ok(true) => return Ok(true),
                         Ok(false) => (),
-                        // if the group does not exist, return an error
-                        Err(_) => return Err(SelectError::GroupNotFound(name.to_str().to_owned())),
+                        Err(e) => return Err(e),
                     }
                 }
 
