@@ -857,6 +857,19 @@ mod tests {
     }
 
     #[test]
+    fn group_create_macro_water_all_atom() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+
+        system.group_create("Water", "@water").unwrap();
+        assert!(system.group_exists("Water"));
+        assert_eq!(system.group_get_n_atoms("Water").unwrap(), 15273);
+
+        for i in 17515..=32787 {
+            assert!(system.group_isin("Water", i).unwrap());
+        }
+    }
+
+    #[test]
     fn group_create_macro_ion() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
@@ -865,6 +878,19 @@ mod tests {
         assert_eq!(system.group_get_n_atoms("Ion").unwrap(), 240);
 
         for i in 16604..=16843 {
+            assert!(system.group_isin("Ion", i).unwrap());
+        }
+    }
+
+    #[test]
+    fn group_create_macro_ion_all_atom() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+
+        system.group_create("Ion", "@ion").unwrap();
+        assert!(system.group_exists("Ion"));
+        assert_eq!(system.group_get_n_atoms("Ion").unwrap(), 29);
+
+        for i in 32788..=32816 {
             assert!(system.group_isin("Ion", i).unwrap());
         }
     }
