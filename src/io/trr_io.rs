@@ -7,10 +7,11 @@ use std::marker::PhantomData;
 use std::os::raw::{c_float, c_int};
 use std::path::Path;
 
-use crate::errors::{ReadXdrError, WriteXdrError, XdrError};
-use crate::io::xdrfile::{
-    self, OpenMode, XdrFile, XdrFrameData, XdrGroupWriter, XdrRangeReader, XdrReader, XdrWriter,
+use crate::errors::{ReadTrajError, TrajError, WriteTrajError};
+use crate::io::traj_io::{
+    FrameData, TrajGroupWrite, TrajRangeRead, TrajRead, TrajReader, TrajWrite,
 };
+use crate::io::xdrfile::{self, CXdrFile, OpenMode, XdrFile};
 use crate::iterators::AtomIterator;
 use crate::structures::{group::Group, vector3d::Vector3D};
 use crate::system::general::System;
@@ -19,6 +20,84 @@ use crate::system::general::System;
 /*      READING TRR       */
 /**************************/
 
+/// Structure containing data read from a trr file.
+#[derive(Debug)]
+pub struct TrrFrameData {
+    step: c_int,
+    time: c_float,
+    boxvector: [[c_float; 3usize]; 3usize],
+    lambda: c_float,
+    coordinates: Vec<[f32; 3]>,
+    velocities: Vec<[f32; 3]>,
+    forces: Vec<[f32; 3]>,
+}
+
+impl FrameData for TrrFrameData {
+    /// Read `TrrFrameData` from a trr frame.
+    ///
+    /// ## Returns
+    /// - `None` if the file has been read completely
+    /// - `Some(TrrFrameData)` if the frame has been successfully read.
+    /// - `Some(ReadTrajError)` if the frame could not be read.
+    unsafe fn from_frame(xdrfile: *mut CXdrFile, n_atoms: usize) -> Option<Result<Self, ReadTrajError>> {
+        let mut step: c_int = 0;
+        let mut time: c_float = 0.0;
+        let mut boxvector: [[c_float; 3usize]; 3usize] = [[0.0; 3]; 3];
+        let mut lambda: c_float = 0.0;
+        let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
+        let mut velocities = vec![[0.0, 0.0, 0.0]; n_atoms];
+        let mut forces = vec![[0.0, 0.0, 0.0]; n_atoms];
+
+        unsafe {
+            let return_code = xdrfile::read_trr(
+                xdrfile,
+                n_atoms as c_int,
+                &mut step,
+                &mut time,
+                &mut lambda,
+                &mut boxvector,
+                coordinates.as_mut_ptr(),
+                velocities.as_mut_ptr(),
+                forces.as_mut_ptr(),
+            );
+
+            match return_code {
+                // reading successful and there is more to read
+                0 => Some(Ok(TrrFrameData {
+                    step,
+                    time,
+                    boxvector,
+                    lambda,
+                    coordinates,
+                    velocities,
+                    forces,
+                })),
+                // file is completely read
+                4 | 11 => None,
+                // error occured
+                _ => Some(Err(ReadTrajError::FrameNotFound)),
+            }
+        }
+    }
+
+    /// Update the `System` structure based on data from `TrrFrameData`.
+    fn update_system(self, system: &mut System) {
+        unsafe {
+            for (i, atom) in system.get_atoms_as_ref_mut().iter_mut().enumerate() {
+                atom.set_position(&Vector3D::from(*self.coordinates.get_unchecked(i)));
+                atom.set_velocity(&Vector3D::from(*self.velocities.get_unchecked(i)));
+                atom.set_force(&Vector3D::from(*self.forces.get_unchecked(i)));
+            }
+
+            // update the system
+            system.set_simulation_step(self.step as u64);
+            system.set_simulation_time(self.time);
+            system.set_box(xdrfile::matrix2simbox(self.boxvector));
+            system.set_lambda(self.lambda);
+        }
+    }
+}
+
 /// Iterator over a trr file.
 pub struct TrrReader<'a> {
     system: *mut System,
@@ -26,16 +105,21 @@ pub struct TrrReader<'a> {
     phantom: PhantomData<&'a mut System>,
 }
 
-impl<'a> XdrReader<'a> for TrrReader<'a> {
+impl<'a> TrajRead<'a> for TrrReader<'a> {
+    type FrameData = TrrFrameData;
+
     /// Create an iterator over a trr file.
-    fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<Self, ReadXdrError> {
+    fn new(
+        system: &'a mut System,
+        filename: impl AsRef<Path>,
+    ) -> Result<TrajReader<'a, TrrReader>, ReadTrajError> {
         let n_atoms = system.get_n_atoms();
 
         // sanity check the number of atoms
         match XdrFile::check_trr(filename.as_ref(), n_atoms) {
             Err(e) => return Err(e),
             Ok(false) => {
-                return Err(ReadXdrError::AtomsNumberMismatch(Box::from(
+                return Err(ReadTrajError::AtomsNumberMismatch(Box::from(
                     filename.as_ref(),
                 )))
             }
@@ -45,33 +129,36 @@ impl<'a> XdrReader<'a> for TrrReader<'a> {
         // open the trr file and save the handle to it
         let trr = match XdrFile::open_xdr(filename.as_ref(), OpenMode::Read) {
             Ok(x) => x,
-            Err(XdrError::FileNotFound(x)) => return Err(ReadXdrError::FileNotFound(x)),
-            Err(XdrError::InvalidPath(x)) => return Err(ReadXdrError::InvalidPath(x)),
+            Err(TrajError::FileNotFound(x)) => return Err(ReadTrajError::FileNotFound(x)),
+            Err(TrajError::InvalidPath(x)) => return Err(ReadTrajError::InvalidPath(x)),
         };
 
-        Ok(TrrReader {
+        let trr_reader = TrrReader {
             system,
             trr,
             phantom: PhantomData,
-        })
+        };
+
+        Ok(TrajReader::pack_traj(trr_reader))
     }
 
-    /// Transform `TrrReader` iterator into `XdrRangeReader<TrrReader>` iterator with the specified time range.
+    /*
+    /// Transform `TrrReader` iterator into `TrajRangeReader<TrrReader>` iterator with the specified time range.
     /// Time (`start_time` and `end_time`) must be provided in picoseconds.
     ///
     /// ## Details
     /// The frames with time lower than `start_time` are skipped over, i.e., the properties of the atoms
-    /// are not read at all, making the `XdrRangeReader` very efficient. Note however that calling this function nonetheless
+    /// are not read at all, making the `TrajRangeReader` very efficient. Note however that calling this function nonetheless
     /// involves some initial overhead, as it needs to locate the starting point of the iteration.
     ///
     /// Iteration is ended at the frame with time corresponding to `end_time` or once the end of the trr file is reached.
     /// The range is inclusive on both ends, i.e., frames with `time = start_time` and `time = end_time` will be included in the iteration.
     ///
     /// ## Returns
-    /// `XdrRangeReader<TrrReader>` if the the specified time range is valid. Else returns `ReadXdrError`.
+    /// `TrajRangeReader<TrrReader>` if the the specified time range is valid. Else returns `ReadTrajError`.
     ///
     /// ## Example
-    /// Creating an `XdrRangeReader` iterator over a trr file.
+    /// Creating an `TrajRangeReader` iterator over a trr file.
     /// ```no_run
     /// use groan_rs::prelude::*;
     ///
@@ -89,73 +176,48 @@ impl<'a> XdrReader<'a> for TrrReader<'a> {
     /// ## Notes
     /// - If the frame corresponding to the `start_time` doesn't exist in the trr file,
     /// the iterator starts at the frame closest in time to but greater than the `start_time`.
-    /// - If either the `start_time` or the `end_time` is negative, it results in a `ReadXdrError::TimeRangeNegative` error.
-    /// - If the `start_time` is greater than the `end_time`, it results in a `ReadXdrError::InvalidTimeRange` error.
-    /// - If the `start_time` exceeds the time of any frame in the xtc file, it results in a `ReadXdrError::StartNotFound` error.
+    /// - If either the `start_time` or the `end_time` is negative, it results in a `ReadTrajError::TimeRangeNegative` error.
+    /// - If the `start_time` is greater than the `end_time`, it results in a `ReadTrajError::InvalidTimeRange` error.
+    /// - If the `start_time` exceeds the time of any frame in the xtc file, it results in a `ReadTrajError::StartNotFound` error.
     fn with_range(
         self,
         start_time: f32,
         end_time: f32,
-    ) -> Result<XdrRangeReader<'a, TrrReader<'a>>, ReadXdrError> {
-        xdrfile::sanity_check_timerange(start_time, end_time)?;
+    ) -> Result<TrajRangeReader<'a, TrrReader<'a>>, ReadTrajError> {
+        traj_io::sanity_check_timerange(start_time, end_time)?;
 
-        let reader = XdrRangeReader::new(self, start_time, end_time);
+        let reader = TrajRangeReader::new(self, start_time, end_time);
 
         // jump to the start of iteration
         unsafe {
-            if xdrfile::trr_jump_to_start(reader.xdrreader.trr.handle, reader.start_time as c_float)
-                != 0 as c_int
+            if xdrfile::trr_jump_to_start(
+                reader.traj_reader.trr.handle,
+                reader.start_time as c_float,
+            ) != 0 as c_int
             {
-                return Err(ReadXdrError::StartNotFound(start_time.to_string()));
+                return Err(ReadTrajError::StartNotFound(start_time.to_string()));
             }
         }
 
         Ok(reader)
+    }*/
+
+    fn get_system(&mut self) -> *mut System {
+        self.system
+    }
+
+    fn get_file_handle(&mut self) -> *mut CXdrFile {
+        self.trr.handle
     }
 }
 
-impl<'a> Iterator for TrrReader<'a> {
-    type Item = Result<&'a mut System, ReadXdrError>;
-
-    /// Read next frame in a trr file.
-    ///
-    /// ## Returns
-    /// `None` in case the file has been fully read.
-    /// `Some(&mut System)` in case the frame has been read successfully.
-    /// `Some(ReadXdrError)` in case an error occured while reading.
-    fn next(&mut self) -> Option<Self::Item> {
+impl<'a> TrajRangeRead<'a> for TrrReader<'a> {
+    fn jump_to_start(&mut self, start_time: f32) -> Result<(), ReadTrajError> {
         unsafe {
-            match TrrFrameData::from_frame(&mut self.trr, (*self.system).get_n_atoms()) {
-                None => None,
-                Some(Err(e)) => Some(Err(e)),
-                Some(Ok(data)) => {
-                    data.update_system(&mut *self.system);
-                    Some(Ok(&mut *self.system))
-                }
-            }
-        }
-    }
-}
-
-impl<'a> Iterator for XdrRangeReader<'a, TrrReader<'a>> {
-    type Item = Result<&'a mut System, ReadXdrError>;
-
-    /// Read the next frame in the specified time range of the trr file.
-    fn next(&mut self) -> Option<Self::Item> {
-        unsafe {
-            let system = self.xdrreader.system;
-
-            match TrrFrameData::from_frame(&mut self.xdrreader.trr, (*system).get_n_atoms()) {
-                None => None,
-                Some(Err(e)) => Some(Err(e)),
-                Some(Ok(data)) => {
-                    if (*system).get_simulation_time() >= self.end_time {
-                        None
-                    } else {
-                        data.update_system(&mut *system);
-                        Some(Ok(&mut *system))
-                    }
-                }
+            if xdrfile::trr_jump_to_start(self.get_file_handle(), start_time as c_float) != 0 {
+                Err(ReadTrajError::StartNotFound(start_time.to_string()))
+            } else {
+                Ok(())
             }
         }
     }
@@ -166,8 +228,8 @@ impl System {
     /// Create a `TrrReader` structure which is an iterator over a trr file.
     ///
     /// ## Returns
-    /// `TrrReader` if the trr file exists and matches the structure file.
-    /// Else returns `ReadXdrError`.
+    /// `TrajReader<TrrReader>` if the trr file exists and matches the structure file.
+    /// Else returns `ReadTrajError`.
     ///
     /// ## Examples
     /// Iterating through a trr trajectory and calculating
@@ -175,9 +237,9 @@ impl System {
     ///
     /// ```no_run
     /// use groan_rs::prelude::*;
-    /// use groan_rs::errors::ReadXdrError;
+    /// use groan_rs::errors::ReadTrajError;
     ///
-    /// fn example_fn() -> Result<(), ReadXdrError> {
+    /// fn example_fn() -> Result<(), ReadTrajError> {
     ///     // load system from file
     ///     let mut system = System::from_file("system.gro").unwrap();
     ///
@@ -197,9 +259,9 @@ impl System {
     /// of the trajectory as that is very inefficient.**
     /// ```no_run
     /// use groan_rs::prelude::*;
-    /// use groan_rs::errors::ReadXdrError;
+    /// use groan_rs::errors::ReadTrajError;
     ///
-    /// fn example_fn() -> Result<(), ReadXdrError> {
+    /// fn example_fn() -> Result<(), ReadTrajError> {
     ///     let mut system = System::from_file("system.gro").unwrap();
     ///
     ///     for raw_frame in system
@@ -222,67 +284,11 @@ impl System {
     /// - The `System` structure is modified while iterating through the trr file.
     /// - The trr file does not need to have positions, velocities, and forces provided for each frame.
     /// In case any of the properties is missing, it is set to 0 for all particles.
-    pub fn trr_iter(&mut self, filename: impl AsRef<Path>) -> Result<TrrReader, ReadXdrError> {
-        TrrReader::new(self, filename)
-    }
-
-    /// Create a `TrrRangeReader` structure which is an iterator over a range of frames of a trr file.
-    ///
-    /// ## Details
-    /// The frames with time lower than `start_time` are skipped over, i.e., the properties of the atoms
-    /// are not read at all, making this function very efficient. Note however that calling this function nonetheless
-    /// involves some initial overhead, as it needs to locate the starting point of the iteration.
-    ///
-    /// Iteration is ended at the frame with time corresponding to `end_time` or once the end of the trr file is reached.
-    /// `start_time` and `end_time` should be provided in picoseconds. The range is inclusive on both ends,
-    /// i.e., frames with `time = start_time` and `time = end_time` will be included in the iteration.
-    ///
-    /// ## Returns
-    /// `TrrRangeReader` if the trr file exists, matches the structure file, and the specified time range is valid.
-    /// Else returns `ReadXdrError`.
-    ///
-    /// ## Example
-    /// Iterating through a portion of a trr trajectory and calculating
-    /// and printing the current center of geometry of the system.
-    /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use groan_rs::errors::ReadXdrError;
-    ///
-    /// fn example_fn() -> Result<(), ReadXdrError> {
-    ///     // load system from file
-    ///     let mut system = System::from_file("system.gro").unwrap();
-    ///
-    ///     // loop through the trajectory starting with time 10,000 ps
-    ///     // and ending with time 100,000 ps
-    ///     for raw_frame in system.trr_iter_range("trajectory.trr", 10_000.0, 100_000.0)? {
-    ///         let frame = raw_frame?;
-    ///         println!("{:?}", frame.group_get_center("all"));
-    ///     }
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    ///
-    /// ## Warning
-    /// Only orthogonal simulation boxes are currently supported!
-    ///
-    /// ## Notes
-    /// - The function checks whether the number of atoms in the system corresponds to the number of atoms in the trr file.
-    /// - The `System` structure is modified while iterating through the trr file.
-    /// - The trr file does not need to have positions, velocities, and forces provided for each frame.
-    /// In case any of the properties is missing, it is set to 0 for all particles.
-    /// - If the frame corresponding to the `start_time` doesn't exist in the trr file,
-    /// the iteration starts with the frame closest in time to but greater than the `start_time`.
-    /// - If either the `start_time` or the `end_time` is negative, it results in a `ReadXdrError::TimeRangeNegative` error.
-    /// - If the `start_time` is greater than the `end_time`, it leads to a `ReadXdrError::InvalidTimeRange` error.
-    /// - If the `start_time` exceeds the time of any frame in the trr file, it results in a `ReadXdrError::StartNotFound` error.
-    pub fn trr_iter_range(
+    pub fn trr_iter(
         &mut self,
         filename: impl AsRef<Path>,
-        start_time: f32,
-        end_time: f32,
-    ) -> Result<XdrRangeReader<TrrReader>, ReadXdrError> {
-        TrrReader::new(self, filename)?.with_range(start_time, end_time)
+    ) -> Result<TrajReader<TrrReader>, ReadTrajError> {
+        TrrReader::new(self, filename)
     }
 }
 
@@ -296,17 +302,17 @@ impl System {
 /// and subsequently write a TRR frame using `TrrWriter::write_frame()`, the modifications
 /// made to the `System` will be reflected in the written frame.
 ///
-/// `TrrWriter` implements the `XdrWriter` trait.
+/// `TrrWriter` implements the `TrajWrite` trait.
 pub struct TrrWriter {
     system: *const System,
     trr: XdrFile,
 }
 
-impl XdrWriter for TrrWriter {
+impl TrajWrite for TrrWriter {
     /// Open a new trr file for writing.
     ///
     /// ## Returns
-    /// An instance of `TrrWriter` structure or `WriteXdrError` in case the file can't be created.
+    /// An instance of `TrrWriter` structure or `WriteTrajError` in case the file can't be created.
     ///
     /// ## Example
     /// Create a new trr file for writing and associate a system with it.
@@ -317,12 +323,12 @@ impl XdrWriter for TrrWriter {
     ///
     /// let mut writer = TrrWriter::new(&system, "output.trr").unwrap();
     /// ```
-    fn new(system: &System, filename: impl AsRef<Path>) -> Result<TrrWriter, WriteXdrError> {
+    fn new(system: &System, filename: impl AsRef<Path>) -> Result<TrrWriter, WriteTrajError> {
         // create the trr file and save a handle to it
         let trr = match XdrFile::open_xdr(filename.as_ref(), OpenMode::Write) {
             Ok(x) => x,
-            Err(XdrError::FileNotFound(x)) => return Err(WriteXdrError::CouldNotCreate(x)),
-            Err(XdrError::InvalidPath(x)) => return Err(WriteXdrError::InvalidPath(x)),
+            Err(TrajError::FileNotFound(x)) => return Err(WriteTrajError::CouldNotCreate(x)),
+            Err(TrajError::InvalidPath(x)) => return Err(WriteTrajError::InvalidPath(x)),
         };
 
         Ok(TrrWriter { system, trr })
@@ -331,7 +337,7 @@ impl XdrWriter for TrrWriter {
     /// Write the current state of the system into an open trr file.
     ///
     /// ## Returns
-    /// - `Ok` if the frame has been successfully written. Otherwise `WriteXdrError`.
+    /// - `Ok` if the frame has been successfully written. Otherwise `WriteTrajError`.
     ///
     /// ## Example
     /// Reading and writing a trr file.
@@ -362,7 +368,7 @@ impl XdrWriter for TrrWriter {
     /// ## Notes
     /// - While Gromacs supports writing trr files containing only some of the particle properties (e.g. just velocities),
     /// `groan_rs` will always write full trr file with all the properties, even if they are zeroed.
-    fn write_frame(&mut self) -> Result<(), WriteXdrError> {
+    fn write_frame(&mut self) -> Result<(), WriteTrajError> {
         unsafe {
             let n_atoms = (*self.system).get_n_atoms();
 
@@ -396,7 +402,7 @@ impl XdrWriter for TrrWriter {
             );
 
             if return_code != 0 {
-                return Err(WriteXdrError::CouldNotWrite);
+                return Err(WriteTrajError::CouldNotWrite);
             }
         }
 
@@ -416,7 +422,7 @@ impl XdrWriter for TrrWriter {
 /// `TrrGroupWriter` will still use the original group of atoms.
 /// If you completely remove the original group, `TrrGroupWriter` will still maintain a working copy of it.
 ///
-/// `TrrGroupWriter` implements the `XdrGroupWriter` trait.
+/// `TrrGroupWriter` implements the `TrajGroupWritr` trait.
 pub struct TrrGroupWriter {
     system: *const System,
     trr: XdrFile,
@@ -424,11 +430,11 @@ pub struct TrrGroupWriter {
     group: Group,
 }
 
-impl XdrGroupWriter for TrrGroupWriter {
+impl TrajGroupWrite for TrrGroupWriter {
     /// Open a new trr file for writing and associate a specific group from a specific system with it.
     ///
     /// ## Returns
-    /// An instance of `TrrGroupWriter` structure or `WriteXdrError` in case the file can't be created
+    /// An instance of `TrrGroupWriter` structure or `WriteTrajError` in case the file can't be created
     /// or the group does not exist.
     ///
     /// ## Example
@@ -445,18 +451,18 @@ impl XdrGroupWriter for TrrGroupWriter {
         system: &System,
         group_name: &str,
         filename: impl AsRef<Path>,
-    ) -> Result<TrrGroupWriter, WriteXdrError> {
+    ) -> Result<TrrGroupWriter, WriteTrajError> {
         // get copy of the group
         let group = match system.get_groups_as_ref().get(group_name) {
-            None => return Err(WriteXdrError::GroupNotFound(group_name.to_owned())),
+            None => return Err(WriteTrajError::GroupNotFound(group_name.to_owned())),
             Some(g) => g.clone(),
         };
 
         // create the trr file and save a handle to it
         let trr = match XdrFile::open_xdr(filename.as_ref(), OpenMode::Write) {
             Ok(x) => x,
-            Err(XdrError::FileNotFound(x)) => return Err(WriteXdrError::CouldNotCreate(x)),
-            Err(XdrError::InvalidPath(x)) => return Err(WriteXdrError::InvalidPath(x)),
+            Err(TrajError::FileNotFound(x)) => return Err(WriteTrajError::CouldNotCreate(x)),
+            Err(TrajError::InvalidPath(x)) => return Err(WriteTrajError::InvalidPath(x)),
         };
 
         Ok(TrrGroupWriter { system, trr, group })
@@ -465,7 +471,7 @@ impl XdrGroupWriter for TrrGroupWriter {
     /// Write the current state of the group into an open trr file.
     ///
     /// ## Returns
-    /// - `Ok` if the frame has been successfully written. Otherwise `WriteXdrError`.
+    /// - `Ok` if the frame has been successfully written. Otherwise `WriteTrajError`.
     ///
     /// ## Example
     /// Reading a trr file and writing only the atoms corresponding to an ndx group `Protein` into the output trr file.
@@ -496,7 +502,7 @@ impl XdrGroupWriter for TrrGroupWriter {
     /// ## Notes
     /// - While Gromacs supports writing trr files containing only some of the particle properties (e.g. just velocities),
     /// `groan_rs` will always write full trr file with all the properties, even if they are zeroed.
-    fn write_frame(&mut self) -> Result<(), WriteXdrError> {
+    fn write_frame(&mut self) -> Result<(), WriteTrajError> {
         unsafe {
             let n_atoms = self.group.get_n_atoms();
 
@@ -537,7 +543,7 @@ impl XdrGroupWriter for TrrGroupWriter {
             );
 
             if return_code != 0 {
-                return Err(WriteXdrError::CouldNotWrite);
+                return Err(WriteTrajError::CouldNotWrite);
             }
         }
 
@@ -551,18 +557,18 @@ impl XdrGroupWriter for TrrGroupWriter {
 
 impl XdrFile {
     /// Check that the number of atoms in an unopened trr file matches the expected number.
-    fn check_trr(filename: impl AsRef<Path>, n_atoms: usize) -> Result<bool, ReadXdrError> {
+    fn check_trr(filename: impl AsRef<Path>, n_atoms: usize) -> Result<bool, ReadTrajError> {
         unsafe {
             let c_path = match xdrfile::path2cstring(filename.as_ref()) {
                 Ok(x) => x,
-                Err(_) => return Err(ReadXdrError::InvalidPath(Box::from(filename.as_ref()))),
+                Err(_) => return Err(ReadTrajError::InvalidPath(Box::from(filename.as_ref()))),
             };
 
             let mut trr_atoms: c_int = 0;
 
             if xdrfile::read_trr_natoms(c_path.as_ptr(), &mut trr_atoms) != 0 {
                 // reading the file failed
-                return Err(ReadXdrError::FileNotFound(Box::from(filename.as_ref())));
+                return Err(ReadTrajError::FileNotFound(Box::from(filename.as_ref())));
             }
 
             // if reading was successful
@@ -571,84 +577,6 @@ impl XdrFile {
             } else {
                 Ok(false)
             }
-        }
-    }
-}
-
-/// Structure containing data read from a trr file.
-#[derive(Debug)]
-struct TrrFrameData {
-    step: c_int,
-    time: c_float,
-    boxvector: [[c_float; 3usize]; 3usize],
-    lambda: c_float,
-    coordinates: Vec<[f32; 3]>,
-    velocities: Vec<[f32; 3]>,
-    forces: Vec<[f32; 3]>,
-}
-
-impl XdrFrameData for TrrFrameData {
-    /// Read `TrrFrameData` from a trr frame.
-    ///
-    /// ## Returns
-    /// - `None` if the file has been read completely
-    /// - `Some(TrrFrameData)` if the frame has been successfully read.
-    /// - `Some(ReadXdrError)` if the frame could not be read.
-    fn from_frame(xdrfile: &mut XdrFile, n_atoms: usize) -> Option<Result<Self, ReadXdrError>> {
-        let mut step: c_int = 0;
-        let mut time: c_float = 0.0;
-        let mut boxvector: [[c_float; 3usize]; 3usize] = [[0.0; 3]; 3];
-        let mut lambda: c_float = 0.0;
-        let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
-        let mut velocities = vec![[0.0, 0.0, 0.0]; n_atoms];
-        let mut forces = vec![[0.0, 0.0, 0.0]; n_atoms];
-
-        unsafe {
-            let return_code = xdrfile::read_trr(
-                xdrfile.handle,
-                n_atoms as c_int,
-                &mut step,
-                &mut time,
-                &mut lambda,
-                &mut boxvector,
-                coordinates.as_mut_ptr(),
-                velocities.as_mut_ptr(),
-                forces.as_mut_ptr(),
-            );
-
-            match return_code {
-                // reading successful and there is more to read
-                0 => Some(Ok(TrrFrameData {
-                    step,
-                    time,
-                    boxvector,
-                    lambda,
-                    coordinates,
-                    velocities,
-                    forces,
-                })),
-                // file is completely read
-                4 | 11 => None,
-                // error occured
-                _ => Some(Err(ReadXdrError::FrameNotFound)),
-            }
-        }
-    }
-
-    /// Update the `System` structure based on data from `TrrFrameData`.
-    fn update_system(self, system: &mut System) {
-        unsafe {
-            for (i, atom) in system.get_atoms_as_ref_mut().iter_mut().enumerate() {
-                atom.set_position(&Vector3D::from(*self.coordinates.get_unchecked(i)));
-                atom.set_velocity(&Vector3D::from(*self.velocities.get_unchecked(i)));
-                atom.set_force(&Vector3D::from(*self.forces.get_unchecked(i)));
-            }
-
-            // update the system
-            system.set_simulation_step(self.step as u64);
-            system.set_simulation_time(self.time);
-            system.set_box(xdrfile::matrix2simbox(self.boxvector));
-            system.set_lambda(self.lambda);
         }
     }
 }
@@ -946,7 +874,9 @@ mod tests {
             .unwrap()
             .zip(
                 system2
-                    .trr_iter_range("test_files/short_trajectory.trr", 0.0, 10000.0)
+                    .trr_iter("test_files/short_trajectory.trr")
+                    .unwrap()
+                    .with_range(0.0, 10000.0)
                     .unwrap(),
             )
         {
@@ -989,7 +919,9 @@ mod tests {
             .take(5)
             .zip(
                 system2
-                    .trr_iter_range("test_files/short_trajectory.trr", 200.0, 600.0)
+                    .trr_iter("test_files/short_trajectory.trr")
+                    .unwrap()
+                    .with_range(200.0, 600.0)
                     .unwrap(),
             )
         {
@@ -1029,7 +961,9 @@ mod tests {
         let times = [0, 120, 160, 240, 320, 360, 480, 600, 640];
 
         for (i, raw) in system
-            .trr_iter_range("test_files/short_trajectory.trr", 0., 1000.)
+            .trr_iter("test_files/short_trajectory.trr")
+            .unwrap()
+            .with_range(0.0, 1000.0)
             .unwrap()
             .enumerate()
         {
@@ -1046,7 +980,9 @@ mod tests {
         let times = [240, 320, 360, 480, 600];
 
         for (i, raw) in system
-            .trr_iter_range("test_files/short_trajectory.trr", 200., 600.)
+            .trr_iter("test_files/short_trajectory.trr")
+            .unwrap()
+            .with_range(200.0, 600.0)
             .unwrap()
             .enumerate()
         {
@@ -1057,28 +993,26 @@ mod tests {
     }
 
     #[test]
-    fn read_trr_range_unmatching() {
-        let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
-
-        match system.trr_iter_range("test_files/short_trajectory.trr", 300.0, 800.0) {
-            Err(ReadXdrError::AtomsNumberMismatch(_)) => (),
-            _ => panic!("TRR file should not be valid."),
-        }
-    }
-
-    #[test]
     fn read_trr_range_negative() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        match system.trr_iter_range("test_files/short_trajectory.trr", -300.0, 800.0) {
+        match system
+            .trr_iter("test_files/short_trajectory.trr")
+            .unwrap()
+            .with_range(-300.0, 800.0)
+        {
             Ok(_) => panic!("Iterator should not have been constructed."),
-            Err(ReadXdrError::TimeRangeNegative(_)) => (),
+            Err(ReadTrajError::TimeRangeNegative(_)) => (),
             Err(e) => panic!("Incorrect error type {} returned", e),
         }
 
-        match system.trr_iter_range("test_files/short_trajectory.trr", 300.0, -800.0) {
+        match system
+            .trr_iter("test_files/short_trajectory.trr")
+            .unwrap()
+            .with_range(300.0, -800.0)
+        {
             Ok(_) => panic!("Iterator should not have been constructed."),
-            Err(ReadXdrError::TimeRangeNegative(_)) => (),
+            Err(ReadTrajError::TimeRangeNegative(_)) => (),
             Err(e) => panic!("Incorrect error type {} returned", e),
         }
     }
@@ -1087,9 +1021,13 @@ mod tests {
     fn read_trr_range_end_start() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        match system.trr_iter_range("test_files/short_trajectory.trr", 800.0, 300.0) {
+        match system
+            .trr_iter("test_files/short_trajectory.trr")
+            .unwrap()
+            .with_range(800.0, 300.0)
+        {
             Ok(_) => panic!("Iterator should not have been constructed."),
-            Err(ReadXdrError::InvalidTimeRange(_, _)) => (),
+            Err(ReadTrajError::InvalidTimeRange(_, _)) => (),
             Err(e) => panic!("Incorrect error type {} returned", e),
         }
     }
@@ -1098,9 +1036,13 @@ mod tests {
     fn read_trr_range_start_not_found() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        match system.trr_iter_range("test_files/short_trajectory.trr", 12000.0, 20000.0) {
+        match system
+            .trr_iter("test_files/short_trajectory.trr")
+            .unwrap()
+            .with_range(12000.0, 20000.0)
+        {
             Ok(_) => panic!("Iterator should not have been constructed."),
-            Err(ReadXdrError::StartNotFound(_)) => (),
+            Err(ReadTrajError::StartNotFound(_)) => (),
             Err(e) => panic!("Incorrect error type {} returned", e),
         }
     }
@@ -1110,7 +1052,7 @@ mod tests {
         let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
 
         match system.trr_iter("test_files/short_trajectory.trr") {
-            Err(ReadXdrError::AtomsNumberMismatch(_)) => (),
+            Err(ReadTrajError::AtomsNumberMismatch(_)) => (),
             _ => panic!("TRR file should not be valid."),
         }
     }
@@ -1120,7 +1062,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
         match system.trr_iter("test_files/nonexistent.trr") {
-            Err(ReadXdrError::FileNotFound(_)) => (),
+            Err(ReadTrajError::FileNotFound(_)) => (),
             _ => panic!("TRR file should not exist."),
         }
     }
@@ -1212,7 +1154,7 @@ mod tests {
         let system = System::from_file("test_files/example.gro").unwrap();
 
         match TrrWriter::new(&system, "test_files/nonexistent/output.trr") {
-            Err(WriteXdrError::CouldNotCreate(_)) => (),
+            Err(WriteTrajError::CouldNotCreate(_)) => (),
             _ => panic!("Output TRR file should not have been created."),
         }
     }
@@ -1330,7 +1272,7 @@ mod tests {
         let path_to_output = xtc_output.path();
 
         match TrrGroupWriter::new(&system, "Protein", path_to_output) {
-            Err(WriteXdrError::GroupNotFound(g)) => assert_eq!(g, "Protein"),
+            Err(WriteTrajError::GroupNotFound(g)) => assert_eq!(g, "Protein"),
             _ => panic!("Output XTC file should not have been created."),
         }
     }

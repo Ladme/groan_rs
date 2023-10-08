@@ -182,56 +182,56 @@ pub enum WriteNdxError {
     CouldNotWrite,
 }
 
-/// Errors that can occur when working with an xtc or a trr file.
+/// Errors that can occur when working with a trajectory file.
 #[derive(Error, Debug, PartialEq, Eq)]
-pub enum XdrError {
-    /// Used when the path to the xtc/trr file is invalid (i.e. contains invalid characters).
+pub enum TrajError {
+    /// Used when the path to the trajectory file is invalid (i.e. contains invalid characters).
     #[error("{} unable to work with path '{}'", "error:".red().bold(), path_to_yellow(.0))]
     InvalidPath(Box<Path>),
-    /// Used when the specified xtc/trr file could not be reached.
+    /// Used when the specified trajectory file could not be reached.
     #[error("{} file '{}' could not be opened or created", "error:".red().bold(), path_to_yellow(.0))]
     FileNotFound(Box<Path>),
 }
 
-/// Errors that can occur when reading an xtc or trr file.
+/// Errors that can occur when reading a trajectory file.
 #[derive(Error, Debug, PartialEq, Eq)]
-pub enum ReadXdrError {
-    /// Used when the path to the xtc/trr file is invalid (i.e. contains invalid characters).
+pub enum ReadTrajError {
+    /// Used when the path to the trajectory file is invalid (i.e. contains invalid characters).
     #[error("{} unable to work with path '{}'", "error:".red().bold(), path_to_yellow(.0))]
     InvalidPath(Box<Path>),
-    /// Used when the xtc/trr file does not exist, could not be read or is not a valid xtc/trr file.
-    #[error("{} file '{}' was not found or could not be read as an xdr file", "error:".red().bold(), path_to_yellow(.0))]
+    /// Used when the trajectory file does not exist, could not be read or is not a valid trajectory file.
+    #[error("{} file '{}' was not found or could not be read as a trajectory file", "error:".red().bold(), path_to_yellow(.0))]
     FileNotFound(Box<Path>),
-    /// Used when a frame could not be read from an xtc/trr file.
-    #[error("{} could not read frame in an xdr file", "error:".red().bold())]
+    /// Used when a frame could not be read from a trajectory file.
+    #[error("{} could not read frame in a trajectory file", "error:".red().bold())]
     FrameNotFound,
-    /// Used when the number of atoms in the xtc/trr file does not match the number of atoms in the corresponding `System` structure.
-    #[error("{} number of atoms in the xdr file '{}' does not match the number of atoms in the system", "error:".red().bold(), path_to_yellow(.0))]
+    /// Used when the number of atoms in the trajectory file does not match the number of atoms in the corresponding `System` structure.
+    #[error("{} number of atoms in the trajectory file '{}' does not match the number of atoms in the system", "error:".red().bold(), path_to_yellow(.0))]
     AtomsNumberMismatch(Box<Path>),
     /// Used when the time provided as the start of the time range is higher than the time provided as the end of the time range.
     #[error("{} invalid time range (starting time '{}' ps is higher than the ending time '{}' ps)", "error:".red().bold(), .0.yellow(), .1.yellow())]
     InvalidTimeRange(String, String),
-    /// Used when the start time is higher than the time of all the frames in the xtc file
-    #[error("{} start time ('{}' ps) exceeds the time of all frames in the xdr file", "error:".red().bold(), .0.yellow())]
+    /// Used when the start time is higher than the time of all the frames in the trajectory file
+    #[error("{} start time ('{}' ps) exceeds the time of all frames in the trajectory file", "error:".red().bold(), .0.yellow())]
     StartNotFound(String),
     /// Used when the time provided as the start/end of the time range is negative.
     #[error("{} negative time ('{}' ps) is not allowed in a time range", "error:".red().bold(), .0.yellow())]
     TimeRangeNegative(String),
 }
 
-/// Errors that can occur when writing an xtc or trr file.
+/// Errors that can occur when writing a trajectory file.
 #[derive(Error, Debug, PartialEq, Eq)]
-pub enum WriteXdrError {
-    /// Used when the path to the xtc/trr file is invalid (i.e. contains invalid characters).
+pub enum WriteTrajError {
+    /// Used when the path to the trajectory file is invalid (i.e. contains invalid characters).
     #[error("{} unable to work with path '{}'", "error:".red().bold(), path_to_yellow(.0))]
     InvalidPath(Box<Path>),
-    /// Used when the xtc/trr file could not be opened for writing (i.e. path is invalid).
+    /// Used when the trajectory file could not be opened for writing (i.e. path is invalid).
     #[error("{} file '{}' could not be created", "error:".red().bold(), path_to_yellow(.0))]
     CouldNotCreate(Box<Path>),
-    /// Used when a frame could not be written into an xtc/trr file for any reason.
+    /// Used when a frame could not be written into a trajectory file for any reason.
     #[error("{} could not write frame to an xdr file", "error:".red().bold())]
     CouldNotWrite,
-    /// Used when the group of atoms selected to be written into the xtc/trr file does not exist.
+    /// Used when the group of atoms selected to be written into the trajectory file does not exist.
     #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
     GroupNotFound(String),
 }

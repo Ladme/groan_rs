@@ -480,6 +480,7 @@ pub mod io {
     pub mod gro_io;
     mod ndx_io;
     pub mod pdb_io;
+    pub mod traj_io;
     pub mod trr_io;
     pub mod xdrfile;
     pub mod xtc_io;
@@ -508,8 +509,10 @@ pub mod system {
 
 /// Reexported basic `groan_rs` structures and traits.
 pub mod prelude {
+    pub use crate::io::traj_io::{
+        TrajGroupWrite, TrajRangeRead, TrajRangeReader, TrajRead, TrajReader, TrajWrite,
+    };
     pub use crate::io::trr_io::{TrrGroupWriter, TrrReader, TrrWriter};
-    pub use crate::io::xdrfile::{XdrGroupWriter, XdrRangeReader, XdrReader, XdrWriter};
     pub use crate::io::xtc_io::{XtcGroupWriter, XtcReader, XtcWriter};
     pub use crate::structures::atom::Atom;
     pub use crate::structures::dimension::Dimension;

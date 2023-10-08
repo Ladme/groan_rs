@@ -7,17 +7,85 @@ use std::marker::PhantomData;
 use std::os::raw::{c_float, c_int};
 use std::path::Path;
 
-use crate::errors::{ReadXdrError, WriteXdrError, XdrError};
-use crate::io::xdrfile::{
-    self, OpenMode, XdrFile, XdrFrameData, XdrGroupWriter, XdrRangeReader, XdrReader, XdrWriter,
-};
+use crate::errors::{ReadTrajError, TrajError, WriteTrajError};
+use crate::io::traj_io::{FrameData, TrajGroupWrite, TrajRangeRead, TrajRead, TrajWrite};
+use crate::io::xdrfile::{self, CXdrFile, OpenMode, XdrFile};
 use crate::iterators::AtomIterator;
+use crate::prelude::TrajReader;
 use crate::structures::{group::Group, vector3d::Vector3D};
 use crate::system::general::System;
 
 /**************************/
 /*       READING XTC      */
 /**************************/
+
+/// Structure containing data read from an xtc file.
+#[derive(Debug)]
+pub struct XtcFrameData {
+    step: c_int,
+    time: c_float,
+    boxvector: [[c_float; 3usize]; 3usize],
+    precision: c_float,
+    coordinates: Vec<[f32; 3]>,
+}
+
+impl FrameData for XtcFrameData {
+    /// Read `XtcFrameData` from an xtc frame.
+    ///
+    /// ## Returns
+    /// - `None` if the file has been read completely
+    /// - `Some(XtcFrameData)` if the frame has been successfully read.
+    /// - `Some(ReadTrajError)` if the frame could not be read.
+    unsafe fn from_frame(xdrfile: *mut CXdrFile, n_atoms: usize) -> Option<Result<Self, ReadTrajError>> {
+        let mut step: c_int = 0;
+        let mut time: c_float = 0.0;
+        let mut boxvector: [[c_float; 3usize]; 3usize] = [[0.0; 3]; 3];
+        let mut precision: c_float = 0.0;
+        let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
+
+        unsafe {
+            let return_code = xdrfile::read_xtc(
+                xdrfile,
+                n_atoms as c_int,
+                &mut step,
+                &mut time,
+                &mut boxvector,
+                coordinates.as_mut_ptr(),
+                &mut precision,
+            );
+
+            match return_code {
+                // reading successful and there is more to read
+                0 => Some(Ok(XtcFrameData {
+                    step,
+                    time,
+                    boxvector,
+                    precision,
+                    coordinates,
+                })),
+                // file is completely read
+                11 => None,
+                // error occured
+                _ => Some(Err(ReadTrajError::FrameNotFound)),
+            }
+        }
+    }
+
+    /// Update the `System` structure based on data from `XtcFrameData`.
+    fn update_system(self, system: &mut System) {
+        unsafe {
+            for (i, atom) in system.get_atoms_as_ref_mut().iter_mut().enumerate() {
+                atom.set_position(&Vector3D::from(*self.coordinates.get_unchecked(i)));
+            }
+
+            // update the system
+            system.set_simulation_step(self.step as u64);
+            system.set_simulation_time(self.time);
+            system.set_box(xdrfile::matrix2simbox(self.boxvector));
+            system.set_precision(self.precision as u64);
+        }
+    }
+}
 
 /// Iterator over an xtc file.
 pub struct XtcReader<'a> {
@@ -26,16 +94,21 @@ pub struct XtcReader<'a> {
     phantom: PhantomData<&'a mut System>,
 }
 
-impl<'a> XdrReader<'a> for XtcReader<'a> {
+impl<'a> TrajRead<'a> for XtcReader<'a> {
+    type FrameData = XtcFrameData;
+
     /// Create an iterator over an xtc file.
-    fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<Self, ReadXdrError> {
+    fn new(
+        system: &'a mut System,
+        filename: impl AsRef<Path>,
+    ) -> Result<TrajReader<'a, XtcReader>, ReadTrajError> {
         let n_atoms = system.get_n_atoms();
 
         // sanity check the number of atoms
         match XdrFile::check_xtc(filename.as_ref(), n_atoms) {
             Err(e) => return Err(e),
             Ok(false) => {
-                return Err(ReadXdrError::AtomsNumberMismatch(Box::from(
+                return Err(ReadTrajError::AtomsNumberMismatch(Box::from(
                     filename.as_ref(),
                 )))
             }
@@ -45,33 +118,36 @@ impl<'a> XdrReader<'a> for XtcReader<'a> {
         // open the xtc file and save the handle to it
         let xtc = match XdrFile::open_xdr(filename.as_ref(), OpenMode::Read) {
             Ok(x) => x,
-            Err(XdrError::FileNotFound(x)) => return Err(ReadXdrError::FileNotFound(x)),
-            Err(XdrError::InvalidPath(x)) => return Err(ReadXdrError::InvalidPath(x)),
+            Err(TrajError::FileNotFound(x)) => return Err(ReadTrajError::FileNotFound(x)),
+            Err(TrajError::InvalidPath(x)) => return Err(ReadTrajError::InvalidPath(x)),
         };
 
-        Ok(XtcReader {
+        let xtc_reader = XtcReader {
             system,
             xtc,
             phantom: PhantomData,
-        })
+        };
+
+        Ok(TrajReader::pack_traj(xtc_reader))
     }
 
-    /// Transform `XtcReader` iterator into `XdrRangeReader<XtcReader>` iterator with the specified time range.
+    /*
+    /// Transform `XtcReader` iterator into `TrajRangeReader<XtcReader>` iterator with the specified time range.
     /// Time (`start_time` and `end_time`) must be provided in picoseconds.
     ///
     /// ## Details
     /// The frames with time lower than `start_time` are skipped over, i.e., the coordinates of the atoms
-    /// are not read at all, making the `XdrRangeReader` very efficient. Note however that calling this function nonetheless
+    /// are not read at all, making the `TrajRangeReader` very efficient. Note however that calling this function nonetheless
     /// involves some initial overhead, as it needs to locate the starting point of the iteration.
     ///
     /// Iteration is ended at the frame with time corresponding to `end_time` or once the end of the xtc file is reached.
     /// The range is inclusive on both ends, i.e., frames with `time = start_time` and `time = end_time` will be included in the iteration.
     ///
     /// ## Returns
-    /// `XdrRangeReader<XtcReader>` if the the specified time range is valid. Else returns `ReadXdrError`.
+    /// `TrajRangeReader<XtcReader>` if the the specified time range is valid. Else returns `ReadTrajError`.
     ///
     /// ## Example
-    /// Creating an `XdrRangeReader` iterator over an xtc file.
+    /// Creating an `TrajRangeReader` iterator over an xtc file.
     /// ```no_run
     /// use groan_rs::prelude::*;
     ///
@@ -89,73 +165,46 @@ impl<'a> XdrReader<'a> for XtcReader<'a> {
     /// ## Notes
     /// - If the frame corresponding to the `start_time` doesn't exist in the xtc file,
     /// the iterator starts at the frame closest in time to but greater than the `start_time`.
-    /// - If either the `start_time` or the `end_time` is negative, it results in a `ReadXdrError::TimeRangeNegative` error.
-    /// - If the `start_time` is greater than the `end_time`, it results in a `ReadXdrError::InvalidTimeRange` error.
-    /// - If the `start_time` exceeds the time of any frame in the xtc file, it results in a `ReadXdrError::StartNotFound` error.
+    /// - If either the `start_time` or the `end_time` is negative, it results in a `ReadTrajError::TimeRangeNegative` error.
+    /// - If the `start_time` is greater than the `end_time`, it results in a `ReadTrajError::InvalidTimeRange` error.
+    /// - If the `start_time` exceeds the time of any frame in the xtc file, it results in a `ReadTrajError::StartNotFound` error.
     fn with_range(
         self,
         start_time: f32,
         end_time: f32,
-    ) -> Result<XdrRangeReader<'a, XtcReader<'a>>, ReadXdrError> {
-        xdrfile::sanity_check_timerange(start_time, end_time)?;
+    ) -> Result<TrajRangeReader<'a, XtcReader<'a>>, ReadTrajError> {
+        traj_io::sanity_check_timerange(start_time, end_time)?;
 
-        let reader = XdrRangeReader::new(self, start_time, end_time);
+        let reader = TrajRangeReader::new(self, start_time, end_time);
 
         // jump to the start of iteration
         unsafe {
-            if xdrfile::xtc_jump_to_start(reader.xdrreader.xtc.handle, reader.start_time as c_float)
+            if xdrfile::xtc_jump_to_start(reader.traj_reader.xtc.handle, reader.start_time as c_float)
                 != 0 as c_int
             {
-                return Err(ReadXdrError::StartNotFound(start_time.to_string()));
+                return Err(ReadTrajError::StartNotFound(start_time.to_string()));
             }
         }
 
         Ok(reader)
+    }*/
+
+    fn get_system(&mut self) -> *mut System {
+        self.system
+    }
+
+    fn get_file_handle(&mut self) -> *mut CXdrFile {
+        self.xtc.handle
     }
 }
 
-impl<'a> Iterator for XtcReader<'a> {
-    type Item = Result<&'a mut System, ReadXdrError>;
-
-    /// Read next frame in an xtc file.
-    ///
-    /// ## Returns
-    /// `None` in case the file has been fully read.
-    /// `Some(&mut System)` in case the frame has been read successfully.
-    /// `Some(ReadXdrError)` in case an error occured while reading.
-    fn next(&mut self) -> Option<Self::Item> {
+impl<'a> TrajRangeRead<'a> for XtcReader<'a> {
+    fn jump_to_start(&mut self, start_time: f32) -> Result<(), ReadTrajError> {
         unsafe {
-            match XtcFrameData::from_frame(&mut self.xtc, (*self.system).get_n_atoms()) {
-                None => None,
-                Some(Err(e)) => Some(Err(e)),
-                Some(Ok(data)) => {
-                    data.update_system(&mut *self.system);
-                    Some(Ok(&mut *self.system))
-                }
-            }
-        }
-    }
-}
-
-impl<'a> Iterator for XdrRangeReader<'a, XtcReader<'a>> {
-    type Item = Result<&'a mut System, ReadXdrError>;
-
-    /// Read the next frame in the specified time range of the xtc file.
-    fn next(&mut self) -> Option<Self::Item> {
-        unsafe {
-            let system = self.xdrreader.system;
-
-            match XtcFrameData::from_frame(&mut self.xdrreader.xtc, (*system).get_n_atoms()) {
-                None => None,
-                Some(Err(e)) => Some(Err(e)),
-                Some(Ok(data)) => {
-                    if (*system).get_simulation_time() >= self.end_time {
-                        None
-                    } else {
-                        data.update_system(&mut *system);
-                        Some(Ok(&mut *system))
-                    }
-                }
+            if xdrfile::xtc_jump_to_start(self.get_file_handle(), start_time as c_float) != 0 {
+                Err(ReadTrajError::StartNotFound(start_time.to_string()))
+            } else {
+                Ok(())
             }
         }
     }
@@ -166,8 +215,8 @@ impl System {
     /// Create an `XtcReader` structure which is an iterator over an xtc file.
     ///
     /// ## Returns
-    /// `XtcReader` if the xtc file exists and matches the structure file.
-    /// Else returns `ReadXdrError`.
+    /// `TrajReader<XtcReader>` if the xtc file exists and matches the structure file.
+    /// Else returns `ReadTrajError`.
     ///
     /// ## Examples
     /// Iterating through an xtc trajectory and calculating
@@ -204,9 +253,9 @@ impl System {
     /// Much more concise way using the `?` operator.
     /// ```no_run
     /// use groan_rs::prelude::*;
-    /// use groan_rs::errors::ReadXdrError;
+    /// use groan_rs::errors::ReadTrajError;
     ///
-    /// fn example_fn() -> Result<(), ReadXdrError> {
+    /// fn example_fn() -> Result<(), ReadTrajError> {
     ///     // load system from file
     ///     let mut system = System::from_file("system.gro").unwrap();
     ///
@@ -226,9 +275,9 @@ impl System {
     /// of the trajectory as that is very inefficient.**
     /// ```no_run
     /// use groan_rs::prelude::*;
-    /// use groan_rs::errors::ReadXdrError;
+    /// use groan_rs::errors::ReadTrajError;
     ///
-    /// fn example_fn() -> Result<(), ReadXdrError> {
+    /// fn example_fn() -> Result<(), ReadTrajError> {
     ///     let mut system = System::from_file("system.gro").unwrap();
     ///
     ///     for raw_frame in system
@@ -249,7 +298,10 @@ impl System {
     /// ## Notes
     /// - The function checks whether the number of atoms in the system corresponds to the number of atoms in the xtc file.
     /// - The `System` structure is modified while iterating through the xtc file.
-    pub fn xtc_iter(&mut self, filename: impl AsRef<Path>) -> Result<XtcReader, ReadXdrError> {
+    pub fn xtc_iter(
+        &mut self,
+        filename: impl AsRef<Path>,
+    ) -> Result<TrajReader<XtcReader>, ReadTrajError> {
         XtcReader::new(self, filename)
     }
 }
@@ -264,17 +316,17 @@ impl System {
 /// and subsequently write an XTC frame using `XtcWriter::write_frame()`, the modifications
 /// made to the `System` will be reflected in the written frame.
 ///
-/// `XtcWriter` implements the `XdrWriter` trait.
+/// `XtcWriter` implements the `TrajWrite` trait.
 pub struct XtcWriter {
     system: *const System,
     xtc: XdrFile,
 }
 
-impl XdrWriter for XtcWriter {
+impl TrajWrite for XtcWriter {
     /// Open a new xtc file for writing.
     ///
     /// ## Returns
-    /// An instance of `XtcWriter` structure or `WriteXdrError` in case the file can't be created.
+    /// An instance of `XtcWriter` structure or `WriteTrajError` in case the file can't be created.
     ///
     /// ## Example
     /// Create a new xtc file for writing and associate a system with it.
@@ -285,12 +337,12 @@ impl XdrWriter for XtcWriter {
     ///
     /// let mut writer = XtcWriter::new(&system, "output.xtc").unwrap();
     /// ```
-    fn new(system: &System, filename: impl AsRef<Path>) -> Result<XtcWriter, WriteXdrError> {
+    fn new(system: &System, filename: impl AsRef<Path>) -> Result<XtcWriter, WriteTrajError> {
         // create the xtc file and save a handle to it
         let xtc = match XdrFile::open_xdr(filename.as_ref(), OpenMode::Write) {
             Ok(x) => x,
-            Err(XdrError::FileNotFound(x)) => return Err(WriteXdrError::CouldNotCreate(x)),
-            Err(XdrError::InvalidPath(x)) => return Err(WriteXdrError::InvalidPath(x)),
+            Err(TrajError::FileNotFound(x)) => return Err(WriteTrajError::CouldNotCreate(x)),
+            Err(TrajError::InvalidPath(x)) => return Err(WriteTrajError::InvalidPath(x)),
         };
 
         Ok(XtcWriter { system, xtc })
@@ -299,7 +351,7 @@ impl XdrWriter for XtcWriter {
     /// Write the current state of the system into an open xtc file.
     ///
     /// ## Returns
-    /// - `Ok` if the frame has been successfully written. Otherwise `WriteXdrError`.
+    /// - `Ok` if the frame has been successfully written. Otherwise `WriteTrajError`.
     ///
     /// ## Example
     /// Reading and writing an xtc file.
@@ -329,7 +381,7 @@ impl XdrWriter for XtcWriter {
     ///
     /// ## Notes
     /// - Precision for writing the xtc file is taken from the `System` structure.
-    fn write_frame(&mut self) -> Result<(), WriteXdrError> {
+    fn write_frame(&mut self) -> Result<(), WriteTrajError> {
         unsafe {
             let n_atoms = (*self.system).get_n_atoms();
 
@@ -352,7 +404,7 @@ impl XdrWriter for XtcWriter {
             );
 
             if return_code != 0 {
-                return Err(WriteXdrError::CouldNotWrite);
+                return Err(WriteTrajError::CouldNotWrite);
             }
         }
 
@@ -372,7 +424,7 @@ impl XdrWriter for XtcWriter {
 /// `XtcGroupWriter` will still use the original group of atoms.
 /// If you completely remove the original group, `XtcGroupWriter` will still maintain a working copy of it.
 ///
-/// `XtcGroupWriter` implements the `XdrGroupWriter` trait.
+/// `XtcGroupWriter` implements the `TrajGroupWrite` trait.
 pub struct XtcGroupWriter {
     system: *const System,
     xtc: XdrFile,
@@ -380,11 +432,11 @@ pub struct XtcGroupWriter {
     group: Group,
 }
 
-impl XdrGroupWriter for XtcGroupWriter {
+impl TrajGroupWrite for XtcGroupWriter {
     /// Open a new xtc file for writing and associate a specific group from a specific system with it.
     ///
     /// ## Returns
-    /// An instance of `XtcGroupWriter` structure or `WriteXdrError` in case the file can't be created
+    /// An instance of `XtcGroupWriter` structure or `WriteTrajError` in case the file can't be created
     /// or the group does not exist.
     ///
     /// ## Example
@@ -401,18 +453,18 @@ impl XdrGroupWriter for XtcGroupWriter {
         system: &System,
         group_name: &str,
         filename: impl AsRef<Path>,
-    ) -> Result<XtcGroupWriter, WriteXdrError> {
+    ) -> Result<XtcGroupWriter, WriteTrajError> {
         // get copy of the group
         let group = match system.get_groups_as_ref().get(group_name) {
-            None => return Err(WriteXdrError::GroupNotFound(group_name.to_owned())),
+            None => return Err(WriteTrajError::GroupNotFound(group_name.to_owned())),
             Some(g) => g.clone(),
         };
 
         // create the xtc file and save a handle to it
         let xtc = match XdrFile::open_xdr(filename.as_ref(), OpenMode::Write) {
             Ok(x) => x,
-            Err(XdrError::FileNotFound(x)) => return Err(WriteXdrError::CouldNotCreate(x)),
-            Err(XdrError::InvalidPath(x)) => return Err(WriteXdrError::InvalidPath(x)),
+            Err(TrajError::FileNotFound(x)) => return Err(WriteTrajError::CouldNotCreate(x)),
+            Err(TrajError::InvalidPath(x)) => return Err(WriteTrajError::InvalidPath(x)),
         };
 
         Ok(XtcGroupWriter { system, xtc, group })
@@ -421,7 +473,7 @@ impl XdrGroupWriter for XtcGroupWriter {
     /// Write the current state of the group into an open xtc file.
     ///
     /// ## Returns
-    /// - `Ok` if the frame has been successfully written. Otherwise `WriteXdrError`.
+    /// - `Ok` if the frame has been successfully written. Otherwise `WriteTrajError`.
     ///
     /// ## Example
     /// Reading an xtc file and writing only the atoms corresponding to an ndx group `Protein` into the output xtc file.
@@ -452,7 +504,7 @@ impl XdrGroupWriter for XtcGroupWriter {
     ///
     /// ## Notes
     /// - Precision for writing the xtc file is taken from the `System` structure.
-    fn write_frame(&mut self) -> Result<(), WriteXdrError> {
+    fn write_frame(&mut self) -> Result<(), WriteTrajError> {
         unsafe {
             let n_atoms = self.group.get_n_atoms();
 
@@ -482,7 +534,7 @@ impl XdrGroupWriter for XtcGroupWriter {
             );
 
             if return_code != 0 {
-                return Err(WriteXdrError::CouldNotWrite);
+                return Err(WriteTrajError::CouldNotWrite);
             }
         }
 
@@ -496,18 +548,18 @@ impl XdrGroupWriter for XtcGroupWriter {
 
 impl XdrFile {
     /// Check that the number of atoms in an unopened xtc file matches the expected number.
-    fn check_xtc(filename: impl AsRef<Path>, n_atoms: usize) -> Result<bool, ReadXdrError> {
+    fn check_xtc(filename: impl AsRef<Path>, n_atoms: usize) -> Result<bool, ReadTrajError> {
         unsafe {
             let c_path = match xdrfile::path2cstring(filename.as_ref()) {
                 Ok(x) => x,
-                Err(_) => return Err(ReadXdrError::InvalidPath(Box::from(filename.as_ref()))),
+                Err(_) => return Err(ReadTrajError::InvalidPath(Box::from(filename.as_ref()))),
             };
 
             let mut xtc_atoms: c_int = 0;
 
             if xdrfile::read_xtc_natoms(c_path.as_ptr(), &mut xtc_atoms) != 0 {
                 // reading the file failed
-                return Err(ReadXdrError::FileNotFound(Box::from(filename.as_ref())));
+                return Err(ReadTrajError::FileNotFound(Box::from(filename.as_ref())));
             }
 
             // if reading was successful
@@ -516,74 +568,6 @@ impl XdrFile {
             } else {
                 Ok(false)
             }
-        }
-    }
-}
-
-/// Structure containing data read from an xtc file.
-#[derive(Debug)]
-struct XtcFrameData {
-    step: c_int,
-    time: c_float,
-    boxvector: [[c_float; 3usize]; 3usize],
-    precision: c_float,
-    coordinates: Vec<[f32; 3]>,
-}
-
-impl XdrFrameData for XtcFrameData {
-    /// Read `XtcFrameData` from an xtc frame.
-    ///
-    /// ## Returns
-    /// - `None` if the file has been read completely
-    /// - `Some(XtcFrameData)` if the frame has been successfully read.
-    /// - `Some(ReadXdrError)` if the frame could not be read.
-    fn from_frame(xdrfile: &mut XdrFile, n_atoms: usize) -> Option<Result<Self, ReadXdrError>> {
-        let mut step: c_int = 0;
-        let mut time: c_float = 0.0;
-        let mut boxvector: [[c_float; 3usize]; 3usize] = [[0.0; 3]; 3];
-        let mut precision: c_float = 0.0;
-        let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
-
-        unsafe {
-            let return_code = xdrfile::read_xtc(
-                xdrfile.handle,
-                n_atoms as c_int,
-                &mut step,
-                &mut time,
-                &mut boxvector,
-                coordinates.as_mut_ptr(),
-                &mut precision,
-            );
-
-            match return_code {
-                // reading successful and there is more to read
-                0 => Some(Ok(XtcFrameData {
-                    step,
-                    time,
-                    boxvector,
-                    precision,
-                    coordinates,
-                })),
-                // file is completely read
-                11 => None,
-                // error occured
-                _ => Some(Err(ReadXdrError::FrameNotFound)),
-            }
-        }
-    }
-
-    /// Update the `System` structure based on data from `XtcFrameData`.
-    fn update_system(self, system: &mut System) {
-        unsafe {
-            for (i, atom) in system.get_atoms_as_ref_mut().iter_mut().enumerate() {
-                atom.set_position(&Vector3D::from(*self.coordinates.get_unchecked(i)));
-            }
-
-            // update the system
-            system.set_simulation_step(self.step as u64);
-            system.set_simulation_time(self.time);
-            system.set_box(xdrfile::matrix2simbox(self.boxvector));
-            system.set_precision(self.precision as u64);
         }
     }
 }
@@ -853,7 +837,7 @@ mod tests {
             .with_range(-300.0, 800.0)
         {
             Ok(_) => panic!("Iterator should not have been constructed."),
-            Err(ReadXdrError::TimeRangeNegative(_)) => (),
+            Err(ReadTrajError::TimeRangeNegative(_)) => (),
             Err(e) => panic!("Incorrect error type {} returned", e),
         }
 
@@ -863,7 +847,7 @@ mod tests {
             .with_range(300.0, -800.0)
         {
             Ok(_) => panic!("Iterator should not have been constructed."),
-            Err(ReadXdrError::TimeRangeNegative(_)) => (),
+            Err(ReadTrajError::TimeRangeNegative(_)) => (),
             Err(e) => panic!("Incorrect error type {} returned", e),
         }
     }
@@ -878,7 +862,7 @@ mod tests {
             .with_range(800.0, 300.0)
         {
             Ok(_) => panic!("Iterator should not have been constructed."),
-            Err(ReadXdrError::InvalidTimeRange(_, _)) => (),
+            Err(ReadTrajError::InvalidTimeRange(_, _)) => (),
             Err(e) => panic!("Incorrect error type {} returned", e),
         }
     }
@@ -893,7 +877,7 @@ mod tests {
             .with_range(12000.0, 20000.0)
         {
             Ok(_) => panic!("Iterator should not have been constructed."),
-            Err(ReadXdrError::StartNotFound(_)) => (),
+            Err(ReadTrajError::StartNotFound(_)) => (),
             Err(e) => panic!("Incorrect error type {} returned", e),
         }
     }
@@ -903,7 +887,7 @@ mod tests {
         let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
 
         match system.xtc_iter("test_files/short_trajectory.xtc") {
-            Err(ReadXdrError::AtomsNumberMismatch(_)) => (),
+            Err(ReadTrajError::AtomsNumberMismatch(_)) => (),
             _ => panic!("XTC file should not be valid."),
         }
     }
@@ -913,7 +897,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
         match system.xtc_iter("test_files/nonexistent.xtc") {
-            Err(ReadXdrError::FileNotFound(_)) => (),
+            Err(ReadTrajError::FileNotFound(_)) => (),
             _ => panic!("XTC file should not exist."),
         }
     }
@@ -945,7 +929,7 @@ mod tests {
         let system = System::from_file("test_files/example.gro").unwrap();
 
         match XtcWriter::new(&system, "test_files/nonexistent/output.xtc") {
-            Err(WriteXdrError::CouldNotCreate(_)) => (),
+            Err(WriteTrajError::CouldNotCreate(_)) => (),
             _ => panic!("Output XTC file should not have been created."),
         }
     }
@@ -1061,7 +1045,7 @@ mod tests {
         let path_to_output = xtc_output.path();
 
         match XtcGroupWriter::new(&system, "Protein", path_to_output) {
-            Err(WriteXdrError::GroupNotFound(g)) => assert_eq!(g, "Protein"),
+            Err(WriteTrajError::GroupNotFound(g)) => assert_eq!(g, "Protein"),
             _ => panic!("Output XTC file should not have been created."),
         }
     }
