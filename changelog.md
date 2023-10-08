@@ -2,12 +2,16 @@
 ## Changelog for the `groan_rs` library
 
 ### Version 0.4.0
-- **Breaking Change:** Characters '<', '>', and '=' are no longer allowed in group names.
-- Atom, residue, and group names can be now specified using regular expressions.
-- Introduced operators for open-ended ranges (<, >, <=, and =>) to the groan selection language.
-- Added `@hydrogen` macro which can autodetect hydrogen atoms.
-- Introduced new tokenizer for groan selection language atom and residue numbers.
-- Added better documentation for the individual error variants in the `errors` module.
+#### Changes to the Groan selection language
+- **Breaking Change:** Group names can no longer include the characters '<', '>', or '='.
+- Atom, residue, and group names can now be specified using regular expressions in the groan selection language.
+- Operators (<, >, <=, and =>) have been introduced for open-ended ranges in the groan selection language.
+- Added a new `@hydrogen` macro for automatic hydrogen atom detection.
+- Implemented a new tokenizer for atom and residue numbers in the groan selection language.
+#### Changes to reading xtc and trr files
+- Introduced `XdrRangeReader` trait and `XtcRangeReader` and `TrrRangeReader` structures for efficient partial reading of xtc and trr files based on time ranges. `XdrRangeReader` and `TrrRangeReader` skip frames with times below the specified start time (atom properties from these frames are not read at all) and stop reading when the end time is reached.
+#### Other changes
+- Enhanced documentation for error variants within the `errors` module.
 
 ### Version 0.3.3
 - `@ion` macro should no longer identify any part of proteins as ions.
@@ -17,7 +21,6 @@
 
 ### Version 0.3.1
 - Fixed failing test which occured due to the change in `GroupError::AlreadyExistsWarning` error message.
-
 
 ### Version 0.3.0
 - **Breaking Change:** Renamed functions `System::group_by_resid` and `System::group_by_resname` to `System::atoms_split_by_resid` and `System::atoms_split_by_resname`, respectively.

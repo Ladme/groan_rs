@@ -25,7 +25,7 @@ pub struct System {
     groups: IndexMap<String, Group>,
     /// Current simulation step.
     simulation_step: u64,
-    /// Current simulation time.
+    /// Current simulation time in picoseconds.
     simulation_time: f32,
     /// Precision of the coordinates.
     coordinates_precision: u64,

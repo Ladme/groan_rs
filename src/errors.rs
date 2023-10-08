@@ -208,6 +208,15 @@ pub enum ReadXdrError {
     /// Used when the number of atoms in the xtc/trr file does not match the number of atoms in the corresponding `System` structure.
     #[error("{} number of atoms in the xdr file '{}' does not match the number of atoms in the system", "error:".red().bold(), path_to_yellow(.0))]
     AtomsNumberMismatch(Box<Path>),
+    /// Used when the time provided as the start of the time range is higher than the time provided as the end of the time range.
+    #[error("{} invalid time range (starting time '{}' ps is higher than the ending time '{}' ps)", "error:".red().bold(), .0.yellow(), .1.yellow())]
+    InvalidTimeRange(String, String),
+    /// Used when the start time is higher than the time of all the frames in the xtc file
+    #[error("{} start time ('{}' ps) exceeds the time of all frames in the xdr file", "error:".red().bold(), .0.yellow())]
+    StartNotFound(String),
+    /// Used when the time provided as the start/end of the time range is negative.
+    #[error("{} negative time ('{}' ps) is not allowed as time range specification", "error:".red().bold(), .0.yellow())]
+    TimeRangeNegative(String),
 }
 
 /// Errors that can occur when writing an xtc or trr file.
@@ -257,7 +266,7 @@ pub enum SelectError {
     /// Used when an invalid identifier of a chain (i.e. longer than one character) is used in the groan selection language query.
     #[error("{} invalid chain identifier(s) in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
     InvalidChainId(String),
-    /// Used when the provided string is not a valid regular expression.
+    /// Used when the groan selection language query contains a regular expression that is invalid.
     #[error("{} string '{}' is not a valid regular expression", "error:".red().bold(), .0.to_string().yellow())]
     InvalidRegex(String),
     /// Used when an unknown error which does not have a specific `SelectError` variant occurs while parsing the groan selection language query.

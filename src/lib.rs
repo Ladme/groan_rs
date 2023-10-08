@@ -508,9 +508,9 @@ pub mod system {
 
 /// Reexported basic `groan_rs` structures and traits.
 pub mod prelude {
-    pub use crate::io::trr_io::{TrrGroupWriter, TrrReader, TrrWriter};
-    pub use crate::io::xdrfile::{XdrGroupWriter, XdrReader, XdrWriter};
-    pub use crate::io::xtc_io::{XtcGroupWriter, XtcReader, XtcWriter};
+    pub use crate::io::trr_io::{TrrGroupWriter, TrrRangeReader, TrrReader, TrrWriter};
+    pub use crate::io::xdrfile::{XdrGroupWriter, XdrRangeReader, XdrReader, XdrWriter};
+    pub use crate::io::xtc_io::{XtcGroupWriter, XtcRangeReader, XtcReader, XtcWriter};
     pub use crate::structures::atom::Atom;
     pub use crate::structures::dimension::Dimension;
     pub use crate::structures::shape::{Cylinder, Rectangular, Shape, Sphere};

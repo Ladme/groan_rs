@@ -8,9 +8,11 @@ use std::os::raw::{c_float, c_int};
 use std::path::Path;
 
 use crate::errors::{ReadXdrError, WriteXdrError, XdrError};
-use crate::io::xdrfile::{self, OpenMode, XdrFile, XdrGroupWriter, XdrReader, XdrWriter};
+use crate::io::xdrfile::{
+    self, OpenMode, XdrFile, XdrGroupWriter, XdrRangeReader, XdrReader, XdrWriter,
+};
 use crate::iterators::AtomIterator;
-use crate::structures::{atom::Atom, group::Group, vector3d::Vector3D};
+use crate::structures::{group::Group, vector3d::Vector3D};
 use crate::system::general::System;
 
 /**************************/
@@ -66,49 +68,98 @@ impl<'a> Iterator for XtcReader<'a> {
     /// `Some(ReadXdrError)` in case an error occured while reading.
     fn next(&mut self) -> Option<Self::Item> {
         unsafe {
-            let n_atoms = (*self.system).get_n_atoms();
-
-            let atoms = (*self.system).get_atoms_as_ref_mut() as *mut Vec<Atom>;
-
-            let mut step: c_int = 0;
-            let mut time: c_float = 0.0;
-            let mut boxvector: [[c_float; 3usize]; 3usize] = [[0.0; 3]; 3];
-            let mut precision: c_float = 0.0;
-            let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
-
-            // read xtc frame
-            let return_code = xdrfile::read_xtc(
-                self.xtc.handle,
-                n_atoms as c_int,
-                &mut step,
-                &mut time,
-                &mut boxvector,
-                coordinates.as_mut_ptr(),
-                &mut precision,
-            );
-
-            match return_code {
-                // reading successful and there is more to read
-                0 => (),
-                // file is completely read
-                11 => return None,
-                // error occured
-                _ => {
-                    return Some(Err(ReadXdrError::FrameNotFound));
+            match XtcFrameData::from_frame(&mut self.xtc, (*self.system).get_n_atoms()) {
+                None => None,
+                Some(Err(e)) => Some(Err(e)),
+                Some(Ok(data)) => {
+                    data.update_system(&mut *self.system);
+                    Some(Ok(&mut *self.system))
                 }
             }
+        }
+    }
+}
 
-            for (i, atom) in (*atoms).iter_mut().enumerate() {
-                atom.set_position(&Vector3D::from(*coordinates.get_unchecked(i)));
+impl<'a> XtcReader<'a> {
+    /// Transform `XtcReader` into `XtcRangeReader` with the specified time range.
+    /// ## Warning
+    /// This does not create a valid `XtcRangeReader`! This is a helper function.
+    /// Use `XtcRangeReader::new()` to create a valid `XtcRangeReader`.
+    fn with_range(self, start_time: f32, end_time: f32) -> XtcRangeReader<'a> {
+        XtcRangeReader {
+            system: self.system,
+            xtc: self.xtc,
+            phantom: self.phantom,
+            start_time,
+            end_time,
+        }
+    }
+}
+
+/// Iterator over a time range of an xtc file.
+pub struct XtcRangeReader<'a> {
+    system: *mut System,
+    xtc: XdrFile,
+    phantom: PhantomData<&'a mut System>,
+    /// starting time of the iteration (in ps)
+    start_time: f32,
+    /// ending time of the iteration (in ps)
+    end_time: f32,
+}
+
+impl<'a> XdrRangeReader<'a> for XtcRangeReader<'a> {
+    /// Open an xtc file and create an iterator for a specified range of frames.
+    /// The `start_time` and `end_time` parameters should be provided in picoseconds.
+    ///
+    /// ## Returns
+    /// - `XtcRangeReader` iterator for reading the xtc file.
+    /// - `ReadXdrError` if the iterator couldn't be constructed.)
+    fn new(
+        system: &'a mut System,
+        filename: impl AsRef<Path>,
+        start_time: f32,
+        end_time: f32,
+    ) -> Result<Self, ReadXdrError> {
+        xdrfile::sanity_check_timerange(start_time, end_time)?;
+
+        let reader = XtcReader::new(system, filename)?.with_range(start_time, end_time);
+
+        // jump to the start of iteration
+        unsafe {
+            if xdrfile::xtc_jump_to_start(reader.xtc.handle, reader.start_time as c_float)
+                != 0 as c_int
+            {
+                return Err(ReadXdrError::StartNotFound(start_time.to_string()));
             }
+        }
 
-            // update the system
-            (*self.system).set_simulation_step(step as u64);
-            (*self.system).set_simulation_time(time);
-            (*self.system).set_box(xdrfile::matrix2simbox(boxvector));
-            (*self.system).set_precision(precision as u64);
+        Ok(reader)
+    }
+}
 
-            Some(Ok(&mut *self.system))
+impl<'a> Iterator for XtcRangeReader<'a> {
+    type Item = Result<&'a mut System, ReadXdrError>;
+
+    /// Read next frame in an xtc file.
+    ///
+    /// ## Returns
+    /// `None` in case the specified time range of the frames has been fully read.
+    /// `Some(&mut System)` in case the frame has been read successfully.
+    /// `Some(ReadXdrError)` in case an error occured while reading.
+    fn next(&mut self) -> Option<Self::Item> {
+        unsafe {
+            match XtcFrameData::from_frame(&mut self.xtc, (*self.system).get_n_atoms()) {
+                None => None,
+                Some(Err(e)) => Some(Err(e)),
+                Some(Ok(data)) => {
+                    if (*self.system).get_simulation_time() >= self.end_time {
+                        None
+                    } else {
+                        data.update_system(&mut *self.system);
+                        Some(Ok(&mut *self.system))
+                    }
+                }
+            }
         }
     }
 }
@@ -173,13 +224,74 @@ impl System {
     /// ```
     ///
     /// ## Warning
-    /// Only orthogonal simulation boxes are currently supported!
+    /// - Only orthogonal simulation boxes are currently supported!
+    /// - If you intend to skip over some frames at the start of the trajectory, i.e., initiate the iteration
+    /// from a later frame, **do not use** the `skip` method. In this scenario, the frames will still be read
+    /// from the xtc frame and then immediately discarded. It is much more efficient to utilize the `System::xtc_iter_range`
+    /// function, which effectively *skips* the initial frames when requested.
     ///
     /// ## Notes
     /// - The function checks whether the number of atoms in the system corresponds to the number of atoms in the xtc file.
     /// - The `System` structure is modified while iterating through the xtc file.
     pub fn xtc_iter(&mut self, filename: impl AsRef<Path>) -> Result<XtcReader, ReadXdrError> {
         XtcReader::new(self, filename)
+    }
+
+    /// Create an `XtcRangeReader` structure which is an iterator over a range of frames of an xtc file.
+    ///
+    /// ## Details
+    /// The frames with time lower than `start_time` are skipped over, i.e., the coordinates of the atoms
+    /// are not read at all, making this function very efficient. Note however that calling this function nonetheless
+    /// involves some initial overhead, as it needs to locate the starting point of the iteration.
+    ///
+    /// Iteration is ended at the frame with time corresponding to `end_time` or once the end of the xtc file is reached.
+    /// `start_time` and `end_time` should be provided in picoseconds. The range is inclusive on both ends,
+    /// i.e., frames with `time = start_time` and `time = end_time` will be included in the iteration.
+    ///
+    /// ## Returns
+    /// `XtcRangeReader` if the xtc file exists, matches the structure file, and the specified time range is valid.
+    /// Else returns `ReadXdrError`.
+    ///
+    /// ## Example
+    /// Iterating through a portion of an xtc trajectory and calculating
+    /// and printing the current center of geometry of the system.
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    /// use groan_rs::errors::ReadXdrError;
+    ///
+    /// fn example_fn() -> Result<(), ReadXdrError> {
+    ///     // load system from file
+    ///     let mut system = System::from_file("system.gro").unwrap();
+    ///
+    ///     // loop through the trajectory starting with time 10,000 ps
+    ///     // and ending with time 100,000 ps
+    ///     for raw_frame in system.xtc_iter_range("trajectory.xtc", 10_000.0, 100_000.0)? {
+    ///         let frame = raw_frame?;
+    ///         println!("{:?}", frame.group_get_center("all"));
+    ///     }
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// ## Warning
+    /// Only orthogonal simulation boxes are currently supported!
+    ///
+    /// ## Notes
+    /// - The function checks whether the number of atoms in the system corresponds to the number of atoms in the xtc file.
+    /// - The `System` structure is modified while iterating through the xtc file.
+    /// - If the frame corresponding to the `start_time` doesn't exist in the xtc file,
+    /// the iteration starts with the frame closest in time to but greater than the `start_time`.
+    /// - If either the `start_time` or the `end_time` is negative, it results in a `ReadXdrError::TimeRangeNegative` error.
+    /// - If the `start_time` is greater than the `end_time`, it leads to a `ReadXdrError::InvalidTimeRange` error.
+    /// - If the `start_time` exceeds the time of any frame in the xtc file, it results in a `ReadXdrError::StartNotFound` error.
+    pub fn xtc_iter_range(
+        &mut self,
+        filename: impl AsRef<Path>,
+        start_time: f32,
+        end_time: f32,
+    ) -> Result<XtcRangeReader, ReadXdrError> {
+        XtcRangeReader::new(self, filename, start_time, end_time)
     }
 }
 
@@ -449,6 +561,74 @@ impl XdrFile {
     }
 }
 
+/// Structure containing data read from an xtc file.
+#[derive(Debug)]
+struct XtcFrameData {
+    step: c_int,
+    time: c_float,
+    boxvector: [[c_float; 3usize]; 3usize],
+    precision: c_float,
+    coordinates: Vec<[f32; 3]>,
+}
+
+impl XtcFrameData {
+    /// Read `XtcFrameData` from an xtc frame.
+    ///
+    /// ## Returns
+    /// - `None` if the file has been read completely
+    /// - `Some(XtcFrameData)` if the frame has been successfully read.
+    /// - `Some(ReadXdrError)` if the frame could not be read.
+    fn from_frame(xdrfile: &mut XdrFile, n_atoms: usize) -> Option<Result<Self, ReadXdrError>> {
+        let mut step: c_int = 0;
+        let mut time: c_float = 0.0;
+        let mut boxvector: [[c_float; 3usize]; 3usize] = [[0.0; 3]; 3];
+        let mut precision: c_float = 0.0;
+        let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
+
+        unsafe {
+            let return_code = xdrfile::read_xtc(
+                xdrfile.handle,
+                n_atoms as c_int,
+                &mut step,
+                &mut time,
+                &mut boxvector,
+                coordinates.as_mut_ptr(),
+                &mut precision,
+            );
+
+            match return_code {
+                // reading successful and there is more to read
+                0 => Some(Ok(XtcFrameData {
+                    step,
+                    time,
+                    boxvector,
+                    precision,
+                    coordinates,
+                })),
+                // file is completely read
+                11 => None,
+                // error occured
+                _ => Some(Err(ReadXdrError::FrameNotFound)),
+            }
+        }
+    }
+
+    /// Update the `System` structure based on data from `XtcFrameData`.
+    fn update_system(self, system: &mut System) {
+        unsafe {
+            for (i, atom) in system.get_atoms_as_ref_mut().iter_mut().enumerate() {
+                atom.set_position(&Vector3D::from(*self.coordinates.get_unchecked(i)));
+            }
+
+            // update the system
+            system.set_simulation_step(self.step as u64);
+            system.set_simulation_time(self.time);
+            system.set_box(xdrfile::matrix2simbox(self.boxvector));
+            system.set_precision(self.precision as u64);
+        }
+    }
+}
+
 /******************************/
 /*         UNIT TESTS         */
 /******************************/
@@ -563,6 +743,186 @@ mod tests {
         assert_approx_eq!(f32, atom2.get_force().x, 0.0);
         assert_approx_eq!(f32, atom2.get_force().y, 0.0);
         assert_approx_eq!(f32, atom2.get_force().z, 0.0);
+    }
+
+    #[test]
+    fn read_xtc_iter() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        for (i, raw) in system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .enumerate()
+        {
+            let frame = raw.unwrap();
+
+            assert_eq!(frame.get_simulation_time() as usize, i * 100);
+        }
+    }
+
+    #[test]
+    fn read_xtc_range_full() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        for (raw_frame1, raw_frame2) in system1
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .zip(
+                system2
+                    .xtc_iter_range("test_files/short_trajectory.xtc", 0.0, 10000.0)
+                    .unwrap(),
+            )
+        {
+            let frame1 = raw_frame1.unwrap();
+            let frame2 = raw_frame2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                assert_eq!(atom1.get_residue_number(), atom2.get_residue_number());
+                assert_eq!(atom1.get_residue_name(), atom2.get_residue_name());
+                assert_eq!(atom1.get_atom_number(), atom2.get_atom_number());
+                assert_eq!(atom1.get_atom_name(), atom2.get_atom_name());
+                assert_eq!(atom1.get_chain(), atom2.get_chain());
+
+                assert_approx_eq!(f32, atom1.get_position().x, atom2.get_position().x);
+                assert_approx_eq!(f32, atom1.get_position().y, atom2.get_position().y);
+                assert_approx_eq!(f32, atom1.get_position().z, atom2.get_position().z);
+
+                assert_approx_eq!(f32, atom1.get_velocity().x, atom2.get_velocity().x);
+                assert_approx_eq!(f32, atom1.get_velocity().y, atom2.get_velocity().y);
+                assert_approx_eq!(f32, atom1.get_velocity().z, atom2.get_velocity().z);
+
+                assert_approx_eq!(f32, atom1.get_force().x, atom2.get_force().x);
+                assert_approx_eq!(f32, atom1.get_force().y, atom2.get_force().y);
+                assert_approx_eq!(f32, atom1.get_force().z, atom2.get_force().z);
+            }
+        }
+    }
+
+    #[test]
+    fn read_xtc_range() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        let mut i = 0;
+
+        for (raw_frame1, raw_frame2) in system1
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .skip(3)
+            .take(6)
+            .zip(
+                system2
+                    .xtc_iter_range("test_files/short_trajectory.xtc", 300.0, 800.0)
+                    .unwrap(),
+            )
+        {
+            i += 1;
+
+            let frame1 = raw_frame1.unwrap();
+            let frame2 = raw_frame2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                assert_eq!(atom1.get_residue_number(), atom2.get_residue_number());
+                assert_eq!(atom1.get_residue_name(), atom2.get_residue_name());
+                assert_eq!(atom1.get_atom_number(), atom2.get_atom_number());
+                assert_eq!(atom1.get_atom_name(), atom2.get_atom_name());
+                assert_eq!(atom1.get_chain(), atom2.get_chain());
+
+                assert_approx_eq!(f32, atom1.get_position().x, atom2.get_position().x);
+                assert_approx_eq!(f32, atom1.get_position().y, atom2.get_position().y);
+                assert_approx_eq!(f32, atom1.get_position().z, atom2.get_position().z);
+
+                assert_approx_eq!(f32, atom1.get_velocity().x, atom2.get_velocity().x);
+                assert_approx_eq!(f32, atom1.get_velocity().y, atom2.get_velocity().y);
+                assert_approx_eq!(f32, atom1.get_velocity().z, atom2.get_velocity().z);
+
+                assert_approx_eq!(f32, atom1.get_force().x, atom2.get_force().x);
+                assert_approx_eq!(f32, atom1.get_force().y, atom2.get_force().y);
+                assert_approx_eq!(f32, atom1.get_force().z, atom2.get_force().z);
+            }
+        }
+
+        assert_eq!(i, 6);
+    }
+
+    #[test]
+    fn read_xtc_range_full_iter() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        for (i, raw) in system
+            .xtc_iter_range("test_files/short_trajectory.xtc", 0., 1000.)
+            .unwrap()
+            .enumerate()
+        {
+            let frame = raw.unwrap();
+
+            assert_eq!(frame.get_simulation_time() as usize, i * 100);
+        }
+    }
+
+    #[test]
+    fn read_xtc_range_iter() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        for (i, raw) in system
+            .xtc_iter_range("test_files/short_trajectory.xtc", 300., 800.)
+            .unwrap()
+            .enumerate()
+        {
+            let frame = raw.unwrap();
+
+            assert_eq!(frame.get_simulation_time() as usize, (i + 3) * 100);
+        }
+    }
+
+    #[test]
+    fn read_xtc_range_unmatching() {
+        let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
+
+        match system.xtc_iter_range("test_files/short_trajectory.xtc", 300.0, 800.0) {
+            Err(ReadXdrError::AtomsNumberMismatch(_)) => (),
+            _ => panic!("XTC file should not be valid."),
+        }
+    }
+
+    #[test]
+    fn read_xtc_range_negative() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        match system.xtc_iter_range("test_files/short_trajectory.xtc", -300.0, 800.0) {
+            Ok(_) => panic!("Iterator should not have been constructed."),
+            Err(ReadXdrError::TimeRangeNegative(_)) => (),
+            Err(e) => panic!("Incorrect error type {} returned", e),
+        }
+
+        match system.xtc_iter_range("test_files/short_trajectory.xtc", 300.0, -800.0) {
+            Ok(_) => panic!("Iterator should not have been constructed."),
+            Err(ReadXdrError::TimeRangeNegative(_)) => (),
+            Err(e) => panic!("Incorrect error type {} returned", e),
+        }
+    }
+
+    #[test]
+    fn read_xtc_range_end_start() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        match system.xtc_iter_range("test_files/short_trajectory.xtc", 800.0, 300.0) {
+            Ok(_) => panic!("Iterator should not have been constructed."),
+            Err(ReadXdrError::InvalidTimeRange(_, _)) => (),
+            Err(e) => panic!("Incorrect error type {} returned", e),
+        }
+    }
+
+    #[test]
+    fn read_xtc_range_start_not_found() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        match system.xtc_iter_range("test_files/short_trajectory.xtc", 12000.0, 20000.0) {
+            Ok(_) => panic!("Iterator should not have been constructed."),
+            Err(ReadXdrError::StartNotFound(_)) => (),
+            Err(e) => panic!("Incorrect error type {} returned", e),
+        }
     }
 
     #[test]

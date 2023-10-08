@@ -32,7 +32,7 @@ impl Group {
         // parse groan selection language query into binary selection tree
         let select = select::parse_query(query)?;
         // apply the selection tree to the system
-        Group::from_select(select, system)
+        Group::from_select(*select, system)
     }
 
     /// Create a new valid `Group` structure from query in Groan Selection Language and from geometry constraint.
@@ -75,7 +75,7 @@ impl Group {
     }
 
     /// Create a new valid Group structure using Select tree.
-    fn from_select(select: Box<Select>, system: &System) -> Result<Self, SelectError> {
+    fn from_select(select: Select, system: &System) -> Result<Self, SelectError> {
         // expand regex group names
         let select = Box::new(select.expand_regex_group(system));
 

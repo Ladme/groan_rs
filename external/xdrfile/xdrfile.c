@@ -1736,6 +1736,10 @@ xdrfile_compress_coord_double(double   *ptr,
 		return -1; 
 }
 
+int xdr_jump(XDRFILE *xdp, long offset)
+{
+	if (fseek(xdp->fp, offset, SEEK_CUR) < 0) return 1;
+}
 
 /* Dont try do document Fortran interface, since
  * Doxygen barfs at the F77_FUNC macro 

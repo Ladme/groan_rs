@@ -60,6 +60,16 @@ extern "C" {
 }
 
 extern "C" {
+    /// Jump to the frame which time is higher than or equal to `target_time`.
+    pub fn xtc_jump_to_start(xd: *mut CXdrFile, target_time: c_float) -> c_int;
+}
+
+extern "C" {
+    /// Jump to the frame which time is higher than or equal to `target_time`
+    pub fn trr_jump_to_start(xd: *mut CXdrFile, target_time: c_float) -> c_int;
+}
+
+extern "C" {
     pub fn read_trr(
         xd: *mut CXdrFile,
         natoms: c_int,
@@ -177,6 +187,26 @@ pub fn simbox2matrix(simbox: &SimBox) -> [[c_float; 3usize]; 3usize] {
     ]
 }
 
+/// Check that the specified times are valid. Returns Ok if valid, else ReadXdrError.
+pub fn sanity_check_timerange(start_time: f32, end_time: f32) -> Result<(), ReadXdrError> {
+    if start_time < 0.0 {
+        return Err(ReadXdrError::TimeRangeNegative(start_time.to_string()));
+    }
+
+    if end_time < 0.0 {
+        return Err(ReadXdrError::TimeRangeNegative(end_time.to_string()));
+    }
+
+    if start_time > end_time {
+        return Err(ReadXdrError::InvalidTimeRange(
+            start_time.to_string(),
+            end_time.to_string(),
+        ));
+    }
+
+    Ok(())
+}
+
 /***********************************/
 /*  Traits for reading and writing */
 /***********************************/
@@ -212,6 +242,21 @@ pub trait XdrReader<'a>: Iterator<Item = Result<&'a mut System, ReadXdrError>> {
     /// read_xdr_file::<TrrReader>(&mut system, "trajectory.trr");
     /// ```
     fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<Self, ReadXdrError>
+    where
+        Self: Sized;
+}
+
+/// Any structure that implements the XdrRangeReader interface can be utilized for performing partial
+/// reads of an xdr file, utilizing the provided time range.
+pub trait XdrRangeReader<'a>: Iterator<Item = Result<&'a mut System, ReadXdrError>> {
+    /// Open an xdr (xtc/trr) file and create an iterator for a specified range of frames.
+    /// The `start_time` and `end_time` parameters should be provided in picoseconds.
+    fn new(
+        system: &'a mut System,
+        filename: impl AsRef<Path>,
+        start_time: f32,
+        end_time: f32,
+    ) -> Result<Self, ReadXdrError>
     where
         Self: Sized;
 }
@@ -253,6 +298,30 @@ pub trait XdrWriter {
 /// Any structure implementing `XdrGroupWriter` can be used to write an xdr file.
 pub trait XdrGroupWriter {
     /// Open a new xdr file for writing and associate a specific group from a specific system with it.
+    ///
+    /// ## Example
+    /// Using `XdrGroupWriter::new` in a generic function.
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    /// use std::path::Path;
+    ///
+    /// // this function can write an xtc or a trr file
+    /// fn write_xdr_file<Writer>(system: &System, file: impl AsRef<Path>)
+    ///     where Writer: XdrGroupWriter
+    /// {
+    ///     // open the xtc/trr file for writing
+    ///     let mut writer = Writer::new(system, "Protein", file).unwrap();
+    ///
+    ///     // write frame into the xtc/trr file
+    ///     writer.write_frame().unwrap();
+    /// }
+    ///
+    /// // `write_xdr_file` can be then called to write the group `Protein` either into an xtc file or a trr file
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.group_create("Protein", "@protein").unwrap();
+    /// write_xdr_file::<XtcGroupWriter>(&system, "trajectory.xtc");
+    /// write_xdr_file::<TrrGroupWriter>(&system, "trajectory.trr");
+    /// ```
     fn new(system: &System, group: &str, filename: impl AsRef<Path>) -> Result<Self, WriteXdrError>
     where
         Self: Sized;
