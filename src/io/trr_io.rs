@@ -33,25 +33,27 @@ pub struct TrrFrameData {
 }
 
 impl FrameData for TrrFrameData {
+    type TrajFile = CXdrFile;
+
     /// Read `TrrFrameData` from a trr frame.
     ///
     /// ## Returns
     /// - `None` if the file has been read completely
     /// - `Some(TrrFrameData)` if the frame has been successfully read.
     /// - `Some(ReadTrajError)` if the frame could not be read.
-    unsafe fn from_frame(xdrfile: *mut CXdrFile, n_atoms: usize) -> Option<Result<Self, ReadTrajError>> {
+    unsafe fn from_frame(xdrfile: &mut Self::TrajFile, system: &System) -> Option<Result<Self, ReadTrajError>> {
         let mut step: c_int = 0;
         let mut time: c_float = 0.0;
         let mut boxvector: [[c_float; 3usize]; 3usize] = [[0.0; 3]; 3];
         let mut lambda: c_float = 0.0;
-        let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
-        let mut velocities = vec![[0.0, 0.0, 0.0]; n_atoms];
-        let mut forces = vec![[0.0, 0.0, 0.0]; n_atoms];
+        let mut coordinates = vec![[0.0, 0.0, 0.0]; system.get_n_atoms()];
+        let mut velocities = vec![[0.0, 0.0, 0.0]; system.get_n_atoms()];
+        let mut forces = vec![[0.0, 0.0, 0.0]; system.get_n_atoms()];
 
         unsafe {
             let return_code = xdrfile::read_trr(
                 xdrfile,
-                n_atoms as c_int,
+                system.get_n_atoms() as c_int,
                 &mut step,
                 &mut time,
                 &mut lambda,
@@ -206,8 +208,8 @@ impl<'a> TrajRead<'a> for TrrReader<'a> {
         self.system
     }
 
-    fn get_file_handle(&mut self) -> *mut CXdrFile {
-        self.trr.handle
+    fn get_file_handle(&mut self) -> &mut CXdrFile {
+        unsafe { self.trr.handle.as_mut().unwrap() }
     }
 }
 

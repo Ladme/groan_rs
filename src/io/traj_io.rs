@@ -33,14 +33,26 @@ pub fn sanity_check_timerange(start_time: f32, end_time: f32) -> Result<(), Read
     Ok(())
 }
 
+/*********************************************/
+/*  TrajFile and supported trajectory files  */
+/*********************************************/
+
+/// Any trajectory file must implement this trait. 
+/// Note that the exact nature of the trajectory file is not relevant,
+/// but the `FrameData::from_frame` function must be able to read it.
+pub trait TrajFile {}
+impl TrajFile for CXdrFile {}
+
 /*****************************/
 /*  TrajRead and TrajReader  */
 /*****************************/
 
 /// Structure storing data from a single trajectory frame.
 pub trait FrameData {
+    type TrajFile: TrajFile;
+
     /// Method specifying how a frame of the trajectory should be read and stored in the `FrameData` structure.
-    unsafe fn from_frame(xdrfile: *mut CXdrFile, n_atoms: usize) -> Option<Result<Self, ReadTrajError>>
+    unsafe fn from_frame(traj_file: &mut Self::TrajFile, system: &System) -> Option<Result<Self, ReadTrajError>>
     where
         Self: Sized;
 
@@ -52,7 +64,7 @@ pub trait FrameData {
 pub trait TrajRead<'a> {
     type FrameData: FrameData;
 
-    /// Open a trajectory file creating an iterator over it.
+    /// Method specifying how to open the trajectory file.
     ///
     /// ## Example
     /// Using `TrajRead::new` in a generic function.
@@ -91,7 +103,7 @@ pub trait TrajRead<'a> {
     fn get_system(&mut self) -> *mut System;
 
     /// Method specifying how to get a mutable handle to the file containing the trajectory.
-    fn get_file_handle(&mut self) -> *mut CXdrFile;
+    fn get_file_handle(&mut self) -> &mut <<Self as TrajRead<'a>>::FrameData as FrameData>::TrajFile;
 }
 
 /// Wrapper for any structure implementing `TrajRead` so the `Iterator` trait can be implemented for it.
@@ -123,7 +135,7 @@ impl<'a, R: TrajRead<'a>> Iterator for TrajReader<'a, R> {
 
             match R::FrameData::from_frame(
                 self.traj_reader.get_file_handle(),
-                (*system).get_n_atoms(),
+                &*system,
             ) {
                 None => None,
                 Some(Err(e)) => Some(Err(e)),
@@ -179,7 +191,7 @@ pub struct TrajRangeReader<'a, R: TrajRead<'a>> {
     pub traj_reader: R,
     pub start_time: f32,
     pub end_time: f32,
-    pub _phantom: &'a PhantomData<R>,
+    _phantom: &'a PhantomData<R>,
 }
 
 /// Iterate the `TrajRangeReader`.
@@ -197,7 +209,7 @@ where
 
             match R::FrameData::from_frame(
                 self.traj_reader.get_file_handle(),
-                (*system).get_n_atoms(),
+                &*system,
             ) {
                 None => None,
                 Some(Err(e)) => Some(Err(e)),

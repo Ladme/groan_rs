@@ -30,23 +30,25 @@ pub struct XtcFrameData {
 }
 
 impl FrameData for XtcFrameData {
+    type TrajFile = CXdrFile;
+
     /// Read `XtcFrameData` from an xtc frame.
     ///
     /// ## Returns
     /// - `None` if the file has been read completely
     /// - `Some(XtcFrameData)` if the frame has been successfully read.
     /// - `Some(ReadTrajError)` if the frame could not be read.
-    unsafe fn from_frame(xdrfile: *mut CXdrFile, n_atoms: usize) -> Option<Result<Self, ReadTrajError>> {
+    unsafe fn from_frame(xdrfile: &mut Self::TrajFile, system: &System) -> Option<Result<Self, ReadTrajError>> {
         let mut step: c_int = 0;
         let mut time: c_float = 0.0;
         let mut boxvector: [[c_float; 3usize]; 3usize] = [[0.0; 3]; 3];
         let mut precision: c_float = 0.0;
-        let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
+        let mut coordinates = vec![[0.0, 0.0, 0.0]; system.get_n_atoms()];
 
         unsafe {
             let return_code = xdrfile::read_xtc(
                 xdrfile,
-                n_atoms as c_int,
+                system.get_n_atoms() as c_int,
                 &mut step,
                 &mut time,
                 &mut boxvector,
@@ -193,8 +195,8 @@ impl<'a> TrajRead<'a> for XtcReader<'a> {
         self.system
     }
 
-    fn get_file_handle(&mut self) -> *mut CXdrFile {
-        self.xtc.handle
+    fn get_file_handle(&mut self) -> &mut CXdrFile {
+        unsafe { self.xtc.handle.as_mut().unwrap() }
     }
 }
 
