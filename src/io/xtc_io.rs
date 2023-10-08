@@ -9,7 +9,7 @@ use std::path::Path;
 
 use crate::errors::{ReadXdrError, WriteXdrError, XdrError};
 use crate::io::xdrfile::{
-    self, OpenMode, XdrFile, XdrGroupWriter, XdrRangeReader, XdrReader, XdrWriter,
+    self, OpenMode, XdrFile, XdrFrameData, XdrGroupWriter, XdrRangeReader, XdrReader, XdrWriter,
 };
 use crate::iterators::AtomIterator;
 use crate::structures::{group::Group, vector3d::Vector3D};
@@ -55,6 +55,63 @@ impl<'a> XdrReader<'a> for XtcReader<'a> {
             phantom: PhantomData,
         })
     }
+
+    /// Transform `XtcReader` iterator into `XdrRangeReader<XtcReader>` iterator with the specified time range.
+    /// Time (`start_time` and `end_time`) must be provided in picoseconds.
+    ///
+    /// ## Details
+    /// The frames with time lower than `start_time` are skipped over, i.e., the coordinates of the atoms
+    /// are not read at all, making the `XdrRangeReader` very efficient. Note however that calling this function nonetheless
+    /// involves some initial overhead, as it needs to locate the starting point of the iteration.
+    ///
+    /// Iteration is ended at the frame with time corresponding to `end_time` or once the end of the xtc file is reached.
+    /// The range is inclusive on both ends, i.e., frames with `time = start_time` and `time = end_time` will be included in the iteration.
+    ///
+    /// ## Returns
+    /// `XdrRangeReader<XtcReader>` if the the specified time range is valid. Else returns `ReadXdrError`.
+    ///
+    /// ## Example
+    /// Creating an `XdrRangeReader` iterator over an xtc file.
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    ///
+    /// // load system from file
+    /// let mut system = System::from_file("system.gro").unwrap();
+    ///
+    /// // create the iterator for partial reading of an xtc file
+    /// let range_iterator = system
+    ///     .xtc_iter("trajectory.xtc")
+    ///     .unwrap()
+    ///     .with_range(10_000.0, 100_000.0)
+    ///     .unwrap();
+    /// ```
+    ///
+    /// ## Notes
+    /// - If the frame corresponding to the `start_time` doesn't exist in the xtc file,
+    /// the iterator starts at the frame closest in time to but greater than the `start_time`.
+    /// - If either the `start_time` or the `end_time` is negative, it results in a `ReadXdrError::TimeRangeNegative` error.
+    /// - If the `start_time` is greater than the `end_time`, it results in a `ReadXdrError::InvalidTimeRange` error.
+    /// - If the `start_time` exceeds the time of any frame in the xtc file, it results in a `ReadXdrError::StartNotFound` error.
+    fn with_range(
+        self,
+        start_time: f32,
+        end_time: f32,
+    ) -> Result<XdrRangeReader<'a, XtcReader<'a>>, ReadXdrError> {
+        xdrfile::sanity_check_timerange(start_time, end_time)?;
+
+        let reader = XdrRangeReader::new(self, start_time, end_time);
+
+        // jump to the start of iteration
+        unsafe {
+            if xdrfile::xtc_jump_to_start(reader.xdrreader.xtc.handle, reader.start_time as c_float)
+                != 0 as c_int
+            {
+                return Err(ReadXdrError::StartNotFound(start_time.to_string()));
+            }
+        }
+
+        Ok(reader)
+    }
 }
 
 impl<'a> Iterator for XtcReader<'a> {
@@ -80,83 +137,23 @@ impl<'a> Iterator for XtcReader<'a> {
     }
 }
 
-impl<'a> XtcReader<'a> {
-    /// Transform `XtcReader` into `XtcRangeReader` with the specified time range.
-    /// ## Warning
-    /// This does not create a valid `XtcRangeReader`! This is a helper function.
-    /// Use `XtcRangeReader::new()` to create a valid `XtcRangeReader`.
-    fn with_range(self, start_time: f32, end_time: f32) -> XtcRangeReader<'a> {
-        XtcRangeReader {
-            system: self.system,
-            xtc: self.xtc,
-            phantom: self.phantom,
-            start_time,
-            end_time,
-        }
-    }
-}
-
-/// Iterator over a time range of an xtc file.
-pub struct XtcRangeReader<'a> {
-    system: *mut System,
-    xtc: XdrFile,
-    phantom: PhantomData<&'a mut System>,
-    /// starting time of the iteration (in ps)
-    start_time: f32,
-    /// ending time of the iteration (in ps)
-    end_time: f32,
-}
-
-impl<'a> XdrRangeReader<'a> for XtcRangeReader<'a> {
-    /// Open an xtc file and create an iterator for a specified range of frames.
-    /// The `start_time` and `end_time` parameters should be provided in picoseconds.
-    ///
-    /// ## Returns
-    /// - `XtcRangeReader` iterator for reading the xtc file.
-    /// - `ReadXdrError` if the iterator couldn't be constructed.)
-    fn new(
-        system: &'a mut System,
-        filename: impl AsRef<Path>,
-        start_time: f32,
-        end_time: f32,
-    ) -> Result<Self, ReadXdrError> {
-        xdrfile::sanity_check_timerange(start_time, end_time)?;
-
-        let reader = XtcReader::new(system, filename)?.with_range(start_time, end_time);
-
-        // jump to the start of iteration
-        unsafe {
-            if xdrfile::xtc_jump_to_start(reader.xtc.handle, reader.start_time as c_float)
-                != 0 as c_int
-            {
-                return Err(ReadXdrError::StartNotFound(start_time.to_string()));
-            }
-        }
-
-        Ok(reader)
-    }
-}
-
-impl<'a> Iterator for XtcRangeReader<'a> {
+impl<'a> Iterator for XdrRangeReader<'a, XtcReader<'a>> {
     type Item = Result<&'a mut System, ReadXdrError>;
 
-    /// Read next frame in an xtc file.
-    ///
-    /// ## Returns
-    /// `None` in case the specified time range of the frames has been fully read.
-    /// `Some(&mut System)` in case the frame has been read successfully.
-    /// `Some(ReadXdrError)` in case an error occured while reading.
+    /// Read the next frame in the specified time range of the xtc file.
     fn next(&mut self) -> Option<Self::Item> {
         unsafe {
-            match XtcFrameData::from_frame(&mut self.xtc, (*self.system).get_n_atoms()) {
+            let system = self.xdrreader.system;
+
+            match XtcFrameData::from_frame(&mut self.xdrreader.xtc, (*system).get_n_atoms()) {
                 None => None,
                 Some(Err(e)) => Some(Err(e)),
                 Some(Ok(data)) => {
-                    if (*self.system).get_simulation_time() >= self.end_time {
+                    if (*system).get_simulation_time() >= self.end_time {
                         None
                     } else {
-                        data.update_system(&mut *self.system);
-                        Some(Ok(&mut *self.system))
+                        data.update_system(&mut *system);
+                        Some(Ok(&mut *system))
                     }
                 }
             }
@@ -172,7 +169,7 @@ impl System {
     /// `XtcReader` if the xtc file exists and matches the structure file.
     /// Else returns `ReadXdrError`.
     ///
-    /// ## Example
+    /// ## Examples
     /// Iterating through an xtc trajectory and calculating
     /// and printing the current center of geometry of the system.
     /// ```no_run
@@ -223,49 +220,21 @@ impl System {
     /// }
     /// ```
     ///
-    /// ## Warning
-    /// - Only orthogonal simulation boxes are currently supported!
-    /// - If you intend to skip over some frames at the start of the trajectory, i.e., initiate the iteration
-    /// from a later frame, **do not use** the `skip` method. In this scenario, the frames will still be read
-    /// from the xtc frame and then immediately discarded. It is much more efficient to utilize the `System::xtc_iter_range`
-    /// function, which effectively *skips* the initial frames when requested.
-    ///
-    /// ## Notes
-    /// - The function checks whether the number of atoms in the system corresponds to the number of atoms in the xtc file.
-    /// - The `System` structure is modified while iterating through the xtc file.
-    pub fn xtc_iter(&mut self, filename: impl AsRef<Path>) -> Result<XtcReader, ReadXdrError> {
-        XtcReader::new(self, filename)
-    }
-
-    /// Create an `XtcRangeReader` structure which is an iterator over a range of frames of an xtc file.
-    ///
-    /// ## Details
-    /// The frames with time lower than `start_time` are skipped over, i.e., the coordinates of the atoms
-    /// are not read at all, making this function very efficient. Note however that calling this function nonetheless
-    /// involves some initial overhead, as it needs to locate the starting point of the iteration.
-    ///
-    /// Iteration is ended at the frame with time corresponding to `end_time` or once the end of the xtc file is reached.
-    /// `start_time` and `end_time` should be provided in picoseconds. The range is inclusive on both ends,
-    /// i.e., frames with `time = start_time` and `time = end_time` will be included in the iteration.
-    ///
-    /// ## Returns
-    /// `XtcRangeReader` if the xtc file exists, matches the structure file, and the specified time range is valid.
-    /// Else returns `ReadXdrError`.
-    ///
-    /// ## Example
-    /// Iterating through a portion of an xtc trajectory and calculating
-    /// and printing the current center of geometry of the system.
+    /// You can also iterate over just a part of the trajectory.
+    /// Here, only frames in the time range 10-100 ns will be read.
+    /// **Do not use the `skip` method for skipping over the initial frames
+    /// of the trajectory as that is very inefficient.**
     /// ```no_run
     /// use groan_rs::prelude::*;
     /// use groan_rs::errors::ReadXdrError;
     ///
     /// fn example_fn() -> Result<(), ReadXdrError> {
-    ///     // load system from file
     ///     let mut system = System::from_file("system.gro").unwrap();
     ///
-    ///     // loop through the trajectory starting with time 10,000 ps
-    ///     // and ending with time 100,000 ps
-    ///     for raw_frame in system.xtc_iter_range("trajectory.xtc", 10_000.0, 100_000.0)? {
+    ///     for raw_frame in system
+    ///         .xtc_iter("trajectory.xtc")?
+    ///         .with_range(10_000.0, 100_000.0)?
+    ///     {
     ///         let frame = raw_frame?;
     ///         println!("{:?}", frame.group_get_center("all"));
     ///     }
@@ -275,23 +244,13 @@ impl System {
     /// ```
     ///
     /// ## Warning
-    /// Only orthogonal simulation boxes are currently supported!
+    /// - Only orthogonal simulation boxes are currently supported!
     ///
     /// ## Notes
     /// - The function checks whether the number of atoms in the system corresponds to the number of atoms in the xtc file.
     /// - The `System` structure is modified while iterating through the xtc file.
-    /// - If the frame corresponding to the `start_time` doesn't exist in the xtc file,
-    /// the iteration starts with the frame closest in time to but greater than the `start_time`.
-    /// - If either the `start_time` or the `end_time` is negative, it results in a `ReadXdrError::TimeRangeNegative` error.
-    /// - If the `start_time` is greater than the `end_time`, it leads to a `ReadXdrError::InvalidTimeRange` error.
-    /// - If the `start_time` exceeds the time of any frame in the xtc file, it results in a `ReadXdrError::StartNotFound` error.
-    pub fn xtc_iter_range(
-        &mut self,
-        filename: impl AsRef<Path>,
-        start_time: f32,
-        end_time: f32,
-    ) -> Result<XtcRangeReader, ReadXdrError> {
-        XtcRangeReader::new(self, filename, start_time, end_time)
+    pub fn xtc_iter(&mut self, filename: impl AsRef<Path>) -> Result<XtcReader, ReadXdrError> {
+        XtcReader::new(self, filename)
     }
 }
 
@@ -571,7 +530,7 @@ struct XtcFrameData {
     coordinates: Vec<[f32; 3]>,
 }
 
-impl XtcFrameData {
+impl XdrFrameData for XtcFrameData {
     /// Read `XtcFrameData` from an xtc frame.
     ///
     /// ## Returns
@@ -770,7 +729,9 @@ mod tests {
             .unwrap()
             .zip(
                 system2
-                    .xtc_iter_range("test_files/short_trajectory.xtc", 0.0, 10000.0)
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_range(0.0, 10000.0)
                     .unwrap(),
             )
         {
@@ -813,7 +774,9 @@ mod tests {
             .take(6)
             .zip(
                 system2
-                    .xtc_iter_range("test_files/short_trajectory.xtc", 300.0, 800.0)
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_range(300.0, 800.0)
                     .unwrap(),
             )
         {
@@ -851,7 +814,9 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
         for (i, raw) in system
-            .xtc_iter_range("test_files/short_trajectory.xtc", 0., 1000.)
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .with_range(0.0, 1000.0)
             .unwrap()
             .enumerate()
         {
@@ -866,7 +831,9 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
         for (i, raw) in system
-            .xtc_iter_range("test_files/short_trajectory.xtc", 300., 800.)
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .with_range(300.0, 800.0)
             .unwrap()
             .enumerate()
         {
@@ -877,26 +844,24 @@ mod tests {
     }
 
     #[test]
-    fn read_xtc_range_unmatching() {
-        let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
-
-        match system.xtc_iter_range("test_files/short_trajectory.xtc", 300.0, 800.0) {
-            Err(ReadXdrError::AtomsNumberMismatch(_)) => (),
-            _ => panic!("XTC file should not be valid."),
-        }
-    }
-
-    #[test]
     fn read_xtc_range_negative() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        match system.xtc_iter_range("test_files/short_trajectory.xtc", -300.0, 800.0) {
+        match system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .with_range(-300.0, 800.0)
+        {
             Ok(_) => panic!("Iterator should not have been constructed."),
             Err(ReadXdrError::TimeRangeNegative(_)) => (),
             Err(e) => panic!("Incorrect error type {} returned", e),
         }
 
-        match system.xtc_iter_range("test_files/short_trajectory.xtc", 300.0, -800.0) {
+        match system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .with_range(300.0, -800.0)
+        {
             Ok(_) => panic!("Iterator should not have been constructed."),
             Err(ReadXdrError::TimeRangeNegative(_)) => (),
             Err(e) => panic!("Incorrect error type {} returned", e),
@@ -907,7 +872,11 @@ mod tests {
     fn read_xtc_range_end_start() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        match system.xtc_iter_range("test_files/short_trajectory.xtc", 800.0, 300.0) {
+        match system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .with_range(800.0, 300.0)
+        {
             Ok(_) => panic!("Iterator should not have been constructed."),
             Err(ReadXdrError::InvalidTimeRange(_, _)) => (),
             Err(e) => panic!("Incorrect error type {} returned", e),
@@ -918,7 +887,11 @@ mod tests {
     fn read_xtc_range_start_not_found() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        match system.xtc_iter_range("test_files/short_trajectory.xtc", 12000.0, 20000.0) {
+        match system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .with_range(12000.0, 20000.0)
+        {
             Ok(_) => panic!("Iterator should not have been constructed."),
             Err(ReadXdrError::StartNotFound(_)) => (),
             Err(e) => panic!("Incorrect error type {} returned", e),

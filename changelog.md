@@ -9,7 +9,8 @@
 - Added a new `@hydrogen` macro for automatic hydrogen atom detection.
 - Implemented a new tokenizer for atom and residue numbers in the groan selection language.
 #### Changes to reading xtc and trr files
-- Introduced `XdrRangeReader` trait and `XtcRangeReader` and `TrrRangeReader` structures for efficient partial reading of xtc and trr files based on time ranges. `XdrRangeReader` and `TrrRangeReader` skip frames with times below the specified start time (atom properties from these frames are not read at all) and stop reading when the end time is reached.
+- **Breaking Change:** `XdrReader` now requires a `with_range` method which transforms `XdrReader` into `XdrRangeReader` iterator (see below).
+- Introduced `XdrRangeReader` structure for efficient partial reading of xtc and trr files based on time ranges. `XdrRangeReader` skips frames with times below the specified start time (atom properties from these frames are not read at all) and stops reading when the end time is reached.
 #### Other changes
 - Enhanced documentation for error variants within the `errors` module.
 

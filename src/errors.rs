@@ -215,7 +215,7 @@ pub enum ReadXdrError {
     #[error("{} start time ('{}' ps) exceeds the time of all frames in the xdr file", "error:".red().bold(), .0.yellow())]
     StartNotFound(String),
     /// Used when the time provided as the start/end of the time range is negative.
-    #[error("{} negative time ('{}' ps) is not allowed as time range specification", "error:".red().bold(), .0.yellow())]
+    #[error("{} negative time ('{}' ps) is not allowed in a time range", "error:".red().bold(), .0.yellow())]
     TimeRangeNegative(String),
 }
 

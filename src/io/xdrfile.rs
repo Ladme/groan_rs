@@ -7,6 +7,7 @@
 /*   C bindings for XdrFile   */
 /******************************/
 
+use std::marker::PhantomData;
 use std::os::raw::{c_char, c_float, c_int};
 use std::{
     ffi::{CString, NulError},
@@ -211,6 +212,16 @@ pub fn sanity_check_timerange(start_time: f32, end_time: f32) -> Result<(), Read
 /*  Traits for reading and writing */
 /***********************************/
 
+/// Trait implemented by structures containing data from a single xdr trajectory frame.
+pub trait XdrFrameData {
+    /// Read data from an xdr file frame.
+    fn from_frame(xdrfile: &mut XdrFile, n_atoms: usize) -> Option<Result<Self, ReadXdrError>>
+    where
+        Self: Sized;
+    /// Update the `System` structure based on the data in `XdrFrameData`.
+    fn update_system(self, system: &mut System);
+}
+
 /// Any structure implementing `XdrReader` can be used to read an xdr file.
 pub trait XdrReader<'a>: Iterator<Item = Result<&'a mut System, ReadXdrError>> {
     /// Open an xdr (= xtc / trr) file creating an iterator over it.
@@ -244,21 +255,37 @@ pub trait XdrReader<'a>: Iterator<Item = Result<&'a mut System, ReadXdrError>> {
     fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<Self, ReadXdrError>
     where
         Self: Sized;
-}
 
-/// Any structure that implements the XdrRangeReader interface can be utilized for performing partial
-/// reads of an xdr file, utilizing the provided time range.
-pub trait XdrRangeReader<'a>: Iterator<Item = Result<&'a mut System, ReadXdrError>> {
-    /// Open an xdr (xtc/trr) file and create an iterator for a specified range of frames.
-    /// The `start_time` and `end_time` parameters should be provided in picoseconds.
-    fn new(
-        system: &'a mut System,
-        filename: impl AsRef<Path>,
+    fn with_range(
+        self,
         start_time: f32,
         end_time: f32,
-    ) -> Result<Self, ReadXdrError>
+    ) -> Result<XdrRangeReader<'a, Self>, ReadXdrError>
     where
         Self: Sized;
+}
+
+/// Structure for partial reading of xtc/trr files using time ranges.
+pub struct XdrRangeReader<'a, Reader: XdrReader<'a>> {
+    pub xdrreader: Reader,
+    pub start_time: f32,
+    pub end_time: f32,
+    _phantom: &'a PhantomData<Reader>,
+}
+
+impl<'a, Reader> XdrRangeReader<'a, Reader>
+where
+    Reader: XdrReader<'a>,
+{
+    /// Create a new `XdrRangeReader`.
+    pub fn new(xdrreader: Reader, start_time: f32, end_time: f32) -> Self {
+        XdrRangeReader {
+            xdrreader,
+            start_time,
+            end_time,
+            _phantom: &PhantomData,
+        }
+    }
 }
 
 /// Any structure implementing `XdrWriter` can be used to write an xdr file.
