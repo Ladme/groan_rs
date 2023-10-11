@@ -32,12 +32,11 @@ enum Operator {
 }
 
 impl Select {
-    /// Expand each Name::Regex for GroupName into all actual group names matching the regex.
-    /// Performing this expansion once before applying the `Select` is more efficient than performing
-    /// similar expansion for each individual atom.
-    /// 
-    /// This function also checks whether all groups corresponds to the `String` groups.
-    /// It also checks that at least one group is present in each `Select::GroupName`.
+    /// Expand each `Name::Regex` for `GroupName` into all actual group names matching the regex.
+    /// Check whether all `String` groups actually exist and ensure that at least one group is present in each `Select::GroupName`.
+    ///
+    /// Performing this expansion once before applying the `Select` operation
+    /// is more efficient than performing similar expansion for each individual atom.
     pub fn expand_regex_group(self, system: &System) -> Result<Self, SelectError> {
         match self {
             Select::GroupName(vector) => {
@@ -47,7 +46,7 @@ impl Select {
                     match name {
                         Name::String(s) => {
                             // check that the explicitly provided group exists
-                            if !system.group_exists(&s) {
+                            if !system.group_exists(s) {
                                 return Err(SelectError::GroupNotFound(s.clone()));
                             }
 
@@ -74,13 +73,13 @@ impl Select {
 
             Select::And(left, right) => Ok(Select::And(
                 Box::from(left.expand_regex_group(system)?),
-                Box::from(right.expand_regex_group(system)?)),
-            ),
+                Box::from(right.expand_regex_group(system)?),
+            )),
 
             Select::Or(left, right) => Ok(Select::Or(
                 Box::from(left.expand_regex_group(system)?),
-                Box::from(right.expand_regex_group(system)?)),
-            ),
+                Box::from(right.expand_regex_group(system)?),
+            )),
 
             Select::Not(op) => Ok(Select::Not(Box::from(op.expand_regex_group(system)?))),
 
@@ -2039,8 +2038,7 @@ mod select_impl {
 
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        let selection =
-            parse_query("(Protein r'membrane$' or r'^P' ION r'-') and !r'C'").unwrap();
+        let selection = parse_query("(Protein r'membrane$' or r'^P' ION r'-') and !r'C'").unwrap();
 
         let selection = selection.expand_regex_group(&system).unwrap();
 
@@ -2064,15 +2062,13 @@ mod select_impl {
         }
     }
 
-
     #[test]
     fn expand_regex_group_nomatch() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        let selection =
-            parse_query("r'^x'").unwrap();
+        let selection = parse_query("r'^x'").unwrap();
 
         match selection.expand_regex_group(&system) {
             Ok(_) => panic!("Expansion should have failed."),
@@ -2087,8 +2083,7 @@ mod select_impl {
 
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        let selection =
-            parse_query("r'^x' r'^P'").unwrap();
+        let selection = parse_query("r'^x' r'^P'").unwrap();
 
         let selection = selection.expand_regex_group(&system).unwrap();
 

@@ -183,9 +183,43 @@ where
     }
 }
 
+impl<'a, R> TrajReader<'a, R>
+where
+    R: TrajStepRead<'a>,
+{
+    /// Convert `TrajReader` into `TrajStepReader` structure which only reads every `step`th frame.
+    /// Similar to `step_by` but more efficient.
+    ///
+    /// ## Details
+    /// The `step` parameter determines how frequently frames are read:
+    /// - With `step` set to 1, all frames are read.
+    /// - A higher `step` value skips frames, resulting in fewer frames being read.
+    /// - For example, with `step` set to 2, every other frame is read.
+    /// - With `step` set to 3, every third frame is read, and so on.
+    ///
+    /// Depending on the specific implementation, the iteration using `with_step` can be much more
+    /// efficient than simply using `step_by` method on the iterator.
+    ///
+    /// For the `xtc` and `trr` files, properties of the atoms in frames that are skipped over are not read.
+    ///
+    /// If the `step` is zero, returns `ReadTrajError::InvalidStep`.
+    pub fn with_step(self, step: usize) -> Result<TrajStepReader<'a, R>, ReadTrajError> {
+        // step must be larger than 0
+        if step == 0 {
+            return Err(ReadTrajError::InvalidStep(step));
+        }
+
+        Ok(TrajStepReader {
+            traj_reader: self.traj_reader,
+            skip: step - 1,
+            _phantom: &PhantomData,
+        })
+    }
+}
+
 /***************************************/
 /*  TrajRangeRead and TrajRangeReader  */
-/****************************************/
+/***************************************/
 
 /// Any structure implementing this trait can be used to construct `TrajRangeReader` structure from `TrajReader`,
 /// i.e. any structure implementing `TrajRangeRead` can be used to iterate over a part of a trajectory file
@@ -198,7 +232,7 @@ pub trait TrajRangeRead<'a>: TrajRead<'a> {
 }
 
 /// Structure for partial reading of trajectory files using time ranges.
-pub struct TrajRangeReader<'a, R: TrajRead<'a>> {
+pub struct TrajRangeReader<'a, R: TrajRangeRead<'a>> {
     pub traj_reader: R,
     pub start_time: f32,
     pub end_time: f32,
@@ -208,7 +242,7 @@ pub struct TrajRangeReader<'a, R: TrajRead<'a>> {
 /// Iterate the `TrajRangeReader`.
 impl<'a, R> Iterator for TrajRangeReader<'a, R>
 where
-    R: TrajRead<'a>,
+    R: TrajRangeRead<'a>,
     R::FrameData: FrameData,
 {
     type Item = Result<&'a mut System, ReadTrajError>;
@@ -238,6 +272,76 @@ where
         }
     }
 }
+
+/***************************************/
+/*   TrajStepRead and TrajStepReader   */
+/***************************************/
+
+pub trait TrajStepRead<'a>: TrajRead<'a> {
+    /// Skip the next frame in the trajectory.
+    ///
+    /// The function should return:
+    /// - `Ok(true)` if the skip was successful and there is more to read,
+    /// - `Ok(false)` if the skip was successful but there is no more to read,
+    /// - `Err(ReadTrajError)` if the skip was unsuccessful
+    fn skip_frame(&mut self) -> Result<bool, ReadTrajError>;
+}
+
+/// Structure for reading of trajectory files with steps between frames.
+pub struct TrajStepReader<'a, R: TrajStepRead<'a>> {
+    pub traj_reader: R,
+    /// Corresponds to the number of frames that should be skipped after reading a frame.
+    /// - `skip = 0` => all frames will be read
+    /// - `skip = 1` => every other frame will be read
+    pub skip: usize,
+    _phantom: &'a PhantomData<R>,
+}
+
+/// Iterate the `TrajStepReader`.
+impl<'a, R> Iterator for TrajStepReader<'a, R>
+where
+    R: TrajStepRead<'a>,
+    R::FrameData: FrameData,
+{
+    type Item = Result<&'a mut System, ReadTrajError>;
+
+    /// Read the next frame in the trajectory and update the `System` structure.
+    /// Then skip the specified number of frames.
+    ///
+    /// ## Returns
+    /// - `Some(Ok(&mut System))` if the frame has been succesfully read.
+    /// - `Some(Err(ReadTrajError))` if the frame could not be read.
+    /// - `None` if the end of the range of the end of the trajectory file has been reached.
+    fn next(&mut self) -> Option<Self::Item> {
+        unsafe {
+            let system = self.traj_reader.get_system();
+
+            match R::FrameData::from_frame(self.traj_reader.get_file_handle(), &*system) {
+                None => None,
+                Some(Err(e)) => Some(Err(e)),
+                Some(Ok(data)) => {
+                    data.update_system(&mut *system);
+
+                    // skip the next n frames
+                    for _ in 0..self.skip {
+                        match self.traj_reader.skip_frame() {
+                            Ok(true) => continue,
+                            // EOF reached
+                            Ok(false) => break,
+                            Err(e) => return Some(Err(e)),
+                        }
+                    }
+
+                    Some(Ok(&mut *system))
+                }
+            }
+        }
+    }
+}
+
+/***************************************/
+/*        Generic System methods       */
+/***************************************/
 
 /// ## Generic methods for iterating over trajectory files.
 impl System {
@@ -399,7 +503,6 @@ mod tests {
         assert_approx_eq!(f32, atom1.get_force().x, atom2.get_force().x);
         assert_approx_eq!(f32, atom1.get_force().y, atom2.get_force().y);
         assert_approx_eq!(f32, atom1.get_force().z, atom2.get_force().z);
-
     }
 
     #[test]
@@ -416,7 +519,6 @@ mod tests {
                     .unwrap(),
             )
         {
-
             let frame1 = raw1.unwrap();
             let frame2 = raw2.unwrap();
 
@@ -440,7 +542,6 @@ mod tests {
                     .unwrap(),
             )
         {
-
             let frame1 = raw1.unwrap();
             let frame2 = raw2.unwrap();
 

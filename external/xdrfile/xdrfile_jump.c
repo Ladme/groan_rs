@@ -124,3 +124,41 @@ int trr_jump_to_start(XDRFILE *xdp, float target_time)
 
 	return 0;
 }
+
+int xtc_skip_frame(XDRFILE *xdp)
+{
+	// read magic number
+	int magic_number = 0;
+	if (xdrfile_read_int(&magic_number, 1, xdp) != 1) {
+		// assuming this only fails if we have reached the end of the file
+		return 2;
+	}
+		
+	// check that the magic number is correct (check the validity of the frame)
+	if (magic_number != 1995) return 1;
+
+	// get the number of bytes to the next frame
+	if (xdr_jump(xdp, 84) != 0) return 1;
+	int size = 0;
+	if (xdrfile_read_int(&size, 1, xdp) != 1) return 1;
+	// add padding
+	if (size % 4 != 0) {
+		size += 4 - (size % 4);
+	}
+
+	// this should only fail if we have reached the end of the file 
+	// (but does not have to fail)
+	if (xdr_jump(xdp, size) != 0) return 2;
+
+	// read magic number
+	if (xdrfile_read_int(&magic_number, 1, xdp) != 1) {
+		return 2;
+	}
+
+	if (magic_number != 1995) return 1;
+
+	// move back four bytes (to the start of the frame)
+	if (xdr_jump(xdp, -4) != 0) return 1;
+
+	return 0;
+}

@@ -6,6 +6,7 @@
 use crate::errors::SelectError;
 use crate::system::general::System;
 use regex::Regex;
+use std::fmt;
 
 #[derive(Debug)]
 pub enum Name {
@@ -27,7 +28,7 @@ impl Name {
             Ok(Name::String(string.to_owned()))
         }
     }
-    
+
     /// Check whether `atom_index` is part of the specified group.
     pub fn match_groups(&self, system: &System, atom_index: usize) -> Result<bool, SelectError> {
         match self {
@@ -53,12 +54,13 @@ impl Name {
             }
         }
     }
+}
 
-    /// Converts `Name` to string without consuming `Name`.
-    pub fn to_string(&self) -> String {
+impl fmt::Display for Name {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Name::String(s) => s.clone(),
-            Name::Regex(r) => r.to_string(),
+            Name::String(s) => write!(f, "{}", s),
+            Name::Regex(r) => write!(f, "{}", r),
         }
     }
 }

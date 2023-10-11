@@ -217,6 +217,12 @@ pub enum ReadTrajError {
     /// Used when the time provided as the start/end of the time range is negative.
     #[error("{} negative time ('{}' ps) is not allowed in a time range", "error:".red().bold(), .0.yellow())]
     TimeRangeNegative(String),
+    /// Used when a frame of the trajectory file could not be skipped over.
+    #[error("{} could not skip a frame in a trajectory file", "error:".red().bold())]
+    SkipFailed(),
+    /// Used when the step of the iteration is invalid, usually zero.
+    #[error("{} unsupported iteration step '{}' - must be > 0", "error:".red().bold(), .0.to_string().yellow())]
+    InvalidStep(usize),
 }
 
 /// Errors that can occur when writing a trajectory file.

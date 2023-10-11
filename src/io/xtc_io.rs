@@ -8,7 +8,9 @@ use std::os::raw::{c_float, c_int};
 use std::path::Path;
 
 use crate::errors::{ReadTrajError, TrajError, WriteTrajError};
-use crate::io::traj_io::{FrameData, TrajGroupWrite, TrajRangeRead, TrajRead, TrajWrite};
+use crate::io::traj_io::{
+    FrameData, TrajGroupWrite, TrajRangeRead, TrajRead, TrajStepRead, TrajWrite,
+};
 use crate::io::xdrfile::{self, CXdrFile, OpenMode, XdrFile};
 use crate::iterators::AtomIterator;
 use crate::prelude::TrajReader;
@@ -156,6 +158,22 @@ impl<'a> TrajRangeRead<'a> for XtcReader<'a> {
                 Err(ReadTrajError::StartNotFound(start_time.to_string()))
             } else {
                 Ok(())
+            }
+        }
+    }
+}
+
+impl<'a> TrajStepRead<'a> for XtcReader<'a> {
+    fn skip_frame(&mut self) -> Result<bool, ReadTrajError> {
+        unsafe {
+            match xdrfile::xtc_skip_frame(self.get_file_handle()) {
+                0 => Ok(true),
+                1 => Err(ReadTrajError::SkipFailed()),
+                2 => Ok(false),
+                number => panic!(
+                    "Groan error. `xtc_skip_frame` returned '{}' which is unsupported.",
+                    number
+                ),
             }
         }
     }

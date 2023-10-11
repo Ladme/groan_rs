@@ -1186,7 +1186,9 @@ mod tests {
         assert!(!system.group_isin("Regex3", 6205).unwrap());
 
         // partially non-matching regex
-        system.group_create("Regex4", "group r'^P' r'^X' ION").unwrap();
+        system
+            .group_create("Regex4", "group r'^P' r'^X' ION")
+            .unwrap();
         assert!(system.group_exists("Regex4"));
         assert_eq!(system.group_get_n_atoms("Regex4").unwrap(), 6445);
 

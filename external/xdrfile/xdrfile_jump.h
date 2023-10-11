@@ -41,4 +41,16 @@ int xtc_jump_to_start(XDRFILE *xdp, float target_time);
  */
 int trr_jump_to_start(XDRFILE *xdp, float target_time);
 
+/*!
+ * \brief Skip next frame of the xtc trajectory.
+ *
+ * \param 	xdp				pointer to the XDRFILE
+ * 
+ * \return	zero if successful, one in case of an error, two if the end of file has been reached
+ * 
+ * \note - If the function returns 0, XDRFILE is now set to read the next frame after the skipped frame.
+ * \note - This function was written for the `groan_rs` library.
+ */
+int xtc_skip_frame(XDRFILE *xdp);
+
 #endif /* _xdrfile_jump_h */
