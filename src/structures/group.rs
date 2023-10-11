@@ -77,7 +77,7 @@ impl Group {
     /// Create a new valid Group structure using Select tree.
     fn from_select(select: Select, system: &System) -> Result<Self, SelectError> {
         // expand regex group names
-        let select = Box::new(select.expand_regex_group(system));
+        let select = Box::new(select.expand_regex_group(system)?);
 
         let indices: Vec<usize> = (0usize..system.get_n_atoms())
             .filter_map(|i| {

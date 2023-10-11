@@ -482,7 +482,7 @@ pub mod io {
     pub mod pdb_io;
     pub mod traj_io;
     pub mod trr_io;
-    pub mod xdrfile;
+    mod xdrfile;
     pub mod xtc_io;
 }
 pub mod iterators;

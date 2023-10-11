@@ -38,7 +38,10 @@ impl FrameData for XtcFrameData {
     /// - `None` if the file has been read completely
     /// - `Some(XtcFrameData)` if the frame has been successfully read.
     /// - `Some(ReadTrajError)` if the frame could not be read.
-    unsafe fn from_frame(xdrfile: &mut Self::TrajFile, system: &System) -> Option<Result<Self, ReadTrajError>> {
+    fn from_frame(
+        xdrfile: &mut Self::TrajFile,
+        system: &System,
+    ) -> Option<Result<Self, ReadTrajError>> {
         let mut step: c_int = 0;
         let mut time: c_float = 0.0;
         let mut boxvector: [[c_float; 3usize]; 3usize] = [[0.0; 3]; 3];
@@ -74,6 +77,10 @@ impl FrameData for XtcFrameData {
     }
 
     /// Update the `System` structure based on data from `XtcFrameData`.
+    ///
+    /// ## Warning
+    /// - This function currently only supports orthogonal simulation boxes!
+    /// Updating `System` using `XtcFrameData` structure containing simulation box of a different shape will fail.
     fn update_system(self, system: &mut System) {
         unsafe {
             for (i, atom) in system.get_atoms_as_ref_mut().iter_mut().enumerate() {
@@ -130,66 +137,8 @@ impl<'a> TrajRead<'a> for XtcReader<'a> {
             phantom: PhantomData,
         };
 
-        Ok(TrajReader::pack_traj(xtc_reader))
+        Ok(TrajReader::wrap_traj(xtc_reader))
     }
-
-    /*
-    /// Transform `XtcReader` iterator into `TrajRangeReader<XtcReader>` iterator with the specified time range.
-    /// Time (`start_time` and `end_time`) must be provided in picoseconds.
-    ///
-    /// ## Details
-    /// The frames with time lower than `start_time` are skipped over, i.e., the coordinates of the atoms
-    /// are not read at all, making the `TrajRangeReader` very efficient. Note however that calling this function nonetheless
-    /// involves some initial overhead, as it needs to locate the starting point of the iteration.
-    ///
-    /// Iteration is ended at the frame with time corresponding to `end_time` or once the end of the xtc file is reached.
-    /// The range is inclusive on both ends, i.e., frames with `time = start_time` and `time = end_time` will be included in the iteration.
-    ///
-    /// ## Returns
-    /// `TrajRangeReader<XtcReader>` if the the specified time range is valid. Else returns `ReadTrajError`.
-    ///
-    /// ## Example
-    /// Creating an `TrajRangeReader` iterator over an xtc file.
-    /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
-    /// // load system from file
-    /// let mut system = System::from_file("system.gro").unwrap();
-    ///
-    /// // create the iterator for partial reading of an xtc file
-    /// let range_iterator = system
-    ///     .xtc_iter("trajectory.xtc")
-    ///     .unwrap()
-    ///     .with_range(10_000.0, 100_000.0)
-    ///     .unwrap();
-    /// ```
-    ///
-    /// ## Notes
-    /// - If the frame corresponding to the `start_time` doesn't exist in the xtc file,
-    /// the iterator starts at the frame closest in time to but greater than the `start_time`.
-    /// - If either the `start_time` or the `end_time` is negative, it results in a `ReadTrajError::TimeRangeNegative` error.
-    /// - If the `start_time` is greater than the `end_time`, it results in a `ReadTrajError::InvalidTimeRange` error.
-    /// - If the `start_time` exceeds the time of any frame in the xtc file, it results in a `ReadTrajError::StartNotFound` error.
-    fn with_range(
-        self,
-        start_time: f32,
-        end_time: f32,
-    ) -> Result<TrajRangeReader<'a, XtcReader<'a>>, ReadTrajError> {
-        traj_io::sanity_check_timerange(start_time, end_time)?;
-
-        let reader = TrajRangeReader::new(self, start_time, end_time);
-
-        // jump to the start of iteration
-        unsafe {
-            if xdrfile::xtc_jump_to_start(reader.traj_reader.xtc.handle, reader.start_time as c_float)
-                != 0 as c_int
-            {
-                return Err(ReadTrajError::StartNotFound(start_time.to_string()));
-            }
-        }
-
-        Ok(reader)
-    }*/
 
     fn get_system(&mut self) -> *mut System {
         self.system
@@ -273,8 +222,8 @@ impl System {
     ///
     /// You can also iterate over just a part of the trajectory.
     /// Here, only frames in the time range 10-100 ns will be read.
-    /// **Do not use the `skip` method for skipping over the initial frames
-    /// of the trajectory as that is very inefficient.**
+    /// The `with_range` method is very efficient as the particle coordinates
+    /// from the xtc frames outside of the range will not be read.
     /// ```no_run
     /// use groan_rs::prelude::*;
     /// use groan_rs::errors::ReadTrajError;

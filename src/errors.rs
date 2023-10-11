@@ -269,6 +269,10 @@ pub enum SelectError {
     /// Used when the groan selection language query contains a regular expression that is invalid.
     #[error("{} string '{}' is not a valid regular expression", "error:".red().bold(), .0.to_string().yellow())]
     InvalidRegex(String),
+    /// Used when the regular expression is used to select groups but corresponds to no groups in the system.
+    /// This is currently only used when no regular expression in the entire subquery corresponds to any groups of atoms.
+    #[error("{} regular expression '{}' matches no atom groups in the system", "error:".red().bold(), .0.to_string().yellow())]
+    NoRegexMatch(String),
     /// Used when an unknown error which does not have a specific `SelectError` variant occurs while parsing the groan selection language query.
     #[error("{} the provided query '{}' could not be understood for unknown reason", "error:".red().bold(), .0.to_string().yellow())]
     UnknownError(String),

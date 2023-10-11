@@ -702,6 +702,7 @@ impl System {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::SelectError;
     use crate::structures::dimension::Dimension;
     use crate::structures::shape::*;
 
@@ -758,6 +759,13 @@ mod tests {
             Err(e) => {
                 assert!(e.to_string().contains("unmatching parentheses"));
             }
+        }
+
+        // nonexistent group
+        match system.group_create("MyProtein", "Protein") {
+            Ok(_) => panic!("Parsing should have failed but it succeeded."),
+            Err(GroupError::InvalidQuery(SelectError::GroupNotFound(_))) => (),
+            Err(e) => panic!("Incorrect error {} returned.", e),
         }
     }
 
@@ -1177,10 +1185,24 @@ mod tests {
         assert!(!system.group_isin("Regex3", 16603).unwrap());
         assert!(!system.group_isin("Regex3", 6205).unwrap());
 
-        // no matching group
-        system.group_create("Regex4", "group r'X'").unwrap();
+        // partially non-matching regex
+        system.group_create("Regex4", "group r'^P' r'^X' ION").unwrap();
         assert!(system.group_exists("Regex4"));
-        assert_eq!(system.group_get_n_atoms("Regex4").unwrap(), 0);
+        assert_eq!(system.group_get_n_atoms("Regex4").unwrap(), 6445);
+
+        assert!(system.group_isin("Regex4", 0).unwrap());
+        assert!(system.group_isin("Regex4", 16843).unwrap());
+        assert!(!system.group_isin("Regex4", 16603).unwrap());
+        assert!(!system.group_isin("Regex4", 6205).unwrap());
+
+        // no matching group
+        match system.group_create("Regex5", "group r'X'") {
+            Ok(_) => panic!("Should have failed."),
+            Err(GroupError::InvalidQuery(SelectError::NoRegexMatch(e))) => assert_eq!(e, "X"),
+            Err(e) => panic!("Incorrect error type '{}' returned", e),
+        }
+
+        assert!(!system.group_exists("Regex5"));
     }
 
     #[test]

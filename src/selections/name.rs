@@ -27,7 +27,7 @@ impl Name {
             Ok(Name::String(string.to_owned()))
         }
     }
-
+    
     /// Check whether `atom_index` is part of the specified group.
     pub fn match_groups(&self, system: &System, atom_index: usize) -> Result<bool, SelectError> {
         match self {
@@ -51,6 +51,14 @@ impl Name {
                 }
                 Ok(false)
             }
+        }
+    }
+
+    /// Converts `Name` to string without consuming `Name`.
+    pub fn to_string(&self) -> String {
+        match self {
+            Name::String(s) => s.clone(),
+            Name::Regex(r) => r.to_string(),
         }
     }
 }
