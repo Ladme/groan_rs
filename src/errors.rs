@@ -35,7 +35,7 @@ fn unpack_set(set: &HashSet<String>) -> ColoredString {
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum ParseFileError {
     /// Used when a file has an unknown or unsupported file extension or is missing the file extension entirely
-    /// and therefore the file type/format cannot be identified.
+    /// and therefore the file type/format can not be identified.
     #[error("{} file '{}' has an unknown or unsupported file extension", "error:".red().bold(), path_to_yellow(.0))]
     UnknownExtension(Box<Path>),
 }

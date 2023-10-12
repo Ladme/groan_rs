@@ -9,7 +9,7 @@ use std::path::Path;
 
 use crate::errors::{ReadTrajError, TrajError, WriteTrajError};
 use crate::io::traj_io::{
-    FrameData, TrajGroupWrite, TrajRangeRead, TrajRead, TrajStepRead, TrajWrite,
+    FrameData, FrameDataTime, TrajGroupWrite, TrajRangeRead, TrajRead, TrajStepRead, TrajWrite,
 };
 use crate::io::xdrfile::{self, CXdrFile, OpenMode, XdrFile};
 use crate::iterators::AtomIterator;
@@ -98,6 +98,12 @@ impl FrameData for XtcFrameData {
     }
 }
 
+impl FrameDataTime for XtcFrameData {
+    fn get_time(&self) -> f32 {
+        self.time
+    }
+}
+
 /// Iterator over an xtc file.
 pub struct XtcReader<'a> {
     system: *mut System,
@@ -109,10 +115,7 @@ impl<'a> TrajRead<'a> for XtcReader<'a> {
     type FrameData = XtcFrameData;
 
     /// Create an iterator over an xtc file.
-    fn new(
-        system: &'a mut System,
-        filename: impl AsRef<Path>,
-    ) -> Result<XtcReader, ReadTrajError> {
+    fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<XtcReader, ReadTrajError> {
         let n_atoms = system.get_n_atoms();
 
         // sanity check the number of atoms
@@ -240,8 +243,8 @@ impl System {
     ///
     /// You can also iterate over just a part of the trajectory.
     /// Here, only frames in the time range 10-100 ns will be read.
-    /// The `with_range` method is very efficient for the xtc files 
-    /// as the particle coordinates from the xtc frames outside 
+    /// The `with_range` method is very efficient for the xtc files
+    /// as the particle coordinates from the xtc frames outside
     /// of the range will not be read.
     /// ```no_run
     /// use groan_rs::prelude::*;
@@ -261,10 +264,10 @@ impl System {
     ///     Ok(())
     /// }
     /// ```
-    /// 
+    ///
     /// Furthermore, you can efficiently skip over some frames of the trajectory.
     /// Here, only every 10th frame of the trajectory will be read.
-    /// The `with_step` method is very efficient for the xtc files as the 
+    /// The `with_step` method is very efficient for the xtc files as the
     /// particle coordinates from the skipped over frames will not be read.
     /// ```no_run
     /// use groan_rs::prelude::*;
@@ -284,6 +287,32 @@ impl System {
     ///     Ok(())
     /// }
     /// ```
+    ///
+    /// Finally, you can combine `with_range` and `with_step` to
+    /// iterate only through a specific time range of the trajectory
+    /// while reading only every `step`th frame.
+    /// Here, only every other frame will be read and the iteration
+    /// will start at time 10 ns and end at time 100 ns.
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    /// use groan_rs::errors::ReadTrajError;
+    ///
+    /// fn example_fn() -> Result<(), ReadTrajError> {
+    ///     let mut system = System::from_file("system.gro").unwrap();
+    ///
+    ///     for raw_frame in system
+    ///         .xtc_iter("trajectory.xtc")?
+    ///         .with_range(10_000.0, 100_000.0)?
+    ///         .with_step(2)?
+    ///     {
+    ///         let frame = raw_frame?;
+    ///         println!("{:?}", frame.group_get_center("all"));
+    ///     }
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
     ///
     /// ## Warning
     /// - Only orthogonal simulation boxes are currently supported!
@@ -753,7 +782,6 @@ mod tests {
             .xtc_iter("test_files/short_trajectory.xtc")
             .unwrap()
             .skip(3)
-            .take(6)
             .zip(
                 system2
                     .xtc_iter("test_files/short_trajectory.xtc")
@@ -895,7 +923,12 @@ mod tests {
             .unwrap()
             .with_step(3)
             .unwrap()
-            .zip(system2.xtc_iter("test_files/short_trajectory.xtc").unwrap().step_by(3))
+            .zip(
+                system2
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .step_by(3),
+            )
         {
             let frame1 = raw1.unwrap();
             let frame2 = raw2.unwrap();
@@ -916,7 +949,12 @@ mod tests {
             .unwrap()
             .with_step(23)
             .unwrap()
-            .zip(system2.xtc_iter("test_files/short_trajectory.xtc").unwrap().step_by(23))
+            .zip(
+                system2
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .step_by(23),
+            )
         {
             let frame1 = raw1.unwrap();
             let frame2 = raw2.unwrap();
@@ -931,11 +969,88 @@ mod tests {
     fn read_xtc_step_0() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        match system.xtc_iter("test_files/short_trajectory.xtc").unwrap().with_step(0) {
+        match system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .with_step(0)
+        {
             Ok(_) => panic!("Should have failed."),
             Err(ReadTrajError::InvalidStep(s)) => assert_eq!(s, 0),
             Err(e) => panic!("Incorrect error type {} returned.", e),
         }
+    }
+
+    #[test]
+    fn read_xtc_range_step() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        let mut i = 0;
+
+        for (raw_frame1, raw_frame2) in system1
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .skip(3)
+            .step_by(2)
+            .zip(
+                system2
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_range(300.0, 800.0)
+                    .unwrap()
+                    .with_step(2)
+                    .unwrap(),
+            )
+        {
+            i += 1;
+
+            let frame1 = raw_frame1.unwrap();
+            let frame2 = raw_frame2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+
+        assert_eq!(i, 3);
+    }
+
+    /// Tests that the order of `with_step` and `with_range` does not matter.
+    #[test]
+    fn read_xtc_range_step_step_range() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        let mut i = 0;
+
+        for (raw_frame1, raw_frame2) in system1
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .with_step(2)
+            .unwrap()
+            .with_range(300.0, 800.0)
+            .unwrap()
+            .zip(
+                system2
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_range(300.0, 800.0)
+                    .unwrap()
+                    .with_step(2)
+                    .unwrap(),
+            )
+        {
+            i += 1;
+
+            let frame1 = raw_frame1.unwrap();
+            let frame2 = raw_frame2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+
+        assert_eq!(i, 3);
     }
 
     #[test]

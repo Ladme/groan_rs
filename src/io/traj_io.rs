@@ -47,7 +47,7 @@ impl TrajFile for CXdrFile {}
 /*  TrajRead and TrajReader  */
 /*****************************/
 
-/// Structure storing data from a single trajectory frame.
+/// Trait that must be implemented by structure storing data from a single trajectory frame.
 pub trait FrameData {
     type TrajFile: TrajFile;
 
@@ -63,16 +63,22 @@ pub trait FrameData {
     fn update_system(self, system: &mut System);
 }
 
+/// Trait that can be implemented by structure storing data
+/// from a single trajectory file if the frame contains simulation time.
+/// If you want to use time ranges with your trajectory reader,
+/// you must implement this trait for your `FrameData` structure.
+pub trait FrameDataTime {
+    /// Method specifying how to get simulation time from the `FrameData` structure.
+    fn get_time(&self) -> f32;
+}
+
 /// Any structure implementing `TrajRead` can be used to read a trajectory file.
 pub trait TrajRead<'a> {
     type FrameData: FrameData;
 
-    /// Method specifying how to open the trajectory file. 
+    /// Method specifying how to open the trajectory file.
     /// This function should return structure implementing `TrajRead`.
-    fn new(
-        system: &'a mut System,
-        filename: impl AsRef<Path>,
-    ) -> Result<Self, ReadTrajError>
+    fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<Self, ReadTrajError>
     where
         Self: Sized;
 
@@ -164,7 +170,10 @@ where
         self,
         start_time: f32,
         end_time: f32,
-    ) -> Result<TrajRangeReader<'a, R>, ReadTrajError> {
+    ) -> Result<TrajRangeReader<'a, R>, ReadTrajError>
+    where
+        R::FrameData: FrameDataTime,
+    {
         sanity_check_timerange(start_time, end_time)?;
 
         let mut reader = TrajRangeReader {
@@ -242,7 +251,7 @@ pub struct TrajRangeReader<'a, R: TrajRangeRead<'a>> {
 impl<'a, R> Iterator for TrajRangeReader<'a, R>
 where
     R: TrajRangeRead<'a>,
-    R::FrameData: FrameData,
+    R::FrameData: FrameDataTime,
 {
     type Item = Result<&'a mut System, ReadTrajError>;
 
@@ -260,7 +269,7 @@ where
                 None => None,
                 Some(Err(e)) => Some(Err(e)),
                 Some(Ok(data)) => {
-                    if (*system).get_simulation_time() >= self.end_time {
+                    if data.get_time() > self.end_time {
                         None
                     } else {
                         data.update_system(&mut *system);
@@ -276,6 +285,9 @@ impl<'a, R> TrajRangeReader<'a, R>
 where
     R: TrajRangeRead<'a> + TrajStepRead<'a>,
 {
+    /// Convert `TrajRangeReader` into `TrajRangeStepReader` structure which only reads every `step`th frame.
+    ///
+    /// See [TrajReader::with_step](TrajReader::with_step) for more information.
     pub fn with_step(self, step: usize) -> Result<TrajRangeStepReader<'a, R>, ReadTrajError> {
         // step must be larger than 0
         if step == 0 {
@@ -362,7 +374,19 @@ impl<'a, R> TrajStepReader<'a, R>
 where
     R: TrajRangeRead<'a> + TrajStepRead<'a>,
 {
-    pub fn with_range(self, start_time: f32, end_time: f32) -> Result<TrajRangeStepReader<'a, R>, ReadTrajError> {
+    /// Convert `TrajStepReader` into `TrajRangeStepReader` structure iterating only through a part of the
+    /// trajectory specified using the provided time range.
+    /// `start_time` and `end_time` should be provided in picoseconds.
+    ///
+    /// See [TrajReader::with_range](TrajReader::with_range) for more information.
+    pub fn with_range(
+        self,
+        start_time: f32,
+        end_time: f32,
+    ) -> Result<TrajRangeStepReader<'a, R>, ReadTrajError>
+    where
+        R::FrameData: FrameDataTime,
+    {
         sanity_check_timerange(start_time, end_time)?;
 
         let mut reader = TrajRangeStepReader {
@@ -393,12 +417,11 @@ pub struct TrajRangeStepReader<'a, R: TrajRangeRead<'a> + TrajStepRead<'a>> {
     _phantom: &'a PhantomData<R>,
 }
 
-
 /// Iterate the `TrajRangeStepReader`.
 impl<'a, R> Iterator for TrajRangeStepReader<'a, R>
 where
     R: TrajRangeRead<'a> + TrajStepRead<'a>,
-    R::FrameData: FrameData,
+    R::FrameData: FrameDataTime,
 {
     type Item = Result<&'a mut System, ReadTrajError>;
 
@@ -417,7 +440,7 @@ where
                 None => None,
                 Some(Err(e)) => Some(Err(e)),
                 Some(Ok(data)) => {
-                    if (*system).get_simulation_time() >= self.end_time {
+                    if data.get_time() > self.end_time {
                         None
                     } else {
                         data.update_system(&mut *system);

@@ -9,7 +9,8 @@ use std::path::Path;
 
 use crate::errors::{ReadTrajError, TrajError, WriteTrajError};
 use crate::io::traj_io::{
-    FrameData, TrajGroupWrite, TrajRangeRead, TrajStepRead, TrajRead, TrajReader, TrajWrite,
+    FrameData, FrameDataTime, TrajGroupWrite, TrajRangeRead, TrajRead, TrajReader, TrajStepRead,
+    TrajWrite,
 };
 use crate::io::xdrfile::{self, CXdrFile, OpenMode, XdrFile};
 use crate::iterators::AtomIterator;
@@ -107,6 +108,12 @@ impl FrameData for TrrFrameData {
     }
 }
 
+impl FrameDataTime for TrrFrameData {
+    fn get_time(&self) -> f32 {
+        self.time
+    }
+}
+
 /// Iterator over a trr file.
 pub struct TrrReader<'a> {
     system: *mut System,
@@ -118,10 +125,7 @@ impl<'a> TrajRead<'a> for TrrReader<'a> {
     type FrameData = TrrFrameData;
 
     /// Create an iterator over a trr file.
-    fn new(
-        system: &'a mut System,
-        filename: impl AsRef<Path>,
-    ) -> Result<TrrReader, ReadTrajError> {
+    fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<TrrReader, ReadTrajError> {
         let n_atoms = system.get_n_atoms();
 
         // sanity check the number of atoms
@@ -221,7 +225,7 @@ impl System {
     /// You can also iterate over just a part of the trajectory.
     /// Here, only frames in the time range 10-100 ns will be read.
     /// The `with_range` method is very efficient for the trr files
-    /// as the particle properties from the trr frames outside of 
+    /// as the particle properties from the trr frames outside of
     /// the range will not be read.
     /// ```no_run
     /// use groan_rs::prelude::*;
@@ -241,10 +245,10 @@ impl System {
     ///     Ok(())
     /// }
     /// ```
-    /// 
+    ///
     /// Furthermore, you can efficiently skip over some frames of the trajectory.
     /// Here, only every 10th frame of the trajectory will be read.
-    /// The `with_step` method is very efficient for the trr files as the 
+    /// The `with_step` method is very efficient for the trr files as the
     /// particle properties from the skipped over frames will not be read.
     /// ```no_run
     /// use groan_rs::prelude::*;
@@ -256,6 +260,31 @@ impl System {
     ///     for raw_frame in system
     ///         .trr_iter("trajectory.trr")?
     ///         .with_step(10)?
+    ///     {
+    ///         let frame = raw_frame?;
+    ///         println!("{:?}", frame.group_get_center("all"));
+    ///     }
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// Finally, you can combine `with_range` and `with_step` to
+    /// iterate only through a specific time range of the trajectory
+    /// while reading only every `step`th frame.
+    /// Here, only every other frame will be read and the iteration
+    /// will start at time 10 ns and end at time 100 ns.
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    /// use groan_rs::errors::ReadTrajError;
+    ///
+    /// fn example_fn() -> Result<(), ReadTrajError> {
+    ///     let mut system = System::from_file("system.gro").unwrap();
+    ///
+    ///     for raw_frame in system
+    ///         .trr_iter("trajectory.trr")?
+    ///         .with_range(10_000.0, 100_000.0)?
+    ///         .with_step(2)?
     ///     {
     ///         let frame = raw_frame?;
     ///         println!("{:?}", frame.group_get_center("all"));
@@ -577,10 +606,10 @@ impl XdrFile {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::structures::atom::Atom;
     use float_cmp::assert_approx_eq;
     use std::fs::File;
     use tempfile::NamedTempFile;
-    use crate::structures::atom::Atom;
 
     fn compare_atoms(atom1: &Atom, atom2: &Atom) {
         assert_eq!(atom1.get_residue_number(), atom2.get_residue_number());
@@ -910,7 +939,6 @@ mod tests {
             .trr_iter("test_files/short_trajectory.trr")
             .unwrap()
             .skip(3)
-            .take(5)
             .zip(
                 system2
                     .trr_iter("test_files/short_trajectory.trr")
@@ -1056,7 +1084,12 @@ mod tests {
             .unwrap()
             .with_step(3)
             .unwrap()
-            .zip(system2.trr_iter("test_files/short_trajectory.trr").unwrap().step_by(3))
+            .zip(
+                system2
+                    .trr_iter("test_files/short_trajectory.trr")
+                    .unwrap()
+                    .step_by(3),
+            )
         {
             let frame1 = raw1.unwrap();
             let frame2 = raw2.unwrap();
@@ -1077,7 +1110,12 @@ mod tests {
             .unwrap()
             .with_step(23)
             .unwrap()
-            .zip(system2.trr_iter("test_files/short_trajectory.trr").unwrap().step_by(23))
+            .zip(
+                system2
+                    .trr_iter("test_files/short_trajectory.trr")
+                    .unwrap()
+                    .step_by(23),
+            )
         {
             let frame1 = raw1.unwrap();
             let frame2 = raw2.unwrap();
@@ -1092,11 +1130,88 @@ mod tests {
     fn read_trr_step_0() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        match system.trr_iter("test_files/short_trajectory.trr").unwrap().with_step(0) {
+        match system
+            .trr_iter("test_files/short_trajectory.trr")
+            .unwrap()
+            .with_step(0)
+        {
             Ok(_) => panic!("Should have failed."),
             Err(ReadTrajError::InvalidStep(s)) => assert_eq!(s, 0),
             Err(e) => panic!("Incorrect error type {} returned.", e),
         }
+    }
+
+    #[test]
+    fn read_trr_range_step() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        let mut i = 0;
+
+        for (raw_frame1, raw_frame2) in system1
+            .trr_iter("test_files/short_trajectory.trr")
+            .unwrap()
+            .skip(3)
+            .step_by(2)
+            .zip(
+                system2
+                    .trr_iter("test_files/short_trajectory.trr")
+                    .unwrap()
+                    .with_range(200.0, 600.0)
+                    .unwrap()
+                    .with_step(2)
+                    .unwrap(),
+            )
+        {
+            i += 1;
+
+            let frame1 = raw_frame1.unwrap();
+            let frame2 = raw_frame2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+
+        assert_eq!(i, 3);
+    }
+
+    /// Tests that the order of `with_step` and `with_range` does not matter.
+    #[test]
+    fn read_trr_range_step_step_range() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        let mut i = 0;
+
+        for (raw_frame1, raw_frame2) in system1
+            .trr_iter("test_files/short_trajectory.trr")
+            .unwrap()
+            .with_step(2)
+            .unwrap()
+            .with_range(200.0, 600.0)
+            .unwrap()
+            .zip(
+                system2
+                    .trr_iter("test_files/short_trajectory.trr")
+                    .unwrap()
+                    .with_range(200.0, 600.0)
+                    .unwrap()
+                    .with_step(2)
+                    .unwrap(),
+            )
+        {
+            i += 1;
+
+            let frame1 = raw_frame1.unwrap();
+            let frame2 = raw_frame2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+
+        assert_eq!(i, 3);
     }
 
     #[test]
