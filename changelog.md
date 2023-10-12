@@ -10,7 +10,11 @@
 - Implemented a new tokenizer for atom and residue numbers in the groan selection language.
 #### Changes to reading xtc and trr files
 - **Breaking Change:** Traits for reading xtc and trr files have been completely redone. Most notably, `Xdr`* methods, traits, and errors have been renamed to `Traj`*.
-- Introduced `TrajRangeReader` structure for efficient partial reading of trajectory based on time ranges. `TrajRangeReader` skips frames with times below the specified start time (atom properties from these frames are not read at all) and stops reading when the end time is reached.
+- All trajectory readers must now implement `TrajRead` trait and **do not** have to be iterable. Trajectory iterator is constructed by wrapping the `TrajRead`-implementing structure into `TrajReader`.
+- Introduced several structures for efficient partial reading of trajectory files:
+  - `TrajRangeReader` reads frames in a specified time range. Can be constructed for any structure implementing `TrajRangeRead` using `with_range` method.
+  - `TrajStepReader` reads every `step`th frame of the trajectory. Can be constructed for any structure implementing `TrajStepRead` using `with_step` method.
+  - `TrajRangeStepReader` reads every `step`th frame of the trajectory in a specified time range. Can be constructed for any structure implementing both `TrajRangeRead` and `TrajStepRead` using `with_range` and `with_step` methods.
 #### Other changes
 - Enhanced documentation for error variants within the `errors` module.
 

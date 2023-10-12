@@ -70,6 +70,11 @@ extern "C" {
 }
 
 extern "C" {
+    /// Skip to the next frame in the trr file without reading it.
+    pub fn trr_skip_frame(xd: *mut CXdrFile) -> c_int;
+}
+
+extern "C" {
     pub fn read_trr(
         xd: *mut CXdrFile,
         natoms: c_int,

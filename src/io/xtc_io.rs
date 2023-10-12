@@ -112,7 +112,7 @@ impl<'a> TrajRead<'a> for XtcReader<'a> {
     fn new(
         system: &'a mut System,
         filename: impl AsRef<Path>,
-    ) -> Result<TrajReader<'a, XtcReader>, ReadTrajError> {
+    ) -> Result<XtcReader, ReadTrajError> {
         let n_atoms = system.get_n_atoms();
 
         // sanity check the number of atoms
@@ -139,7 +139,7 @@ impl<'a> TrajRead<'a> for XtcReader<'a> {
             phantom: PhantomData,
         };
 
-        Ok(TrajReader::wrap_traj(xtc_reader))
+        Ok(xtc_reader)
     }
 
     fn get_system(&mut self) -> *mut System {
@@ -240,8 +240,9 @@ impl System {
     ///
     /// You can also iterate over just a part of the trajectory.
     /// Here, only frames in the time range 10-100 ns will be read.
-    /// The `with_range` method is very efficient as the particle coordinates
-    /// from the xtc frames outside of the range will not be read.
+    /// The `with_range` method is very efficient for the xtc files 
+    /// as the particle coordinates from the xtc frames outside 
+    /// of the range will not be read.
     /// ```no_run
     /// use groan_rs::prelude::*;
     /// use groan_rs::errors::ReadTrajError;
@@ -252,6 +253,29 @@ impl System {
     ///     for raw_frame in system
     ///         .xtc_iter("trajectory.xtc")?
     ///         .with_range(10_000.0, 100_000.0)?
+    ///     {
+    ///         let frame = raw_frame?;
+    ///         println!("{:?}", frame.group_get_center("all"));
+    ///     }
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    /// 
+    /// Furthermore, you can efficiently skip over some frames of the trajectory.
+    /// Here, only every 10th frame of the trajectory will be read.
+    /// The `with_step` method is very efficient for the xtc files as the 
+    /// particle coordinates from the skipped over frames will not be read.
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    /// use groan_rs::errors::ReadTrajError;
+    ///
+    /// fn example_fn() -> Result<(), ReadTrajError> {
+    ///     let mut system = System::from_file("system.gro").unwrap();
+    ///
+    ///     for raw_frame in system
+    ///         .xtc_iter("trajectory.xtc")?
+    ///         .with_step(10)?
     ///     {
     ///         let frame = raw_frame?;
     ///         println!("{:?}", frame.group_get_center("all"));
@@ -271,7 +295,7 @@ impl System {
         &mut self,
         filename: impl AsRef<Path>,
     ) -> Result<TrajReader<XtcReader>, ReadTrajError> {
-        XtcReader::new(self, filename)
+        Ok(TrajReader::wrap_traj(XtcReader::new(self, filename)?))
     }
 }
 
@@ -548,9 +572,30 @@ impl XdrFile {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::structures::atom::Atom;
     use float_cmp::assert_approx_eq;
     use std::fs::File;
     use tempfile::NamedTempFile;
+
+    fn compare_atoms(atom1: &Atom, atom2: &Atom) {
+        assert_eq!(atom1.get_residue_number(), atom2.get_residue_number());
+        assert_eq!(atom1.get_residue_name(), atom2.get_residue_name());
+        assert_eq!(atom1.get_atom_number(), atom2.get_atom_number());
+        assert_eq!(atom1.get_atom_name(), atom2.get_atom_name());
+        assert_eq!(atom1.get_chain(), atom2.get_chain());
+
+        assert_approx_eq!(f32, atom1.get_position().x, atom2.get_position().x);
+        assert_approx_eq!(f32, atom1.get_position().y, atom2.get_position().y);
+        assert_approx_eq!(f32, atom1.get_position().z, atom2.get_position().z);
+
+        assert_approx_eq!(f32, atom1.get_velocity().x, atom2.get_velocity().x);
+        assert_approx_eq!(f32, atom1.get_velocity().y, atom2.get_velocity().y);
+        assert_approx_eq!(f32, atom1.get_velocity().z, atom2.get_velocity().z);
+
+        assert_approx_eq!(f32, atom1.get_force().x, atom2.get_force().x);
+        assert_approx_eq!(f32, atom1.get_force().y, atom2.get_force().y);
+        assert_approx_eq!(f32, atom1.get_force().z, atom2.get_force().z);
+    }
 
     #[test]
     fn read_xtc() {
@@ -692,23 +737,7 @@ mod tests {
             let frame2 = raw_frame2.unwrap();
 
             for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
-                assert_eq!(atom1.get_residue_number(), atom2.get_residue_number());
-                assert_eq!(atom1.get_residue_name(), atom2.get_residue_name());
-                assert_eq!(atom1.get_atom_number(), atom2.get_atom_number());
-                assert_eq!(atom1.get_atom_name(), atom2.get_atom_name());
-                assert_eq!(atom1.get_chain(), atom2.get_chain());
-
-                assert_approx_eq!(f32, atom1.get_position().x, atom2.get_position().x);
-                assert_approx_eq!(f32, atom1.get_position().y, atom2.get_position().y);
-                assert_approx_eq!(f32, atom1.get_position().z, atom2.get_position().z);
-
-                assert_approx_eq!(f32, atom1.get_velocity().x, atom2.get_velocity().x);
-                assert_approx_eq!(f32, atom1.get_velocity().y, atom2.get_velocity().y);
-                assert_approx_eq!(f32, atom1.get_velocity().z, atom2.get_velocity().z);
-
-                assert_approx_eq!(f32, atom1.get_force().x, atom2.get_force().x);
-                assert_approx_eq!(f32, atom1.get_force().y, atom2.get_force().y);
-                assert_approx_eq!(f32, atom1.get_force().z, atom2.get_force().z);
+                compare_atoms(atom1, atom2);
             }
         }
     }
@@ -739,23 +768,7 @@ mod tests {
             let frame2 = raw_frame2.unwrap();
 
             for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
-                assert_eq!(atom1.get_residue_number(), atom2.get_residue_number());
-                assert_eq!(atom1.get_residue_name(), atom2.get_residue_name());
-                assert_eq!(atom1.get_atom_number(), atom2.get_atom_number());
-                assert_eq!(atom1.get_atom_name(), atom2.get_atom_name());
-                assert_eq!(atom1.get_chain(), atom2.get_chain());
-
-                assert_approx_eq!(f32, atom1.get_position().x, atom2.get_position().x);
-                assert_approx_eq!(f32, atom1.get_position().y, atom2.get_position().y);
-                assert_approx_eq!(f32, atom1.get_position().z, atom2.get_position().z);
-
-                assert_approx_eq!(f32, atom1.get_velocity().x, atom2.get_velocity().x);
-                assert_approx_eq!(f32, atom1.get_velocity().y, atom2.get_velocity().y);
-                assert_approx_eq!(f32, atom1.get_velocity().z, atom2.get_velocity().z);
-
-                assert_approx_eq!(f32, atom1.get_force().x, atom2.get_force().x);
-                assert_approx_eq!(f32, atom1.get_force().y, atom2.get_force().y);
-                assert_approx_eq!(f32, atom1.get_force().z, atom2.get_force().z);
+                compare_atoms(atom1, atom2);
             }
         }
 
@@ -848,6 +861,80 @@ mod tests {
             Ok(_) => panic!("Iterator should not have been constructed."),
             Err(ReadTrajError::StartNotFound(_)) => (),
             Err(e) => panic!("Incorrect error type {} returned", e),
+        }
+    }
+
+    #[test]
+    fn read_xtc_step_1() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        for (raw1, raw2) in system1
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .with_step(1)
+            .unwrap()
+            .zip(system2.xtc_iter("test_files/short_trajectory.xtc").unwrap())
+        {
+            let frame1 = raw1.unwrap();
+            let frame2 = raw2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+    }
+
+    #[test]
+    fn read_xtc_step_3() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        for (raw1, raw2) in system1
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .with_step(3)
+            .unwrap()
+            .zip(system2.xtc_iter("test_files/short_trajectory.xtc").unwrap().step_by(3))
+        {
+            let frame1 = raw1.unwrap();
+            let frame2 = raw2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+    }
+
+    #[test]
+    fn read_xtc_step_23() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        for (raw1, raw2) in system1
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .with_step(23)
+            .unwrap()
+            .zip(system2.xtc_iter("test_files/short_trajectory.xtc").unwrap().step_by(23))
+        {
+            let frame1 = raw1.unwrap();
+            let frame2 = raw2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+    }
+
+    #[test]
+    fn read_xtc_step_0() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        match system.xtc_iter("test_files/short_trajectory.xtc").unwrap().with_step(0) {
+            Ok(_) => panic!("Should have failed."),
+            Err(ReadTrajError::InvalidStep(s)) => assert_eq!(s, 0),
+            Err(e) => panic!("Incorrect error type {} returned.", e),
         }
     }
 

@@ -80,7 +80,7 @@ static int trr_get_jump_info(XDRFILE *xdp, float target_time, float time_precisi
         return 0;
     }
 
-    // size of the frame should be the sum of the sizes of the indivudal segments
+    // size of the frame should be the sum of the sizes of the individual segments
 	// not all sizes are probably currently used; ignoring them could increase the speed of jumping 
 	// but it might break the library for some trr files...
     int size = header.ir_size + header.e_size + header.box_size + header.vir_size + header.pres_size + 
@@ -157,6 +157,34 @@ int xtc_skip_frame(XDRFILE *xdp)
 
 	// check validity of the jump
 	if (magic_number != 1995) return 1;
+
+	// move back four bytes (to the start of the frame)
+	if (xdr_jump(xdp, -4) != 0) return 1;
+
+	return 0;
+}
+
+int trr_skip_frame(XDRFILE *xdp)
+{
+	// read the header of the frame
+    t_trnheader header = { 0 };
+	// assuming this only fails if we have reached the end of the file
+    if (do_trnheader(xdp, 1, &header) != exdrOK) return 2;
+
+    // size of the frame should be the sum of the sizes of the individual segments
+    int size = header.ir_size + header.e_size + header.box_size + header.vir_size + header.pres_size + 
+    header.top_size + header.sym_size + header.x_size + header.v_size + header.f_size;
+
+    // this should only fail if we have reached the end of the file
+	// (but does not have to fail)
+	if (xdr_jump(xdp, size) != 0) return 2;
+
+	// try to read the magic number to see whether we are at the end of file
+	int magic_number = 0;
+	if (xdrfile_read_int(&magic_number, 1, xdp) != 1) return 2;
+
+	// check validity of the jump
+	if (magic_number != 1993) return 1;
 
 	// move back four bytes (to the start of the frame)
 	if (xdr_jump(xdp, -4) != 0) return 1;

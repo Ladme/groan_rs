@@ -67,14 +67,12 @@ pub trait FrameData {
 pub trait TrajRead<'a> {
     type FrameData: FrameData;
 
-    /// Method specifying how to open the trajectory file.
-    /// This function does not return the structure implementing TrajRead directly,
-    /// instead it should return `TrajReader` wrapping the custom structure.
-    /// You can use `TrajReader::wrap_traj` to wrap your structure into `TrajReader`.
+    /// Method specifying how to open the trajectory file. 
+    /// This function should return structure implementing `TrajRead`.
     fn new(
         system: &'a mut System,
         filename: impl AsRef<Path>,
-    ) -> Result<TrajReader<'a, Self>, ReadTrajError>
+    ) -> Result<Self, ReadTrajError>
     where
         Self: Sized;
 
@@ -101,7 +99,6 @@ where
     R: TrajRead<'a>,
 {
     /// Wrap trajectory reader implementing `TrajRead` into `TrajReader` structure.
-    /// This should only be used in the implementations of the `TrajRead::new` methods.
     pub fn wrap_traj(traj_reader: R) -> TrajReader<'a, R> {
         TrajReader {
             traj_reader,
@@ -141,7 +138,7 @@ where
     R: TrajRangeRead<'a>,
 {
     /// Convert `TrajReader` into `TrajRangeReader` structure iterating only through a part of the
-    /// trajectory specified using the provided time range. 
+    /// trajectory specified using the provided time range.
     /// `start_time` and `end_time` should be provided in picoseconds.
     ///
     /// ## Details
@@ -275,6 +272,26 @@ where
     }
 }
 
+impl<'a, R> TrajRangeReader<'a, R>
+where
+    R: TrajRangeRead<'a> + TrajStepRead<'a>,
+{
+    pub fn with_step(self, step: usize) -> Result<TrajRangeStepReader<'a, R>, ReadTrajError> {
+        // step must be larger than 0
+        if step == 0 {
+            return Err(ReadTrajError::InvalidStep(step));
+        }
+
+        Ok(TrajRangeStepReader {
+            traj_reader: self.traj_reader,
+            start_time: self.start_time,
+            end_time: self.end_time,
+            skip: step - 1,
+            _phantom: &PhantomData,
+        })
+    }
+}
+
 /***************************************/
 /*   TrajStepRead and TrajStepReader   */
 /***************************************/
@@ -341,6 +358,88 @@ where
     }
 }
 
+impl<'a, R> TrajStepReader<'a, R>
+where
+    R: TrajRangeRead<'a> + TrajStepRead<'a>,
+{
+    pub fn with_range(self, start_time: f32, end_time: f32) -> Result<TrajRangeStepReader<'a, R>, ReadTrajError> {
+        sanity_check_timerange(start_time, end_time)?;
+
+        let mut reader = TrajRangeStepReader {
+            traj_reader: self.traj_reader,
+            start_time,
+            end_time,
+            skip: self.skip,
+            _phantom: &PhantomData,
+        };
+
+        // jump to the start of iteration
+        reader.traj_reader.jump_to_start(start_time)?;
+
+        Ok(reader)
+    }
+}
+
+/***************************************/
+/*         TrajRangeStepReader         */
+/***************************************/
+
+/// Structure for reading of trajectory files in target time range and with steps between frames.
+pub struct TrajRangeStepReader<'a, R: TrajRangeRead<'a> + TrajStepRead<'a>> {
+    pub traj_reader: R,
+    pub start_time: f32,
+    pub end_time: f32,
+    pub skip: usize,
+    _phantom: &'a PhantomData<R>,
+}
+
+
+/// Iterate the `TrajRangeStepReader`.
+impl<'a, R> Iterator for TrajRangeStepReader<'a, R>
+where
+    R: TrajRangeRead<'a> + TrajStepRead<'a>,
+    R::FrameData: FrameData,
+{
+    type Item = Result<&'a mut System, ReadTrajError>;
+
+    /// Read the next frame in the specified range of the trajectory and update the `System` structure.
+    /// Then skip the specified number of frames.
+    ///
+    /// ## Returns
+    /// - `Some(Ok(&mut System))` if the frame has been succesfully read.
+    /// - `Some(Err(ReadTrajError))` if the frame could not be read.
+    /// - `None` if the end of the range of the end of the trajectory file has been reached.
+    fn next(&mut self) -> Option<Self::Item> {
+        unsafe {
+            let system = self.traj_reader.get_system();
+
+            match R::FrameData::from_frame(self.traj_reader.get_file_handle(), &*system) {
+                None => None,
+                Some(Err(e)) => Some(Err(e)),
+                Some(Ok(data)) => {
+                    if (*system).get_simulation_time() >= self.end_time {
+                        None
+                    } else {
+                        data.update_system(&mut *system);
+
+                        // skip the next n frames
+                        for _ in 0..self.skip {
+                            match self.traj_reader.skip_frame() {
+                                Ok(true) => continue,
+                                // EOF reached
+                                Ok(false) => break,
+                                Err(e) => return Some(Err(e)),
+                            }
+                        }
+
+                        Some(Ok(&mut *system))
+                    }
+                }
+            }
+        }
+    }
+}
+
 /***************************************/
 /*        Generic System methods       */
 /***************************************/
@@ -362,19 +461,19 @@ impl System {
     /// fn example_fn() -> Result<(), ReadTrajError> {
     ///     // load system from file
     ///     let mut system = System::from_file("system.gro").unwrap();
-    /// 
+    ///
     ///     // loop through the xtc trajectory
     ///     for raw_frame in system.traj_iter::<XtcReader>("trajectory.xtc")? {
     ///         let frame = raw_frame?;
     ///         println!("{:?}", frame.group_get_center("all"));
     ///     }
-    /// 
+    ///
     ///     // loop through the trr trajectory
     ///     for raw_frame in system.traj_iter::<TrrReader>("trajectory.trr")? {
     ///         let frame = raw_frame?;
     ///         println!("{:?}", frame.group_get_center("all"));
     ///     }
-    /// 
+    ///
     ///     Ok(())
     /// }
     /// ```
@@ -393,7 +492,7 @@ impl System {
     where
         Read: TrajRead<'a>,
     {
-        Read::new(self, filename)
+        Ok(TrajReader::wrap_traj(Read::new(self, filename)?))
     }
 }
 
