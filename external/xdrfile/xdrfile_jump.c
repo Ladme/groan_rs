@@ -150,11 +150,12 @@ int xtc_skip_frame(XDRFILE *xdp)
 	// (but does not have to fail)
 	if (xdr_jump(xdp, size) != 0) return 2;
 
-	// read magic number
+	// read magic number (to check whether we are at EOF)
 	if (xdrfile_read_int(&magic_number, 1, xdp) != 1) {
 		return 2;
 	}
 
+	// check validity of the jump
 	if (magic_number != 1995) return 1;
 
 	// move back four bytes (to the start of the frame)

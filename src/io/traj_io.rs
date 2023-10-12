@@ -141,7 +141,8 @@ where
     R: TrajRangeRead<'a>,
 {
     /// Convert `TrajReader` into `TrajRangeReader` structure iterating only through a part of the
-    /// trajectory specified using the provided time range.
+    /// trajectory specified using the provided time range. 
+    /// `start_time` and `end_time` should be provided in picoseconds.
     ///
     /// ## Details
     /// Depending on the specific implementation, the iteration using `with_range` can be very efficient.
@@ -201,6 +202,7 @@ where
     /// efficient than simply using `step_by` method on the iterator.
     ///
     /// For the `xtc` and `trr` files, properties of the atoms in frames that are skipped over are not read.
+    /// This makes `with_step` almost `step`-times faster than using `step_by`.
     ///
     /// If the `step` is zero, returns `ReadTrajError::InvalidStep`.
     pub fn with_step(self, step: usize) -> Result<TrajStepReader<'a, R>, ReadTrajError> {
@@ -353,31 +355,28 @@ impl System {
     /// `ReadTrajError` in case of an error.
     ///
     /// ## Example
-    /// Using `traj_iter` in a generic function.
     /// ```no_run
     /// use groan_rs::prelude::*;
     /// use groan_rs::errors::ReadTrajError;
-    /// use std::path::Path;
     ///
-    /// fn generic_iteration<'a, Reader>(
-    ///     system: &'a mut System,
-    ///     filename: impl AsRef<Path>,
-    /// ) -> Result<(), ReadTrajError>
-    /// where
-    ///     Reader: TrajRead<'a> + 'a,
-    /// {
-    ///     // loop through the trajectory
-    ///     for raw_frame in system.traj_iter::<Reader>(&filename)? {
+    /// fn example_fn() -> Result<(), ReadTrajError> {
+    ///     // load system from file
+    ///     let mut system = System::from_file("system.gro").unwrap();
+    /// 
+    ///     // loop through the xtc trajectory
+    ///     for raw_frame in system.traj_iter::<XtcReader>("trajectory.xtc")? {
     ///         let frame = raw_frame?;
     ///         println!("{:?}", frame.group_get_center("all"));
     ///     }
-    ///
+    /// 
+    ///     // loop through the trr trajectory
+    ///     for raw_frame in system.traj_iter::<TrrReader>("trajectory.trr")? {
+    ///         let frame = raw_frame?;
+    ///         println!("{:?}", frame.group_get_center("all"));
+    ///     }
+    /// 
     ///     Ok(())
     /// }
-    ///
-    /// let mut system = System::from_file("system.gro").unwrap();
-    /// generic_iteration::<XtcReader>(&mut system, "trajectory.xtc").unwrap();
-    /// generic_iteration::<TrrReader>(&mut system, "trajectory.trr").unwrap();
     /// ```
     ///
     /// ## Warning
