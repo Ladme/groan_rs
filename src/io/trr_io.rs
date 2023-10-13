@@ -887,6 +887,261 @@ mod tests {
     }
 
     #[test]
+    fn read_trr_double_precision() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        // first frame
+        system
+            .trr_iter("test_files/short_trajectory_double.trr")
+            .unwrap()
+            .next();
+
+        let atom1 = &system.get_atoms_as_ref()[0];
+        let atom2 = &system.get_atoms_as_ref()[16843];
+
+        assert_eq!(system.get_simulation_step(), 0);
+        assert_eq!(system.get_lambda(), 0.0);
+        assert_approx_eq!(f32, system.get_simulation_time(), 0.0);
+        assert_approx_eq!(f32, system.get_box_as_ref().x, 13.01331);
+        assert_approx_eq!(f32, system.get_box_as_ref().y, 13.01331);
+        assert_approx_eq!(f32, system.get_box_as_ref().z, 11.25347);
+
+        assert_eq!(atom1.get_residue_name(), "GLY");
+        assert_eq!(atom1.get_residue_number(), 1);
+        assert_eq!(atom1.get_atom_number(), 1);
+        assert_eq!(atom1.get_atom_name(), "BB");
+
+        assert_approx_eq!(f32, atom1.get_position().x, 9.497161);
+        assert_approx_eq!(f32, atom1.get_position().y, 1.9891102);
+        assert_approx_eq!(f32, atom1.get_position().z, 7.497941);
+
+        assert_approx_eq!(f32, atom1.get_velocity().x, -0.06389237);
+        assert_approx_eq!(f32, atom1.get_velocity().y, 0.054320477);
+        assert_approx_eq!(f32, atom1.get_velocity().z, 0.008154817);
+
+        assert_approx_eq!(f32, atom1.get_force().x, -6.330056);
+        assert_approx_eq!(f32, atom1.get_force().y, -278.8763);
+        assert_approx_eq!(f32, atom1.get_force().z, -305.94952);
+
+        assert_eq!(atom2.get_residue_name(), "ION");
+        assert_eq!(atom2.get_residue_number(), 11180);
+        assert_eq!(atom2.get_atom_number(), 16844);
+        assert_eq!(atom2.get_atom_name(), "CL");
+
+        assert_approx_eq!(f32, atom2.get_position().x, 8.829);
+        assert_approx_eq!(f32, atom2.get_position().y, 11.186);
+        assert_approx_eq!(f32, atom2.get_position().z, 2.075);
+
+        assert_approx_eq!(f32, atom2.get_velocity().x, 0.16692738);
+        assert_approx_eq!(f32, atom2.get_velocity().y, 0.1674121);
+        assert_approx_eq!(f32, atom2.get_velocity().z, -0.27088445);
+
+        assert_approx_eq!(f32, atom2.get_force().x, -21.007483);
+        assert_approx_eq!(f32, atom2.get_force().y, -6.727664);
+        assert_approx_eq!(f32, atom2.get_force().z, -68.82874);
+
+        // second frame
+        system
+            .trr_iter("test_files/short_trajectory_double.trr")
+            .unwrap()
+            .nth(1);
+
+        let atom1 = &system.get_atoms_as_ref()[0];
+        let atom2 = &system.get_atoms_as_ref()[16843];
+
+        assert_eq!(system.get_simulation_step(), 6000);
+        assert_eq!(system.get_lambda(), 0.0);
+        assert_approx_eq!(f32, system.get_simulation_time(), 120.0);
+        assert_approx_eq!(f32, system.get_box_as_ref().x, 13.00128);
+        assert_approx_eq!(f32, system.get_box_as_ref().y, 13.00128);
+        assert_approx_eq!(f32, system.get_box_as_ref().z, 11.277555);
+
+        assert_eq!(atom1.get_residue_name(), "GLY");
+        assert_eq!(atom1.get_residue_number(), 1);
+        assert_eq!(atom1.get_atom_number(), 1);
+        assert_eq!(atom1.get_atom_name(), "BB");
+
+        assert_approx_eq!(f32, atom1.get_position().x, 0.0);
+        assert_approx_eq!(f32, atom1.get_position().y, 0.0);
+        assert_approx_eq!(f32, atom1.get_position().z, 0.0);
+
+        assert_approx_eq!(f32, atom1.get_velocity().x, 0.14590994);
+        assert_approx_eq!(f32, atom1.get_velocity().y, 0.02281682);
+        assert_approx_eq!(f32, atom1.get_velocity().z, 0.118289664);
+
+        assert_approx_eq!(f32, atom1.get_force().x, 0.0);
+        assert_approx_eq!(f32, atom1.get_force().y, 0.0);
+        assert_approx_eq!(f32, atom1.get_force().z, 0.0);
+
+        assert_eq!(atom2.get_residue_name(), "ION");
+        assert_eq!(atom2.get_residue_number(), 11180);
+        assert_eq!(atom2.get_atom_number(), 16844);
+        assert_eq!(atom2.get_atom_name(), "CL");
+
+        assert_approx_eq!(f32, atom2.get_position().x, 0.0);
+        assert_approx_eq!(f32, atom2.get_position().y, 0.0);
+        assert_approx_eq!(f32, atom2.get_position().z, 0.0);
+
+        assert_approx_eq!(f32, atom2.get_velocity().x, -0.10735397);
+        assert_approx_eq!(f32, atom2.get_velocity().y, -0.024522306);
+        assert_approx_eq!(f32, atom2.get_velocity().z, 0.37654695);
+
+        assert_approx_eq!(f32, atom2.get_force().x, 0.0);
+        assert_approx_eq!(f32, atom2.get_force().y, 0.0);
+        assert_approx_eq!(f32, atom2.get_force().z, 0.0);
+
+        // third frame
+        system
+            .trr_iter("test_files/short_trajectory_double.trr")
+            .unwrap()
+            .nth(2);
+
+        let atom1 = &system.get_atoms_as_ref()[0];
+        let atom2 = &system.get_atoms_as_ref()[16843];
+
+        assert_eq!(system.get_simulation_step(), 8000);
+        assert_eq!(system.get_lambda(), 0.0);
+        assert_approx_eq!(f32, system.get_simulation_time(), 160.0);
+        assert_approx_eq!(f32, system.get_box_as_ref().x, 13.117418);
+        assert_approx_eq!(f32, system.get_box_as_ref().y, 13.117418);
+        assert_approx_eq!(f32, system.get_box_as_ref().z, 11.052416);
+
+        assert_eq!(atom1.get_residue_name(), "GLY");
+        assert_eq!(atom1.get_residue_number(), 1);
+        assert_eq!(atom1.get_atom_number(), 1);
+        assert_eq!(atom1.get_atom_name(), "BB");
+
+        assert_approx_eq!(f32, atom1.get_position().x, 0.0);
+        assert_approx_eq!(f32, atom1.get_position().y, 0.0);
+        assert_approx_eq!(f32, atom1.get_position().z, 0.0);
+
+        assert_approx_eq!(f32, atom1.get_velocity().x, 0.0);
+        assert_approx_eq!(f32, atom1.get_velocity().y, 0.0);
+        assert_approx_eq!(f32, atom1.get_velocity().z, 0.0);
+
+        assert_approx_eq!(f32, atom1.get_force().x, -1.2237711);
+        assert_approx_eq!(f32, atom1.get_force().y, -132.20737);
+        assert_approx_eq!(f32, atom1.get_force().z, 83.95251);
+
+        assert_eq!(atom2.get_residue_name(), "ION");
+        assert_eq!(atom2.get_residue_number(), 11180);
+        assert_eq!(atom2.get_atom_number(), 16844);
+        assert_eq!(atom2.get_atom_name(), "CL");
+
+        assert_approx_eq!(f32, atom2.get_position().x, 0.0);
+        assert_approx_eq!(f32, atom2.get_position().y, 0.0);
+        assert_approx_eq!(f32, atom2.get_position().z, 0.0);
+
+        assert_approx_eq!(f32, atom2.get_velocity().x, 0.0);
+        assert_approx_eq!(f32, atom2.get_velocity().y, 0.0);
+        assert_approx_eq!(f32, atom2.get_velocity().z, 0.0);
+
+        assert_approx_eq!(f32, atom2.get_force().x, 0.82113415);
+        assert_approx_eq!(f32, atom2.get_force().y, -31.931189);
+        assert_approx_eq!(f32, atom2.get_force().z, -17.756308);
+
+        // fourth frame
+        system
+            .trr_iter("test_files/short_trajectory_double.trr")
+            .unwrap()
+            .nth(3);
+
+        let atom1 = &system.get_atoms_as_ref()[0];
+        let atom2 = &system.get_atoms_as_ref()[16843];
+
+        assert_eq!(system.get_simulation_step(), 12000);
+        assert_eq!(system.get_lambda(), 0.0);
+        assert_approx_eq!(f32, system.get_simulation_time(), 240.0);
+        assert_approx_eq!(f32, system.get_box_as_ref().x, 13.020565);
+        assert_approx_eq!(f32, system.get_box_as_ref().y, 13.020565);
+        assert_approx_eq!(f32, system.get_box_as_ref().z, 11.256957);
+
+        assert_eq!(atom1.get_residue_name(), "GLY");
+        assert_eq!(atom1.get_residue_number(), 1);
+        assert_eq!(atom1.get_atom_number(), 1);
+        assert_eq!(atom1.get_atom_name(), "BB");
+
+        assert_approx_eq!(f32, atom1.get_position().x, 8.99423);
+        assert_approx_eq!(f32, atom1.get_position().y, 1.8623593);
+        assert_approx_eq!(f32, atom1.get_position().z, 7.1457996);
+
+        assert_approx_eq!(f32, atom1.get_velocity().x, -0.17861652);
+        assert_approx_eq!(f32, atom1.get_velocity().y, 0.092642576);
+        assert_approx_eq!(f32, atom1.get_velocity().z, 0.0057291547);
+
+        assert_approx_eq!(f32, atom1.get_force().x, 0.0);
+        assert_approx_eq!(f32, atom1.get_force().y, 0.0);
+        assert_approx_eq!(f32, atom1.get_force().z, 0.0);
+
+        assert_eq!(atom2.get_residue_name(), "ION");
+        assert_eq!(atom2.get_residue_number(), 11180);
+        assert_eq!(atom2.get_atom_number(), 16844);
+        assert_eq!(atom2.get_atom_name(), "CL");
+
+        assert_approx_eq!(f32, atom2.get_position().x, 9.4999075);
+        assert_approx_eq!(f32, atom2.get_position().y, 11.252099);
+        assert_approx_eq!(f32, atom2.get_position().z, 1.6288123);
+
+        assert_approx_eq!(f32, atom2.get_velocity().x, -0.072873585);
+        assert_approx_eq!(f32, atom2.get_velocity().y, -0.28077266);
+        assert_approx_eq!(f32, atom2.get_velocity().z, -0.06289119);
+
+        assert_approx_eq!(f32, atom2.get_force().x, 0.0);
+        assert_approx_eq!(f32, atom2.get_force().y, 0.0);
+        assert_approx_eq!(f32, atom2.get_force().z, 0.0);
+
+        // last frame
+        system
+            .trr_iter("test_files/short_trajectory_double.trr")
+            .unwrap()
+            .last();
+
+        let atom1 = &system.get_atoms_as_ref()[0];
+        let atom2 = &system.get_atoms_as_ref()[16843];
+
+        assert_eq!(system.get_simulation_step(), 32000);
+        assert_eq!(system.get_lambda(), 0.0);
+        assert_approx_eq!(f32, system.get_simulation_time(), 640.0);
+        assert_approx_eq!(f32, system.get_box_as_ref().x, 13.068602);
+        assert_approx_eq!(f32, system.get_box_as_ref().y, 13.068602);
+        assert_approx_eq!(f32, system.get_box_as_ref().z, 11.147263);
+
+        assert_eq!(atom1.get_residue_name(), "GLY");
+        assert_eq!(atom1.get_residue_number(), 1);
+        assert_eq!(atom1.get_atom_number(), 1);
+        assert_eq!(atom1.get_atom_name(), "BB");
+
+        assert_approx_eq!(f32, atom1.get_position().x, 0.0);
+        assert_approx_eq!(f32, atom1.get_position().y, 0.0);
+        assert_approx_eq!(f32, atom1.get_position().z, 0.0);
+
+        assert_approx_eq!(f32, atom1.get_velocity().x, 0.0);
+        assert_approx_eq!(f32, atom1.get_velocity().y, 0.0);
+        assert_approx_eq!(f32, atom1.get_velocity().z, 0.0);
+
+        assert_approx_eq!(f32, atom1.get_force().x, -253.34071);
+        assert_approx_eq!(f32, atom1.get_force().y, -54.76411);
+        assert_approx_eq!(f32, atom1.get_force().z, 167.09177);
+
+        assert_eq!(atom2.get_residue_name(), "ION");
+        assert_eq!(atom2.get_residue_number(), 11180);
+        assert_eq!(atom2.get_atom_number(), 16844);
+        assert_eq!(atom2.get_atom_name(), "CL");
+
+        assert_approx_eq!(f32, atom2.get_position().x, 0.0);
+        assert_approx_eq!(f32, atom2.get_position().y, 0.0);
+        assert_approx_eq!(f32, atom2.get_position().z, 0.0);
+
+        assert_approx_eq!(f32, atom2.get_velocity().x, 0.0);
+        assert_approx_eq!(f32, atom2.get_velocity().y, 0.0);
+        assert_approx_eq!(f32, atom2.get_velocity().z, 0.0);
+
+        assert_approx_eq!(f32, atom2.get_force().x, -13.865962);
+        assert_approx_eq!(f32, atom2.get_force().y, -36.480534);
+        assert_approx_eq!(f32, atom2.get_force().z, -88.47915);
+    }
+
+    #[test]
     fn read_trr_iter() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
@@ -894,6 +1149,23 @@ mod tests {
 
         for (i, raw) in system
             .trr_iter("test_files/short_trajectory.trr")
+            .unwrap()
+            .enumerate()
+        {
+            let frame = raw.unwrap();
+
+            assert_eq!(frame.get_simulation_time() as usize, times[i]);
+        }
+    }
+
+    #[test]
+    fn read_trr_iter_double_precision() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        let times = [0, 120, 160, 240, 320, 360, 480, 600, 640];
+
+        for (i, raw) in system
+            .trr_iter("test_files/short_trajectory_double.trr")
             .unwrap()
             .enumerate()
         {
@@ -942,6 +1214,38 @@ mod tests {
             .zip(
                 system2
                     .trr_iter("test_files/short_trajectory.trr")
+                    .unwrap()
+                    .with_range(200.0, 600.0)
+                    .unwrap(),
+            )
+        {
+            i += 1;
+
+            let frame1 = raw_frame1.unwrap();
+            let frame2 = raw_frame2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+
+        assert_eq!(i, 5);
+    }
+
+    #[test]
+    fn read_trr_range_double_precision() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        let mut i = 0;
+
+        for (raw_frame1, raw_frame2) in system1
+            .trr_iter("test_files/short_trajectory_double.trr")
+            .unwrap()
+            .skip(3)
+            .zip(
+                system2
+                    .trr_iter("test_files/short_trajectory_double.trr")
                     .unwrap()
                     .with_range(200.0, 600.0)
                     .unwrap(),
@@ -1087,6 +1391,32 @@ mod tests {
             .zip(
                 system2
                     .trr_iter("test_files/short_trajectory.trr")
+                    .unwrap()
+                    .step_by(3),
+            )
+        {
+            let frame1 = raw1.unwrap();
+            let frame2 = raw2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+    }
+
+    #[test]
+    fn read_trr_step_3_double_precision() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        for (raw1, raw2) in system1
+            .trr_iter("test_files/short_trajectory_double.trr")
+            .unwrap()
+            .with_step(3)
+            .unwrap()
+            .zip(
+                system2
+                    .trr_iter("test_files/short_trajectory_double.trr")
                     .unwrap()
                     .step_by(3),
             )

@@ -171,7 +171,7 @@ impl Atom {
     }
 
     /// Check whether the atom has non-zero position.
-    /// 
+    ///
     /// ## Returns
     /// `true` if the atom has non-zero position. `false` otherwise.
     pub fn has_position(&self) -> bool {

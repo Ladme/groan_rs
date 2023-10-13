@@ -235,7 +235,7 @@ pub enum WriteTrajError {
     #[error("{} file '{}' could not be created", "error:".red().bold(), path_to_yellow(.0))]
     CouldNotCreate(Box<Path>),
     /// Used when a frame could not be written into a trajectory file for any reason.
-    #[error("{} could not write frame to an xdr file", "error:".red().bold())]
+    #[error("{} could not write frame to a trajectory file", "error:".red().bold())]
     CouldNotWrite,
     /// Used when the group of atoms selected to be written into the trajectory file does not exist.
     #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]

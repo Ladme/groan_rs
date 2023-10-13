@@ -559,7 +559,7 @@ pub trait TrajWrite {
 
 /// Any structure implementing `TrajGroupWrite` can be used to write a trajectory file.
 pub trait TrajGroupWrite {
-    /// Open a new xdr file for writing and associate a specific group from a specific system with it.
+    /// Open a new trajectory file for writing and associate a specific group from a specific system with it.
     ///
     /// ## Example
     /// Using `TrajGroupWrite::new` in a generic function.

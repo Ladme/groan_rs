@@ -4,8 +4,25 @@
 //! # groan_rs: Gromacs Analysis Library for Rust
 //!
 //! Rust library for analyzing Gromacs simulations.
-//! Currently in very early stage of development:
-//! anything can break, change or stop working at any time.
+//! Currently in an early stage of development: anything can break, change or stop working at any time.
+//!
+//! ## What it can do
+//! - Read and write gro, pdb, ndx, xtc and trr files.
+//! - Iterate over atoms and access their properties.
+//! - Select atoms using a selection language similar to VMD.
+//! - Calculate distances between atoms respecting periodic boundary conditions.
+//! - Select atoms based on geometric conditions.
+//! - Calculate center of geometry for *any* group of atoms.
+//! - Center a group of atoms in a simulation box.
+//! - And some other, less relevant stuff.
+//!
+//! ## What it CAN'T do (at the moment)
+//! - Read tpr files.
+//! - Work with atom masses.
+//! - Read xtc and trr files with non-orthogonal simulation boxes.
+//! - Work with non-orthogonal periodic boundary conditions.
+//! - Perform advanced analyses of structure and dynamics out of the box.
+//! (But `groan_rs` library tries to make it simple to implement your own!)
 //!
 //! ## Usage
 //!
@@ -95,7 +112,8 @@
 //!
 //! #### Analyzing a trajectory file
 //!
-//! Read an xtc file and calculate distance between two groups of atoms for each frame.
+//! Read an xtc file and calculate distance between two groups of atoms for each frame
+//! starting at time 100 ns and ending at time 300 ns.
 //! _(`groan_rs` supports procedural as well as functional approaches.)_
 //!
 //! Procedural approach:
@@ -116,7 +134,11 @@
 //!     let mut distances = Vec::new();
 //!
 //!     // read the trajectory calculating the distance between the groups for each frame
-//!     for frame in system.xtc_iter("files/md_short.xtc")? {
+//!     for frame in system
+//!         .xtc_iter("files/md_short.xtc")?
+//!         // we are only interested in frames between 100 and 300 ns
+//!         .with_range(100_000.0, 300_000.)?
+//!    {
 //!         // check that the xtc frame has been read correctly
 //!         let frame = frame?;
 //!         // calculate the distance and put it into the vector
@@ -148,11 +170,14 @@
 //!     system.group_create("group 1", "serial 1 to 5")?;
 //!     system.group_create("group 2", "resid 45")?;
 //!
-//!     // read the trajectory calculating distance between the groups for each frame
+//!     // read the trajectory calculating distance between the groups
+//!     // for each frame in the time range 100-300 ns
 //!     // and collect the results into a vector
 //!     let distances: Vec<f32> = system
 //!         // read an xtc trajectory
 //!         .xtc_iter("trajectory.xtc")?
+//!         // we are only interested in frames between 100 and 300 ns
+//!         .with_range(100_000.0, 300_000.)?
 //!         // calculate distance between the groups for each frame
 //!         .map(|frame| {
 //!             // check that the xtc frame has been read correctly
@@ -172,6 +197,9 @@
 //!     Ok(())
 //! }
 //! ```
+//!
+//! Note that `with_range` is a very efficient method and will skip xtc frames that are not
+//! in the specified range without actually reading properties of the atoms from these frames.
 //!
 //! #### Converting between trr and xtc files
 //!
@@ -449,24 +477,12 @@
 //!
 //! Note that `groan_rs` will still work correctly even if you do not explicitly include the error types.
 //!
-//! ## Features
-//! - [x] reading and writing gro files
-//! - [x] reading and writing xtc files
-//! - [x] reading and writing ndx files
-//! - [x] VMD-like selection language
-//! - [x] basic geometry selection
-//! - [x] center of geometry calculations
-//! - [x] distance calculation respecting PBC
-//! - [x] simulation frame centering
-//! - [x] reading and writing pdb files
-//! - [x] reading and writing trr files
-//! - [ ] reading tpr files
-//! - [ ] center of mass calculations
-//! - [ ] support for non-orthogonal boxes
-//!
 //! ## Limitations
-//! Currently, most of the `groan_rs` library only supports simulation boxes that are orthogonal!
+//! - Currently, most of the `groan_rs` library only supports simulation boxes that are orthogonal!
 //! If you intend to analyze simulations with non-orthogonal simulation boxes, look elsewhere.
+//!
+//! - While `groan_rs` can read double-precision trr files, it uses single-precision floating point numbers everywhere in its code.
+//! If you require double-precision for your analyses, look elsewhere.
 //!
 //! ## License
 //! This library is released under the MIT License.

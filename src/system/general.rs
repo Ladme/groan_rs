@@ -593,13 +593,22 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         assert!(system.has_positions());
 
-        system.trr_iter("test_files/short_trajectory.trr").unwrap().nth(1);
+        system
+            .trr_iter("test_files/short_trajectory.trr")
+            .unwrap()
+            .nth(1);
         assert!(!system.has_positions());
 
-        system.trr_iter("test_files/short_trajectory.trr").unwrap().nth(2);
+        system
+            .trr_iter("test_files/short_trajectory.trr")
+            .unwrap()
+            .nth(2);
         assert!(!system.has_positions());
 
-        system.trr_iter("test_files/short_trajectory.trr").unwrap().nth(3);
+        system
+            .trr_iter("test_files/short_trajectory.trr")
+            .unwrap()
+            .nth(3);
         assert!(system.has_positions());
     }
 
