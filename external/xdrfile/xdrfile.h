@@ -623,6 +623,21 @@ extern "C"
 									XDRFILE *    xfp);
 
 
+	
+	int xtc_jump_to_start(XDRFILE *xdp, float target_time);
+
+
+	/*! 
+	 * \brief Moves the file position indicator by `offset` bytes from its current position.
+	 * 
+	 * \param 	xdp		pointer to the XDRFILE
+	 * \param	offset	number of bytes to move by
+	 * 
+	 * \return	0 if successfully moved, 1 in case of an error
+	 * 
+	 * \note	This function was written for the `groan_rs` library.
+	 */
+	int xdr_jump(XDRFILE *xdp, long offset);
 
 #ifdef __cplusplus
 }

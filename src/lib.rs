@@ -4,8 +4,25 @@
 //! # groan_rs: Gromacs Analysis Library for Rust
 //!
 //! Rust library for analyzing Gromacs simulations.
-//! Currently in very early stage of development:
-//! anything can break, change or stop working at any time.
+//! Currently in an early stage of development: anything can break, change or stop working at any time.
+//!
+//! ## What it can do
+//! - Read and write gro, pdb, ndx, xtc and trr files.
+//! - Iterate over atoms and access their properties.
+//! - Select atoms using a selection language similar to VMD.
+//! - Calculate distances between atoms respecting periodic boundary conditions.
+//! - Select atoms based on geometric conditions.
+//! - Calculate center of geometry for *any* group of atoms.
+//! - Center a group of atoms in a simulation box.
+//! - And some other, less relevant stuff.
+//!
+//! ## What it CAN'T do (at the moment)
+//! - Read tpr files.
+//! - Work with atom masses.
+//! - Read xtc and trr files with non-orthogonal simulation boxes.
+//! - Work with non-orthogonal periodic boundary conditions.
+//! - Perform advanced analyses of structure and dynamics out of the box.
+//! (But `groan_rs` library tries to make it simple to implement your own!)
 //!
 //! ## Usage
 //!
@@ -95,7 +112,8 @@
 //!
 //! #### Analyzing a trajectory file
 //!
-//! Read an xtc file and calculate distance between two groups of atoms for each frame.
+//! Read an xtc file and calculate distance between two groups of atoms for each frame
+//! starting at time 100 ns and ending at time 300 ns.
 //! _(`groan_rs` supports procedural as well as functional approaches.)_
 //!
 //! Procedural approach:
@@ -116,7 +134,11 @@
 //!     let mut distances = Vec::new();
 //!
 //!     // read the trajectory calculating the distance between the groups for each frame
-//!     for frame in system.xtc_iter("files/md_short.xtc")? {
+//!     for frame in system
+//!         .xtc_iter("files/md_short.xtc")?
+//!         // we are only interested in frames between 100 and 300 ns
+//!         .with_range(100_000.0, 300_000.)?
+//!    {
 //!         // check that the xtc frame has been read correctly
 //!         let frame = frame?;
 //!         // calculate the distance and put it into the vector
@@ -148,11 +170,14 @@
 //!     system.group_create("group 1", "serial 1 to 5")?;
 //!     system.group_create("group 2", "resid 45")?;
 //!
-//!     // read the trajectory calculating distance between the groups for each frame
+//!     // read the trajectory calculating distance between the groups
+//!     // for each frame in the time range 100-300 ns
 //!     // and collect the results into a vector
 //!     let distances: Vec<f32> = system
 //!         // read an xtc trajectory
 //!         .xtc_iter("trajectory.xtc")?
+//!         // we are only interested in frames between 100 and 300 ns
+//!         .with_range(100_000.0, 300_000.)?
 //!         // calculate distance between the groups for each frame
 //!         .map(|frame| {
 //!             // check that the xtc frame has been read correctly
@@ -172,6 +197,9 @@
 //!     Ok(())
 //! }
 //! ```
+//!
+//! Note that `with_range` is a very efficient method and will skip xtc frames that are not
+//! in the specified range without actually reading properties of the atoms from these frames.
 //!
 //! #### Converting between trr and xtc files
 //!
@@ -371,13 +399,14 @@
 //!
 //! **Selecting atoms by autodetection**
 //!
-//! You can select atoms using internally defined macros. Currently, `groan_rs` library provides six of such macros:
+//! You can select atoms using internally defined macros. Currently, `groan_rs` library provides seven of such macros:
 //! - `@protein` will select all atoms corresponding to amino acids (supports some 140 different amino acids).
 //! - `@water` will select all atoms of water.
-//! - `@ions` will select all atoms of ions.
+//! - `@ion` will select all atoms of ions.
 //! - `@membrane` will select all atoms corresponding to membrane lipids (supports over 200 membrane lipid types).
 //! - `@dna` will select all atoms belonging to a DNA molecule.
 //! - `@rna` will select all atoms belonging to an RNA molecule.
+//! - `@hydrogen` will select all hydrogen atoms.
 //!
 //! Please be aware that while groan macros are generally dependable, there is no absolute guarantee that they will unfailingly identify all atoms correctly. Be careful when using them.
 //!
@@ -390,6 +419,10 @@
 //! Instead of writing residue or atom numbers explicitly, you can use keyword `to` or `-` to specify a range. For example, instead of writing `resid 14 15 16 17 18 19 20`, you can use `resid 14 to 20` or `resid 14-20`. This will select all atoms corresponding to residues with residue numbers 14, 15, 16, 17, 18, 19, or 20.
 //!
 //! You can also specify multiple ranges in a single query or combine ranges with explicitly provided numbers. For example, `serial 1 3 to 6 10 12 - 14 17` will expand to `serial 1 3 4 5 6 10 12 13 14 17`.
+//!
+//! Open-ended ranges can be specified using the `<`, `>`, `<=`, and `>=` operators. For example, instead of writing `serial 1 to 180`, you can use `serial <= 180`. This will select all atoms with atom numbers lower than or equal to 180. Similarly, `resid > 33` will select atoms of all residues with residue number 34 or higher.
+//!
+//! Open-ended ranges can be combined with from-to ranges and explicitly provided numbers. For instance, `serial 1 3-6 >=20` will select all atoms with atom numbers 1, 3, 4, 5, 6, or 20 and higher.
 //!
 //! **Negations**
 //!
@@ -419,6 +452,14 @@
 //!
 //! You can also place `not` (`!`) operator in front of a parenthetical expression. For example, `!(serial 1 to 6 && name P)` will select all atoms that do **not** have atom number between 1 and 6 while also having the atom name P.
 //!
+//! **Regular expressions**
+//!
+//! Atom, residue, and group names can be specified using regular expressions. For instance all hydrogens atoms in the system can be selected using `name r'^[1-9]?H.*'` (or using the `@hydrogen` macro which expands to the same regular expression). Similarly, all phosphatidylcholine lipids can be selected using `resname r'^.*PC'`. Query `group r'^P'` or just `r'^P'` will then select atoms of all groups which name starts with 'P' (case sensitive).
+//!
+//! Note that the regular expression must be enclosed inside "regular expression block" starting with `r'` and ending with `'`. You can specify multiple regular expressions in a single query and use them alongside normal strings.
+//!
+//! Regular expressions are evaluated using the `regex crate`. For more information about the supported regular expressions, visit <https://docs.rs/regex/latest/regex/>.
+//!
 //! **Note about whitespace**
 //!
 //! Operators and parentheses do not have to be separated by whitespace from the rest of the query, unless the meaning of the query would become unclear. For instance, `not(name CA)or(serial 1to45||Protein)` is a valid query, while `not(name CA)or(serial 1to45orProtein)` is **not** valid, as `orProtein` becomes uninterpretable. However, enclosing the `Protein` in parentheses, i.e. `not(name CA)or(serial 1to45or(Protein))`, turns the query into a valid one again.
@@ -436,24 +477,12 @@
 //!
 //! Note that `groan_rs` will still work correctly even if you do not explicitly include the error types.
 //!
-//! ## Features
-//! - [x] reading and writing gro files
-//! - [x] reading and writing xtc files
-//! - [x] reading and writing ndx files
-//! - [x] VMD-like selection language
-//! - [x] basic geometry selection
-//! - [x] center of geometry calculations
-//! - [x] distance calculation respecting PBC
-//! - [x] simulation frame centering
-//! - [x] reading and writing pdb files
-//! - [x] reading and writing trr files
-//! - [ ] reading tpr files
-//! - [ ] center of mass calculations
-//! - [ ] support for non-orthogonal boxes
-//!
 //! ## Limitations
-//! Currently, most of the `groan_rs` library only supports simulation boxes that are orthogonal!
+//! - Currently, most of the `groan_rs` library only supports simulation boxes that are orthogonal!
 //! If you intend to analyze simulations with non-orthogonal simulation boxes, look elsewhere.
+//!
+//! - While `groan_rs` can read double-precision trr files, it uses single-precision floating point numbers everywhere in its code.
+//! If you require double-precision for your analyses, look elsewhere.
 //!
 //! ## License
 //! This library is released under the MIT License.
@@ -467,12 +496,17 @@ pub mod io {
     pub mod gro_io;
     mod ndx_io;
     pub mod pdb_io;
+    pub mod traj_io;
     pub mod trr_io;
-    pub mod xdrfile;
+    mod xdrfile;
     pub mod xtc_io;
 }
 pub mod iterators;
-mod select;
+mod selections {
+    mod name;
+    mod numbers;
+    pub mod select;
+}
 pub mod structures {
     pub mod atom;
     pub mod dimension;
@@ -491,8 +525,10 @@ pub mod system {
 
 /// Reexported basic `groan_rs` structures and traits.
 pub mod prelude {
+    pub use crate::io::traj_io::{
+        TrajGroupWrite, TrajRangeRead, TrajRangeReader, TrajRead, TrajReader, TrajWrite,
+    };
     pub use crate::io::trr_io::{TrrGroupWriter, TrrReader, TrrWriter};
-    pub use crate::io::xdrfile::{XdrGroupWriter, XdrReader, XdrWriter};
     pub use crate::io::xtc_io::{XtcGroupWriter, XtcReader, XtcWriter};
     pub use crate::structures::atom::Atom;
     pub use crate::structures::dimension::Dimension;

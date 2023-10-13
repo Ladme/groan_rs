@@ -200,14 +200,12 @@ fn get_natoms(
 ) -> Result<usize, ParseGroError> {
     let mut line = String::new();
     match buffer.read_line(&mut line) {
-        Ok(0) | Err(_) => return Err(ParseGroError::LineNotFound(Box::from(filename.as_ref()))),
-        Ok(_) => {
-            match line.trim().parse::<usize>() {
-                Ok(x) => return Ok(x),
-                Err(_) => return Err(ParseGroError::ParseLineErr(line.trim().to_string())),
-            };
-        }
-    };
+        Ok(0) | Err(_) => Err(ParseGroError::LineNotFound(Box::from(filename.as_ref()))),
+        Ok(_) => match line.trim().parse::<usize>() {
+            Ok(x) => Ok(x),
+            Err(_) => Err(ParseGroError::ParseLineErr(line.trim().to_string())),
+        },
+    }
 }
 
 /// Parse a line as atom.
@@ -286,7 +284,7 @@ fn line_as_box(line: &str) -> Result<SimBox, ParseGroError> {
     }
 
     if i != 3 && i != 9 {
-        return Err(ParseGroError::ParseBoxLineErr(line.to_string()))?;
+        Err(ParseGroError::ParseBoxLineErr(line.to_string()))?;
     }
 
     Ok(simulation_box.into())

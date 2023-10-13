@@ -170,6 +170,14 @@ impl Atom {
         self.force.z = force.z;
     }
 
+    /// Check whether the atom has non-zero position.
+    ///
+    /// ## Returns
+    /// `true` if the atom has non-zero position. `false` otherwise.
+    pub fn has_position(&self) -> bool {
+        self.position.x != 0.0 || self.position.y != 0.0 || self.position.z != 0.0
+    }
+
     /// Check whether the atom has non-zero velocity.
     ///
     /// ## Returns
@@ -548,6 +556,16 @@ mod tests {
         atom.set_force(&new_for);
 
         assert_eq!(*atom.get_force(), new_for);
+    }
+
+    #[test]
+    fn has_position() {
+        let mut atom = make_default_atom();
+        assert!(atom.has_position());
+
+        let new_pos = Vector3D::default();
+        atom.set_position(&new_pos);
+        assert!(!atom.has_position());
     }
 
     #[test]

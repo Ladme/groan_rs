@@ -36,7 +36,7 @@ impl System {
     ///
     /// ## Notes
     /// - In case a group with the given name already exists, it is replaced with the new group.
-    /// - The following characters are not allowed in group names: '"&|!@()
+    /// - The following characters are not allowed in group names: '"&|!@()<>=
     /// - The group will be created even if the query selects no atoms.
     pub fn group_create(&mut self, name: &str, query: &str) -> Result<(), GroupError> {
         if !Group::name_is_valid(name) {
@@ -89,7 +89,7 @@ impl System {
     ///
     /// ## Notes
     /// - In case a group with the given name already exists, it is replaced with the new group.
-    /// - The following characters are not allowed in group names: '"&|!@()
+    /// - The following characters are not allowed in group names: '"&|!@()<>=
     /// - The group will be created even if no atoms are selected.
     pub fn group_create_from_geometry(
         &mut self,
@@ -136,7 +136,7 @@ impl System {
     ///
     /// ## Notes
     /// - In case a group with the given name already exists, it is replaced with the new group.
-    /// - The following characters are not allowed in group names: '"&|!@()
+    /// - The following characters are not allowed in group names: '"&|!@()<>=
     /// - The created Group will be valid even if the input `atom_indices` vector contains multiple identical indices.
     pub fn group_create_from_indices(
         &mut self,
@@ -178,7 +178,7 @@ impl System {
     ///
     /// ## Notes
     /// - In case a group with the given name already exists, it is replaced with the new group.
-    /// - The following characters are not allowed in group names: '"&|!@()
+    /// - The following characters are not allowed in group names: '"&|!@()<>=
     /// - The created Group will be valid even if the input `atom_ranges` vector contains overlapping atom ranges.
     pub fn group_create_from_ranges(
         &mut self,
@@ -702,6 +702,7 @@ impl System {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::SelectError;
     use crate::structures::dimension::Dimension;
     use crate::structures::shape::*;
 
@@ -758,6 +759,13 @@ mod tests {
             Err(e) => {
                 assert!(e.to_string().contains("unmatching parentheses"));
             }
+        }
+
+        // nonexistent group
+        match system.group_create("MyProtein", "Protein") {
+            Ok(_) => panic!("Parsing should have failed but it succeeded."),
+            Err(GroupError::InvalidQuery(SelectError::GroupNotFound(_))) => (),
+            Err(e) => panic!("Incorrect error {} returned.", e),
         }
     }
 
@@ -1046,6 +1054,201 @@ mod tests {
     }
 
     #[test]
+    fn group_create_open_ended_ranges() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.group_create("Group1", "resid < 380").unwrap();
+
+        assert!(system.group_exists("Group1"));
+        assert_eq!(system.group_get_n_atoms("Group1").unwrap(), 4261);
+
+        for i in 0..4261 {
+            assert!(system.group_isin("Group1", i).unwrap());
+        }
+
+        system.group_create("Group2", "resid <= 380").unwrap();
+        assert!(system.group_exists("Group2"));
+        assert_eq!(system.group_get_n_atoms("Group2").unwrap(), 4273);
+
+        for i in 0..4273 {
+            assert!(system.group_isin("Group2", i).unwrap());
+        }
+
+        system.group_create("Group3", "serial > 9143").unwrap();
+        assert!(system.group_exists("Group3"));
+        assert_eq!(system.group_get_n_atoms("Group3").unwrap(), 7701);
+
+        for i in 9143..16844 {
+            assert!(system.group_isin("Group3", i).unwrap());
+        }
+
+        system.group_create("Group4", "serial >= 9143").unwrap();
+        assert!(system.group_exists("Group4"));
+        assert_eq!(system.group_get_n_atoms("Group4").unwrap(), 7702);
+
+        for i in 9142..16844 {
+            assert!(system.group_isin("Group4", i).unwrap());
+        }
+
+        system
+            .group_create("Group 5", "serial <= 10000 10005-10010")
+            .unwrap();
+        assert!(system.group_exists("Group 5"));
+        assert_eq!(system.group_get_n_atoms("Group 5").unwrap(), 10006);
+
+        for i in 0..10000 {
+            assert!(system.group_isin("Group 5", i).unwrap());
+        }
+
+        for i in 10004..10010 {
+            assert!(system.group_isin("Group 5", i).unwrap());
+        }
+    }
+
+    #[test]
+    fn group_create_regex() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system
+            .group_create("LysLeuAla", "resname r'^[LA].*'")
+            .unwrap();
+
+        assert!(system.group_exists("LysLeuAla"));
+        assert_eq!(system.group_get_n_atoms("LysLeuAla").unwrap(), 36);
+
+        assert!(system.group_isin("LysLeuAla", 1).unwrap());
+        assert!(system.group_isin("LysLeuAla", 58).unwrap());
+
+        system
+            .group_create("Tails", "resname POPC and name r'^[CD][124][AB]'")
+            .unwrap();
+
+        assert!(system.group_exists("Tails"));
+        assert_eq!(system.group_get_n_atoms("Tails").unwrap(), 3072);
+
+        assert!(system.group_isin("Tails", 65).unwrap());
+        assert!(system.group_isin("Tails", 6204).unwrap());
+
+        system
+            .group_create("Group3", "resname r'^..PC' r'L'")
+            .unwrap();
+
+        assert!(system.group_exists("Group3"));
+        assert_eq!(system.group_get_n_atoms("Group3").unwrap(), 6203);
+
+        assert!(system.group_isin("Group3", 0).unwrap());
+        assert!(system.group_isin("Group3", 6204).unwrap());
+    }
+
+    #[test]
+    fn group_create_regex_aa() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+
+        system
+            .group_create("Hydrogens", "name r'^[1-9]?H.*'")
+            .unwrap();
+
+        assert!(system.group_exists("Hydrogens"));
+        assert_eq!(system.group_get_n_atoms("Hydrogens").unwrap(), 20875);
+
+        assert!(system.group_isin("Hydrogens", 32787).unwrap());
+        assert!(system.group_isin("Hydrogens", 1).unwrap());
+    }
+
+    #[test]
+    fn group_create_regex_groups() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        system.group_create("Regex1", "r'^Transmembrane'").unwrap();
+        assert!(system.group_exists("Regex1"));
+        assert_eq!(system.group_get_n_atoms("Regex1").unwrap(), 61);
+
+        assert!(system.group_isin("Regex1", 0).unwrap());
+        assert!(system.group_isin("Regex1", 60).unwrap());
+        assert!(!system.group_isin("Regex1", 61).unwrap());
+
+        system.group_create("Regex2", "r'^Transmembrane$'").unwrap();
+        assert!(system.group_exists("Regex2"));
+        assert_eq!(system.group_get_n_atoms("Regex2").unwrap(), 29);
+
+        assert!(system.group_isin("Regex2", 0).unwrap());
+        assert!(system.group_isin("Regex2", 59).unwrap());
+        assert!(!system.group_isin("Regex2", 60).unwrap());
+
+        system.group_create("Regex3", "group r'^P' ION").unwrap();
+        assert!(system.group_exists("Regex3"));
+        assert_eq!(system.group_get_n_atoms("Regex3").unwrap(), 6445);
+
+        assert!(system.group_isin("Regex3", 0).unwrap());
+        assert!(system.group_isin("Regex3", 16843).unwrap());
+        assert!(!system.group_isin("Regex3", 16603).unwrap());
+        assert!(!system.group_isin("Regex3", 6205).unwrap());
+
+        // partially non-matching regex
+        system
+            .group_create("Regex4", "group r'^P' r'^X' ION")
+            .unwrap();
+        assert!(system.group_exists("Regex4"));
+        assert_eq!(system.group_get_n_atoms("Regex4").unwrap(), 6445);
+
+        assert!(system.group_isin("Regex4", 0).unwrap());
+        assert!(system.group_isin("Regex4", 16843).unwrap());
+        assert!(!system.group_isin("Regex4", 16603).unwrap());
+        assert!(!system.group_isin("Regex4", 6205).unwrap());
+
+        // no matching group
+        match system.group_create("Regex5", "group r'X'") {
+            Ok(_) => panic!("Should have failed."),
+            Err(GroupError::InvalidQuery(SelectError::NoRegexMatch(e))) => assert_eq!(e, "X"),
+            Err(e) => panic!("Incorrect error type '{}' returned", e),
+        }
+
+        assert!(!system.group_exists("Regex5"));
+    }
+
+    #[test]
+    fn group_create_macro_hydrogen() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+
+        system.group_create("Hydrogens", "@hydrogen").unwrap();
+
+        assert!(system.group_exists("Hydrogens"));
+        assert_eq!(system.group_get_n_atoms("Hydrogens").unwrap(), 20875);
+
+        assert!(system.group_isin("Hydrogens", 32787).unwrap());
+        assert!(system.group_isin("Hydrogens", 1).unwrap());
+    }
+
+    #[test]
+    fn group_create_invalid_names() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        let names = vec![
+            "Invalid&name",
+            "Invalid| name",
+            "Invalid(name",
+            "Invalid)name",
+            "Invalidn@me",
+            "!nvalidname",
+            "Inval'idname",
+            "Inval\"idname",
+            "    ",
+            "Inval=idname",
+            "Inval<idname",
+            ">Invalidname",
+        ];
+
+        for name in names {
+            assert_eq!(
+                system.group_create(name, "serial 1 to 3"),
+                Err(GroupError::InvalidName(name.to_string()))
+            );
+            assert!(!system.group_exists(name));
+        }
+    }
+
+    #[test]
     fn group_create_from_indices() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
@@ -1080,6 +1283,9 @@ mod tests {
             "Inval'idname",
             "Inval\"idname",
             "    ",
+            "Inval=idname",
+            "Inval<idname",
+            ">Invalidname",
         ];
 
         for name in names {
@@ -1126,6 +1332,9 @@ mod tests {
             "Inval'idname",
             "Inval\"idname",
             "    ",
+            "Inval=idname",
+            "Inval<idname",
+            ">Invalidname",
         ];
 
         for name in names {

@@ -3,19 +3,14 @@
 
 //! Rust bindings for the `xdrfile` library.
 
-/******************************/
-/*   C bindings for XdrFile   */
-/******************************/
-
 use std::os::raw::{c_char, c_float, c_int};
 use std::{
     ffi::{CString, NulError},
     path::Path,
 };
 
-use crate::errors::{ReadXdrError, WriteXdrError, XdrError};
+use crate::errors::TrajError;
 use crate::structures::simbox::SimBox;
-use crate::system::general::System;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -60,6 +55,26 @@ extern "C" {
 }
 
 extern "C" {
+    /// Jump to the frame which time is higher than or equal to `target_time`.
+    pub fn xtc_jump_to_start(xd: *mut CXdrFile, target_time: c_float) -> c_int;
+}
+
+extern "C" {
+    /// Jump to the frame which time is higher than or equal to `target_time`
+    pub fn trr_jump_to_start(xd: *mut CXdrFile, target_time: c_float) -> c_int;
+}
+
+extern "C" {
+    /// Skip to the next frame in the xtc file without reading it.
+    pub fn xtc_skip_frame(xd: *mut CXdrFile) -> c_int;
+}
+
+extern "C" {
+    /// Skip to the next frame in the trr file without reading it.
+    pub fn trr_skip_frame(xd: *mut CXdrFile) -> c_int;
+}
+
+extern "C" {
     pub fn read_trr(
         xd: *mut CXdrFile,
         natoms: c_int,
@@ -91,10 +106,6 @@ extern "C" {
     ) -> c_int;
 }
 
-/******************************/
-/*        Rust XdrFile        */
-/******************************/
-
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum OpenMode {
     Read,
@@ -117,11 +128,11 @@ impl Drop for XdrFile {
 
 impl XdrFile {
     /// Open an xdr file returning a handle to the file.
-    pub fn open_xdr(filename: impl AsRef<Path>, mode: OpenMode) -> Result<Self, XdrError> {
+    pub fn open_xdr(filename: impl AsRef<Path>, mode: OpenMode) -> Result<Self, TrajError> {
         unsafe {
             let c_path = match path2cstring(filename.as_ref()) {
                 Ok(x) => x,
-                Err(_) => return Err(XdrError::InvalidPath(Box::from(filename.as_ref()))),
+                Err(_) => return Err(TrajError::InvalidPath(Box::from(filename.as_ref()))),
             };
 
             let handle = xdrfile_open(c_path.as_ptr(), mode2cstring(mode).as_ptr());
@@ -129,7 +140,7 @@ impl XdrFile {
             if !handle.is_null() {
                 Ok(XdrFile { handle })
             } else {
-                Err(XdrError::FileNotFound(Box::from(filename.as_ref())))
+                Err(TrajError::FileNotFound(Box::from(filename.as_ref())))
             }
         }
     }
@@ -175,88 +186,4 @@ pub fn simbox2matrix(simbox: &SimBox) -> [[c_float; 3usize]; 3usize] {
         [0.0, simbox.y, 0.0],
         [0.0, 0.0, simbox.z],
     ]
-}
-
-/***********************************/
-/*  Traits for reading and writing */
-/***********************************/
-
-/// Any structure implementing `XdrReader` can be used to read an xdr file.
-pub trait XdrReader<'a>: Iterator<Item = Result<&'a mut System, ReadXdrError>> {
-    /// Open an xdr (= xtc / trr) file creating an iterator over it.
-    ///
-    /// ## Example
-    /// Using `XdrReader::new` in a generic function.
-    /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use std::path::Path;
-    ///
-    /// // this function can read any xtc or trr file
-    /// fn read_xdr_file<'a, Reader>(system: &'a mut System, file: impl AsRef<Path>)
-    ///     where Reader: XdrReader<'a>
-    /// {
-    ///     // open the xtc/trr file for reading
-    ///     let iterator = Reader::new(system, file).unwrap();
-    ///
-    ///     // read the xtc/trr file
-    ///     for raw_frame in iterator {
-    ///         let frame = raw_frame.unwrap();
-    ///
-    ///         // perform some operation with frame
-    ///     }
-    /// }
-    ///
-    /// // `read_xdr_file` can be then called to read either an xtc file or a trr file
-    /// let mut system = System::from_file("system.gro").unwrap();
-    /// read_xdr_file::<XtcReader>(&mut system, "trajectory.xtc");
-    /// read_xdr_file::<TrrReader>(&mut system, "trajectory.trr");
-    /// ```
-    fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<Self, ReadXdrError>
-    where
-        Self: Sized;
-}
-
-/// Any structure implementing `XdrWriter` can be used to write an xdr file.
-pub trait XdrWriter {
-    /// Open a new xdr (= xtc or trr) file for writing.
-    ///
-    /// ## Example
-    /// Using `XdrWriter::new` in a generic function.
-    /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use std::path::Path;
-    ///
-    /// // this function can write an xtc or a trr file
-    /// fn write_xdr_file<Writer>(system: &System, file: impl AsRef<Path>)
-    ///     where Writer: XdrWriter
-    /// {
-    ///     // open the xtc/trr file for writing
-    ///     let mut writer = Writer::new(system, file).unwrap();
-    ///
-    ///     // write frame into the xtc/trr file
-    ///     writer.write_frame().unwrap();
-    /// }
-    ///
-    /// // `write_xdr_file` can be then called to write either an xtc file or a trr file
-    /// let system = System::from_file("system.gro").unwrap();
-    /// write_xdr_file::<XtcWriter>(&system, "trajectory.xtc");
-    /// write_xdr_file::<TrrWriter>(&system, "trajectory.trr");
-    /// ```
-    fn new(system: &System, filename: impl AsRef<Path>) -> Result<Self, WriteXdrError>
-    where
-        Self: Sized;
-
-    /// Write the current state of the system into an open xdr file (xtc or trr).
-    fn write_frame(&mut self) -> Result<(), WriteXdrError>;
-}
-
-/// Any structure implementing `XdrGroupWriter` can be used to write an xdr file.
-pub trait XdrGroupWriter {
-    /// Open a new xdr file for writing and associate a specific group from a specific system with it.
-    fn new(system: &System, group: &str, filename: impl AsRef<Path>) -> Result<Self, WriteXdrError>
-    where
-        Self: Sized;
-
-    /// Write the current state of the specified group into an open xdr file (xtc or trr).
-    fn write_frame(&mut self) -> Result<(), WriteXdrError>;
 }

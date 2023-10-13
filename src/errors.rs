@@ -34,6 +34,8 @@ fn unpack_set(set: &HashSet<String>) -> ColoredString {
 /// Errors that can occur when reading a file of unknown type.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum ParseFileError {
+    /// Used when a file has an unknown or unsupported file extension or is missing the file extension entirely
+    /// and therefore the file type/format can not be identified.
     #[error("{} file '{}' has an unknown or unsupported file extension", "error:".red().bold(), path_to_yellow(.0))]
     UnknownExtension(Box<Path>),
 }
@@ -41,14 +43,19 @@ pub enum ParseFileError {
 /// Errors that can occur when reading and parsing gro file.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum ParseGroError {
+    /// Used when the gro file was not found (i.e. does not exist).
     #[error("{} file '{}' was not found", "error:".red().bold(), path_to_yellow(.0))]
     FileNotFound(Box<Path>),
+    /// Used when the gro file ended unexpectedly.
     #[error("{} file '{}' ended unexpectedly", "error:".red().bold(), path_to_yellow(.0))]
     LineNotFound(Box<Path>),
+    /// Used when a generic line in the gro file could not be parsed.
     #[error("{} could not parse line '{}'", "error:".red().bold(), .0.yellow())]
     ParseLineErr(String),
+    /// Used when an "atom line" in the gro file could not be parsed.
     #[error("{} could not parse line '{}' as atom", "error:".red().bold(), .0.yellow())]
     ParseAtomLineErr(String),
+    /// Used when a "box line" in the gro file could not be parsed.
     #[error("{} could not parse line '{}' as box dimensions", "error:".red().bold(), .0.yellow())]
     ParseBoxLineErr(String),
 }
@@ -56,18 +63,25 @@ pub enum ParseGroError {
 /// Errors that can occur when reading and parsing pdb file.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum ParsePdbError {
+    /// Used when the pdb file was not found (i.e. does not exist).
     #[error("{} file '{}' was not found", "error:".red().bold(), path_to_yellow(.0))]
     FileNotFound(Box<Path>),
+    /// Used when the pdb file ended unexpectedly.
     #[error("{} file '{}' ended unexpectedly", "error:".red().bold(), path_to_yellow(.0))]
     LineNotFound(Box<Path>),
+    /// Used when a generic line in the pdb file could not be parsed.
     #[error("{} could not parse line '{}'", "error:".red().bold(), .0.yellow())]
     ParseLineErr(String),
+    /// Used when an "ATOM" or "HETATM" line in the pdb file could not be parsed.
     #[error("{} could not parse line '{}' as atom", "error:".red().bold(), .0.yellow())]
     ParseAtomLineErr(String),
+    /// Used when a "CRYST1" line in the pdb file could not be parsed.
     #[error("{} could not parse line '{}' as box dimensions", "error:".red().bold(), .0.yellow())]
     ParseBoxLineErr(String),
+    /// Used when a "TITLE" line in the pdb file could not be parsed.
     #[error("{} could not parse line '{}' as title", "error:".red().bold(), .0.yellow())]
     ParseTitleLineErr(String),
+    /// Used when the simulation box specified in the pdb file is not orthogonal.
     #[error("{} simulation box specified on line '{}' is not orthogonal", "error:".red().bold(), .0.yellow())]
     NonOrthogonalBox(String),
 }
@@ -75,10 +89,13 @@ pub enum ParsePdbError {
 /// Errors that can occur when writing a gro file.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum WriteGroError {
+    /// Used when the gro file could not be opened for writing (i.e. path is invalid).
     #[error("{} file '{}' could not be created", "error:".red().bold(), path_to_yellow(.0))]
     CouldNotCreate(Box<Path>),
+    /// Used when writing into the gro file failed for any reason.
     #[error("{} could not write line into file", "error:".red().bold())]
     CouldNotWrite(),
+    /// Used when the group of atoms selected to be written into the gro file does not exist.
     #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
     GroupNotFound(String),
 }
@@ -86,10 +103,13 @@ pub enum WriteGroError {
 /// Errors that can occur when writing a pdb file.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum WritePdbError {
+    /// Used when the pdb file could not be opened for writing (i.e. path is invalid).
     #[error("{} file '{}' could not be created", "error:".red().bold(), path_to_yellow(.0))]
     CouldNotCreate(Box<Path>),
+    /// Used when writing into the pdb file failed for any reason.
     #[error("{} could not write line into file", "error:".red().bold())]
     CouldNotWrite(),
+    /// Used when the group of atoms selected to be written into the pdb file does not exist.
     #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
     GroupNotFound(String),
 }
@@ -97,14 +117,21 @@ pub enum WritePdbError {
 /// Errors that can occur when working with Groups of atoms.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum GroupError {
+    /// Used when the specified group of atoms does not exist.
     #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
     NotFound(String),
+    /// Used when the group with the same name already exists. This is a warning and does not indicate failure.
     #[error("{} group '{}' already existed and has been overwritten", "warning:".yellow().bold(), .0.yellow())]
     AlreadyExistsWarning(String),
+    /// Used when at least one group shares its name with any of the newly created groups. This is a warning and does not indicate failure.
+    /// This warning is used when creating multiple groups of atoms in a single function. Otherwise, `GroupError::AlreadyExistsWarning` is used.
     #[error("{} following groups already existed and have been overwritten: {}", "warning:".yellow().bold(), unpack_set(.0))]
     MultipleAlreadyExistWarning(Box<HashSet<String>>),
+    /// Used when the name of the group contains invalid character(s).
     #[error("{} name '{}' contains invalid characters", "error:".red().bold(), .0.yellow())]
     InvalidName(String),
+    /// Used when the groan selection language query provided to create the group is invalid.
+    /// Encapsulates the `SelectError` providing more information about the type of error.
     #[error("{}", .0)]
     InvalidQuery(SelectError),
 }
@@ -112,6 +139,7 @@ pub enum GroupError {
 /// Errors that can occur when working with atoms in a system.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum AtomError {
+    /// Used when selecting an atom from the system with invalid atom number.
     #[error("{} atom number '{}' is out of range", "error:".red().bold(), .0.to_string().as_str().yellow())]
     OutOfRange(usize),
 }
@@ -119,18 +147,26 @@ pub enum AtomError {
 /// Errors that can occur when reading and parsing ndx file.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum ParseNdxError {
+    /// Used when the ndx file was not found (i.e. does not exist).
     #[error("{} file '{}' was not found", "error:".red().bold(), path_to_yellow(.0))]
     FileNotFound(Box<Path>),
+    /// Used when the ndx file ended unexpectedly.
     #[error("{} file '{}' ended unexpectedly", "error:".red().bold(), path_to_yellow(.0))]
     LineNotFound(Box<Path>),
+    /// Used when line containing the name of the ndx group could not be parsed.
     #[error("{} could not parse line '{}' as group name", "error:".red().bold(), .0.yellow())]
     ParseGroupNameErr(String),
+    /// Used when a generic line in the ndx file could not be parsed.
     #[error("{} could not parse line '{}'", "error:".red().bold(), .0.yellow())]
     ParseLineErr(String),
+    /// Used when an atom index from the ndx file does not correspond to any atom in the system.
     #[error("{} atom index '{}' does not exist in the system", "error:".red().bold(), .0.to_string().yellow())]
     InvalidAtomIndex(usize),
+    /// Used when at least one group shares its name with any group read from the ndx file. This is a warning and does not indicate failure.
     #[error("{} duplicate groups detected: {}", "warning:".yellow().bold(), unpack_set(.0))]
     DuplicateGroupsWarning(Box<HashSet<String>>),
+    /// Used when at least one group read from the ndx file has an invalid name. Note that even though this is a warning, it indicates
+    /// partial failure of the function as groups with invalid names are NOT CREATED.
     #[error("{} ignored the following groups with invalid names: {}", "warning:".yellow().bold(), unpack_set(.0))]
     InvalidNamesWarning(Box<HashSet<String>>),
 }
@@ -138,43 +174,70 @@ pub enum ParseNdxError {
 /// Errors that can occur when writing an ndx file.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum WriteNdxError {
+    /// Used when the ndx file could not be opened for writing (i.e. path is invalid).
     #[error("{} file '{}' could not be created", "error:".red().bold(), path_to_yellow(.0))]
     CouldNotCreate(Box<Path>),
+    /// Used when writing into the ndx file failed for any reason.
     #[error("{} could not write line into file", "error:".red().bold())]
     CouldNotWrite,
 }
 
-/// Errors that can occur when working with an xtc or a trr file.
+/// Errors that can occur when working with a trajectory file.
 #[derive(Error, Debug, PartialEq, Eq)]
-pub enum XdrError {
+pub enum TrajError {
+    /// Used when the path to the trajectory file is invalid (i.e. contains invalid characters).
     #[error("{} unable to work with path '{}'", "error:".red().bold(), path_to_yellow(.0))]
     InvalidPath(Box<Path>),
+    /// Used when the specified trajectory file could not be reached.
     #[error("{} file '{}' could not be opened or created", "error:".red().bold(), path_to_yellow(.0))]
     FileNotFound(Box<Path>),
 }
 
-/// Errors that can occur when reading an xtc or trr file.
+/// Errors that can occur when reading a trajectory file.
 #[derive(Error, Debug, PartialEq, Eq)]
-pub enum ReadXdrError {
+pub enum ReadTrajError {
+    /// Used when the path to the trajectory file is invalid (i.e. contains invalid characters).
     #[error("{} unable to work with path '{}'", "error:".red().bold(), path_to_yellow(.0))]
     InvalidPath(Box<Path>),
-    #[error("{} file '{}' was not found or could not be read as an xdr file", "error:".red().bold(), path_to_yellow(.0))]
+    /// Used when the trajectory file does not exist, could not be read or is not a valid trajectory file.
+    #[error("{} file '{}' was not found or could not be read as a trajectory file", "error:".red().bold(), path_to_yellow(.0))]
     FileNotFound(Box<Path>),
-    #[error("{} could not read frame in an xdr file", "error:".red().bold())]
+    /// Used when a frame could not be read from a trajectory file.
+    #[error("{} could not read frame in a trajectory file", "error:".red().bold())]
     FrameNotFound,
-    #[error("{} number of atoms in the xdr file '{}' does not match the number of atoms in the system", "error:".red().bold(), path_to_yellow(.0))]
+    /// Used when the number of atoms in the trajectory file does not match the number of atoms in the corresponding `System` structure.
+    #[error("{} number of atoms in the trajectory file '{}' does not match the number of atoms in the system", "error:".red().bold(), path_to_yellow(.0))]
     AtomsNumberMismatch(Box<Path>),
+    /// Used when the time provided as the start of the time range is higher than the time provided as the end of the time range.
+    #[error("{} invalid time range (starting time '{}' ps is higher than the ending time '{}' ps)", "error:".red().bold(), .0.yellow(), .1.yellow())]
+    InvalidTimeRange(String, String),
+    /// Used when the start time is higher than the time of all the frames in the trajectory file
+    #[error("{} start time ('{}' ps) exceeds the time of all frames in the trajectory file", "error:".red().bold(), .0.yellow())]
+    StartNotFound(String),
+    /// Used when the time provided as the start/end of the time range is negative.
+    #[error("{} negative time ('{}' ps) is not allowed in a time range", "error:".red().bold(), .0.yellow())]
+    TimeRangeNegative(String),
+    /// Used when a frame of the trajectory file could not be skipped over.
+    #[error("{} could not skip a frame in a trajectory file", "error:".red().bold())]
+    SkipFailed(),
+    /// Used when the step of the iteration is invalid, usually zero.
+    #[error("{} unsupported iteration step '{}' - must be > 0", "error:".red().bold(), .0.to_string().yellow())]
+    InvalidStep(usize),
 }
 
-/// Errors that can occur when writing an xtc or trr file.
+/// Errors that can occur when writing a trajectory file.
 #[derive(Error, Debug, PartialEq, Eq)]
-pub enum WriteXdrError {
+pub enum WriteTrajError {
+    /// Used when the path to the trajectory file is invalid (i.e. contains invalid characters).
     #[error("{} unable to work with path '{}'", "error:".red().bold(), path_to_yellow(.0))]
     InvalidPath(Box<Path>),
+    /// Used when the trajectory file could not be opened for writing (i.e. path is invalid).
     #[error("{} file '{}' could not be created", "error:".red().bold(), path_to_yellow(.0))]
     CouldNotCreate(Box<Path>),
-    #[error("{} could not write frame to an xdr file", "error:".red().bold())]
+    /// Used when a frame could not be written into a trajectory file for any reason.
+    #[error("{} could not write frame to a trajectory file", "error:".red().bold())]
     CouldNotWrite,
+    /// Used when the group of atoms selected to be written into the trajectory file does not exist.
     #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
     GroupNotFound(String),
 }
@@ -182,24 +245,41 @@ pub enum WriteXdrError {
 /// Errors that can occur when parsing atom selection query.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum SelectError {
+    /// Used when the provided groan selection language query is empty.
     #[error("{} the provided query is empty", "error:".red().bold())]
     EmptyQuery,
+    /// Used when an unknown operator is detected in the groan selection language query.
     #[error("{} invalid operator detected in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
     InvalidOperator(String),
+    /// Used when an operator is missing an argument in the groan selection language query.
     #[error("{} missing argument in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
     MissingArgument(String),
+    /// Used when a keyword is missing an argument in the groan selection language query.
     #[error("{} empty argument in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
     EmptyArgument(String),
+    /// Used when the parentheses are incorrectly used in the groan selection language query.
     #[error("{} unmatching parentheses in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
     InvalidParentheses(String),
+    /// Used when the quotes are incorrectly used in the groan selection language query.
     #[error("{} unmatching number of quotes in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
     InvalidQuotes(String),
+    /// Used when any error occurs while parsing atom/residue numbers or ranges in the groan selection language query.
     #[error("{} could not understand the residue/atom numbers in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
     InvalidNumber(String),
+    /// Used when a group specified in the groan selection language query does not exist.
     #[error("{} group '{}' does not exist", "error:".red().bold(), .0.to_string().yellow())]
     GroupNotFound(String),
+    /// Used when an invalid identifier of a chain (i.e. longer than one character) is used in the groan selection language query.
     #[error("{} invalid chain identifier(s) in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
     InvalidChainId(String),
+    /// Used when the groan selection language query contains a regular expression that is invalid.
+    #[error("{} string '{}' is not a valid regular expression", "error:".red().bold(), .0.to_string().yellow())]
+    InvalidRegex(String),
+    /// Used when the regular expression is used to select groups but corresponds to no groups in the system.
+    /// This is currently only used when no regular expression in the entire subquery corresponds to any groups of atoms.
+    #[error("{} regular expression '{}' matches no atom groups in the system", "error:".red().bold(), .0.to_string().yellow())]
+    NoRegexMatch(String),
+    /// Used when an unknown error which does not have a specific `SelectError` variant occurs while parsing the groan selection language query.
     #[error("{} the provided query '{}' could not be understood for unknown reason", "error:".red().bold(), .0.to_string().yellow())]
     UnknownError(String),
 }

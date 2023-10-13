@@ -1,5 +1,7 @@
-Current developers:
-
+Original xdrfile library was written by:
 David van der Spoel <spoel@gromacs.org>
 Erik Lindahl <lindahl@gromacs.org>
+
+Further modifications for the `groan_rs` library were done by:
+Ladislav Bartos <ladmeb@gmail.com>
 
