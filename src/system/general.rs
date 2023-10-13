@@ -304,6 +304,17 @@ impl System {
         self.lambda = lambda;
     }
 
+    /// Check whether positions are present.
+    ///
+    /// ## Returns
+    /// `true` if any of the atoms in the system has non-zero position. `false` otherwise.
+    ///
+    /// ## Notes
+    /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
+    pub fn has_positions(&self) -> bool {
+        self.atoms.iter().any(|atom| atom.has_position())
+    }
+
     /// Check whether velocities are present.
     ///
     /// ## Returns
@@ -575,6 +586,21 @@ mod tests {
 
         assert!(groups.contains_key("Test"));
         assert!(!system.get_groups_as_ref().contains_key("Test"));
+    }
+
+    #[test]
+    fn has_positions() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        assert!(system.has_positions());
+
+        system.trr_iter("test_files/short_trajectory.trr").unwrap().nth(1);
+        assert!(!system.has_positions());
+
+        system.trr_iter("test_files/short_trajectory.trr").unwrap().nth(2);
+        assert!(!system.has_positions());
+
+        system.trr_iter("test_files/short_trajectory.trr").unwrap().nth(3);
+        assert!(system.has_positions());
     }
 
     #[test]

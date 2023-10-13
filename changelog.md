@@ -16,7 +16,9 @@
   - `TrajStepReader` reads every `step`th frame of the trajectory. Can be constructed for any structure implementing `TrajStepRead` using `with_step` method.
   - `TrajRangeStepReader` reads every `step`th frame of the trajectory in a specified time range. Can be constructed for any structure implementing both `TrajRangeRead` and `TrajStepRead` using `with_range` and `with_step` methods.
 #### Other changes
+- Added `Atom::has_position` and `System::has_positions` methods that checks whether the atom or all atoms in the system, respectively, have non-zero position(s).
 - Enhanced documentation for error variants within the `errors` module.
+
 
 ### Version 0.3.3
 - `@ion` macro should no longer identify any part of proteins as ions.
