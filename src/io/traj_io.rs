@@ -464,6 +464,27 @@ where
 }
 
 /***************************************/
+/*        TrajMasterRead trait         */
+/***************************************/
+
+/// This trait is implemented by all trajectory readers so they can be used in generic functions.
+pub trait TrajMasterRead<'a>: Iterator<Item = Result<&'a mut System, ReadTrajError>> {}
+
+impl<'a, R: TrajRead<'a>> TrajMasterRead<'a> for TrajReader<'a, R> {}
+
+impl<'a, R: TrajRangeRead<'a>> TrajMasterRead<'a> for TrajRangeReader<'a, R> where
+    R::FrameData: FrameDataTime
+{
+}
+
+impl<'a, R: TrajStepRead<'a>> TrajMasterRead<'a> for TrajStepReader<'a, R> {}
+
+impl<'a, R: TrajRangeRead<'a> + TrajStepRead<'a>> TrajMasterRead<'a> for TrajRangeStepReader<'a, R> where
+    R::FrameData: FrameDataTime
+{
+}
+
+/***************************************/
 /*        Generic System methods       */
 /***************************************/
 

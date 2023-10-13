@@ -526,7 +526,9 @@ pub mod system {
 /// Reexported basic `groan_rs` structures and traits.
 pub mod prelude {
     pub use crate::io::traj_io::{
-        TrajGroupWrite, TrajRangeRead, TrajRangeReader, TrajRead, TrajReader, TrajWrite,
+        TrajFile, FrameData, FrameDataTime,
+        TrajGroupWrite, TrajMasterRead, TrajRangeRead, TrajRangeReader, TrajRangeStepReader,
+        TrajRead, TrajReader, TrajStepRead, TrajStepReader, TrajWrite,
     };
     pub use crate::io::trr_io::{TrrGroupWriter, TrrReader, TrrWriter};
     pub use crate::io::xtc_io::{XtcGroupWriter, XtcReader, XtcWriter};
