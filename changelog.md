@@ -2,9 +2,10 @@
 ## Changelog for the `groan_rs` library
 
 ### Version 0.4.2
-- Test files are not included in the `crates.io` crate.
-- Fixed several error variants which contained unnecessary fields.
-- New test for `System::group_create_from_geometry`.
+- Introduced `System::group_create_from_geometries` for group creation with multiple geometry constraints.
+- Excluded test files from the `crates.io` crate distribution.
+- Removed unnecessary fields from several error variants.
+- Added new test for `System::group_create_from_geometry`.
 
 ### Version 0.4.1
 - Added new `TrajMasterRead` trait that is implemented by `TrajReader`, `TrajRangeReader`, `TrajStepReader`, and `TrajRangeStepReader` allowing easier usage of these structures in generic functions.
