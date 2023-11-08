@@ -181,7 +181,7 @@ impl<'a> TrajStepRead<'a> for TrrReader<'a> {
         unsafe {
             match xdrfile::trr_skip_frame(self.get_file_handle()) {
                 0 => Ok(true),
-                1 => Err(ReadTrajError::SkipFailed()),
+                1 => Err(ReadTrajError::SkipFailed),
                 2 => Ok(false),
                 number => panic!(
                     "Groan error. `trr_skip_frame` returned '{}' which is unsupported.",

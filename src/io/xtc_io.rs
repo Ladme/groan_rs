@@ -171,7 +171,7 @@ impl<'a> TrajStepRead<'a> for XtcReader<'a> {
         unsafe {
             match xdrfile::xtc_skip_frame(self.get_file_handle()) {
                 0 => Ok(true),
-                1 => Err(ReadTrajError::SkipFailed()),
+                1 => Err(ReadTrajError::SkipFailed),
                 2 => Ok(false),
                 number => panic!(
                     "Groan error. `xtc_skip_frame` returned '{}' which is unsupported.",
