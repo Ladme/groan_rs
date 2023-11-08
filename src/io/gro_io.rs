@@ -107,7 +107,7 @@ impl System {
         // write simulation box
         self.write_box(&mut writer)?;
 
-        writer.flush().map_err(|_| WriteGroError::CouldNotWrite())?;
+        writer.flush().map_err(|_| WriteGroError::CouldNotWrite)?;
 
         Ok(())
     }
@@ -121,7 +121,7 @@ impl System {
                 " {:9.5} {:9.5} {:9.5}",
                 simbox.x, simbox.y, simbox.z
             )
-            .map_err(|_| WriteGroError::CouldNotWrite())?;
+            .map_err(|_| WriteGroError::CouldNotWrite)?;
         } else {
             writeln!(
                 writer,
@@ -136,7 +136,7 @@ impl System {
                 simbox.v3x,
                 simbox.v3y
             )
-            .map_err(|_| WriteGroError::CouldNotWrite())?;
+            .map_err(|_| WriteGroError::CouldNotWrite)?;
         }
 
         Ok(())
@@ -296,9 +296,9 @@ fn write_header(
     title: &str,
     n_atoms: usize,
 ) -> Result<(), WriteGroError> {
-    writeln!(writer, "{}", title).map_err(|_| WriteGroError::CouldNotWrite())?;
+    writeln!(writer, "{}", title).map_err(|_| WriteGroError::CouldNotWrite)?;
 
-    writeln!(writer, "{:>5}", n_atoms).map_err(|_| WriteGroError::CouldNotWrite())?;
+    writeln!(writer, "{:>5}", n_atoms).map_err(|_| WriteGroError::CouldNotWrite)?;
 
     Ok(())
 }

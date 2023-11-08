@@ -258,7 +258,7 @@ impl Atom {
                 velocity.y,
                 velocity.z
             )
-            .map_err(|_| WriteGroError::CouldNotWrite())?;
+            .map_err(|_| WriteGroError::CouldNotWrite)?;
         } else {
             writeln!(
                 stream,
@@ -271,7 +271,7 @@ impl Atom {
                 position.y,
                 position.z
             )
-            .map_err(|_| WriteGroError::CouldNotWrite())?;
+            .map_err(|_| WriteGroError::CouldNotWrite)?;
         }
 
         Ok(())
@@ -318,7 +318,7 @@ impl Atom {
             position.y * 10.0,
             position.z * 10.0,
         )
-        .map_err(|_| WritePdbError::CouldNotWrite())?;
+        .map_err(|_| WritePdbError::CouldNotWrite)?;
 
         Ok(())
     }

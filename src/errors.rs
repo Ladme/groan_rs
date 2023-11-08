@@ -94,7 +94,7 @@ pub enum WriteGroError {
     CouldNotCreate(Box<Path>),
     /// Used when writing into the gro file failed for any reason.
     #[error("{} could not write line into file", "error:".red().bold())]
-    CouldNotWrite(),
+    CouldNotWrite,
     /// Used when the group of atoms selected to be written into the gro file does not exist.
     #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
     GroupNotFound(String),
@@ -108,7 +108,7 @@ pub enum WritePdbError {
     CouldNotCreate(Box<Path>),
     /// Used when writing into the pdb file failed for any reason.
     #[error("{} could not write line into file", "error:".red().bold())]
-    CouldNotWrite(),
+    CouldNotWrite,
     /// Used when the group of atoms selected to be written into the pdb file does not exist.
     #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
     GroupNotFound(String),

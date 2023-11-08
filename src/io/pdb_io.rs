@@ -149,7 +149,7 @@ impl System {
 
         write_line(&mut writer, "TER\nENDMDL")?;
 
-        writer.flush().map_err(|_| WritePdbError::CouldNotWrite())?;
+        writer.flush().map_err(|_| WritePdbError::CouldNotWrite)?;
 
         Ok(())
     }
@@ -276,7 +276,7 @@ fn line_as_title(line: &str) -> Result<String, ParsePdbError> {
 }
 
 fn write_line<W: Write>(writer: &mut W, line: &str) -> Result<(), WritePdbError> {
-    writeln!(writer, "{}", line).map_err(|_| WritePdbError::CouldNotWrite())
+    writeln!(writer, "{}", line).map_err(|_| WritePdbError::CouldNotWrite)
 }
 
 /// Writer a header for a PDB file.
