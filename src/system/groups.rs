@@ -114,6 +114,70 @@ impl System {
         }
     }
 
+    /// Make a group with a given name from the given Groan selection language query and any number of geometry specifications.
+    /// The group is NOT dynamically updated.
+    ///
+    /// ## Returns
+    /// - `Ok` if the group was successfully created.
+    /// - `GroupError::AlreadyExistsWarning` if the new group has overwritten a previous group.
+    /// - `GroupError::InvalidName` if the name of the group is invalid (no group created).
+    /// - `GroupError::InvalidQuery` if the query could not be parsed.
+    ///
+    /// ## Example
+    /// Select phosphori atoms which are inside a z-axis oriented cylinder
+    /// with a radius of 2 nm and height of 4 nm located at coordinates x = 5 nm, y = 5 nm, z = 3 nm
+    /// while also being inside a sphere with a radius of 3 nm at corodinates x = 5 nm, y = 5 nm, z = 3 nm.
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    ///
+    /// let mut system = System::from_file("system.gro").unwrap();
+    ///
+    /// let cylinder = Cylinder::new([5.0, 5.0, 3.0].into(), 2.0, 4.0, Dimension::Z);
+    /// let sphere = Sphere::new([5.0, 5.0, 3.0].into(), 3.0);
+    ///
+    /// if let Err(e) = system.group_create_from_geometries(
+    ///     "Phosphori",
+    ///     "name P",
+    ///     vec![Box::from(cylinder), Box::from(sphere)],
+    /// ) {
+    ///     eprintln!("{}", e);
+    ///     return;
+    /// }
+    /// ```
+    ///
+    /// ## Warning
+    /// - If you construct the group and then iterate through a trajectory, the group will still contain
+    /// the same atoms as initially. In other words, the group is NOT dynamically updated.
+    /// - If you want to choose atoms dynamically, it is better to use `AtomIterator` and `filter_geometry` function
+    /// while iterating through the trajectory.
+    ///
+    /// ## Notes
+    /// - In case a group with the given name already exists, it is replaced with the new group.
+    /// - The following characters are not allowed in group names: '"&|!@()<>=
+    /// - The group will be created even if no atoms are selected.
+    pub fn group_create_from_geometries(
+        &mut self,
+        name: &str,
+        query: &str,
+        geometries: Vec<Box<dyn Shape>>,
+    ) -> Result<(), GroupError> {
+        if !Group::name_is_valid(name) {
+            return Err(GroupError::InvalidName(name.to_string()));
+        }
+
+        let group = match Group::from_query_and_geometries(query, geometries, self) {
+            Ok(x) => x,
+            Err(e) => return Err(GroupError::InvalidQuery(e)),
+        };
+
+        unsafe {
+            match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
+                None => Ok(()),
+                Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
+            }
+        }
+    }
+
     /// Create a group with a given name from the provided atom indices.
     ///
     /// ## Returns
@@ -1050,6 +1114,178 @@ mod tests {
                     || resname == "CYS"
             );
             assert!(rectangular.inside(atom.get_position(), system.get_box_as_ref()));
+        }
+    }
+
+    #[test]
+    fn group_create_from_geometry_fails() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        let cylinder = Cylinder::new([5.0, 8.0, 3.0].into(), 2.0, 6.0, Dimension::Y);
+
+        match system.group_create_from_geometry("Selected Me>brane", "Membrane", cylinder.clone()) {
+            Ok(()) => panic!("Function should have failed."),
+            Err(GroupError::InvalidName(name)) => assert_eq!(name, "Selected Me>brane"),
+            Err(_) => panic!("Function failed but incorrect error type has been returned."),
+        }
+
+        match system.group_create_from_geometry("Selected Membrane", "brane", cylinder.clone()) {
+            Ok(()) => panic!("Function should have failed."),
+            Err(GroupError::InvalidQuery(SelectError::GroupNotFound(group))) => {
+                assert_eq!(group, "brane")
+            }
+            Err(_) => panic!("Function failed but incorrect error type has been returned."),
+        }
+    }
+
+    #[test]
+    fn group_create_from_geometries_simple() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let cylinder = Cylinder::new([5.0, 8.0, 3.0].into(), 2.0, 6.0, Dimension::Y);
+
+        system
+            .group_create_from_geometry("Cylinder 1", "Membrane", cylinder.clone())
+            .unwrap();
+        system
+            .group_create_from_geometries("Cylinder 2", "Membrane", vec![Box::from(cylinder)])
+            .unwrap();
+
+        assert_eq!(
+            system.group_get_n_atoms("Cylinder 1").unwrap(),
+            system.group_get_n_atoms("Cylinder 2").unwrap()
+        );
+
+        for (a1, a2) in system
+            .group_iter("Cylinder 1")
+            .unwrap()
+            .zip(system.group_iter("Cylinder 2").unwrap())
+        {
+            assert_eq!(a1.get_atom_number(), a2.get_atom_number());
+        }
+
+        let sphere = Sphere::new([0.5, 4.5, 3.5].into(), 4.6);
+
+        system
+            .group_create_from_geometry("Sphere 1", "resname W", sphere.clone())
+            .unwrap();
+        system
+            .group_create_from_geometries("Sphere 2", "resname W", vec![Box::from(sphere)])
+            .unwrap();
+
+        assert_eq!(
+            system.group_get_n_atoms("Sphere 1").unwrap(),
+            system.group_get_n_atoms("Sphere 2").unwrap()
+        );
+
+        for (a1, a2) in system
+            .group_iter("Sphere 1")
+            .unwrap()
+            .zip(system.group_iter("Sphere 2").unwrap())
+        {
+            assert_eq!(a1.get_atom_number(), a2.get_atom_number());
+        }
+
+        let rectangular = Rectangular::new([5.0, 0.0, 2.0].into(), 5.0, 4.0, 4.3);
+
+        system
+            .group_create_from_geometry("Rectangular 1", "@protein", rectangular.clone())
+            .unwrap();
+        system
+            .group_create_from_geometries("Rectangular 2", "@protein", vec![Box::from(rectangular)])
+            .unwrap();
+
+        assert_eq!(
+            system.group_get_n_atoms("Rectangular 1").unwrap(),
+            system.group_get_n_atoms("Rectangular 2").unwrap()
+        );
+
+        for (a1, a2) in system
+            .group_iter("Rectangular 1")
+            .unwrap()
+            .zip(system.group_iter("Rectangular 2").unwrap())
+        {
+            assert_eq!(a1.get_atom_number(), a2.get_atom_number());
+        }
+    }
+
+    #[test]
+    fn group_create_from_geometries_complex() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let rectangular = Rectangular::new([5.0, 0.0, 2.0].into(), 5.0, 4.0, 4.3);
+        let sphere = Sphere::new([5.5, 0.5, 2.0].into(), 4.6);
+        let cylinder = Cylinder::new([5.0, 8.0, 3.0].into(), 2.0, 8.0, Dimension::Y);
+
+        system
+            .group_create_from_geometries(
+                "Selected Membrane",
+                "@membrane",
+                vec![
+                    Box::from(rectangular.clone()),
+                    Box::from(sphere.clone()),
+                    Box::from(cylinder.clone()),
+                ],
+            )
+            .unwrap();
+
+        assert!(system.group_exists("Selected Membrane"));
+        assert_eq!(system.group_get_n_atoms("Selected Membrane").unwrap(), 50);
+
+        let expected_numbers: [usize; 50] = [
+            3327, 3329, 3422, 3423, 3424, 3425, 3494, 3495, 3496, 3626, 3627, 3628, 3842, 3843,
+            3844, 3845, 3850, 4130, 4132, 4134, 4694, 4695, 4696, 4697, 4698, 4699, 5105, 5110,
+            5234, 5235, 5236, 5237, 5238, 5242, 5450, 5451, 5452, 5453, 5454, 5455, 5458, 5459,
+            5462, 5463, 5464, 5465, 5466, 5470, 5563, 5564,
+        ];
+
+        for (i, atom) in system.group_iter("Selected Membrane").unwrap().enumerate() {
+            assert_eq!(atom.get_atom_number(), expected_numbers[i]);
+
+            assert!(rectangular.inside(atom.get_position(), system.get_box_as_ref()));
+            assert!(sphere.inside(atom.get_position(), system.get_box_as_ref()));
+            assert!(cylinder.inside(atom.get_position(), system.get_box_as_ref()));
+        }
+    }
+
+    #[test]
+    fn group_create_from_geometries_fails() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        let rectangular = Rectangular::new([5.0, 0.0, 2.0].into(), 5.0, 4.0, 4.3);
+        let sphere = Sphere::new([5.5, 0.5, 2.0].into(), 4.6);
+        let cylinder = Cylinder::new([5.0, 8.0, 3.0].into(), 2.0, 8.0, Dimension::Y);
+
+        match system.group_create_from_geometries(
+            "Selected Me>brane",
+            "Membrane",
+            vec![
+                Box::from(rectangular.clone()),
+                Box::from(sphere.clone()),
+                Box::from(cylinder.clone()),
+            ],
+        ) {
+            Ok(()) => panic!("Function should have failed."),
+            Err(GroupError::InvalidName(name)) => assert_eq!(name, "Selected Me>brane"),
+            Err(_) => panic!("Function failed but incorrect error type has been returned."),
+        }
+
+        match system.group_create_from_geometries(
+            "Selected Membrane",
+            "brane",
+            vec![
+                Box::from(rectangular.clone()),
+                Box::from(sphere.clone()),
+                Box::from(cylinder.clone()),
+            ],
+        ) {
+            Ok(()) => panic!("Function should have failed."),
+            Err(GroupError::InvalidQuery(SelectError::GroupNotFound(group))) => {
+                assert_eq!(group, "brane")
+            }
+            Err(_) => panic!("Function failed but incorrect error type has been returned."),
         }
     }
 

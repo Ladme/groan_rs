@@ -43,8 +43,22 @@ impl Group {
     ) -> Result<Self, SelectError> {
         // create group from query
         let group = Group::from_query(query, system)?;
-        // now apply geometry to the group
+        // now apply geometry constraint to the group
         Ok(group.apply_geometry(geometry, system))
+    }
+
+    /// Create a new valid `Group` structure from query in Groan Selection Language
+    /// and from an arbitrary number of geometry constraints.
+    pub fn from_query_and_geometries(
+        query: &str,
+        geometries: Vec<Box<dyn Shape>>,
+        system: &System,
+    ) -> Result<Self, SelectError> {
+        // create group from query
+        let group = Group::from_query(query, system)?;
+
+        // now apply geometry constraints to the group
+        Ok(group.apply_geometries(geometries, system))
     }
 
     /// Create a new valid Group structure from atom ranges.
@@ -107,6 +121,39 @@ impl Group {
         for (min, max) in self.atom_ranges {
             for (i, atom) in atoms.iter().enumerate().take(max + 1).skip(min) {
                 if geometry.inside(atom.get_position(), simbox) {
+                    indices.push(i);
+                }
+            }
+        }
+
+        let ranges = Group::make_atom_ranges(indices, system.get_n_atoms());
+
+        Group {
+            atom_ranges: ranges,
+            print_ndx: true,
+        }
+    }
+
+    /// Consumes self returning a new `Group` which only contains atoms fulfilling the specified geometry conditions.
+    fn apply_geometries(self, geometries: Vec<Box<dyn Shape>>, system: &System) -> Self {
+        let mut indices = Vec::new();
+
+        let atoms = system.get_atoms_as_ref();
+        let simbox = system.get_box_as_ref();
+
+        // iterate through the atoms of the old group and select atoms fulfilling all geometry conditions
+        for (min, max) in self.atom_ranges {
+            for (i, atom) in atoms.iter().enumerate().take(max + 1).skip(min) {
+                let mut inside = true;
+
+                for geom in &geometries {
+                    if !geom.inside(atom.get_position(), simbox) {
+                        inside = false;
+                        break;
+                    }
+                }
+
+                if inside {
                     indices.push(i);
                 }
             }

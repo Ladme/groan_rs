@@ -5,6 +5,12 @@
 
 use crate::structures::{dimension::Dimension, simbox::SimBox, vector3d::Vector3D};
 
+pub enum ShapeContainer {
+    Sphere,
+    Rectangular,
+    Cylinder,
+}
+
 /// Structure describing a sphere for geometry selections.
 #[derive(Debug, Clone)]
 pub struct Sphere {
