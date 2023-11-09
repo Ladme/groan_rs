@@ -1,6 +1,9 @@
 
 ## Changelog for the `groan_rs` library
 
+### Version 0.5.0
+- Introduced `ProgressPrinter` for printing the progress of trajectory reading. Progress printing can be turned on for any trajectory iteration by using the `TrajMasterRead::print_progress` method.
+
 ### Version 0.4.2
 - Introduced `System::group_create_from_geometries` for group creation with multiple geometry constraints.
 - Excluded test files from the `crates.io` crate distribution.

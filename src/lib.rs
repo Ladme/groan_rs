@@ -507,6 +507,7 @@ mod selections {
     mod numbers;
     pub mod select;
 }
+pub mod progress;
 pub mod structures {
     pub mod atom;
     pub mod dimension;
@@ -532,6 +533,7 @@ pub mod prelude {
     };
     pub use crate::io::trr_io::{TrrGroupWriter, TrrReader, TrrWriter};
     pub use crate::io::xtc_io::{XtcGroupWriter, XtcReader, XtcWriter};
+    pub use crate::progress::ProgressPrinter;
     pub use crate::structures::atom::Atom;
     pub use crate::structures::dimension::Dimension;
     pub use crate::structures::shape::{Cylinder, Rectangular, Shape, Sphere};
