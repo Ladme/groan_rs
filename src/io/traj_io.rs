@@ -825,6 +825,8 @@ pub trait TrajGroupWrite {
 
 #[cfg(test)]
 mod tests {
+    use std::fs::File;
+
     use super::*;
     use crate::prelude::*;
     use float_cmp::assert_approx_eq;
@@ -893,5 +895,198 @@ mod tests {
                 compare_atoms(atom1, atom2);
             }
         }
+    }
+
+    #[test]
+    fn xtc_iter_print_progress() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        let output = File::create("tmp_xtc_iter_print_progress.txt").unwrap();
+
+        let printer = ProgressPrinter::new()
+            .with_print_freq(3)
+            .with_output(Box::from(output))
+            .with_colored(false);
+
+        for (raw1, raw2) in system1
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .print_progress(printer)
+            .zip(system2.xtc_iter("test_files/short_trajectory.xtc").unwrap())
+        {
+            let frame1 = raw1.unwrap();
+            let frame2 = raw2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+
+        let mut result = File::open("tmp_xtc_iter_print_progress.txt").unwrap();
+        let mut expected = File::open("test_files/progress_xtc_iter.txt").unwrap();
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+
+        std::fs::remove_file("tmp_xtc_iter_print_progress.txt").unwrap();
+    }
+
+    #[test]
+    fn xtc_iter_range_print_progress() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        let output = File::create("tmp_xtc_iter_range_print_progress.txt").unwrap();
+
+        let printer = ProgressPrinter::new()
+            .with_print_freq(3)
+            .with_output(Box::from(output))
+            .with_colored(false);
+
+        for (raw1, raw2) in system1
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .print_progress(printer)
+            .with_range(300.0, 800.0)
+            .unwrap()
+            .zip(
+                system2
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_range(300.0, 800.0)
+                    .unwrap(),
+            )
+        {
+            let frame1 = raw1.unwrap();
+            let frame2 = raw2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+
+        let mut result = File::open("tmp_xtc_iter_range_print_progress.txt").unwrap();
+        let mut expected = File::open("test_files/progress_xtc_iter_range.txt").unwrap();
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+
+        std::fs::remove_file("tmp_xtc_iter_range_print_progress.txt").unwrap();
+    }
+
+    #[test]
+    fn xtc_iter_step_print_progress() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        let output = File::create("tmp_xtc_iter_step_print_progress.txt").unwrap();
+
+        let printer = ProgressPrinter::new()
+            .with_print_freq(1)
+            .with_output(Box::from(output))
+            .with_colored(false);
+
+        for (raw1, raw2) in system1
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .print_progress(printer)
+            .with_step(3)
+            .unwrap()
+            .zip(
+                system2
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_step(3)
+                    .unwrap(),
+            )
+        {
+            let frame1 = raw1.unwrap();
+            let frame2 = raw2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+
+        let mut result = File::open("tmp_xtc_iter_step_print_progress.txt").unwrap();
+        let mut expected = File::open("test_files/progress_xtc_iter_step.txt").unwrap();
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+
+        std::fs::remove_file("tmp_xtc_iter_step_print_progress.txt").unwrap();
+    }
+
+    #[test]
+    fn xtc_iter_step_range_print_progress() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        let output = File::create("tmp_xtc_iter_step_range_print_progress.txt").unwrap();
+
+        let printer = ProgressPrinter::new()
+            .with_print_freq(1)
+            .with_output(Box::from(output))
+            .with_colored(false);
+
+        for (raw1, raw2) in system1
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .print_progress(printer)
+            .with_step(3)
+            .unwrap()
+            .with_range(300.0, 800.0)
+            .unwrap()
+            .zip(
+                system2
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_step(3)
+                    .unwrap()
+                    .with_range(300.0, 800.0)
+                    .unwrap(),
+            )
+        {
+            let frame1 = raw1.unwrap();
+            let frame2 = raw2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+
+        let mut result = File::open("tmp_xtc_iter_step_range_print_progress.txt").unwrap();
+        let mut expected = File::open("test_files/progress_xtc_iter_step_range.txt").unwrap();
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+
+        std::fs::remove_file("tmp_xtc_iter_step_range_print_progress.txt").unwrap();
+    }
+
+    #[test]
+    fn trr_iter_print_progress() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        let output = File::create("tmp_trr_iter_print_progress.txt").unwrap();
+
+        let printer = ProgressPrinter::new()
+            .with_print_freq(3)
+            .with_output(Box::from(output))
+            .with_colored(false);
+
+        for (raw1, raw2) in system1
+            .trr_iter("test_files/short_trajectory.trr")
+            .unwrap()
+            .print_progress(printer)
+            .zip(system2.trr_iter("test_files/short_trajectory.trr").unwrap())
+        {
+            let frame1 = raw1.unwrap();
+            let frame2 = raw2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+
+        let mut result = File::open("tmp_trr_iter_print_progress.txt").unwrap();
+        let mut expected = File::open("test_files/progress_trr_iter.txt").unwrap();
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+
+        std::fs::remove_file("tmp_trr_iter_print_progress.txt").unwrap();
     }
 }
