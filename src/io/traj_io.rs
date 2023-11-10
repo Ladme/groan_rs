@@ -99,6 +99,7 @@ pub trait TrajRead<'a> {
 pub struct TrajReader<'a, R: TrajRead<'a>> {
     pub traj_reader: R,
     progress_printer: Option<ProgressPrinter>,
+    frame_number: usize,
     _phantom: &'a PhantomData<R>,
 }
 
@@ -111,6 +112,7 @@ where
         TrajReader {
             traj_reader,
             progress_printer: None,
+            frame_number: 0,
             _phantom: &PhantomData,
         }
     }
@@ -142,9 +144,12 @@ impl<'a, R: TrajRead<'a>> Iterator for TrajReader<'a, R> {
 
             self.progress_set(&result);
             self.progress_print(
+                self.frame_number,
                 (*system).get_simulation_step(),
-                (*system).get_simulation_time() as u64,
+                (*system).get_simulation_time(),
             );
+
+            self.frame_number += 1;
 
             result
         }
@@ -192,12 +197,22 @@ where
             traj_reader: self.traj_reader,
             start_time,
             end_time,
+            frame_number: self.frame_number,
             progress_printer: self.progress_printer,
             _phantom: &PhantomData,
         };
 
+        if let Some(ref mut printer) = reader.progress_printer {
+            printer.set_status(ProgressStatus::Jumping);
+            printer.print(0, 0, 0.0);
+        }
+
         // jump to the start of iteration
         reader.traj_reader.jump_to_start(start_time)?;
+
+        if let Some(ref mut printer) = reader.progress_printer {
+            printer.set_status(ProgressStatus::Running);
+        }
 
         Ok(reader)
     }
@@ -234,6 +249,7 @@ where
             traj_reader: self.traj_reader,
             skip: step - 1,
             progress_printer: self.progress_printer,
+            frame_number: self.frame_number,
             _phantom: &PhantomData,
         })
     }
@@ -259,6 +275,7 @@ pub struct TrajRangeReader<'a, R: TrajRangeRead<'a>> {
     pub start_time: f32,
     pub end_time: f32,
     progress_printer: Option<ProgressPrinter>,
+    frame_number: usize,
     _phantom: &'a PhantomData<R>,
 }
 
@@ -296,9 +313,12 @@ where
 
             self.progress_set(&result);
             self.progress_print(
+                self.frame_number,
                 (*system).get_simulation_step(),
-                (*system).get_simulation_time() as u64,
+                (*system).get_simulation_time(),
             );
+
+            self.frame_number += 1;
 
             result
         }
@@ -324,6 +344,7 @@ where
             end_time: self.end_time,
             skip: step - 1,
             progress_printer: self.progress_printer,
+            frame_number: self.frame_number,
             _phantom: &PhantomData,
         })
     }
@@ -351,6 +372,7 @@ pub struct TrajStepReader<'a, R: TrajStepRead<'a>> {
     /// - `skip = 1` => every other frame will be read
     pub skip: usize,
     progress_printer: Option<ProgressPrinter>,
+    frame_number: usize,
     _phantom: &'a PhantomData<R>,
 }
 
@@ -402,9 +424,12 @@ where
 
             self.progress_set(&result);
             self.progress_print(
+                self.frame_number,
                 (*system).get_simulation_step(),
-                (*system).get_simulation_time() as u64,
+                (*system).get_simulation_time(),
             );
+
+            self.frame_number += 1;
 
             result
         }
@@ -436,11 +461,21 @@ where
             end_time,
             skip: self.skip,
             progress_printer: self.progress_printer,
+            frame_number: self.frame_number,
             _phantom: &PhantomData,
         };
 
+        if let Some(ref mut printer) = reader.progress_printer {
+            printer.set_status(ProgressStatus::Jumping);
+            printer.print(0, 0, 0.0);
+        }
+
         // jump to the start of iteration
         reader.traj_reader.jump_to_start(start_time)?;
+
+        if let Some(ref mut printer) = reader.progress_printer {
+            printer.set_status(ProgressStatus::Running);
+        }
 
         Ok(reader)
     }
@@ -457,6 +492,7 @@ pub struct TrajRangeStepReader<'a, R: TrajRangeRead<'a> + TrajStepRead<'a>> {
     pub end_time: f32,
     pub skip: usize,
     progress_printer: Option<ProgressPrinter>,
+    frame_number: usize,
     _phantom: &'a PhantomData<R>,
 }
 
@@ -512,9 +548,12 @@ where
 
             self.progress_set(&result);
             self.progress_print(
+                self.frame_number,
                 (*system).get_simulation_step(),
-                (*system).get_simulation_time() as u64,
+                (*system).get_simulation_time(),
             );
+
+            self.frame_number += 1;
 
             result
         }
@@ -539,10 +578,10 @@ pub trait TrajMasterRead<'a>:
     ///
     /// // create the `ProgressPrinter` defining how often and in what format the
     /// // information about the progress of trajectory reading should be printed
-    /// let printer = ProgressPrinter::new().with_print_freq(100_000);
+    /// let printer = ProgressPrinter::new().with_print_freq(10);
     ///
     /// // iterate through the trajectory while printing progress of the iteration
-    /// // information will be printed every 100,000 simulation steps, as set by the `ProgressPrinter`
+    /// // information will be printed every 10 trajectory frames, as set by the `ProgressPrinter`
     /// for raw_frame in system.xtc_iter("trajectory.xtc").unwrap().print_progress(printer) {
     ///     let frame = raw_frame.unwrap();
     ///
@@ -591,14 +630,11 @@ pub trait ProgressPrintable {
     }
 
     /// Print the current progress of the trajectory reading.
-    fn progress_print(&self, simulation_step: u64, simulation_time: u64) {
-        if let Some(printer) = self.get_progress_printer() {
-            printer.print(simulation_step, simulation_time)
+    fn progress_print(&mut self, frame_number: usize, simulation_step: u64, simulation_time: f32) {
+        if let Some(printer) = self.get_progress_printer_mut() {
+            printer.print(frame_number, simulation_step, simulation_time)
         }
     }
-
-    /// Return pointer to the progress printer associated with the trajectory reader.
-    fn get_progress_printer(&self) -> Option<&ProgressPrinter>;
 
     /// Return mutable pointer to the progress printer associated with the trajectory reader.
     fn get_progress_printer_mut(&mut self) -> Option<&mut ProgressPrinter>;
@@ -608,10 +644,6 @@ pub trait ProgressPrintable {
 }
 
 impl<'a, R: TrajRead<'a>> ProgressPrintable for TrajReader<'a, R> {
-    fn get_progress_printer(&self) -> Option<&ProgressPrinter> {
-        self.progress_printer.as_ref()
-    }
-
     fn get_progress_printer_mut(&mut self) -> Option<&mut ProgressPrinter> {
         self.progress_printer.as_mut()
     }
@@ -622,10 +654,6 @@ impl<'a, R: TrajRead<'a>> ProgressPrintable for TrajReader<'a, R> {
 }
 
 impl<'a, R: TrajRangeRead<'a>> ProgressPrintable for TrajRangeReader<'a, R> {
-    fn get_progress_printer(&self) -> Option<&ProgressPrinter> {
-        self.progress_printer.as_ref()
-    }
-
     fn get_progress_printer_mut(&mut self) -> Option<&mut ProgressPrinter> {
         self.progress_printer.as_mut()
     }
@@ -636,10 +664,6 @@ impl<'a, R: TrajRangeRead<'a>> ProgressPrintable for TrajRangeReader<'a, R> {
 }
 
 impl<'a, R: TrajStepRead<'a>> ProgressPrintable for TrajStepReader<'a, R> {
-    fn get_progress_printer(&self) -> Option<&ProgressPrinter> {
-        self.progress_printer.as_ref()
-    }
-
     fn get_progress_printer_mut(&mut self) -> Option<&mut ProgressPrinter> {
         self.progress_printer.as_mut()
     }
@@ -653,10 +677,6 @@ impl<'a, R: TrajRangeRead<'a> + TrajStepRead<'a>> ProgressPrintable for TrajRang
 where
     R::FrameData: FrameDataTime,
 {
-    fn get_progress_printer(&self) -> Option<&ProgressPrinter> {
-        self.progress_printer.as_ref()
-    }
-
     fn get_progress_printer_mut(&mut self) -> Option<&mut ProgressPrinter> {
         self.progress_printer.as_mut()
     }

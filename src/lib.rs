@@ -201,6 +201,38 @@
 //! Note that `with_range` is a very efficient method and will skip xtc frames that are not
 //! in the specified range without actually reading properties of the atoms from these frames.
 //!
+//! You can also let the trajectory iterator print information about trajectory reading to the standard output:
+//! ```no_run
+//! use groan_rs::prelude::*;
+//! use std::error::Error;
+//!
+//! fn main() -> Result<(), Box<dyn Error>> {
+//!     let mut system = System::from_file("structure.gro")?;
+//!
+//!     system.group_create("group 1", "serial 1 to 5")?;
+//!     system.group_create("group 2", "resid 45")?;
+//!
+//!     // create default progress printer
+//!     let printer = ProgressPrinter::new();
+//!
+//!     let distances: Vec<f32> = system
+//!         .xtc_iter("trajectory.xtc")?
+//!         // attach progress printer to the iterator
+//!         .print_progress(printer)
+//!         .map(|frame| {
+//!             let frame = frame?;
+//!             Ok(frame
+//!                 .group_distance("group 1", "group 2", Dimension::XYZ)
+//!                 .expect("Groups do not exist but they should."))
+//!         })
+//!         .collect::<Result<Vec<f32>, Box<dyn Error>>>()?;
+//!
+//!     println!("{:?}", distances);
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
 //! #### Converting between trr and xtc files
 //!
 //! Read a trr file and write the velocities of particles into a new xtc file.
