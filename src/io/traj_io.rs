@@ -582,11 +582,62 @@ pub trait TrajMasterRead<'a>:
     ///
     /// // iterate through the trajectory while printing progress of the iteration
     /// // information will be printed every 10 trajectory frames, as set by the `ProgressPrinter`
-    /// for raw_frame in system.xtc_iter("trajectory.xtc").unwrap().print_progress(printer) {
+    /// for raw_frame in system
+    ///     .xtc_iter("trajectory.xtc")
+    ///     .unwrap()
+    ///     .print_progress(printer)
+    /// {
     ///     let frame = raw_frame.unwrap();
     ///
     ///     // perform some analysis
     /// }
+    /// ```
+    ///
+    /// ## Note on the order of operations
+    /// The `print_progress` method can be applied to any trajectory reader.
+    /// However, when iterating through a part of the trajectory using `with_range` method,
+    /// it is useful to first associate the `ProgressPrinter` with the trajectory
+    /// before calling the `with_range` method.
+    ///
+    /// This is because, when the `with_range` method is called, the iterator
+    /// immediately jumps forward in the trajectory file until it reaches the given starting time.
+    /// If the `ProgressPrinter` is already associated with the trajectory iterator,
+    /// information about this jump will be printed.
+    /// Otherwise, this information will not appear and the iteration may seem to be
+    /// momentarily frozen (until the starting time is reached).
+    /// This is the most relevant when very large trajectory files are read.
+    ///
+    /// Example:
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    ///
+    /// let mut system = System::from_file("system.gro").unwrap();
+    ///
+    /// let printer_jump = ProgressPrinter::new();
+    /// let printer_nojump = ProgressPrinter::new();
+    ///
+    /// // creating iterator that will print information about the jump
+    /// let iterator = system
+    ///     .xtc_iter("trajectory.xtc")
+    ///     .unwrap()
+    ///     // `print_progress` is called BEFORE `with_range`
+    ///     .print_progress(printer_jump)
+    ///     .with_range(9_000_000.0, f32::INFINITY)
+    ///     .unwrap();
+    /// // creating this iterator will immediately print:
+    /// // `[ JUMPING ]   Jumping to the start of the iteration...`
+    ///
+    /// // creating iterator that will NOT print information about the jump
+    /// let iterator = system
+    ///     .xtc_iter("trajectory.xtc")
+    ///     .unwrap()
+    ///     .with_range(9_000_000.0, f32::INFINITY)
+    ///     .unwrap()
+    ///     // `print_progress` is called AFTER `with_range`
+    ///     .print_progress(printer_nojump);
+    /// // this iterator will only start printing information about the trajectory reading once it is actually used
+    /// // it will not print any information about the jump as the `ProgressPrinter` was associated
+    /// // with the iterator only after the jump to the starting time was already performed.
     /// ```
     fn print_progress(mut self, printer: ProgressPrinter) -> Self
     where
@@ -1055,6 +1106,48 @@ mod tests {
         assert!(file_diff::diff_files(&mut result, &mut expected));
 
         std::fs::remove_file("tmp_xtc_iter_step_range_print_progress.txt").unwrap();
+    }
+
+    /// `print_progress` is called at different place
+    #[test]
+    fn xtc_iter_range_print_progress_alternative() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        let output = File::create("tmp_xtc_iter_range_alt_print_progress.txt").unwrap();
+
+        let printer = ProgressPrinter::new()
+            .with_print_freq(3)
+            .with_output(Box::from(output))
+            .with_colored(false);
+
+        for (raw1, raw2) in system1
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .with_range(300.0, 800.0)
+            .unwrap()
+            .print_progress(printer)
+            .zip(
+                system2
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_range(300.0, 800.0)
+                    .unwrap(),
+            )
+        {
+            let frame1 = raw1.unwrap();
+            let frame2 = raw2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+
+        let mut result = File::open("tmp_xtc_iter_range_alt_print_progress.txt").unwrap();
+        let mut expected = File::open("test_files/progress_xtc_iter_range_alt.txt").unwrap();
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+
+        std::fs::remove_file("tmp_xtc_iter_range_alt_print_progress.txt").unwrap();
     }
 
     #[test]

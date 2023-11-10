@@ -100,7 +100,7 @@ impl ProgressPrinter {
     /// The default values of the `ProgressPrinter` parameters.
     /// - `output`: `std::io::stdout()` (stream to write the progress info to)
     /// - `status`: `ProgressStatus::Running` (current status of trajectory file reading)
-    /// - `print_freq`: `100` (progress info will be printed out every 100 trajectory frames)
+    /// - `print_freq`: `100` (progress info will be printed out every 100 trajectory frames read)
     /// - `colored`: `true` (should the output be colored?)
     /// - `step_msg`: `"Step".cyan()` (string associated with information about the simulation step of the frame)
     /// - `time_msg`: `"Time".bright_purple()` (string associated with information about the time of the frame)
@@ -112,7 +112,7 @@ impl ProgressPrinter {
     /// You can set custom values for any of the parameters by using `with_%PARAMETER()` method
     /// when constructing the `ProgressPrinter`.
     ///
-    /// ## Example
+    /// ## Examples
     /// ```no_run
     /// use groan_rs::prelude::*;
     /// use colored::Colorize;
@@ -140,6 +140,18 @@ impl ProgressPrinter {
     ///     let frame = frame.unwrap();
     ///     // analyze the frame
     /// }
+    /// ```
+    ///
+    /// By default, `ProgressPrinter` prints to standard output.
+    /// However, you can also let it print into a file.
+    /// ```
+    /// use groan_rs::prelude::*;
+    ///
+    /// let file = std::fs::File::create("progress.log").unwrap();
+    /// let printer = ProgressPrinter::new()
+    ///     .with_output(Box::from(file))
+    ///     // turning off colored output which does not make sense for a file
+    ///     .with_colored(false);
     /// ```
     pub fn new() -> Self {
         ProgressPrinter {
