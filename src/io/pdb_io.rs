@@ -22,7 +22,7 @@ use crate::system::general::System;
 /// All other lines are ignored.
 ///
 /// ## Notes
-/// - Reading ends once ENDMDL is reached.
+/// - Reading ends once ENDMDL or the end of file is reached.
 ///
 /// - In case multiple TITLE lines are provided, the **last one** is used as the
 /// name of the system. If no TITLE line is provided, "Unknown" is used as the name.
@@ -30,8 +30,8 @@ use crate::system::general::System;
 /// - In case multiple CRYST1 lines are provided, information from the **last one** is used.
 /// If no CRYST1 line is provided, the simulation box size is set to 0 in all dimensions.
 /// Note again that only orthogonal simulation boxes are supported.
-/// 
-/// - If you want to load connectivity from the PDB file, 
+///
+/// - If you want to load connectivity from the PDB file,
 /// use `System::add_bonds_from_pdb` after constructing the `System` structure.
 pub fn read_pdb(filename: impl AsRef<Path>) -> Result<System, ParsePdbError> {
     let file = match File::open(filename.as_ref()) {
@@ -79,12 +79,12 @@ impl System {
     /// Read connectivity information from a PDB file.
     ///
     /// ## Returns
-    /// - `Ok` if the connectivity was read correctly. 
+    /// - `Ok` if the connectivity was read correctly.
     /// - `ParsePdbConnectivityError` if an error occured.
     /// In such cases, the connectivity information in the
     /// `System` structure is in an undefined state and it is
     /// recommended to destroy the `System` structure.
-    /// 
+    ///
     /// ## Example
     /// ```no_run
     /// use groan_rs::prelude::*;
@@ -106,38 +106,38 @@ impl System {
     /// All lines other than those starting with the CONECT keyword are ignored.
     /// - In case an error occures in this function, the system connectivity information is in an undefined state.
     /// - Unlike with `read_pdb`, the ENDMDL keyword is ignored by this function.
-    /// 
+    ///
     /// ## Note on why connectivity is not loaded by `read_pdb` function
     /// The connectivity block in PDB files is quite unreliable. For instance it completely breaks
     /// once the number of atoms in the PDB reaches 100,000, a number not particularly rare in
     /// modern simulations.
-    /// 
+    ///
     /// It also unfortunately uses plain atom numbers to specify the bonded atoms which are not
     /// guaranteed to be unique.
-    /// 
+    ///
     /// If `read_pdb` were to load connectivity information, we would have to figure out
     /// what to do if the connectivity can't be used e.g. because the number of atoms is too high,
     /// the numbers are not unique or the connectivity is corrupted in some other way.
-    /// 
+    ///
     /// One option would be to throw an error and stop reading the PDB file if connectivity is somehow wrong.
     /// But the user may not even care about the connectivity! So why return an error?
-    /// 
+    ///
     /// Another option would be to fail silently: read the structure but not load the connectivity
-    /// if something is wrong. But it is generally a terrible idea to fail silently 
+    /// if something is wrong. But it is generally a terrible idea to fail silently
     /// and `groan_rs` library avoids that in all possible cases.
-    /// 
+    ///
     /// The third option would be to fail and print an error message to stderr or return some kind of flag
     /// indicating the error. This makes the function much less flexible and potentially harder to use.
-    /// 
+    ///
     /// The fourth option would be to introduce a parameter to the `read_pdb` function with which the user
     /// would directly choose whether they want to read the connectivity block or not.
     /// But that introduces a breaking change and more importantly it further complicates calling the
     /// function which should preferably be as simple and straightforward as possible.
-    /// 
+    ///
     /// The final option, the one actually chosen, is to introduce a separate function
     /// to read the connectivity information. Yes, this option esentially means
-    /// that the PDB file has to be (partly) read twice (if the connectivity is actually needed, which is rare), 
-    /// but loading the molecular structure is usually hardly the rate limiting step of the calculation. 
+    /// that the PDB file has to be (partly) read twice (if the connectivity is actually needed, which is rare),
+    /// but loading the molecular structure is usually hardly the rate limiting step of the calculation.
     /// It also opens up the possibility of providing the structure and connectivity information in two separate PDB files
     /// (or even a GRO file and a PDB file).
     pub fn add_bonds_from_pdb(
@@ -607,6 +607,17 @@ mod tests_read {
     }
 
     #[test]
+    fn read_endmdl() {
+        let system = read_pdb("test_files/example_endmdl.pdb").unwrap();
+
+        assert_eq!(system.get_name(), "Buforin II peptide P11L");
+        assert_eq!(system.get_n_atoms(), 17);
+
+        assert_eq!(system.atoms_iter().nth(0).unwrap().get_atom_number(), 1);
+        assert_eq!(system.atoms_iter().nth(16).unwrap().get_atom_number(), 17);
+    }
+
+    #[test]
     fn read_nochain() {
         let system_chain = read_pdb("test_files/example.pdb").unwrap();
         let system_nochain = read_pdb("test_files/example_nochain.pdb").unwrap();
@@ -782,6 +793,92 @@ mod tests_read {
         assert!(approx_eq!(f32, simbox.z, 5.0861));
     }
 
+    #[test]
+    fn add_bonds_from_pdb() {
+        let mut system = read_pdb("test_files/conect.pdb").unwrap();
+        system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
+
+        let expected_bonded: Vec<Vec<usize>> = vec![
+            vec![3, 2],
+            vec![1],
+            vec![4, 1, 6],
+            vec![3, 5],
+            vec![4],
+            vec![7, 3, 8],
+            vec![6],
+            vec![9, 6, 10],
+            vec![8],
+            vec![10, 12],
+            vec![11],
+            vec![10, 15, 14],
+            vec![13],
+            vec![13, 16],
+            vec![17, 15, 18],
+            vec![16],
+            vec![16, 20, 19],
+            vec![18],
+            vec![21, 18, 24],
+            vec![20, 22, 23],
+            vec![21, 23],
+            vec![21, 22],
+            vec![25, 20, 26],
+            vec![24],
+            vec![24, 28, 27],
+            vec![26],
+            vec![26, 29],
+            vec![11, 8, 13],
+            vec![30, 28, 32, 36, 38, 42, 48],
+            vec![29, 31],
+            vec![30],
+            vec![29, 34, 33],
+            vec![32],
+            vec![35, 32, 38],
+            vec![34, 36, 37],
+            vec![35, 37, 29],
+            vec![35, 36],
+            vec![39, 34, 41, 29],
+            vec![38, 40],
+            vec![39],
+            vec![42, 38, 43],
+            vec![41, 29],
+            vec![44, 41, 45],
+            vec![43],
+            vec![46, 43, 48],
+            vec![45, 47],
+            vec![46],
+            vec![49, 45, 29],
+            vec![48],
+            vec![],
+        ];
+
+        for (a, atom) in system.atoms_iter().enumerate() {
+            let expected = expected_bonded.get(a).unwrap();
+            for index in atom.get_bonded() {
+                let bonded = system
+                    .get_atoms_as_ref()
+                    .get(*index)
+                    .unwrap()
+                    .get_atom_number();
+                assert!(expected.contains(&bonded));
+            }
+        }
+    }
+
+    #[test]
+    fn add_bonds_from_pdb_2() {
+        let mut system1 = read_pdb("test_files/conect.pdb").unwrap();
+        system1.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
+
+        let mut system2 = read_pdb("test_files/conect.pdb").unwrap();
+        system2
+            .add_bonds_from_pdb("test_files/bonds_for_example.pdb")
+            .unwrap();
+
+        for (atom1, atom2) in system1.atoms_iter().zip(system2.atoms_iter()) {
+            assert_eq!(atom1.get_bonded(), atom2.get_bonded());
+        }
+    }
+
     macro_rules! read_pdb_fails {
         ($name:ident, $file:expr, $variant:path, $expected:expr) => {
             #[test]
@@ -837,6 +934,118 @@ mod tests_read {
         ParsePdbError::ParseAtomLineErr,
         "ATOM      30  SC1 ARG A  14      32.540  35.200  34.040  1.00  0.00            "
     );
+
+    macro_rules! read_bonds_fails {
+        ($name:ident, $file_struct:expr, $file_bonds:expr, $variant:path, $expected:expr) => {
+            #[test]
+            fn $name() {
+                let mut system = read_pdb($file_struct).unwrap();
+
+                match system.add_bonds_from_pdb($file_bonds) {
+                    Err($variant(e)) => assert_eq!(e, $expected),
+                    Ok(_) => panic!("Parsing should have failed, but it succeeded."),
+                    Err(e) => panic!("Parsing successfully failed but incorrect error type `{:?}` was returned.", e),
+                }
+            }
+        };
+    }
+
+    read_bonds_fails!(
+        pdb_bonds_nonexistent,
+        "test_files/example.pdb",
+        "test_files/nonexistent.pdb",
+        ParsePdbConnectivityError::FileNotFound,
+        Box::from(Path::new("test_files/nonexistent.pdb"))
+    );
+
+    read_bonds_fails!(
+        pdb_bonds_parse_error_1,
+        "test_files/example.pdb",
+        "test_files/bonds_parse_error_1.pdb",
+        ParsePdbConnectivityError::ParseConectLineErr,
+        "CONECT"
+    );
+
+    read_bonds_fails!(
+        pdb_bonds_parse_error_2,
+        "test_files/example.pdb",
+        "test_files/bonds_parse_error_2.pdb",
+        ParsePdbConnectivityError::ParseConectLineErr,
+        "CONECT   43   4A   41   45                                            "
+    );
+
+    #[test]
+    fn pdb_bonds_invalid_index_1() {
+        let mut system = read_pdb("test_files/example.pdb").unwrap();
+        match system.add_bonds_from_pdb("test_files/bonds_invalid_index_1.pdb") {
+            Err(ParsePdbConnectivityError::AtomNotFoundErr(index, string)) => {
+                assert_eq!(index, 51);
+                assert_eq!(string, "CONECT    3    4    1   51");
+            }
+            Ok(_) => panic!("Parsing should have failed, but it succeeded."),
+            Err(e) => panic!(
+                "Parsing successfully failed but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn pdb_bonds_invalid_index_2() {
+        let mut system = read_pdb("test_files/example.pdb").unwrap();
+        match system.add_bonds_from_pdb("test_files/bonds_invalid_index_2.pdb") {
+            Err(ParsePdbConnectivityError::AtomNotFoundErr(index, string)) => {
+                assert_eq!(index, 55);
+                assert_eq!(string, "CONECT   55   35   37   29                                            ");
+            }
+            Ok(_) => panic!("Parsing should have failed, but it succeeded."),
+            Err(e) => panic!(
+                "Parsing successfully failed but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn pdb_bonds_inconsistent() {
+        let mut system = read_pdb("test_files/example.pdb").unwrap();
+        match system.add_bonds_from_pdb("test_files/bonds_inconsistency.pdb") {
+            Err(ParsePdbConnectivityError::InconsistencyErr(atom1, atom2)) => {
+                assert_eq!(atom1, 18);
+                assert_eq!(atom2, 16);
+            }
+            Ok(_) => panic!("Parsing should have failed, but it succeeded."),
+            Err(e) => panic!(
+                "Parsing successfully failed but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    read_bonds_fails!(
+        pdb_bonds_selfbonding,
+        "test_files/example.pdb",
+        "test_files/bonds_selfbonding.pdb",
+        ParsePdbConnectivityError::SelfBondingErr,
+        44
+    );
+
+    #[test]
+    fn pdb_bonds_duplicate_numbers() {
+        let mut system = read_pdb("test_files/example.pdb").unwrap();
+        system.get_atom_as_ref_mut(10).unwrap().set_atom_number(25);
+
+        match system.add_bonds_from_pdb("test_files/bonds_inconsistency.pdb") {
+            Err(ParsePdbConnectivityError::DuplicateAtomNumbersErr) => (),
+            Ok(_) => panic!("Parsing should have failed, but it succeeded."),
+            Err(e) => panic!(
+                "Parsing successfully failed but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+
 }
 
 #[cfg(test)]

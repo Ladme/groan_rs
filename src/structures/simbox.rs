@@ -5,7 +5,7 @@
 
 use std::ops::Deref;
 
-/// Structure defining simulation box size.
+/// Structure defining simulation box shape and dimensions.
 #[derive(Debug, Clone)]
 pub struct SimBox {
     /// You can also use `.x` to reach this value.

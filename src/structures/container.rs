@@ -544,6 +544,15 @@ mod tests_container {
     }
 
     #[test]
+    fn from_ranges_overlap_alt() {
+        let ranges = vec![(20, 35), (20, 32)];
+        let container = AtomContainer::from_ranges(ranges, 1028);
+
+        assert_eq!(container.atom_blocks.len(), 1);
+        cmp_block_tuple(&container.atom_blocks[0], (20, 35));
+    }
+
+    #[test]
     fn from_ranges_overlap_full() {
         let ranges = vec![(20, 32), (28, 30)];
         let container = AtomContainer::from_ranges(ranges, 1028);
