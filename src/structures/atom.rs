@@ -10,14 +10,26 @@ use crate::structures::{dimension::Dimension, simbox::SimBox, vector3d::Vector3D
 
 #[derive(Debug, Clone)]
 pub struct Atom {
+    /// Number (index) of the residue this atom is part of.
     residue_number: usize,
+    /// Name of the residue this atom is part of.
     residue_name: String,
+    /// Number (index) of the atom.
     atom_number: usize,
+    /// Name of the atom.
     atom_name: String,
+    /// Identifier of the chain this atom is part of. (Optional.)
     chain: Option<char>,
+    /// Charge of the atom. (Optional.)
+    charge: Option<f32>,
+    /// Position of the atom in 3D space.
     position: Vector3D,
+    /// Velocity of the atom.
     velocity: Vector3D,
+    /// Force acting on the atom.
     force: Vector3D,
+    /// Indices of atoms that are bonded with this atom.
+    bonded: Vec<usize>,
 }
 
 impl Atom {
@@ -41,9 +53,11 @@ impl Atom {
             atom_number,
             atom_name: atom_name.to_string(),
             chain: None,
+            charge: None,
             position,
             velocity,
             force,
+            bonded: Vec::new(),
         }
     }
 
@@ -66,6 +80,54 @@ impl Atom {
     /// ```
     pub fn with_chain(mut self, chain: char) -> Self {
         self.set_chain(chain);
+        self
+    }
+
+    /// Add charge to target atom.
+    ///
+    /// ## Example
+    /// ```
+    /// use groan_rs::prelude::*;
+    ///
+    /// let atom = Atom::new(
+    ///     1,
+    ///     "LYS",
+    ///     1,
+    ///     "BB",
+    ///     [1.4, 1.5, 1.7].into(),
+    ///     Vector3D::default(),
+    ///     Vector3D::default(),
+    /// ).with_charge(1.0);
+    ///
+    /// assert_eq!(atom.get_charge().unwrap(), 1.0);
+    /// ```
+    pub fn with_charge(mut self, charge: f32) -> Self {
+        self.set_charge(charge);
+        self
+    }
+
+    /// Add bonded atoms to target atom.
+    ///
+    /// ## Example
+    /// ```
+    /// use groan_rs::prelude::*;
+    ///
+    /// let bonded = vec![1, 2, 4];
+    ///
+    /// let atom = Atom::new(
+    ///     1,
+    ///     "LYS",
+    ///     1,
+    ///     "BB",
+    ///     [1.4, 1.5, 1.7].into(),
+    ///     Vector3D::default(),
+    ///     Vector3D::default(),
+    /// ).with_bonded(bonded);
+    ///
+    /// assert_eq!(atom.get_bonded(), &vec![1, 2, 4]);
+    /// ```
+    pub fn with_bonded(mut self, bonded: Vec<usize>) -> Self {
+        self.bonded = bonded;
         self
     }
 
@@ -119,6 +181,16 @@ impl Atom {
         self.chain = Some(chain);
     }
 
+    /// Get the charge of the atom.
+    pub fn get_charge(&self) -> Option<f32> {
+        self.charge
+    }
+
+    /// Set the charge of the atom.
+    pub fn set_charge(&mut self, charge: f32) {
+        self.charge = Some(charge);
+    }
+
     /// Get the coordinates of the atom.
     pub fn get_position(&self) -> &Vector3D {
         &self.position
@@ -168,6 +240,22 @@ impl Atom {
         self.force.x = force.x;
         self.force.y = force.y;
         self.force.z = force.z;
+    }
+
+    /// Get the indices of bonded atoms.
+    pub fn get_bonded(&self) -> &Vec<usize> {
+        &self.bonded
+    }
+
+    /// Add an index of an atom that is bonded to the target atom.
+    /// Atoms are indexed starting from 0.
+    ///
+    /// ## Safety
+    /// This method is only safe to use if the `index` is lower than the
+    /// total number of atoms in the system and is not equal to the index of the
+    /// target atom.
+    pub unsafe fn add_bonded(&mut self, index: usize) {
+        self.bonded.push(index);
     }
 
     /// Check whether the atom has non-zero position.

@@ -32,7 +32,7 @@ impl ProgressMessage {
     /// Panics if the string is longer than 9 characters.
     fn new(string: ColoredString) -> Self {
         if string.chars().count() > 9 {
-            panic!("Groan error. ProgressMessage can not be longer than 9 characters.");
+            panic!("FATAL GROAN ERROR | ProgressMessage::new | `ProgressMessage` can not be longer than 9 characters.");
         }
 
         ProgressMessage { msg: string }
@@ -42,10 +42,10 @@ impl ProgressMessage {
     fn print(&self, out: &mut dyn Write, colored: bool) {
         if colored {
             write!(out, "[{: ^9}]   ", self.msg)
-                .expect("Groan error. Could not write to ProgressPrinter stream.");
+                .expect("FATAL GROAN ERROR | ProgressMessage::print (1) | Could not write to `ProgressPrinter` stream.");
         } else {
             write!(out, "[{: ^9}]   ", self.msg.as_ref() as &str)
-                .expect("Groan error. Could not write to ProgressPrinter stream.");
+            .expect("FATAL GROAN ERROR | ProgressMessage::print (2) | Could not write to `ProgressPrinter` stream.");
         }
     }
 }
@@ -257,10 +257,10 @@ impl ProgressPrinter {
                 ProgressStatus::Jumping => {
                     self.jumping_msg.print(&mut self.output, self.colored);
                     write!(self.output, "Jumping to the start of the iteration...\r")
-                        .expect("Groan error. Could not write to ProgressPrinter stream.");
+                        .expect("FATAL GROAN ERROR | ProgressPrinter::print (1) | Could not write to `ProgressPrinter` stream.");
                     self.output
                         .flush()
-                        .expect("Groan error. Could not flush ProgressPrinter stream.");
+                        .expect("FATAL GROAN ERROR | ProgressPrinter::print (2) | Could not flush `ProgressPrinter` stream.");
                     return;
                 }
             }
@@ -271,7 +271,7 @@ impl ProgressPrinter {
                     "{} {:12} | {} {:12} ps\r",
                     self.step_msg, sim_step, self.time_msg, sim_time as u64
                 )
-                .expect("Groan error. Could not write to ProgressPrinter stream.");
+                .expect("FATAL GROAN ERROR | ProgressPrinter::print (3) | Could not write to `ProgressPrinter` stream.");
             } else {
                 write!(
                     self.output,
@@ -281,7 +281,7 @@ impl ProgressPrinter {
                     self.time_msg.as_ref() as &str,
                     sim_time as u64
                 )
-                .expect("Groan error. Could not write to ProgressPrinter stream.");
+                .expect("FATAL GROAN ERROR | ProgressPrinter::print (4) | Could not write to `ProgressPrinter` stream.");
             }
 
             match self.status {
@@ -291,7 +291,7 @@ impl ProgressPrinter {
 
             self.output
                 .flush()
-                .expect("Groan error. Could not flush ProgressPrinter stream.");
+                .expect("FATAL GROAN ERROR | ProgressPrinter::print (5) | Could not flush `ProgressPrinter` stream.");
         }
     }
 }
@@ -411,7 +411,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Groan error. ProgressMessage can not be longer than 9 characters.")]
+    #[should_panic(
+        expected = "FATAL GROAN ERROR | ProgressMessage::new | `ProgressMessage` can not be longer than 9 characters."
+    )]
     fn progress_message_panic() {
         let _msg = ProgressMessage::new("SHOULD_PANIC".red());
     }

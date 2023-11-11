@@ -42,7 +42,9 @@ impl System {
         match self.group_write_gro("all", filename, write_velocities) {
             Ok(_) => Ok(()),
             Err(WriteGroError::GroupNotFound(_)) => {
-                panic!("Groan error. Default group 'all' does not exist.")
+                panic!(
+                    "FATAL GROAN ERROR | System::write_gro | Default group 'all' does not exist."
+                )
             }
             Err(e) => Err(e),
         }

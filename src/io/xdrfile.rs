@@ -151,7 +151,9 @@ pub fn path2cstring(path: impl AsRef<Path>) -> Result<CString, NulError> {
     CString::new(
         path.as_ref()
             .to_str()
-            .expect("Groan error. Could not convert path to string.")
+            .expect(
+                "FATAL GROAN ERROR | xdrfile::path2cstring | Could not convert path to CString.",
+            )
             .as_bytes(),
     )
 }

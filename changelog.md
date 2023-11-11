@@ -2,7 +2,21 @@
 ## Changelog for the `groan_rs` library
 
 ### Version 0.5.0
+#### Changes to the Atom structure
+- Two optional fields have been aded to the `Atom` structure: `charge` and `bonded`. `charge` specifies the charge of the atom. `bonded` is a list of atom indices of atoms that are bonded to the given atom.
+- Several methods have been introduced that allow using and accessing the new `charge` and `bonded` properties.
+#### AtomContainer structure
+- **Breaking Change**: Introduced `AtomContainer`: a general structure describing a collection of atoms in the `System` structure. `Group` structure and all atom iterators have been reworked to employ `AtomContainer`. Many methods associated with `Group` have consequently been removed/renamed/rewritten.
+#### Reading and writing PDB files
+- **Potentially Breaking Change**: Reading of PDB files now properly ends once `ENDMDL` keyword is reached.
+- The connectivity section of PDB files can be now read using `System::add_bonds_from_pdb`.
+#### Quality-of-life improvements
 - Introduced `ProgressPrinter` for printing the progress of trajectory reading. Progress printing can be turned on for any trajectory iteration by using the `TrajMasterRead::print_progress` method.
+#### Other changes
+- Introduced `System::has_duplicate_atom_numbers` method which checks whether there are any atoms in the `System` structure sharing atom number.
+- Reworked all panic groan errors to specify function from which they have been called.
+
+***
 
 ### Version 0.4.2
 - Introduced `System::group_create_from_geometries` for group creation with multiple geometry constraints.
@@ -33,6 +47,8 @@
 - Added tests for reading double-precision trr files.
 - Enhanced documentation for error variants within the `errors` module.
 
+***
+
 ### Version 0.3.3
 - `@ion` macro should no longer identify any part of proteins as ions.
 
@@ -56,6 +72,7 @@
   - Placed files defining fundamental data structures into their own directory.
 - Made minor documentation tweaks.
 
+***
 
 ### Version 0.2.0
 - Added functionality to write atom groups into xtc and trr files using the `XdrGroupWriter` trait along with the `XtcGroupWriter` and `TrrGroupWriter` structures.
@@ -66,3 +83,5 @@
 - Implemented operations for ndx-writable and ndx-nonwritable groups, including `System::group_make_writable`, `System::group_make_nonwritable`, and `System::group_names_writable`.
 - Performed small code refactors.
 - Made minor documentation fixes.
+
+***

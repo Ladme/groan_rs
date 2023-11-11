@@ -533,7 +533,6 @@ pub mod io {
     mod xdrfile;
     pub mod xtc_io;
 }
-pub mod iterators;
 mod selections {
     mod name;
     mod numbers;
@@ -542,8 +541,10 @@ mod selections {
 pub mod progress;
 pub mod structures {
     pub mod atom;
+    mod container;
     pub mod dimension;
     pub mod group;
+    pub mod iterators;
     pub mod shape;
     pub mod simbox;
     pub mod vector3d;

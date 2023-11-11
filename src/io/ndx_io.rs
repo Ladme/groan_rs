@@ -98,7 +98,7 @@ impl System {
                     invalid_names.insert(e.to_string());
                 }
                 Err(_) => panic!(
-                    "Groan error. Unexpected error returned from group_create_from_indices()."
+                    "FATAL GROAN ERROR | System::read_ndx | Unexpected error returned from `group_create_from_indices`."
                 ),
             }
         }

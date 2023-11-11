@@ -61,6 +61,8 @@ pub enum ParseGroError {
 }
 
 /// Errors that can occur when reading and parsing pdb file.
+/// Does not include errors that can occur when reading connectivity section of a PDB file.
+/// For these errors, see `ParsePdbConnectivityError`.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum ParsePdbError {
     /// Used when the pdb file was not found (i.e. does not exist).
@@ -84,6 +86,34 @@ pub enum ParsePdbError {
     /// Used when the simulation box specified in the pdb file is not orthogonal.
     #[error("{} simulation box specified on line '{}' is not orthogonal", "error:".red().bold(), .0.yellow())]
     NonOrthogonalBox(String),
+}
+
+/// Errors that can occur when reading the connectivity section of a PDB file.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum ParsePdbConnectivityError {
+    /// Used when the pdb file was not found (i.e. does not exist).
+    #[error("{} file '{}' was not found", "error:".red().bold(), path_to_yellow(.0))]
+    FileNotFound(Box<Path>),
+    /// Used when the pdb file ended unexpectedly.
+    #[error("{} file '{}' ended unexpectedly", "error:".red().bold(), path_to_yellow(.0))]
+    LineNotFound(Box<Path>),
+    /// Used when "CONECT" line in the pdb file could not be parsed.
+    #[error("{} could not parse line '{}' as connectivity information", "error:".red().bold(), .0.yellow())]
+    ParseConectLineErr(String),
+    /// Used when an non-existent atom number is found on a "CONECT" line.
+    #[error("{} atom number '{}' mentioned on line '{}' does not exist", "error:".red().bold(), .0.to_string().yellow(), .1.yellow())]
+    AtomNotFoundErr(usize, String),
+    /// Used when there are multiple atoms with the same number in the PDB file.
+    #[error("{} multiple atoms have the same number in the system and connectivity is thus ambiguous", "error:".red().bold())]
+    DuplicateAtomNumbersErr,
+    /// Used when an inconsistency has been detected in the connectivity section:
+    /// one atom claims to be bonded to another atom, but the other atom does not say that.
+    #[error("{} atom number '{}' claims to be bonded to atom number '{}' but atom number '{}' disagrees", 
+    "error:".red().bold(), .0.to_string().yellow(), .1.to_string().yellow(), .1.to_string().yellow())]
+    InconsistencyErr(usize, usize),
+    /// Used when an atom claims to be bonded to itself.
+    #[error("{} atom '{}' claims to be bonded to itself which does not make sense", "error:".red().bold(), .0.to_string().yellow())]
+    SelfBondingErr(usize),
 }
 
 /// Errors that can occur when writing a gro file.

@@ -182,7 +182,10 @@ impl Cylinder {
             Dimension::X => Dimension::YZ,
             Dimension::Y => Dimension::XZ,
             Dimension::Z => Dimension::XY,
-            _ => panic!("Groan error. Unsupported orientation dimension."),
+            d => panic!(
+                "FATAL GROAN ERROR | Cylinder::new | Unsupported orientation dimension '{}'.",
+                d
+            ),
         };
 
         Cylinder {
@@ -225,7 +228,7 @@ impl Shape for Cylinder {
                 Dimension::X => distance_axis += simbox.x,
                 Dimension::Y => distance_axis += simbox.y,
                 Dimension::Z => distance_axis += simbox.z,
-                _ => panic!("Groan error. This orientation dimension should never occur in a cylinder shape."),
+                d => panic!("FATAL GROAN ERROR | Cylinder::inside | Orientation dimension '{}' should never occur in a cylinder shape.", d),
             }
         }
 

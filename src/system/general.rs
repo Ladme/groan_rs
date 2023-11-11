@@ -4,6 +4,7 @@
 //! Implementation of the `System` structure and methods for constructing the `System` and accessing its properties.
 
 use indexmap::IndexMap;
+use std::collections::HashSet;
 use std::error::Error;
 use std::path::Path;
 
@@ -108,7 +109,7 @@ impl System {
 
         match system.group_create_all() {
             Err(_) => {
-                panic!("Groan error. Group `all` or `All` already exists as System is created.")
+                panic!("FATAL GROAN ERROR | System::new | Group 'all' or 'All' already exists as the System is created.");
             }
             Ok(_) => system,
         }
@@ -160,12 +161,12 @@ impl System {
         unsafe {
             self.get_groups_as_ref_mut()
                 .get_mut("all")
-                .expect("Groan error. Group `all` is not available after creating it.")
+                .expect("FATAL GROAN ERROR | System::group_create_all | Group 'all' is not available immediately after its construction.")
                 .print_ndx = false;
 
             self.get_groups_as_ref_mut()
                 .get_mut("All")
-                .expect("Groan error. Group `All` is not available after creating it.")
+                .expect("FATAL GROAN ERROR | System::group_create_all | Group 'All' is not available immediately after its construction.")
                 .print_ndx = false;
         }
 
@@ -335,6 +336,25 @@ impl System {
     /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
     pub fn has_forces(&self) -> bool {
         self.atoms.iter().any(|atom| atom.has_force())
+    }
+
+    /// Check whether there are any atoms in the system which share atom number.
+    ///
+    /// ## Returns
+    /// `true` if at least two atoms share the atom number. `false` otherwise.
+    ///
+    /// ## Notes
+    /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
+    pub fn has_duplicate_atom_numbers(&self) -> bool {
+        let mut set = HashSet::new();
+
+        for atom in self.atoms.iter() {
+            if !set.insert(atom.get_atom_number()) {
+                return true;
+            }
+        }
+
+        false
     }
 
     /// Copy the atoms in the system into an independent vector.
@@ -637,6 +657,22 @@ mod tests {
             .unwrap()
             .nth(1);
         assert!(!system.has_forces());
+    }
+
+    #[test]
+    fn has_duplicate_atom_numbers() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        assert!(!system.has_duplicate_atom_numbers());
+
+        unsafe {
+            system
+                .get_atoms_as_ref_mut()
+                .get_mut(10)
+                .unwrap()
+                .set_atom_number(44);
+        }
+
+        assert!(system.has_duplicate_atom_numbers());
     }
 
     #[test]

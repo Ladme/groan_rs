@@ -36,7 +36,7 @@ impl System {
                     vector,
                     simbox
                         .as_ref()
-                        .expect("Groan error. SimBox is NULL which is impossible."),
+                        .expect("FATAL GROAN ERROR | System::group_translate | SimBox is NULL which should not happen.")
                 );
             }
         }
@@ -63,7 +63,7 @@ impl System {
                     vector,
                     simbox
                         .as_ref()
-                        .expect("Groan error. SimBox is NULL which is impossible."),
+                        .expect("FATAL GROAN ERROR | System::atoms_translate | SimBox is NULL which should not happen.")
                 );
             }
         }

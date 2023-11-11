@@ -4,29 +4,50 @@
 //! Implementation of iterators over atoms and filter functions.
 
 use crate::errors::GroupError;
-use crate::structures::{atom::Atom, group::Group, shape::Shape, simbox::SimBox};
+use crate::structures::{
+    atom::Atom,
+    container::{AtomContainer, AtomContainerIterator},
+    group::Group,
+    shape::Shape,
+    simbox::SimBox,
+};
 use crate::system::general::System;
 
 /**************************/
 /*  IMMUTABLE ITERATORS   */
 /**************************/
 
-/// Immutable iterator over atoms. Constructed using `System::atom_iter()` or `System::group_iter()`.
+/// Immutable iterator over atoms. Constructed using `System::atoms_iter()` or `System::group_iter()`.
 pub struct AtomIterator<'a> {
     atoms: &'a [Atom],
-    atom_ranges: &'a [(usize, usize)],
-    current_range_index: usize,
-    current_index: usize,
+    container_iterator: AtomContainerIterator<'a>,
     simbox: &'a SimBox,
 }
 
+/// Iteration over atoms.
+impl<'a> Iterator for AtomIterator<'a> {
+    type Item = &'a Atom;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(index) = self.container_iterator.next() {
+            unsafe { Some(self.atoms.get_unchecked(index)) }
+        } else {
+            None
+        }
+    }
+}
+
 impl<'a> AtomIterator<'a> {
-    pub fn new(atoms: &'a [Atom], atom_ranges: &'a [(usize, usize)], simbox: &'a SimBox) -> Self {
+    /// Create a new `AtomIterator`.
+    ///
+    /// ## Parameters
+    /// - `atoms`: reference to the atoms of the `System`
+    /// - `atom_container`: `AtomContainer` specifying the atoms to iterate through
+    /// - `simbox`: current dimensions of the simulation box
+    pub fn new(atoms: &'a [Atom], atom_container: &'a AtomContainer, simbox: &'a SimBox) -> Self {
         AtomIterator {
             atoms,
-            atom_ranges,
-            current_range_index: 0,
-            current_index: 0,
+            container_iterator: atom_container.iter(),
             simbox,
         }
     }
@@ -58,28 +79,6 @@ impl<'a> AtomIterator<'a> {
             geometry,
             simbox,
         }
-    }
-}
-
-impl<'a> Iterator for AtomIterator<'a> {
-    type Item = &'a Atom;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        while let Some((start, end)) = self.atom_ranges.get(self.current_range_index) {
-            if self.current_index < *start {
-                self.current_index = *start;
-            }
-
-            if self.current_index <= *end {
-                let atom = unsafe { self.atoms.get_unchecked(self.current_index) };
-                self.current_index += 1;
-                return Some(atom);
-            }
-
-            self.current_range_index += 1;
-        }
-
-        None
     }
 }
 
@@ -130,26 +129,28 @@ where
 /*    MUTABLE ITERATORS   */
 /**************************/
 
-/// Mutable iterator over atoms. Constructed using `System::atom_iter_mut()` or `System::group_iter_mut()`.
+/// Mutable iterator over atoms. Constructed using `System::atoms_iter_mut()` or `System::group_iter_mut()`.
 pub struct MutAtomIterator<'a> {
     atoms: *mut [Atom],
-    atom_ranges: &'a [(usize, usize)],
-    current_range_index: usize,
-    current_index: usize,
+    container_iterator: AtomContainerIterator<'a>,
     simbox: &'a SimBox,
 }
 
 impl<'a> MutAtomIterator<'a> {
+    /// Create a new `MutAtomIterator`.
+    ///
+    /// ## Parameters
+    /// - `atoms`: mutable reference to the atoms of the `System`
+    /// - `atom_container`: `AtomContainer` specifying the atoms to iterate through
+    /// - `simbox`: current dimensions of the simulation box
     pub fn new(
         atoms: &'a mut [Atom],
-        atom_ranges: &'a [(usize, usize)],
+        atom_container: &'a AtomContainer,
         simbox: &'a SimBox,
     ) -> Self {
         MutAtomIterator {
             atoms: atoms as *mut [Atom],
-            atom_ranges,
-            current_range_index: 0,
-            current_index: 0,
+            container_iterator: atom_container.iter(),
             simbox,
         }
     }
@@ -189,21 +190,11 @@ impl<'a> Iterator for MutAtomIterator<'a> {
     type Item = &'a mut Atom;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some((start, end)) = self.atom_ranges.get(self.current_range_index) {
-            if self.current_index < *start {
-                self.current_index = *start;
-            }
-
-            if self.current_index <= *end {
-                let atom = unsafe { (*self.atoms).get_unchecked_mut(self.current_index) };
-                self.current_index += 1;
-                return Some(atom);
-            }
-
-            self.current_range_index += 1;
+        if let Some(index) = self.container_iterator.next() {
+            unsafe { Some((*self.atoms).get_unchecked_mut(index)) }
+        } else {
+            None
         }
-
-        None
     }
 }
 
@@ -286,7 +277,7 @@ impl System {
 
         Ok(AtomIterator::new(
             self.get_atoms_as_ref(),
-            group.get_atom_ranges(),
+            group.get_atoms(),
             self.get_box_as_ref(),
         ))
     }
@@ -326,7 +317,7 @@ impl System {
 
             Ok(MutAtomIterator::new(
                 self.get_atoms_as_ref_mut(),
-                (*group).get_atom_ranges(),
+                (*group).get_atoms(),
                 simbox.as_ref().unwrap(),
             ))
         }
@@ -350,7 +341,7 @@ impl System {
     /// not care about the additional methods `AtomIterator` implements.
     pub fn atoms_iter(&self) -> AtomIterator {
         self.group_iter("all")
-            .expect("Groan error. Default group `all` does not exist but it should.")
+            .expect("FATAL GROAN ERROR | System::atoms_iter | Default group `all` does not exist.")
     }
 
     /// Create an iterator over all atoms in the system. The atoms are mutable.
@@ -369,8 +360,9 @@ impl System {
     /// }
     /// ```
     pub fn atoms_iter_mut(&mut self) -> MutAtomIterator {
-        self.group_iter_mut("all")
-            .expect("Groan error. Default group `all` does not exist but it should.")
+        self.group_iter_mut("all").expect(
+            "FATAL GROAN ERROR | System::atoms_iter_mut | Default group `all` does not exist.",
+        )
     }
 }
 

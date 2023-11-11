@@ -298,7 +298,7 @@ impl System {
     pub fn atoms_split_by_resid(&mut self) -> (Result<(), GroupError>, Vec<String>) {
         match self.group_split_by_resid("all") {
             (Err(GroupError::NotFound(_)), _) => {
-                panic!("Groan error. Default group `all` does not exist for the system.")
+                panic!("FATAL GROAN ERROR | System::atoms_split_by_resid | Default group 'all' does not exist.")
             }
             (result, vec) => (result, vec),
         }
@@ -422,7 +422,7 @@ impl System {
     pub fn atoms_split_by_resname(&mut self) -> (Result<(), GroupError>, Vec<String>) {
         match self.group_split_by_resname("all") {
             (Err(GroupError::NotFound(_)), _) => {
-                panic!("Groan error. Default group `all` does not exist for the system.")
+                panic!("FATAL GROAN ERROR | System::atoms_split_by_resname | Default group 'all' does not exist.")
             }
             (result, vec) => (result, vec),
         }
@@ -607,13 +607,7 @@ impl System {
             .get(name)
             .ok_or(GroupError::NotFound(name.to_string()))?;
 
-        for (start, end) in group.atom_ranges.iter() {
-            if index >= *start && index <= *end {
-                return Ok(true);
-            }
-        }
-
-        Ok(false)
+        Ok(group.get_atoms().isin(index))
     }
 
     /// Get the number of atoms in target group.
@@ -671,12 +665,7 @@ impl System {
             .get(group2)
             .ok_or(GroupError::NotFound(group2.to_string()))?;
 
-        let mut atom_ranges =
-            Vec::with_capacity(group1.atom_ranges.len() + group2.atom_ranges.len());
-        atom_ranges.extend(group1.atom_ranges.iter());
-        atom_ranges.extend(group2.atom_ranges.iter());
-
-        let group = Group::from_ranges(atom_ranges, self.get_n_atoms());
+        let group = Group::union(group1, group2);
 
         unsafe {
             match self

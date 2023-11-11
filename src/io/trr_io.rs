@@ -13,7 +13,7 @@ use crate::io::traj_io::{
     TrajWrite,
 };
 use crate::io::xdrfile::{self, CXdrFile, OpenMode, XdrFile};
-use crate::iterators::AtomIterator;
+use crate::structures::iterators::AtomIterator;
 use crate::structures::{group::Group, vector3d::Vector3D};
 use crate::system::general::System;
 
@@ -184,7 +184,7 @@ impl<'a> TrajStepRead<'a> for TrrReader<'a> {
                 1 => Err(ReadTrajError::SkipFailed),
                 2 => Ok(false),
                 number => panic!(
-                    "Groan error. `trr_skip_frame` returned '{}' which is unsupported.",
+                    "FATAL GROAN ERROR | TrrReader::skip_frame | `xdrfile::trr_skip_frame` returned an unsupported number '{}'.",
                     number
                 ),
             }
@@ -527,7 +527,7 @@ impl TrajGroupWrite for TrrGroupWriter {
             // create an iterator over the atoms of the group
             let iterator = AtomIterator::new(
                 (*self.system).get_atoms_as_ref(),
-                self.group.get_atom_ranges(),
+                self.group.get_atoms(),
                 (*self.system).get_box_as_ref(),
             );
 
@@ -1744,7 +1744,7 @@ mod tests {
         // remove the protein group from the system; this should not change the output of the XtcGroupWriter
         unsafe {
             let val = system.get_groups_as_ref_mut().remove("Protein").unwrap();
-            assert_eq!(val.get_atom_ranges(), writer.group.get_atom_ranges());
+            assert_eq!(val.get_atoms(), writer.group.get_atoms());
             assert!(!system.group_exists("Protein"));
         }
 

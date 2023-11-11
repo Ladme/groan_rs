@@ -3,11 +3,12 @@
 
 //! Implementation of functions for reading and writing pdb files.
 
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 
-use crate::errors::{ParsePdbError, WritePdbError};
+use crate::errors::{ParsePdbConnectivityError, ParsePdbError, WritePdbError};
 use crate::structures::{atom::Atom, simbox::SimBox, vector3d::Vector3D};
 use crate::system::general::System;
 
@@ -17,17 +18,18 @@ use crate::system::general::System;
 /// Currently only supports orthogonal simulation boxes!
 ///
 /// ## Supported keywords
-/// This function can handle lines starting with ATOM, HETATM, TITLE and CRYST1.
+/// This function can handle lines starting with ATOM, HETATM, TITLE, ENDMDL, and CRYST1.
 /// All other lines are ignored.
 ///
 /// ## Notes
+/// - Reading ends once ENDMDL is reached.
+///
 /// - In case multiple TITLE lines are provided, the **last one** is used as the
 /// name of the system. If no TITLE line is provided, "Unknown" is used as the name.
 ///
 /// - In case multiple CRYST1 lines are provided, information from the **last one** is used.
 /// If no CRYST1 line is provided, the simulation box size is set to 0 in all dimensions.
 /// Note again that only orthogonal simulation boxes are supported.
-///
 pub fn read_pdb(filename: impl AsRef<Path>) -> Result<System, ParsePdbError> {
     let file = match File::open(filename.as_ref()) {
         Ok(x) => x,
@@ -60,9 +62,108 @@ pub fn read_pdb(filename: impl AsRef<Path>) -> Result<System, ParsePdbError> {
         else if line.len() >= 6 && line[0..6] == *"CRYST1" {
             simbox = line_as_box(&line)?;
         }
+        // ENDMDL reached => stop reading
+        else if line.len() >= 6 && line[0..6] == *"ENDMDL" {
+            break;
+        }
     }
 
     Ok(System::new(&title, atoms, simbox))
+}
+
+/// ## Advanced methods for working with PDB files.
+impl System {
+    /// Read connectivity information from a PDB file.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    ///
+    /// // read structure from a pdb file
+    /// let mut system = System::from_file("system.pdb").unwrap();
+    ///
+    /// // add connectivity information from a different pdb file
+    /// if let Err(e) = system.add_bonds_from_pdb("connectivity.pdb") {
+    ///     eprintln!("{}", e);
+    ///     return;
+    /// }
+    ///
+    /// // perform analysis...
+    /// ```
+    ///
+    /// ## Notes
+    /// - Note that the PDB file with the connectivity information can but does not have to contain information about the atoms.
+    /// All lines other than those starting with the CONECT keyword are ignored.
+    ///
+    /// - In case an error occures in this function, the system connectivity information is in an undefined state.
+    ///
+    /// - Unlike with `read_pdb`, the ENDMDL keyword is ignored by this function.
+    pub fn add_bonds_from_pdb(
+        &mut self,
+        filename: impl AsRef<Path>,
+    ) -> Result<(), ParsePdbConnectivityError> {
+        // sanity checking the system
+        // if the system contains multiple atoms with the same atom number, the connectivity can't be used
+        // this is because atom numbers are used in the CONECT lines:
+        // if there are duplicates, it is impossible to decide what atoms are bonded to what atoms
+        if self.has_duplicate_atom_numbers() {
+            return Err(ParsePdbConnectivityError::DuplicateAtomNumbersErr);
+        }
+
+        // open the pdb file
+        let file = match File::open(filename.as_ref()) {
+            Ok(x) => x,
+            Err(_) => {
+                return Err(ParsePdbConnectivityError::FileNotFound(Box::from(
+                    filename.as_ref(),
+                )))
+            }
+        };
+
+        let reader = BufReader::new(file);
+
+        // create a mapping from atom numbers to their indices for quick lookup
+        let atom_number_to_index: HashMap<usize, usize> = self
+            .atoms_iter()
+            .enumerate()
+            .map(|(index, atom)| (atom.get_atom_number(), index))
+            .collect();
+
+        for raw_line in reader.lines() {
+            let line = match raw_line {
+                Ok(x) => x,
+                Err(_) => {
+                    return Err(ParsePdbConnectivityError::LineNotFound(Box::from(
+                        filename.as_ref(),
+                    )))
+                }
+            };
+
+            if line.len() >= 6 && line[0..6] == *"CONECT" {
+                line_as_conect(self, &line, &atom_number_to_index)?;
+            }
+        }
+
+        // validate that all bonded atoms agree that they are bonded
+        // i.e. all bonds must be bidirectional edges of the graph describing the system topology
+        for (atom_index, atom1) in self.atoms_iter().enumerate() {
+            for &bonded_index in atom1.get_bonded() {
+                let atom2 = self
+                    .get_atoms_as_ref()
+                    .get(bonded_index)
+                    .expect("Groan error. `add_bonds_from_pdb`: invalid atom index");
+
+                if !atom2.get_bonded().contains(&atom_index) {
+                    return Err(ParsePdbConnectivityError::InconsistencyErr(
+                        atom1.get_atom_number(),
+                        atom2.get_atom_number(),
+                    ));
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 /// ## Methods for writing pdb files.
@@ -92,7 +193,9 @@ impl System {
         match self.group_write_pdb("all", filename) {
             Ok(_) => Ok(()),
             Err(WritePdbError::GroupNotFound(_)) => {
-                panic!("Groan error. Default group 'all' does not exist.")
+                panic!(
+                    "FATAL GROAN ERROR | System::write_pdb | Default group 'all' does not exist."
+                )
             }
             Err(e) => Err(e),
         }
@@ -273,6 +376,84 @@ fn line_as_title(line: &str) -> Result<String, ParsePdbError> {
     }
 
     Ok(title)
+}
+
+/// Parse a single line as connectivity information.
+///
+/// ## Notes
+/// - Parses a line starting with CONECT.
+/// - Can read CONECT line of any length.
+fn line_as_conect(
+    system: &mut System,
+    line: &str,
+    number2index: &HashMap<usize, usize>,
+) -> Result<(), ParsePdbConnectivityError> {
+    if line.len() < 11 {
+        return Err(ParsePdbConnectivityError::ParseConectLineErr(
+            line.to_string(),
+        ));
+    }
+
+    // get atom number of the target atom
+    let atom_number = line[6..11]
+        .trim()
+        .parse::<usize>()
+        .map_err(|_| ParsePdbConnectivityError::ParseConectLineErr(line.to_string()))?;
+
+    // get index of the target atom
+    let atom_index = match number2index.get(&atom_number) {
+        Some(i) => i,
+        None => {
+            return Err(ParsePdbConnectivityError::AtomNotFoundErr(
+                atom_number,
+                line.to_string(),
+            ))
+        }
+    };
+
+    // parse atom numbers on the line
+    let mut iterator = 11usize;
+    while iterator + 4 < line.len() {
+        let trimmed = line[iterator..(iterator + 5)].trim();
+
+        if !trimmed.is_empty() {
+            let number = trimmed
+                .parse::<usize>()
+                .map_err(|_| ParsePdbConnectivityError::ParseConectLineErr(line.to_string()))?;
+
+            // convert atom number of the bonded atom to its index in the system structure
+            let index = match number2index.get(&number) {
+                Some(i) => i,
+                None => {
+                    return Err(ParsePdbConnectivityError::AtomNotFoundErr(
+                        number,
+                        line.to_string(),
+                    ))
+                }
+            };
+
+            // check that the target atom is not the same atom as the bonded atom
+            if atom_index == index {
+                return Err(ParsePdbConnectivityError::SelfBondingErr(atom_number));
+            }
+
+            // add the bonded atom to the System structure
+            // safety: a) we are not changing the number of atoms in the System
+            //         b) we know that both `atom_index` and `index` are valid atom indices
+            //            as they come from the System via the `number2index` hashmap
+            unsafe {
+                system
+                    .get_atoms_as_ref_mut()
+                    .get_mut(*atom_index)
+                    .expect("FATAL GROAN ERROR | pdb_io::line_as_conect | Invalid atom index.")
+                    .add_bonded(*index);
+            }
+        }
+
+        iterator += 5;
+    }
+
+    Ok(())
 }
 
 fn write_line<W: Write>(writer: &mut W, line: &str) -> Result<(), WritePdbError> {
