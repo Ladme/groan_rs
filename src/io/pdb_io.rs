@@ -12,7 +12,7 @@ use crate::errors::{ParsePdbConnectivityError, ParsePdbError, WritePdbError};
 use crate::structures::{atom::Atom, simbox::SimBox, vector3d::Vector3D};
 use crate::system::general::System;
 
-/// Read a pdb file and construct a System structure.
+/// Read a pdb file and construct a System structure. Does not read connectivity.
 ///
 /// ## Warning
 /// Currently only supports orthogonal simulation boxes!
@@ -30,6 +30,9 @@ use crate::system::general::System;
 /// - In case multiple CRYST1 lines are provided, information from the **last one** is used.
 /// If no CRYST1 line is provided, the simulation box size is set to 0 in all dimensions.
 /// Note again that only orthogonal simulation boxes are supported.
+/// 
+/// - If you want to load connectivity from the PDB file, 
+/// use `System::add_bonds_from_pdb` after constructing the `System` structure.
 pub fn read_pdb(filename: impl AsRef<Path>) -> Result<System, ParsePdbError> {
     let file = match File::open(filename.as_ref()) {
         Ok(x) => x,
@@ -75,6 +78,13 @@ pub fn read_pdb(filename: impl AsRef<Path>) -> Result<System, ParsePdbError> {
 impl System {
     /// Read connectivity information from a PDB file.
     ///
+    /// ## Returns
+    /// - `Ok` if the connectivity was read correctly. 
+    /// - `ParsePdbConnectivityError` if an error occured.
+    /// In such cases, the connectivity information in the
+    /// `System` structure is in an undefined state and it is
+    /// recommended to destroy the `System` structure.
+    /// 
     /// ## Example
     /// ```no_run
     /// use groan_rs::prelude::*;
@@ -91,13 +101,45 @@ impl System {
     /// // perform analysis...
     /// ```
     ///
-    /// ## Notes
+    /// ## General notes
     /// - Note that the PDB file with the connectivity information can but does not have to contain information about the atoms.
     /// All lines other than those starting with the CONECT keyword are ignored.
-    ///
     /// - In case an error occures in this function, the system connectivity information is in an undefined state.
-    ///
     /// - Unlike with `read_pdb`, the ENDMDL keyword is ignored by this function.
+    /// 
+    /// ## Note on why connectivity is not loaded by `read_pdb` function
+    /// The connectivity block in PDB files is quite unreliable. For instance it completely breaks
+    /// once the number of atoms in the PDB reaches 100,000, a number not particularly rare in
+    /// modern simulations.
+    /// 
+    /// It also unfortunately uses plain atom numbers to specify the bonded atoms which are not
+    /// guaranteed to be unique.
+    /// 
+    /// If `read_pdb` were to load connectivity information, we would have to figure out
+    /// what to do if the connectivity can't be used e.g. because the number of atoms is too high,
+    /// the numbers are not unique or the connectivity is corrupted in some other way.
+    /// 
+    /// One option would be to throw an error and stop reading the PDB file if connectivity is somehow wrong.
+    /// But the user may not even care about the connectivity! So why return an error?
+    /// 
+    /// Another option would be to fail silently: read the structure but not load the connectivity
+    /// if something is wrong. But it is generally a terrible idea to fail silently 
+    /// and `groan_rs` library avoids that in all possible cases.
+    /// 
+    /// The third option would be to fail and print an error message to stderr or return some kind of flag
+    /// indicating the error. This makes the function much less flexible and potentially harder to use.
+    /// 
+    /// The fourth option would be to introduce a parameter to the `read_pdb` function with which the user
+    /// would directly choose whether they want to read the connectivity block or not.
+    /// But that introduces a breaking change and more importantly it further complicates calling the
+    /// function which should preferably be as simple and straightforward as possible.
+    /// 
+    /// The final option, the one actually chosen, is to introduce a separate function
+    /// to read the connectivity information. Yes, this option esentially means
+    /// that the PDB file has to be (partly) read twice (if the connectivity is actually needed, which is rare), 
+    /// but loading the molecular structure is usually hardly the rate limiting step of the calculation. 
+    /// It also opens up the possibility of providing the structure and connectivity information in two separate PDB files
+    /// (or even a GRO file and a PDB file).
     pub fn add_bonds_from_pdb(
         &mut self,
         filename: impl AsRef<Path>,
@@ -151,7 +193,7 @@ impl System {
                 let atom2 = self
                     .get_atoms_as_ref()
                     .get(bonded_index)
-                    .expect("Groan error. `add_bonds_from_pdb`: invalid atom index");
+                    .expect("FATAL GROAN ERROR | System::add_bonds_from_pdb | Invalid atom index.");
 
                 if !atom2.get_bonded().contains(&atom_index) {
                     return Err(ParsePdbConnectivityError::InconsistencyErr(
@@ -444,8 +486,7 @@ fn line_as_conect(
             unsafe {
                 system
                     .get_atoms_as_ref_mut()
-                    .get_mut(*atom_index)
-                    .expect("FATAL GROAN ERROR | pdb_io::line_as_conect | Invalid atom index.")
+                    .get_unchecked_mut(*atom_index)
                     .add_bonded(*index);
             }
         }
