@@ -228,9 +228,6 @@ impl System {
     ///     return;
     /// }
     /// ```
-    ///
-    /// ## Notes
-    /// - The chain identifier will not be written for any atom.
     pub fn write_pdb(&self, filename: impl AsRef<Path>) -> Result<(), WritePdbError> {
         match self.group_write_pdb("all", filename) {
             Ok(_) => Ok(()),
@@ -264,9 +261,6 @@ impl System {
     ///     return;
     /// }
     /// ```
-    ///
-    /// ## Notes
-    /// - The chain identifier will not be written for any atom.
     pub fn group_write_pdb(
         &self,
         group_name: &str,
@@ -501,7 +495,7 @@ fn write_line<W: Write>(writer: &mut W, line: &str) -> Result<(), WritePdbError>
     writeln!(writer, "{}", line).map_err(|_| WritePdbError::CouldNotWrite)
 }
 
-/// Writer a header for a PDB file.
+/// Write a header for a PDB file.
 ///
 /// ## Warning
 /// Currently only supports orthogonal simulation boxes.
