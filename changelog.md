@@ -8,11 +8,13 @@
 #### AtomContainer structure
 - **Breaking Change**: Introduced `AtomContainer`: a general structure describing a collection of atoms in the `System` structure. `Group` structure and all atom iterators have been reworked to employ `AtomContainer`. Many methods associated with `Group` have consequently been removed/renamed/rewritten.
 #### Reading and writing PDB files
+- **Breaking Change**: `System::write_pdb` and `System::group_write_pdb` now require additional argument specifying whether connectivity information should be written into the pdb file.
 - **Potentially Breaking Change**: Reading of PDB files now properly ends once `ENDMDL` keyword is reached.
-- The connectivity section of PDB files can be now read using `System::add_bonds_from_pdb`.
+- The connectivity section of PDB files can be now read using `System::add_bonds_from_pdb` and written using `System::write_pdb`/`System::group_write_pdb`.
 #### Quality-of-life improvements
 - Introduced `ProgressPrinter` for printing the progress of trajectory reading. Progress printing can be turned on for any trajectory iteration by using the `TrajMasterRead::print_progress` method.
 #### Other changes
+- **Breaking Change**: `System::get_atom_as_ref`, `System::get_atom_as_ref_mut`, and `System::get_atom_copy` now take `index` of the atom in the `System` instead of `gmx_atom_number`. Indexing is now consistent with similar functions as it start from 0.
 - Introduced `System::has_duplicate_atom_numbers` method which checks whether there are any atoms in the `System` structure sharing atom number.
 - Reworked all panic groan errors to specify function from which they have been called.
 

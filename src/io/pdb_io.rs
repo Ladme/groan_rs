@@ -101,45 +101,28 @@ impl System {
     /// // perform analysis...
     /// ```
     ///
-    /// ## General notes
+    /// ## Warning
+    /// The connectivity block in the PDB file uses atom numbers specified in the PDB file.
+    /// If you renumber the atoms of your system after loading the structure and BEFORE
+    /// adding the bonds from the PDB file, you may get completely nonsensical result!
+    ///
+    /// In other words, **don't** do this:
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    ///
+    /// let mut system = System::from_file("system.pdb").unwrap();
+    /// system.atoms_renumber(); // <--- DON'T!
+    ///
+    /// system.add_bonds_from_pdb("system.pdb").unwrap();
+    /// ```
+    ///
+    /// ## Notes
     /// - Note that the PDB file with the connectivity information can but does not have to contain information about the atoms.
-    /// All lines other than those starting with the CONECT keyword are ignored.
+    /// All lines other than those starting with the `CONECT` keyword are ignored.
+    /// - This function can read `CONECT` lines of any length, i.e. it is not limited by the traditional requirement
+    /// of using at most 4 bonds in a single `CONECT` line.
     /// - In case an error occures in this function, the system connectivity information is in an undefined state.
-    /// - Unlike with `read_pdb`, the ENDMDL keyword is ignored by this function.
-    ///
-    /// ## Note on why connectivity is not loaded by `read_pdb` function
-    /// The connectivity block in PDB files is quite unreliable. For instance it completely breaks
-    /// once the number of atoms in the PDB reaches 100,000, a number not particularly rare in
-    /// modern simulations.
-    ///
-    /// It also unfortunately uses plain atom numbers to specify the bonded atoms which are not
-    /// guaranteed to be unique.
-    ///
-    /// If `read_pdb` were to load connectivity information, we would have to figure out
-    /// what to do if the connectivity can't be used e.g. because the number of atoms is too high,
-    /// the numbers are not unique or the connectivity is corrupted in some other way.
-    ///
-    /// One option would be to throw an error and stop reading the PDB file if connectivity is somehow wrong.
-    /// But the user may not even care about the connectivity! So why return an error?
-    ///
-    /// Another option would be to fail silently: read the structure but not load the connectivity
-    /// if something is wrong. But it is generally a terrible idea to fail silently
-    /// and `groan_rs` library avoids that in all possible cases.
-    ///
-    /// The third option would be to fail and print an error message to stderr or return some kind of flag
-    /// indicating the error. This makes the function much less flexible and potentially harder to use.
-    ///
-    /// The fourth option would be to introduce a parameter to the `read_pdb` function with which the user
-    /// would directly choose whether they want to read the connectivity block or not.
-    /// But that introduces a breaking change and more importantly it further complicates calling the
-    /// function which should preferably be as simple and straightforward as possible.
-    ///
-    /// The final option, the one actually chosen, is to introduce a separate function
-    /// to read the connectivity information. Yes, this option esentially means
-    /// that the PDB file has to be (partly) read twice (if the connectivity is actually needed, which is rare),
-    /// but loading the molecular structure is usually hardly the rate limiting step of the calculation.
-    /// It also opens up the possibility of providing the structure and connectivity information in two separate PDB files
-    /// (or even a GRO file and a PDB file).
+    /// - Unlike with `read_pdb`, the `ENDMDL`` keyword is ignored by this function.
     pub fn add_bonds_from_pdb(
         &mut self,
         filename: impl AsRef<Path>,
@@ -149,7 +132,7 @@ impl System {
         // this is because atom numbers are used in the CONECT lines:
         // if there are duplicates, it is impossible to decide what atoms are bonded to what atoms
         if self.has_duplicate_atom_numbers() {
-            return Err(ParsePdbConnectivityError::DuplicateAtomNumbersErr);
+            return Err(ParsePdbConnectivityError::DuplicateAtomNumbers);
         }
 
         // open the pdb file
@@ -191,12 +174,11 @@ impl System {
         for (atom_index, atom1) in self.atoms_iter().enumerate() {
             for &bonded_index in atom1.get_bonded() {
                 let atom2 = self
-                    .get_atoms_as_ref()
-                    .get(bonded_index)
+                    .get_atom_as_ref(bonded_index)
                     .expect("FATAL GROAN ERROR | System::add_bonds_from_pdb | Invalid atom index.");
 
                 if !atom2.get_bonded().contains(&atom_index) {
-                    return Err(ParsePdbConnectivityError::InconsistencyErr(
+                    return Err(ParsePdbConnectivityError::BondingInconsistency(
                         atom1.get_atom_number(),
                         atom2.get_atom_number(),
                     ));
@@ -223,13 +205,27 @@ impl System {
     /// use groan_rs::prelude::*;
     ///
     /// let system = System::from_file("system.gro").unwrap();
-    /// if let Err(e) = system.write_pdb("system.pdb") {
+    /// if let Err(e) = system.write_pdb("system.pdb", false) {
     ///     eprintln!("{}", e);
     ///     return;
     /// }
     /// ```
-    pub fn write_pdb(&self, filename: impl AsRef<Path>) -> Result<(), WritePdbError> {
-        match self.group_write_pdb("all", filename) {
+    ///
+    /// ## Notes on connectivity
+    /// - The function will attempt to write connectivity into the PDB file if `write_connectivity` is true.
+    /// - Connectivity block can only be written for systems with fewer than 100,000 atoms
+    /// and for systems in which each atom has a unique number. In case these requirements
+    /// are not fulfilled and the `write_connectivity` is `true`, an error is returned
+    /// and no output PDB file is written.
+    /// - Even though `groan_rs` library can read `CONECT` lines of any length,
+    /// this function prints at most 4 bonds on a single `CONECT` line as is traditionally requested.
+    /// If the atom is bonded to more atoms, multiple `CONECT` lines will be written for it.
+    pub fn write_pdb(
+        &self,
+        filename: impl AsRef<Path>,
+        write_connectivity: bool,
+    ) -> Result<(), WritePdbError> {
+        match self.group_write_pdb("all", filename, write_connectivity) {
             Ok(_) => Ok(()),
             Err(WritePdbError::GroupNotFound(_)) => {
                 panic!(
@@ -256,18 +252,40 @@ impl System {
     ///
     /// system.read_ndx("index.ndx").unwrap();
     ///
-    /// if let Err(e) = system.group_write_pdb("Protein", "protein.pdb") {
+    /// if let Err(e) = system.group_write_pdb("Protein", "protein.pdb", false) {
     ///     eprintln!("{}", e);
     ///     return;
     /// }
     /// ```
+    ///
+    /// ## Notes on connectivity
+    /// - The function will attempt to write connectivity into the PDB file if `write_connectivity` is true.
+    /// - Connectivity block can only be written for systems with fewer than 100,000 atoms
+    /// and for systems in which each atom has a unique number. In case these requirements
+    /// are not fulfilled and the `write_connectivity` is `true`, an error is returned
+    /// and no output PDB file is written.
+    /// - Even though `groan_rs` library can read `CONECT` lines of any length,
+    /// this function prints at most 4 bonds on a single `CONECT` line as is traditionally requested.
+    /// If the atom is bonded to more atoms, multiple `CONECT` lines will be written for it.
     pub fn group_write_pdb(
         &self,
         group_name: &str,
         filename: impl AsRef<Path>,
+        write_connectivity: bool,
     ) -> Result<(), WritePdbError> {
         if !self.group_exists(group_name) {
             return Err(WritePdbError::GroupNotFound(group_name.to_string()));
+        }
+
+        if write_connectivity {
+            // connectivity block can't be printed if the number of atoms in the system is higher than 99,999
+            if self.get_n_atoms() > 99_999 {
+                return Err(WritePdbError::ConectTooLarge(self.get_n_atoms()));
+            }
+            // or if any of the atoms in the structure have duplicate numbers
+            if self.has_duplicate_atom_numbers() {
+                return Err(WritePdbError::ConectDuplicateAtomNumbers);
+            }
         }
 
         let output = File::create(&filename)
@@ -282,11 +300,17 @@ impl System {
 
         write_header(&mut writer, &title, self.get_box_as_ref())?;
 
-        for atom in self.group_iter(group_name).unwrap() {
+        for atom in self.group_iter(group_name).expect(
+            "FATAL GROAN ERROR | System::group_write_pdb | Group should exist but it does not.",
+        ) {
             atom.write_pdb(&mut writer)?;
         }
 
         write_line(&mut writer, "TER\nENDMDL")?;
+
+        if write_connectivity {
+            write_connectivity_section(self, &mut writer, group_name)?;
+        }
 
         writer.flush().map_err(|_| WritePdbError::CouldNotWrite)?;
 
@@ -440,7 +464,7 @@ fn line_as_conect(
     let atom_index = match number2index.get(&atom_number) {
         Some(i) => i,
         None => {
-            return Err(ParsePdbConnectivityError::AtomNotFoundErr(
+            return Err(ParsePdbConnectivityError::AtomNotFound(
                 atom_number,
                 line.to_string(),
             ))
@@ -461,7 +485,7 @@ fn line_as_conect(
             let index = match number2index.get(&number) {
                 Some(i) => i,
                 None => {
-                    return Err(ParsePdbConnectivityError::AtomNotFoundErr(
+                    return Err(ParsePdbConnectivityError::AtomNotFound(
                         number,
                         line.to_string(),
                     ))
@@ -470,7 +494,7 @@ fn line_as_conect(
 
             // check that the target atom is not the same atom as the bonded atom
             if atom_index == index {
-                return Err(ParsePdbConnectivityError::SelfBondingErr(atom_number));
+                return Err(ParsePdbConnectivityError::SelfBonding(atom_number));
             }
 
             // add the bonded atom to the System structure
@@ -493,6 +517,10 @@ fn line_as_conect(
 
 fn write_line<W: Write>(writer: &mut W, line: &str) -> Result<(), WritePdbError> {
     writeln!(writer, "{}", line).map_err(|_| WritePdbError::CouldNotWrite)
+}
+
+fn write<W: Write>(writer: &mut W, string: &str) -> Result<(), WritePdbError> {
+    write!(writer, "{}", string).map_err(|_| WritePdbError::CouldNotWrite)
 }
 
 /// Write a header for a PDB file.
@@ -522,6 +550,67 @@ fn write_header(
     )?;
 
     write_line(writer, "MODEL        1")?;
+
+    Ok(())
+}
+
+/// Write connectivity section for the system.
+fn write_connectivity_section(
+    system: &System,
+    writer: &mut BufWriter<File>,
+    group_name: &str,
+) -> Result<(), WritePdbError> {
+    for atom in system
+        .group_iter(group_name)
+        .expect("FATAL GROAN ERROR | pdb_io::write_connectivity_section (1) | Group should exist but it does not.")
+    {
+        // select atoms from bonded which are inside the printed group
+        let bonded_in_group = atom
+            .get_bonded()
+            .iter()
+            .filter(|index|system
+                .group_isin(group_name, **index)
+                .expect("FATAL GROAN ERROR | pdb_io::write_connectivity_section (2) | Group should exist but it does not.")
+            )
+            .collect::<Vec<&usize>>();
+
+        let n_bonded = bonded_in_group.len();
+        if n_bonded == 0 {
+            continue;
+        }
+
+        let atom_number = atom.get_atom_number();
+        // connectivity section can not accomodate larger than 5-digit numbers
+        if atom_number > 99_999 {
+            return Err(WritePdbError::ConectInvalidNumber(atom_number));
+        }
+
+        for (i, bonded_index) in bonded_in_group.into_iter().enumerate() {
+
+            // traditionally, PDB file only supports at most 4 bonds for a single atom on a single line
+            // higher number of bonds must be separated into multiple CONECT lines
+            if i % 4 == 0 {
+                write(writer, &format!("CONECT{:>5}", atom_number))?;
+            }
+
+            let bonded_number = system
+                .get_atom_as_ref(*bonded_index)
+                .expect("FATAL GROAN ERROR | pdb_io::write_connectivity_section | Invalid atom index.")
+                .get_atom_number();
+
+                // connectivity section can not accomodate larger than 5-digit numbers
+                if bonded_number > 99_999 {
+                    return Err(WritePdbError::ConectInvalidNumber(bonded_number));
+                }
+
+                // write bonded atom number to the output file
+                write(writer, &format!("{:>5}", bonded_number))?;
+
+            if i % 4 == 3 || i == n_bonded - 1 {
+                write_line(writer, "")?;
+            }
+        }
+    }
 
     Ok(())
 }
@@ -978,7 +1067,7 @@ mod tests_read {
     fn pdb_bonds_invalid_index_1() {
         let mut system = read_pdb("test_files/example.pdb").unwrap();
         match system.add_bonds_from_pdb("test_files/bonds_invalid_index_1.pdb") {
-            Err(ParsePdbConnectivityError::AtomNotFoundErr(index, string)) => {
+            Err(ParsePdbConnectivityError::AtomNotFound(index, string)) => {
                 assert_eq!(index, 51);
                 assert_eq!(string, "CONECT    3    4    1   51");
             }
@@ -994,9 +1083,12 @@ mod tests_read {
     fn pdb_bonds_invalid_index_2() {
         let mut system = read_pdb("test_files/example.pdb").unwrap();
         match system.add_bonds_from_pdb("test_files/bonds_invalid_index_2.pdb") {
-            Err(ParsePdbConnectivityError::AtomNotFoundErr(index, string)) => {
+            Err(ParsePdbConnectivityError::AtomNotFound(index, string)) => {
                 assert_eq!(index, 55);
-                assert_eq!(string, "CONECT   55   35   37   29                                            ");
+                assert_eq!(
+                    string,
+                    "CONECT   55   35   37   29                                            "
+                );
             }
             Ok(_) => panic!("Parsing should have failed, but it succeeded."),
             Err(e) => panic!(
@@ -1010,7 +1102,7 @@ mod tests_read {
     fn pdb_bonds_inconsistent() {
         let mut system = read_pdb("test_files/example.pdb").unwrap();
         match system.add_bonds_from_pdb("test_files/bonds_inconsistency.pdb") {
-            Err(ParsePdbConnectivityError::InconsistencyErr(atom1, atom2)) => {
+            Err(ParsePdbConnectivityError::BondingInconsistency(atom1, atom2)) => {
                 assert_eq!(atom1, 18);
                 assert_eq!(atom2, 16);
             }
@@ -1026,7 +1118,7 @@ mod tests_read {
         pdb_bonds_selfbonding,
         "test_files/example.pdb",
         "test_files/bonds_selfbonding.pdb",
-        ParsePdbConnectivityError::SelfBondingErr,
+        ParsePdbConnectivityError::SelfBonding,
         44
     );
 
@@ -1036,7 +1128,7 @@ mod tests_read {
         system.get_atom_as_ref_mut(10).unwrap().set_atom_number(25);
 
         match system.add_bonds_from_pdb("test_files/bonds_inconsistency.pdb") {
-            Err(ParsePdbConnectivityError::DuplicateAtomNumbersErr) => (),
+            Err(ParsePdbConnectivityError::DuplicateAtomNumbers) => (),
             Ok(_) => panic!("Parsing should have failed, but it succeeded."),
             Err(e) => panic!(
                 "Parsing successfully failed but incorrect error type `{:?}` was returned.",
@@ -1044,8 +1136,6 @@ mod tests_read {
             ),
         }
     }
-
-
 }
 
 #[cfg(test)]
@@ -1061,7 +1151,7 @@ mod tests_write {
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();
 
-        if let Err(_) = system.write_pdb(path_to_output) {
+        if let Err(_) = system.write_pdb(path_to_output, false) {
             panic!("Writing pdb file failed.");
         }
 
@@ -1075,7 +1165,7 @@ mod tests_write {
     fn write_fails() {
         let system = System::from_file("test_files/example.gro").unwrap();
 
-        match system.write_pdb("Xhfguiaghqueiowhd/nonexistent.ndx") {
+        match system.write_pdb("Xhfguiaghqueiowhd/nonexistent.ndx", false) {
             Err(WritePdbError::CouldNotCreate(e)) => {
                 assert_eq!(e, Box::from(Path::new("Xhfguiaghqueiowhd/nonexistent.ndx")))
             }
@@ -1091,7 +1181,7 @@ mod tests_write {
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();
 
-        if let Err(_) = system.write_pdb(path_to_output) {
+        if let Err(_) = system.write_pdb(path_to_output, false) {
             panic!("Writing pdb file failed.");
         }
 
@@ -1161,7 +1251,7 @@ mod tests_write {
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();
 
-        if let Err(_) = system.write_pdb(path_to_output) {
+        if let Err(_) = system.write_pdb(path_to_output, false) {
             panic!("Writing pdb file failed.");
         }
 
@@ -1180,7 +1270,7 @@ mod tests_write {
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();
 
-        if let Err(_) = system.group_write_pdb("Protein", path_to_output) {
+        if let Err(_) = system.group_write_pdb("Protein", path_to_output, false) {
             panic!("Writing pdb file failed.");
         }
 
@@ -1197,7 +1287,7 @@ mod tests_write {
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();
 
-        match system.group_write_pdb("Protein", path_to_output) {
+        match system.group_write_pdb("Protein", path_to_output, false) {
             Err(WritePdbError::GroupNotFound(e)) => assert_eq!(e, "Protein"),
             Ok(_) => panic!("Writing should have failed, but it did not."),
             Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),

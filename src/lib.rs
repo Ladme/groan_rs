@@ -93,8 +93,8 @@
 //!     system.group_create("my group", "'My Group' || resid 87 to 124")?;
 //!
 //!     // we can then perform operations with the groups, e.g. write them into separate pdb files
-//!     system.group_write_pdb("My Group", "My_Group.pdb")?;
-//!     system.group_write_pdb("my group", "my_group.pdb")?;
+//!     system.group_write_pdb("My Group", "My_Group.pdb", false)?;
+//!     system.group_write_pdb("my group", "my_group.pdb", false)?;
 //!
 //!     // each system also be default contains two groups consisting of all atoms in the system
 //!     // this groups are called 'All' and 'all'

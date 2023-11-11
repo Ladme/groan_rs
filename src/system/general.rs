@@ -397,40 +397,40 @@ impl System {
         Ok(self.group_iter(name)?.cloned().collect())
     }
 
-    /// Get immutable reference to an atom with target atom number.
+    /// Get immutable reference to an atom at target index. Atoms are indexed starting from 0.
     ///
     /// ## Returns
-    /// Reference to `Atom` structure or `AtomError::OutOfRange` if `gmx_number` is out of range.
-    pub fn get_atom_as_ref(&self, gmx_number: usize) -> Result<&Atom, AtomError> {
-        if gmx_number == 0 || gmx_number > self.atoms.len() {
-            return Err(AtomError::OutOfRange(gmx_number));
+    /// Reference to `Atom` structure or `AtomError::OutOfRange` if `index` is out of range.
+    pub fn get_atom_as_ref(&self, index: usize) -> Result<&Atom, AtomError> {
+        if index >= self.atoms.len() {
+            return Err(AtomError::OutOfRange(index));
         }
 
-        Ok(&self.atoms[gmx_number - 1])
+        Ok(&self.atoms[index])
     }
 
-    /// Get mutable reference to an atom with target atom number.
+    /// Get mutable reference to an atom with target index. Atoms are indexed starting from 0.
     ///
     /// ## Returns
-    /// Mutable reference to `Atom` structure or `AtomError::OutOfRange` if `gmx_number` is out of range.
-    pub fn get_atom_as_ref_mut(&mut self, gmx_number: usize) -> Result<&mut Atom, AtomError> {
-        if gmx_number == 0 || gmx_number > self.atoms.len() {
-            return Err(AtomError::OutOfRange(gmx_number));
+    /// Mutable reference to `Atom` structure or `AtomError::OutOfRange` if `index` is out of range.
+    pub fn get_atom_as_ref_mut(&mut self, index: usize) -> Result<&mut Atom, AtomError> {
+        if index >= self.atoms.len() {
+            return Err(AtomError::OutOfRange(index));
         }
 
-        Ok(&mut self.atoms[gmx_number - 1])
+        Ok(&mut self.atoms[index])
     }
 
-    /// Get copy of an atom with target atom number.
+    /// Get copy of an atom with target index. Atoms are indexed starting from 0.
     ///
     /// ## Returns
-    /// Copy of an `Atom` structure or `AtomError::OutOfRange` if `gmx_number` is out of range
-    pub fn get_atom_copy(&self, gmx_number: usize) -> Result<Atom, AtomError> {
-        if gmx_number == 0 || gmx_number > self.atoms.len() {
-            return Err(AtomError::OutOfRange(gmx_number));
+    /// Copy of an `Atom` structure or `AtomError::OutOfRange` if `index` is out of range
+    pub fn get_atom_copy(&self, index: usize) -> Result<Atom, AtomError> {
+        if index >= self.atoms.len() {
+            return Err(AtomError::OutOfRange(index));
         }
 
-        Ok(self.atoms[gmx_number - 1].clone())
+        Ok(self.atoms[index].clone())
     }
 }
 
@@ -731,13 +731,12 @@ mod tests {
     fn get_atom_as_ref() {
         let system = System::from_file("test_files/example.gro").unwrap();
 
-        assert!(system.get_atom_as_ref(0).is_err());
-        assert!(system.get_atom_as_ref(16845).is_err());
+        assert!(system.get_atom_as_ref(16844).is_err());
 
-        let atom = system.get_atom_as_ref(1).unwrap();
+        let atom = system.get_atom_as_ref(0).unwrap();
         assert_eq!(atom.get_atom_number(), 1);
 
-        let atom = system.get_atom_as_ref(16844).unwrap();
+        let atom = system.get_atom_as_ref(16843).unwrap();
         assert_eq!(atom.get_atom_number(), 16844);
     }
 
@@ -745,13 +744,12 @@ mod tests {
     fn get_atom_as_ref_mut() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        assert!(system.get_atom_as_ref_mut(0).is_err());
-        assert!(system.get_atom_as_ref_mut(16845).is_err());
+        assert!(system.get_atom_as_ref_mut(16844).is_err());
 
-        let atom = system.get_atom_as_ref_mut(1).unwrap();
+        let atom = system.get_atom_as_ref_mut(0).unwrap();
         assert_eq!(atom.get_atom_number(), 1);
 
-        let atom = system.get_atom_as_ref_mut(16844).unwrap();
+        let atom = system.get_atom_as_ref_mut(16843).unwrap();
         assert_eq!(atom.get_atom_number(), 16844);
     }
 
@@ -759,13 +757,12 @@ mod tests {
     fn get_atom_copy() {
         let system = System::from_file("test_files/example.gro").unwrap();
 
-        assert!(system.get_atom_copy(0).is_err());
-        assert!(system.get_atom_copy(16845).is_err());
+        assert!(system.get_atom_copy(16844).is_err());
 
-        let atom = system.get_atom_copy(1).unwrap();
+        let atom = system.get_atom_copy(0).unwrap();
         assert_eq!(atom.get_atom_number(), 1);
 
-        let atom = system.get_atom_copy(16844).unwrap();
+        let atom = system.get_atom_copy(16843).unwrap();
         assert_eq!(atom.get_atom_number(), 16844);
     }
 }

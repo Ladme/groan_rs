@@ -151,12 +151,12 @@ impl Atom {
         self.residue_name = resname.to_string();
     }
 
-    /// Get the number of the atom as presented in gro file.
+    /// Get the number of the atom as presented in gro or pdb file.
     pub fn get_atom_number(&self) -> usize {
         self.atom_number
     }
 
-    /// Set the number of the atom as presented in gro file.
+    /// Set the number of the atom as presented in gro or pdb file.
     pub fn set_atom_number(&mut self, atomnum: usize) {
         self.atom_number = atomnum;
     }
@@ -254,6 +254,7 @@ impl Atom {
     /// This method is only safe to use if the `index` is lower than the
     /// total number of atoms in the system and is not equal to the index of the
     /// target atom.
+    /// You should also remember to add the target atom to `bonded` of the other atom.
     pub unsafe fn add_bonded(&mut self, index: usize) {
         self.bonded.push(index);
     }

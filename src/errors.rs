@@ -102,18 +102,18 @@ pub enum ParsePdbConnectivityError {
     ParseConectLineErr(String),
     /// Used when an non-existent atom number is found on a "CONECT" line.
     #[error("{} atom number '{}' mentioned on line '{}' does not exist", "error:".red().bold(), .0.to_string().yellow(), .1.yellow())]
-    AtomNotFoundErr(usize, String),
+    AtomNotFound(usize, String),
     /// Used when there are multiple atoms with the same number in the PDB file.
     #[error("{} multiple atoms have the same number in the system and connectivity is thus ambiguous", "error:".red().bold())]
-    DuplicateAtomNumbersErr,
+    DuplicateAtomNumbers,
     /// Used when an inconsistency has been detected in the connectivity section:
     /// one atom claims to be bonded to another atom, but the other atom does not say that.
     #[error("{} atom number '{}' claims to be bonded to atom number '{}' but atom number '{}' disagrees", 
     "error:".red().bold(), .0.to_string().yellow(), .1.to_string().yellow(), .1.to_string().yellow())]
-    InconsistencyErr(usize, usize),
+    BondingInconsistency(usize, usize),
     /// Used when an atom claims to be bonded to itself.
     #[error("{} atom '{}' claims to be bonded to itself which does not make sense", "error:".red().bold(), .0.to_string().yellow())]
-    SelfBondingErr(usize),
+    SelfBonding(usize),
 }
 
 /// Errors that can occur when writing a gro file.
@@ -142,6 +142,15 @@ pub enum WritePdbError {
     /// Used when the group of atoms selected to be written into the pdb file does not exist.
     #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
     GroupNotFound(String),
+    /// Used when connectivity printing is requested and the system is too large for the PDB file.
+    #[error("{} system is too large ('{}' atoms) for PDB connectivity section", "error:".red().bold(), .0.to_string().yellow())]
+    ConectTooLarge(usize),
+    /// Used when there are multiple atoms with the same number in the system and connectivity thus can't be printed.
+    #[error("{} multiple atoms have the same number in the system and connectivity is thus ambiguous", "error:".red().bold())]
+    ConectDuplicateAtomNumbers,
+    /// Used when the atom number to be printed in the connectivity section is higher than 99,999.
+    #[error("{} atom number '{}' is too high for PDB connectivity section and can not be wrapped", "error:".red().bold(), .0.to_string().yellow())]
+    ConectInvalidNumber(usize),
 }
 
 /// Errors that can occur when working with Groups of atoms.
@@ -169,8 +178,8 @@ pub enum GroupError {
 /// Errors that can occur when working with atoms in a system.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum AtomError {
-    /// Used when selecting an atom from the system with invalid atom number.
-    #[error("{} atom number '{}' is out of range", "error:".red().bold(), .0.to_string().as_str().yellow())]
+    /// Used when selecting an atom from the system with invalid atom index.
+    #[error("{} atom index '{}' is out of range", "error:".red().bold(), .0.to_string().as_str().yellow())]
     OutOfRange(usize),
 }
 

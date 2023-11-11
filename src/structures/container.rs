@@ -752,6 +752,7 @@ mod tests_container {
 
         assert!(container.isin(5));
         assert!(!container.isin(12));
+        assert!(!container.isin(73));
     }
 
     #[test]
