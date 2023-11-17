@@ -117,10 +117,10 @@ impl System {
     /// ```
     ///
     /// ## Notes
-    /// - Reading ends once `END`` keyword or the end of file is reached.
+    /// - Reading ends once `END` keyword or the end of file is reached.
     /// - Unlike with `read_pdb`, the `ENDMDL` keyword is ignored by this function.
     /// - Note that the PDB file with the connectivity information can but does not have to contain information about the atoms.
-    /// All lines other than those starting with the `CONECT` keyword are ignored.
+    /// All lines other than those starting with the `CONECT` (or `END`) keyword are ignored.
     /// - This function can read `CONECT` lines of any length, i.e. it is not limited by the traditional requirement
     /// of using at most 4 bonds in a single `CONECT` line.
     pub fn add_bonds_from_pdb(

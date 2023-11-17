@@ -982,6 +982,40 @@ mod tests {
     }
 
     #[test]
+    fn xtc_iter_print_progress_with_newline() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        let output = File::create("tmp_xtc_iter_print_progress_newline.txt").unwrap();
+
+        let printer = ProgressPrinter::new()
+            .with_print_freq(3)
+            .with_output(Box::from(output))
+            .with_colored(false)
+            .with_terminating("\n");
+
+        for (raw1, raw2) in system1
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .print_progress(printer)
+            .zip(system2.xtc_iter("test_files/short_trajectory.xtc").unwrap())
+        {
+            let frame1 = raw1.unwrap();
+            let frame2 = raw2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+
+        let mut result = File::open("tmp_xtc_iter_print_progress_newline.txt").unwrap();
+        let mut expected = File::open("test_files/progress_xtc_iter_newline.txt").unwrap();
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+
+        std::fs::remove_file("tmp_xtc_iter_print_progress_newline.txt").unwrap();
+    }
+
+    #[test]
     fn xtc_iter_range_print_progress() {
         let mut system1 = System::from_file("test_files/example.gro").unwrap();
         let mut system2 = System::from_file("test_files/example.gro").unwrap();

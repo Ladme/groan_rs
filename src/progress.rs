@@ -92,6 +92,8 @@ pub struct ProgressPrinter {
     failed_msg: ProgressMessage,
     /// String to be printed when the trajectory reader is jumping to the start of iteration. Default: "JUMPING".bright_purple().
     jumping_msg: ProgressMessage,
+    /// String terminating the progress message. Default: `\r` (carriage return).
+    terminating: String,
 }
 
 impl ProgressPrinter {
@@ -108,6 +110,7 @@ impl ProgressPrinter {
     /// - `completed_msg`: `"COMPLETED".green()` (string printed when the trajectory reading is completed)
     /// - `failed_msg`: `"FAILED!".red()` (string printed when the trajectory reading failed)
     /// - `jumping_msg`: `"JUMPING".bright_purple()` (string printed when the trajectory reader is jumping to the iteration start)
+    /// - `terminating`: `\r` (string terminating the progress message; useful to set to `\n` when printing to a file)
     ///
     /// You can set custom values for any of the parameters by using `with_%PARAMETER()` method
     /// when constructing the `ProgressPrinter`.
@@ -151,7 +154,9 @@ impl ProgressPrinter {
     /// let printer = ProgressPrinter::new()
     ///     .with_output(Box::from(file))
     ///     // turning off colored output which does not make sense for a file
-    ///     .with_colored(false);
+    ///     .with_colored(false)
+    ///     // setting terminating string to `newline` character
+    ///     .with_terminating("\n");
     /// ```
     pub fn new() -> Self {
         ProgressPrinter {
@@ -165,6 +170,7 @@ impl ProgressPrinter {
             completed_msg: ProgressMessage::new("COMPLETED".green()),
             failed_msg: ProgressMessage::new("FAILED!".red()),
             jumping_msg: ProgressMessage::new("JUMPING".bright_purple()),
+            terminating: String::from("\r"),
         }
     }
 
@@ -245,6 +251,12 @@ impl ProgressPrinter {
         self
     }
 
+    /// Create new `ProgressPrinter` with specific value for `terminating`.
+    pub fn with_terminating(mut self, string: &str) -> Self {
+        self.terminating = string.to_string();
+        self
+    }
+
     /// Print progress info about trajectory reading.
     pub fn print(&mut self, frame_number: usize, sim_step: u64, sim_time: f32) {
         if self.status != ProgressStatus::Running || frame_number % self.print_freq == 0 {
@@ -256,7 +268,7 @@ impl ProgressPrinter {
                 ProgressStatus::Failed => self.failed_msg.print(&mut self.output, self.colored),
                 ProgressStatus::Jumping => {
                     self.jumping_msg.print(&mut self.output, self.colored);
-                    write!(self.output, "Jumping to the start of the iteration...\r")
+                    write!(self.output, "Jumping to the start of the iteration...{}", self.terminating)
                         .expect("FATAL GROAN ERROR | ProgressPrinter::print (1) | Could not write to `ProgressPrinter` stream.");
                     self.output
                         .flush()
@@ -268,18 +280,19 @@ impl ProgressPrinter {
             if self.colored {
                 write!(
                     self.output,
-                    "{} {:12} | {} {:12} ps\r",
-                    self.step_msg, sim_step, self.time_msg, sim_time as u64
+                    "{} {:12} | {} {:12} ps{}",
+                    self.step_msg, sim_step, self.time_msg, sim_time as u64, self.terminating
                 )
                 .expect("FATAL GROAN ERROR | ProgressPrinter::print (3) | Could not write to `ProgressPrinter` stream.");
             } else {
                 write!(
                     self.output,
-                    "{} {:12} | {} {:12} ps\r",
+                    "{} {:12} | {} {:12} ps{}",
                     self.step_msg.as_ref() as &str,
                     sim_step,
                     self.time_msg.as_ref() as &str,
-                    sim_time as u64
+                    sim_time as u64,
+                    self.terminating
                 )
                 .expect("FATAL GROAN ERROR | ProgressPrinter::print (4) | Could not write to `ProgressPrinter` stream.");
             }
@@ -446,6 +459,70 @@ mod tests {
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected = File::open("test_files/progress_expected.txt").unwrap();
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn print_with_newline() {
+        let output = NamedTempFile::new().unwrap();
+        let path_to_output = output.path().to_owned();
+
+        let mut printer = ProgressPrinter::new()
+            .with_output(Box::from(output))
+            .with_colored(false)
+            .with_terminating("\n");
+
+        printer.set_status(ProgressStatus::Jumping);
+        printer.print(0, 0, 0.0);
+        printer.set_status(ProgressStatus::Running);
+        printer.print(0, 0, 0.0);
+        printer.print(1, 10, 10.0);
+        printer.print(2, 20, 20.0);
+        printer.print(5, 50, 50.0);
+        printer.print(95, 950, 950.0);
+        printer.print(100, 1000, 1000.0);
+        printer.print(101, 1010, 1010.0);
+        printer.print(200, 2000, 2000.0);
+        printer.print(300, 3000, 3000.0);
+        printer.set_status(ProgressStatus::Completed);
+        printer.print(400, 4000, 4000.0);
+        printer.set_status(ProgressStatus::Failed);
+        printer.print(500, 5000, 5000.0);
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/progress_expected_newline.txt").unwrap();
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn print_with_terminating() {
+        let output = NamedTempFile::new().unwrap();
+        let path_to_output = output.path().to_owned();
+
+        let mut printer = ProgressPrinter::new()
+            .with_output(Box::from(output))
+            .with_colored(false)
+            .with_terminating("  |  ");
+
+        printer.set_status(ProgressStatus::Jumping);
+        printer.print(0, 0, 0.0);
+        printer.set_status(ProgressStatus::Running);
+        printer.print(0, 0, 0.0);
+        printer.print(1, 10, 10.0);
+        printer.print(2, 20, 20.0);
+        printer.print(5, 50, 50.0);
+        printer.print(95, 950, 950.0);
+        printer.print(100, 1000, 1000.0);
+        printer.print(101, 1010, 1010.0);
+        printer.print(200, 2000, 2000.0);
+        printer.print(300, 3000, 3000.0);
+        printer.set_status(ProgressStatus::Completed);
+        printer.print(400, 4000, 4000.0);
+        printer.set_status(ProgressStatus::Failed);
+        printer.print(500, 5000, 5000.0);
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/progress_expected_terminating.txt").unwrap();
         assert!(file_diff::diff_files(&mut result, &mut expected));
     }
 }
