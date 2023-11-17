@@ -357,6 +357,20 @@ impl System {
         false
     }
 
+    /// Check whether connectivity information is available for the system.
+    ///
+    /// ## Returns
+    /// `true` if bonds have been set for at least one atom in the system.
+    /// `false` otherwise.
+    ///
+    /// ## Notes
+    /// - This method returns `true` even if no atom has any bonds associated with it.
+    /// It only checks whether connectivity has been SET for one or more atoms.
+    /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
+    pub fn has_bonds(&self) -> bool {
+        self.atoms.iter().any(|atom| atom.get_bonded().is_some())
+    }
+
     /// Copy the atoms in the system into an independent vector.
     /// Same as [`get_atoms_copy`].
     ///
@@ -440,6 +454,8 @@ impl System {
 
 #[cfg(test)]
 mod tests {
+    use crate::errors::ParsePdbConnectivityError;
+
     use super::*;
     use float_cmp::assert_approx_eq;
 
@@ -673,6 +689,29 @@ mod tests {
         }
 
         assert!(system.has_duplicate_atom_numbers());
+    }
+
+    #[test]
+    fn has_bonds_1() {
+        let mut system = System::from_file("test_files/example.pdb").unwrap();
+        assert!(!system.has_bonds());
+
+        match system.add_bonds_from_pdb("test_files/example.pdb") {
+            Ok(_) => panic!("Should have returned NoBonds warning."),
+            Err(ParsePdbConnectivityError::NoBondsWarning(_)) => assert!(system.has_bonds()),
+            Err(e) => panic!("Function failed with error type `{:?}`.", e),
+        }
+    }
+
+    #[test]
+    fn has_bonds_2() {
+        let mut system = System::from_file("test_files/example.pdb").unwrap();
+        assert!(!system.has_bonds());
+
+        system
+            .add_bonds_from_pdb("test_files/bonds_for_example.pdb")
+            .unwrap();
+        assert!(system.has_bonds());
     }
 
     #[test]

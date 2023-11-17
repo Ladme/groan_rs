@@ -6,7 +6,9 @@
 use std::io::Write;
 
 use crate::errors::{WriteGroError, WritePdbError};
-use crate::structures::{dimension::Dimension, simbox::SimBox, vector3d::Vector3D};
+use crate::structures::{
+    container::AtomContainer, dimension::Dimension, simbox::SimBox, vector3d::Vector3D,
+};
 
 #[derive(Debug, Clone)]
 pub struct Atom {
@@ -29,7 +31,8 @@ pub struct Atom {
     /// Force acting on the atom.
     force: Vector3D,
     /// Indices of atoms that are bonded with this atom.
-    bonded: Vec<usize>,
+    /// `None` indicates that no information about the connectivity is available.
+    bonded: Option<AtomContainer>,
 }
 
 impl Atom {
@@ -57,7 +60,7 @@ impl Atom {
             position,
             velocity,
             force,
-            bonded: Vec::new(),
+            bonded: None,
         }
     }
 
@@ -103,31 +106,6 @@ impl Atom {
     /// ```
     pub fn with_charge(mut self, charge: f32) -> Self {
         self.set_charge(charge);
-        self
-    }
-
-    /// Add bonded atoms to target atom.
-    ///
-    /// ## Example
-    /// ```
-    /// use groan_rs::prelude::*;
-    ///
-    /// let bonded = vec![1, 2, 4];
-    ///
-    /// let atom = Atom::new(
-    ///     1,
-    ///     "LYS",
-    ///     1,
-    ///     "BB",
-    ///     [1.4, 1.5, 1.7].into(),
-    ///     Vector3D::default(),
-    ///     Vector3D::default(),
-    /// ).with_bonded(bonded);
-    ///
-    /// assert_eq!(atom.get_bonded(), &vec![1, 2, 4]);
-    /// ```
-    pub fn with_bonded(mut self, bonded: Vec<usize>) -> Self {
-        self.bonded = bonded;
         self
     }
 
@@ -242,21 +220,43 @@ impl Atom {
         self.force.z = force.z;
     }
 
-    /// Get the indices of bonded atoms.
-    pub fn get_bonded(&self) -> &Vec<usize> {
-        &self.bonded
+    /// Get the atoms bonded to this atom.
+    pub fn get_bonded(&self) -> Option<&AtomContainer> {
+        self.bonded.as_ref()
     }
 
-    /// Add an index of an atom that is bonded to the target atom.
-    /// Atoms are indexed starting from 0.
+    /// Set the atoms bonded to this atom.
     ///
     /// ## Safety
-    /// This method is only safe to use if the `index` is lower than the
-    /// total number of atoms in the system and is not equal to the index of the
-    /// target atom.
-    /// You should also remember to add the target atom to `bonded` of the other atom.
+    /// This method is only safe if the indices are valid indices of the system.
+    /// Neither index also can be the index of the target atom in the system.
+    /// The same method should also be applied to all other atoms in the system.
+    pub unsafe fn set_bonded(&mut self, indices: Vec<usize>) {
+        self.bonded = Some(AtomContainer::from_indices(indices, usize::MAX));
+    }
+
+    /// Add index of atom bonded to this atom.
+    ///
+    /// ## Safety
+    /// This method is only safe if the index is valid index of the system.
+    /// The index also can not be the index of the target atom in the system.
+    /// This method should also be applied to the other atom, adding the index of this atom.
     pub unsafe fn add_bonded(&mut self, index: usize) {
-        self.bonded.push(index);
+        match self.bonded {
+            None => self.bonded = Some(AtomContainer::from_indices(vec![index], usize::MAX)),
+            Some(ref mut unwrapped) => unwrapped.add(index, usize::MAX),
+        }
+    }
+
+    /// Get the number of bonded atoms associated with this atom.
+    ///
+    /// ## Returns
+    /// The number of atoms bonded to this atom. 0 if no connectivity information is available.
+    pub fn get_n_bonded(&self) -> usize {
+        match self.bonded {
+            None => 0,
+            Some(ref x) => x.get_n_atoms(),
+        }
     }
 
     /// Check whether the atom has non-zero position.
@@ -645,6 +645,45 @@ mod tests {
         atom.set_force(&new_for);
 
         assert_eq!(*atom.get_force(), new_for);
+    }
+
+    #[test]
+    fn get_set_bonded() {
+        let mut atom = make_default_atom();
+        assert_eq!(atom.get_n_bonded(), 0);
+
+        let bonded = atom.get_bonded();
+        assert_eq!(bonded, None);
+
+        unsafe {
+            atom.set_bonded(vec![1, 2, 5]);
+        }
+
+        assert_eq!(atom.get_n_bonded(), 3);
+        let bonded = atom.get_bonded();
+        assert_eq!(
+            bonded,
+            Some(&AtomContainer::from_indices(vec![1, 2, 5], 10))
+        );
+    }
+
+    #[test]
+    fn add_bonded() {
+        let mut atom = make_default_atom();
+        assert_eq!(atom.get_n_bonded(), 0);
+
+        unsafe {
+            atom.add_bonded(1);
+            atom.add_bonded(2);
+            atom.add_bonded(5);
+        }
+
+        assert_eq!(atom.get_n_bonded(), 3);
+        let bonded = atom.get_bonded();
+        assert_eq!(
+            bonded,
+            Some(&AtomContainer::from_indices(vec![1, 2, 5], 10))
+        );
     }
 
     #[test]

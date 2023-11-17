@@ -114,6 +114,9 @@ pub enum ParsePdbConnectivityError {
     /// Used when an atom claims to be bonded to itself.
     #[error("{} atom '{}' claims to be bonded to itself which does not make sense", "error:".red().bold(), .0.to_string().yellow())]
     SelfBonding(usize),
+    /// Used when no connectivity information has been read from the PDB file.
+    #[error("{} no bonds have been found in the PDB file '{}'", "warning:".yellow().bold(), path_to_yellow(.0))]
+    NoBondsWarning(Box<Path>),
 }
 
 /// Errors that can occur when writing a gro file.
@@ -179,8 +182,11 @@ pub enum GroupError {
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum AtomError {
     /// Used when selecting an atom from the system with invalid atom index.
-    #[error("{} atom index '{}' is out of range", "error:".red().bold(), .0.to_string().as_str().yellow())]
+    #[error("{} atom index '{}' is out of range", "error:".red().bold(), .0.to_string().yellow())]
     OutOfRange(usize),
+    /// Used when attempting to create a bond that is invalid.
+    #[error("{} bond could not be created between atoms {} and {}", "error:".red().bold(), .0.to_string().yellow(), .1.to_string().yellow())]
+    InvalidBond(usize, usize),
 }
 
 /// Errors that can occur when reading and parsing ndx file.

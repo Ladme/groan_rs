@@ -5,7 +5,7 @@
 
 use std::cmp;
 
-/// Memory efficient structure describing a group of atoms.
+/// Structure describing a group of atoms.
 /// Guaranteed to only contain valid atom indices.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AtomContainer {
@@ -27,6 +27,13 @@ struct AtomBlock {
 }
 
 impl AtomContainer {
+    /// Create an empty `AtomContainer`.
+    pub fn empty() -> Self {
+        AtomContainer {
+            atom_blocks: Vec::new(),
+        }
+    }
+
     /// Create a new valid `AtomContainer` structure from individual indices of the atoms.
     ///
     /// ## Parameters
@@ -249,6 +256,21 @@ impl AtomContainer {
             .chain(container2.atom_blocks.iter().cloned())
             .collect();
         AtomContainer::from_blocks(blocks)
+    }
+
+    /// Add index to the `AtomContainer`.
+    /// Maintains the validity of the container.
+    /// If `index` is higher than or equal to `n_atoms`, it is not added to the container.
+    pub fn add(&mut self, index: usize, n_atoms: usize) {
+        if index >= n_atoms {
+            return;
+        }
+
+        let mut new_blocks = self.atom_blocks.clone();
+        // safety: we check that index is smaller than `n_atoms` in a previous step
+        new_blocks.push(unsafe { AtomBlock::new_unchecked(index, index) });
+
+        self.atom_blocks = AtomContainer::from_blocks(new_blocks).atom_blocks;
     }
 }
 
@@ -779,5 +801,81 @@ mod tests_container {
         assert_eq!(union.atom_blocks.len(), 2);
         cmp_block_tuple(&union.atom_blocks[0], (0, 6));
         cmp_block_tuple(&union.atom_blocks[1], (9, 19));
+    }
+
+    #[test]
+    fn add() {
+        let indices = vec![15, 2, 3, 5, 6, 7, 10, 11, 12, 15];
+        let mut container = AtomContainer::from_indices(indices, 20);
+
+        container.add(18, 20);
+        assert_eq!(container.atom_blocks.len(), 5);
+        cmp_block_tuple(&container.atom_blocks[0], (2, 3));
+        cmp_block_tuple(&container.atom_blocks[1], (5, 7));
+        cmp_block_tuple(&container.atom_blocks[2], (10, 12));
+        cmp_block_tuple(&container.atom_blocks[3], (15, 15));
+        cmp_block_tuple(&container.atom_blocks[4], (18, 18));
+
+        container.add(1, 20);
+        assert_eq!(container.atom_blocks.len(), 5);
+        cmp_block_tuple(&container.atom_blocks[0], (1, 3));
+        cmp_block_tuple(&container.atom_blocks[1], (5, 7));
+        cmp_block_tuple(&container.atom_blocks[2], (10, 12));
+        cmp_block_tuple(&container.atom_blocks[3], (15, 15));
+        cmp_block_tuple(&container.atom_blocks[4], (18, 18));
+
+        container.add(8, 20);
+        assert_eq!(container.atom_blocks.len(), 5);
+        cmp_block_tuple(&container.atom_blocks[0], (1, 3));
+        cmp_block_tuple(&container.atom_blocks[1], (5, 8));
+        cmp_block_tuple(&container.atom_blocks[2], (10, 12));
+        cmp_block_tuple(&container.atom_blocks[3], (15, 15));
+        cmp_block_tuple(&container.atom_blocks[4], (18, 18));
+
+        container.add(9, 20);
+        assert_eq!(container.atom_blocks.len(), 4);
+        cmp_block_tuple(&container.atom_blocks[0], (1, 3));
+        cmp_block_tuple(&container.atom_blocks[1], (5, 12));
+        cmp_block_tuple(&container.atom_blocks[2], (15, 15));
+        cmp_block_tuple(&container.atom_blocks[3], (18, 18));
+
+        container.add(19, 20);
+        assert_eq!(container.atom_blocks.len(), 4);
+        cmp_block_tuple(&container.atom_blocks[0], (1, 3));
+        cmp_block_tuple(&container.atom_blocks[1], (5, 12));
+        cmp_block_tuple(&container.atom_blocks[2], (15, 15));
+        cmp_block_tuple(&container.atom_blocks[3], (18, 19));
+
+        container.add(16, 20);
+        container.add(14, 20);
+        assert_eq!(container.atom_blocks.len(), 4);
+        cmp_block_tuple(&container.atom_blocks[0], (1, 3));
+        cmp_block_tuple(&container.atom_blocks[1], (5, 12));
+        cmp_block_tuple(&container.atom_blocks[2], (14, 16));
+        cmp_block_tuple(&container.atom_blocks[3], (18, 19));
+
+        container.add(4, 20);
+        assert_eq!(container.atom_blocks.len(), 3);
+        cmp_block_tuple(&container.atom_blocks[0], (1, 12));
+        cmp_block_tuple(&container.atom_blocks[1], (14, 16));
+        cmp_block_tuple(&container.atom_blocks[2], (18, 19));
+
+        container.add(20, 20);
+        assert_eq!(container.atom_blocks.len(), 3);
+        cmp_block_tuple(&container.atom_blocks[0], (1, 12));
+        cmp_block_tuple(&container.atom_blocks[1], (14, 16));
+        cmp_block_tuple(&container.atom_blocks[2], (18, 19));
+
+        container.add(25, 20);
+        assert_eq!(container.atom_blocks.len(), 3);
+        cmp_block_tuple(&container.atom_blocks[0], (1, 12));
+        cmp_block_tuple(&container.atom_blocks[1], (14, 16));
+        cmp_block_tuple(&container.atom_blocks[2], (18, 19));
+
+        container.add(7, 20);
+        assert_eq!(container.atom_blocks.len(), 3);
+        cmp_block_tuple(&container.atom_blocks[0], (1, 12));
+        cmp_block_tuple(&container.atom_blocks[1], (14, 16));
+        cmp_block_tuple(&container.atom_blocks[2], (18, 19));
     }
 }

@@ -18,11 +18,11 @@ use crate::system::general::System;
 /// Currently only supports orthogonal simulation boxes!
 ///
 /// ## Supported keywords
-/// This function can handle lines starting with ATOM, HETATM, TITLE, ENDMDL, and CRYST1.
+/// This function can handle lines starting with ATOM, HETATM, TITLE, ENDMDL, END, and CRYST1.
 /// All other lines are ignored.
 ///
 /// ## Notes
-/// - Reading ends once ENDMDL or the end of file is reached.
+/// - Reading ends once `ENDMDL`, `END`, or the end of file is reached.
 ///
 /// - In case multiple TITLE lines are provided, the **last one** is used as the
 /// name of the system. If no TITLE line is provided, "Unknown" is used as the name.
@@ -65,8 +65,8 @@ pub fn read_pdb(filename: impl AsRef<Path>) -> Result<System, ParsePdbError> {
         else if line.len() >= 6 && line[0..6] == *"CRYST1" {
             simbox = line_as_box(&line)?;
         }
-        // ENDMDL reached => stop reading
-        else if line.len() >= 6 && line[0..6] == *"ENDMDL" {
+        // END or ENDMDL is reached => stop reading
+        else if line.len() >= 3 && line[0..3] == *"END" {
             break;
         }
     }
@@ -80,10 +80,10 @@ impl System {
     ///
     /// ## Returns
     /// - `Ok` if the connectivity was read correctly.
-    /// - `ParsePdbConnectivityError` if an error occured.
-    /// In such cases, the connectivity information in the
-    /// `System` structure is in an undefined state and it is
-    /// recommended to destroy the `System` structure.
+    /// - `ParsePdbConnectivityError::NoBondsWarning` is the file was read successfully
+    /// but no bonds have been found. The `System` structure is still modified.
+    /// - Other `ParsePdbConnectivityError` if an error occured.
+    /// If an error occurs, the `System` structure is not changed.
     ///
     /// ## Example
     /// ```no_run
@@ -117,12 +117,12 @@ impl System {
     /// ```
     ///
     /// ## Notes
+    /// - Reading ends once `END`` keyword or the end of file is reached.
+    /// - Unlike with `read_pdb`, the `ENDMDL` keyword is ignored by this function.
     /// - Note that the PDB file with the connectivity information can but does not have to contain information about the atoms.
     /// All lines other than those starting with the `CONECT` keyword are ignored.
     /// - This function can read `CONECT` lines of any length, i.e. it is not limited by the traditional requirement
     /// of using at most 4 bonds in a single `CONECT` line.
-    /// - In case an error occures in this function, the system connectivity information is in an undefined state.
-    /// - Unlike with `read_pdb`, the `ENDMDL`` keyword is ignored by this function.
     pub fn add_bonds_from_pdb(
         &mut self,
         filename: impl AsRef<Path>,
@@ -154,6 +154,9 @@ impl System {
             .map(|(index, atom)| (atom.get_atom_number(), index))
             .collect();
 
+        // create vector for temporary storing of connectivity information
+        let mut temp_bonded = vec![Vec::new(); self.get_n_atoms()];
+
         for raw_line in reader.lines() {
             let line = match raw_line {
                 Ok(x) => x,
@@ -165,19 +168,31 @@ impl System {
             };
 
             if line.len() >= 6 && line[0..6] == *"CONECT" {
-                line_as_conect(self, &line, &atom_number_to_index)?;
+                line_as_conect(&mut temp_bonded, &line, &atom_number_to_index)?;
+            } else if line.trim().len() == 3 && line[0..3] == *"END" {
+                break;
             }
         }
 
         // validate that all bonded atoms agree that they are bonded
         // i.e. all bonds must be bidirectional edges of the graph describing the system topology
-        for (atom_index, atom1) in self.atoms_iter().enumerate() {
-            for &bonded_index in atom1.get_bonded() {
-                let atom2 = self
-                    .get_atom_as_ref(bonded_index)
-                    .expect("FATAL GROAN ERROR | System::add_bonds_from_pdb | Invalid atom index.");
+        for atom_index in 1..self.get_n_atoms() {
+            let bonded1 = temp_bonded
+                .get(atom_index)
+                .expect("FATAL GROAN ERROR | System::add_bonds_from_pdb (1) | Invalid atom index.");
 
-                if !atom2.get_bonded().contains(&atom_index) {
+            for &bonded_index in bonded1.iter() {
+                let bonded2 = temp_bonded.get(bonded_index).expect(
+                    "FATAL GROAN ERROR | System::add_bonds_from_pdb (2) | Invalid atom index.",
+                );
+
+                if !bonded2.contains(&atom_index) {
+                    let atom1 = self.get_atom_as_ref(atom_index).expect(
+                        "FATAL GROAN ERROR | System::add_bonds_from_pdb (3) | Invalid atom index.",
+                    );
+                    let atom2 = self.get_atom_as_ref(bonded_index).expect(
+                        "FATAL GROAN ERROR | System::add_bonds_from_pdb (4) | Invalid atom index.",
+                    );
                     return Err(ParsePdbConnectivityError::BondingInconsistency(
                         atom1.get_atom_number(),
                         atom2.get_atom_number(),
@@ -186,7 +201,29 @@ impl System {
             }
         }
 
-        Ok(())
+        let mut empty = true;
+        // transform `temp_bonded` to information in the `System` structure
+        for (bonded, atom) in temp_bonded.into_iter().zip(self.atoms_iter_mut()) {
+            // safety:
+            // a) we know that all indices are valid as we obtain them from `atom_number_to_index` hashmap
+            // b) we apply the `set_bonded` method to all atoms
+            unsafe {
+                if !bonded.is_empty() {
+                    empty = false;
+                }
+
+                atom.set_bonded(bonded);
+            }
+        }
+
+        if empty {
+            // no bonds have been detected in the pdb file
+            Err(ParsePdbConnectivityError::NoBondsWarning(Box::from(
+                filename.as_ref(),
+            )))
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -311,6 +348,8 @@ impl System {
         if write_connectivity {
             write_connectivity_section(self, &mut writer, group_name)?;
         }
+
+        write_line(&mut writer, "END")?;
 
         writer.flush().map_err(|_| WritePdbError::CouldNotWrite)?;
 
@@ -444,7 +483,7 @@ fn line_as_title(line: &str) -> Result<String, ParsePdbError> {
 /// - Parses a line starting with CONECT.
 /// - Can read CONECT line of any length.
 fn line_as_conect(
-    system: &mut System,
+    temp_bonded: &mut [Vec<usize>],
     line: &str,
     number2index: &HashMap<usize, usize>,
 ) -> Result<(), ParsePdbConnectivityError> {
@@ -497,16 +536,8 @@ fn line_as_conect(
                 return Err(ParsePdbConnectivityError::SelfBonding(atom_number));
             }
 
-            // add the bonded atom to the System structure
-            // safety: a) we are not changing the number of atoms in the System
-            //         b) we know that both `atom_index` and `index` are valid atom indices
-            //            as they come from the System via the `number2index` hashmap
-            unsafe {
-                system
-                    .get_atoms_as_ref_mut()
-                    .get_unchecked_mut(*atom_index)
-                    .add_bonded(*index);
-            }
+            // storage the index of the bonded atom
+            temp_bonded[*atom_index].push(*index);
         }
 
         iterator += 5;
@@ -565,14 +596,16 @@ fn write_connectivity_section(
         .expect("FATAL GROAN ERROR | pdb_io::write_connectivity_section (1) | Group should exist but it does not.")
     {
         // select atoms from bonded which are inside the printed group
-        let bonded_in_group = atom
-            .get_bonded()
-            .iter()
-            .filter(|index|system
-                .group_isin(group_name, **index)
-                .expect("FATAL GROAN ERROR | pdb_io::write_connectivity_section (2) | Group should exist but it does not.")
-            )
-            .collect::<Vec<&usize>>();
+        let bonded_in_group = match atom.get_bonded() {
+            None => return Ok(()),
+            Some(container) => {
+                container.iter().filter(|index| system
+                    .group_isin(group_name, *index)
+                    .expect("FATAL GROAN ERROR | pdb_io::write_connectivity_section (2) | Group should exist but it does not.")
+                )
+                .collect::<Vec<usize>>()
+            }
+        };
 
         let n_bonded = bonded_in_group.len();
         if n_bonded == 0 {
@@ -580,7 +613,7 @@ fn write_connectivity_section(
         }
 
         let atom_number = atom.get_atom_number();
-        // connectivity section can not accomodate larger than 5-digit numbers
+        // connectivity section can not accommodate larger than 5-digit numbers
         if atom_number > 99_999 {
             return Err(WritePdbError::ConectInvalidNumber(atom_number));
         }
@@ -594,7 +627,7 @@ fn write_connectivity_section(
             }
 
             let bonded_number = system
-                .get_atom_as_ref(*bonded_index)
+                .get_atom_as_ref(bonded_index)
                 .expect("FATAL GROAN ERROR | pdb_io::write_connectivity_section | Invalid atom index.")
                 .get_atom_number();
 
@@ -698,6 +731,17 @@ mod tests_read {
     #[test]
     fn read_endmdl() {
         let system = read_pdb("test_files/example_endmdl.pdb").unwrap();
+
+        assert_eq!(system.get_name(), "Buforin II peptide P11L");
+        assert_eq!(system.get_n_atoms(), 17);
+
+        assert_eq!(system.atoms_iter().nth(0).unwrap().get_atom_number(), 1);
+        assert_eq!(system.atoms_iter().nth(16).unwrap().get_atom_number(), 17);
+    }
+
+    #[test]
+    fn read_end() {
+        let system = read_pdb("test_files/example_end.pdb").unwrap();
 
         assert_eq!(system.get_name(), "Buforin II peptide P11L");
         assert_eq!(system.get_n_atoms(), 17);
@@ -942,15 +986,17 @@ mod tests_read {
 
         for (a, atom) in system.atoms_iter().enumerate() {
             let expected = expected_bonded.get(a).unwrap();
-            for index in atom.get_bonded() {
+            for index in atom.get_bonded().unwrap().iter() {
                 let bonded = system
                     .get_atoms_as_ref()
-                    .get(*index)
+                    .get(index)
                     .unwrap()
                     .get_atom_number();
                 assert!(expected.contains(&bonded));
             }
         }
+
+        assert!(system.get_atom_as_ref(49).unwrap().get_bonded().is_some());
     }
 
     #[test]
@@ -965,6 +1011,44 @@ mod tests_read {
 
         for (atom1, atom2) in system1.atoms_iter().zip(system2.atoms_iter()) {
             assert_eq!(atom1.get_bonded(), atom2.get_bonded());
+        }
+    }
+
+    #[test]
+    fn add_bonds_empty_pdb() {
+        let mut system = read_pdb("test_files/example.pdb").unwrap();
+
+        match system.add_bonds_from_pdb("test_files/example.pdb") {
+            Err(ParsePdbConnectivityError::NoBondsWarning(path)) => {
+                assert_eq!(path, Box::from(Path::new("test_files/example.pdb")));
+                assert!(system.has_bonds());
+            }
+            Ok(_) => {
+                panic!("Parsing should have returned a warning but it succeeded without warning.")
+            }
+            Err(e) => panic!(
+                "Parsing failed with an error `{:?}` instead of a warning.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn add_bonds_end() {
+        let mut system = read_pdb("test_files/conect.pdb").unwrap();
+
+        match system.add_bonds_from_pdb("test_files/conect_end.pdb") {
+            Err(ParsePdbConnectivityError::NoBondsWarning(path)) => {
+                assert_eq!(path, Box::from(Path::new("test_files/conect_end.pdb")));
+                assert!(system.has_bonds());
+            }
+            Ok(_) => {
+                panic!("Parsing should have returned a warning but it succeeded without warning.")
+            }
+            Err(e) => panic!(
+                "Parsing failed with an error `{:?}` instead of a warning.",
+                e
+            ),
         }
     }
 
@@ -1031,7 +1115,12 @@ mod tests_read {
                 let mut system = read_pdb($file_struct).unwrap();
 
                 match system.add_bonds_from_pdb($file_bonds) {
-                    Err($variant(e)) => assert_eq!(e, $expected),
+                    Err($variant(e)) => {
+                        assert_eq!(e, $expected);
+                        for atom in system.get_atoms_as_ref() {
+                            assert!(atom.get_bonded().is_none());
+                        }
+                    }
                     Ok(_) => panic!("Parsing should have failed, but it succeeded."),
                     Err(e) => panic!("Parsing successfully failed but incorrect error type `{:?}` was returned.", e),
                 }
@@ -1291,6 +1380,116 @@ mod tests_write {
             Err(WritePdbError::GroupNotFound(e)) => assert_eq!(e, "Protein"),
             Ok(_) => panic!("Writing should have failed, but it did not."),
             Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
+        }
+    }
+
+    #[test]
+    fn write_with_connectivity() {
+        let mut system = System::from_file("test_files/conect.pdb").unwrap();
+        system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
+
+        let pdb_output = NamedTempFile::new().unwrap();
+        let path_to_output = pdb_output.path();
+
+        system.write_pdb(path_to_output, true).unwrap();
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/expected_bonds.pdb").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_with_connectivity_no_bonds() {
+        let mut system = System::from_file("test_files/example.pdb").unwrap();
+        match system.add_bonds_from_pdb("test_files/example.pdb") {
+            Ok(_) | Err(ParsePdbConnectivityError::NoBondsWarning(_)) => (),
+            Err(e) => panic!("Could not read bonds from file: `{}`", e),
+        }
+
+        let pdb_output = NamedTempFile::new().unwrap();
+        let path_to_output = pdb_output.path();
+
+        system.write_pdb(path_to_output, true).unwrap();
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/example.pdb").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_group_with_connectivity() {
+        let mut system = System::from_file("test_files/conect.pdb").unwrap();
+        system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
+
+        system.group_create("Group", "serial 20 to 30").unwrap();
+
+        let pdb_output = NamedTempFile::new().unwrap();
+        let path_to_output = pdb_output.path();
+
+        system
+            .group_write_pdb("Group", path_to_output, true)
+            .unwrap();
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/group_expected_bonds.pdb").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_with_connectivity_fails_too_large() {
+        let mut atoms = Vec::with_capacity(100_000);
+        let atom = Atom::new(1, "RES", 1, "ATM", Vector3D::default(), Vector3D::default(), Vector3D::default());
+
+        for _ in 0..100_000 {
+            atoms.push(atom.clone());
+        }
+
+        let system = System::new("Test system", atoms, [10.0, 10.0, 10.0].into());
+
+        let pdb_output = NamedTempFile::new().unwrap();
+        let path_to_output = pdb_output.path();
+
+        match system.write_pdb(path_to_output, true) {
+                Ok(_) => panic!("Writing should have failed but it succeeded."),
+                Err(WritePdbError::ConectTooLarge(e)) => assert_eq!(e, system.get_n_atoms()),
+                Err(e) => panic!("Writing successfully failed but incorrect error type `{:?}` was returned.", e),
+        }
+    }
+
+    #[test]
+    fn write_with_connectivity_fails_duplicate() {
+        let mut system = System::from_file("test_files/conect.pdb").unwrap();
+        system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
+
+        system.get_atom_as_ref_mut(10).unwrap().set_atom_number(4);
+
+        let pdb_output = NamedTempFile::new().unwrap();
+        let path_to_output = pdb_output.path();
+
+        match system.write_pdb(path_to_output, true) {
+                Ok(_) => panic!("Writing should have failed but it succeeded."),
+                Err(WritePdbError::ConectDuplicateAtomNumbers) => (),
+                Err(e) => panic!("Writing successfully failed but incorrect error type `{:?}` was returned.", e),
+        }
+    }
+
+    #[test]
+    fn write_with_connectivity_fails_number_too_high() {
+        let mut system = System::from_file("test_files/conect.pdb").unwrap();
+        system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
+
+        system.get_atom_as_ref_mut(10).unwrap().set_atom_number(100_000);
+
+        let pdb_output = NamedTempFile::new().unwrap();
+        let path_to_output = pdb_output.path();
+
+        match system.write_pdb(path_to_output, true) {
+                Ok(_) => panic!("Writing should have failed but it succeeded."),
+                Err(WritePdbError::ConectInvalidNumber(e)) => assert_eq!(e, 100_000),
+                Err(e) => panic!("Writing successfully failed but incorrect error type `{:?}` was returned.", e),
         }
     }
 }

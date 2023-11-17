@@ -3,8 +3,8 @@
 
 //! Implementation of System methods for modifying the system.
 
-use crate::errors::GroupError;
-use crate::structures::{simbox::SimBox, vector3d::Vector3D};
+use crate::errors::{AtomError, GroupError};
+use crate::structures::{atom::Atom, simbox::SimBox, vector3d::Vector3D};
 use crate::system::general::System;
 
 /// ## Methods for modifying the properties of the system.
@@ -113,6 +113,34 @@ impl System {
             }
         }
     }
+
+    /// Add bond connecting two atoms with target indices. Atoms are indexed from 0.
+    ///
+    /// ## Returns
+    /// `Ok` if both atoms exist and the bond was created.
+    /// `AtomError::OutOfRange` if any of the atoms does not exist.
+    /// `AtomError::InvalidBond` if the bond is invalid.
+    ///
+    /// In case the bond already exists, nothing happens.
+    ///
+    /// ## Safety
+    /// This method is unsafe because adding bonds can break the topology of the system
+    /// such as the number and properties of molecules.
+    pub unsafe fn add_bond(&mut self, index1: usize, index2: usize) -> Result<(), AtomError> {
+        if index1 == index2 {
+            return Err(AtomError::InvalidBond(index1, index2));
+        }
+
+        unsafe {
+            let atom1 = self.get_atom_as_ref_mut(index1)? as *mut Atom;
+            let atom2 = self.get_atom_as_ref_mut(index2)? as *mut Atom;
+
+            (*atom1).add_bonded(index2);
+            (*atom2).add_bonded(index1);
+        }
+
+        Ok(())
+    }
 }
 
 /******************************/
@@ -180,6 +208,86 @@ mod tests {
 
         for (i, atom) in system.atoms_iter().enumerate() {
             assert_eq!(atom.get_atom_number(), i + 1);
+        }
+    }
+
+    #[test]
+    fn add_bond() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        for a in 1..system.get_n_atoms() {
+            unsafe {
+                system.add_bond(0, a).unwrap();
+            }
+        }
+
+        assert!(system.has_bonds());
+
+        for atom in system.atoms_iter().skip(1) {
+            assert_eq!(atom.get_n_bonded(), 1);
+            assert!(atom.get_bonded().unwrap().isin(0));
+        }
+
+        unsafe {
+            system.add_bond(1, 3).unwrap();
+        }
+
+        let atom1 = system.get_atom_as_ref(1).unwrap();
+        assert_eq!(atom1.get_n_bonded(), 2);
+        assert!(atom1.get_bonded().unwrap().isin(0));
+        assert!(atom1.get_bonded().unwrap().isin(3));
+
+        let atom3 = system.get_atom_as_ref(3).unwrap();
+        assert_eq!(atom3.get_n_bonded(), 2);
+        assert!(atom3.get_bonded().unwrap().isin(0));
+        assert!(atom3.get_bonded().unwrap().isin(1));
+    }
+
+    #[test]
+    fn add_bond_fail_outofrange_1() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        unsafe {
+            match system.add_bond(15, 102743) {
+                Err(AtomError::OutOfRange(e)) => assert_eq!(e, 102743),
+                Ok(_) => panic!("Funtion should have failed, but it succeeded."),
+                Err(e) => panic!(
+                    "Function successfully failed but incorrect error type `{:?}` was returned.",
+                    e
+                ),
+            }
+        }
+    }
+
+    #[test]
+    fn add_bond_fail_outofrange_2() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        unsafe {
+            match system.add_bond(102743, 15) {
+                Err(AtomError::OutOfRange(e)) => assert_eq!(e, 102743),
+                Ok(_) => panic!("Funtion should have failed, but it succeeded."),
+                Err(e) => panic!(
+                    "Function successfully failed but incorrect error type `{:?}` was returned.",
+                    e
+                ),
+            }
+        }
+    }
+
+    #[test]
+    fn add_bond_fail_selfbonding() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        unsafe {
+            match system.add_bond(15, 15) {
+                Err(AtomError::InvalidBond(i, j)) => assert_eq!((i, j), (15, 15)),
+                Ok(_) => panic!("Funtion should have failed, but it succeeded."),
+                Err(e) => panic!(
+                    "Function successfully failed but incorrect error type `{:?}` was returned.",
+                    e
+                ),
+            }
         }
     }
 }

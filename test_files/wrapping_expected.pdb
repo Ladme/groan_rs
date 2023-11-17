@@ -9,3 +9,4 @@ ATOM      1  SC1 ARGG    3       0.000   0.000   0.000  1.00  0.00
 ATOM      5  SC2 ARG     3       0.000   0.000   0.000  1.00  0.00            
 TER
 ENDMDL
+END

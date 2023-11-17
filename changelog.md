@@ -9,7 +9,7 @@
 - **Breaking Change**: Introduced `AtomContainer`: a general structure describing a collection of atoms in the `System` structure. `Group` structure and all atom iterators have been reworked to employ `AtomContainer`. Many methods associated with `Group` have consequently been removed/renamed/rewritten.
 #### Reading and writing PDB files
 - **Breaking Change**: `System::write_pdb` and `System::group_write_pdb` now require additional argument specifying whether connectivity information should be written into the pdb file.
-- **Potentially Breaking Change**: Reading of PDB files now properly ends once `ENDMDL` keyword is reached.
+- **Potentially Breaking Change**: Reading of PDB files now properly ends once `ENDMDL` or `END` keyword is reached. `END` keyword is now properly written at the end of the PDB file.
 - The connectivity section of PDB files can be now read using `System::add_bonds_from_pdb` and written using `System::write_pdb`/`System::group_write_pdb`.
 #### Quality-of-life improvements
 - Introduced `ProgressPrinter` for printing the progress of trajectory reading. Progress printing can be turned on for any trajectory iteration by using the `TrajMasterRead::print_progress` method.

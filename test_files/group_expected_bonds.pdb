@@ -1,0 +1,28 @@
+TITLE     Group `Group` from Title of the system
+REMARK    THIS IS A SIMULATION BOX
+CRYST1   60.861   60.861   60.861  90.00  90.00  90.00 P 1           1
+MODEL        1
+ATOM     21  SC1 PHE    10      28.140  28.580  33.590  1.00  0.00            
+ATOM     22  SC2 PHE    10      25.190  30.250  33.870  1.00  0.00            
+ATOM     23  SC3 PHE    10      27.370  31.310  35.460  1.00  0.00            
+ATOM     24  BB  LEU    11      29.390  31.320  31.310  1.00  0.00            
+ATOM     25  SC1 LEU    11      31.610  28.680  27.970  1.00  0.00            
+ATOM     26  BB  VAL    12      32.370  30.500  31.120  1.00  0.00            
+ATOM     27  SC1 VAL    12      32.770  30.680  34.000  1.00  0.00            
+ATOM     28  BB  GLY    13      32.860  32.470  28.770  1.00  0.00            
+ATOM     10  BB  ARG     5      22.790  22.800  30.760  1.00  0.00            
+ATOM     29  BB  ARG    14      32.930  34.820  30.790  1.00  0.00            
+ATOM     30  SC1 ARG    14      32.540  35.200  34.040  1.00  0.00            
+TER
+ENDMDL
+CONECT   21   22   23
+CONECT   22   21   23
+CONECT   23   21   22
+CONECT   24   25   26
+CONECT   25   24
+CONECT   26   24   27   28
+CONECT   27   26
+CONECT   28   26   29
+CONECT   29   28   30
+CONECT   30   29
+END
