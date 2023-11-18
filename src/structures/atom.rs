@@ -294,6 +294,11 @@ impl Atom {
         self.position.z += translate.z;
     }
 
+    /// Wrap the atom into the simulation box.
+    pub fn wrap(&mut self, sbox: &SimBox) {
+        self.position.wrap(sbox);
+    }
+
     /// Write information about the atom in gro format.
     /// Only writes velocities if requested (if `write_velocities == true`).
     ///
@@ -743,6 +748,48 @@ mod tests {
         assert_approx_eq!(f32, atom.get_position().x, 3.623, epsilon = 0.00001);
         assert_approx_eq!(f32, atom.get_position().y, 0.621, epsilon = 0.00001);
         assert_approx_eq!(f32, atom.get_position().z, 15.634, epsilon = 0.00001);
+    }
+
+    #[test]
+    fn wrap() {
+        let mut atom = Atom::new(
+            45,
+            "GLY",
+            123,
+            "BB",
+            [15.123, 14.321, -1.743].into(),
+            [-3.432, 0.184, 1.234].into(),
+            [5.1235, 2.3451, -0.32145].into(),
+        );
+
+        let simbox = SimBox::from([15.0, 15.0, 15.0]);
+
+        atom.wrap(&simbox);
+
+        assert_approx_eq!(f32, atom.get_position().x, 0.123, epsilon = 0.00001);
+        assert_approx_eq!(f32, atom.get_position().y, 14.321, epsilon = 0.00001);
+        assert_approx_eq!(f32, atom.get_position().z, 13.257, epsilon = 0.00001);
+    }
+
+    #[test]
+    fn wrap_far() {
+        let mut atom = Atom::new(
+            45,
+            "GLY",
+            123,
+            "BB",
+            [60.123, 14.321, -31.743].into(),
+            [-3.432, 0.184, 1.234].into(),
+            [5.1235, 2.3451, -0.32145].into(),
+        );
+
+        let simbox = SimBox::from([15.0, 15.0, 15.0]);
+
+        atom.wrap(&simbox);
+
+        assert_approx_eq!(f32, atom.get_position().x, 0.123, epsilon = 0.00001);
+        assert_approx_eq!(f32, atom.get_position().y, 14.321, epsilon = 0.00001);
+        assert_approx_eq!(f32, atom.get_position().z, 13.257, epsilon = 0.00001);
     }
 
     #[test]

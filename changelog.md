@@ -3,19 +3,27 @@
 
 ### Version 0.5.0
 #### Changes to the Atom structure
-- Two optional fields have been aded to the `Atom` structure: `charge` and `bonded`. `charge` specifies the charge of the atom. `bonded` is a list of atom indices of atoms that are bonded to the given atom.
+- Two optional fields have been aded to the `Atom` structure: `charge` and `bonded`. `charge` specifies the charge of the atom. `bonded` contains atom indices of atoms that are bonded to the given atom.
 - Several methods have been introduced that allow using and accessing the new `charge` and `bonded` properties.
+- Introduced `Atom::wrap` method for wrapping the atom into the simulation box.
 #### AtomContainer structure
 - **Breaking Change**: Introduced `AtomContainer`: a general structure describing a collection of atoms in the `System` structure. `Group` structure and all atom iterators have been reworked to employ `AtomContainer`. Many methods associated with `Group` have consequently been removed/renamed/rewritten.
 #### Reading and writing PDB files
 - **Breaking Change**: `System::write_pdb` and `System::group_write_pdb` now require additional argument specifying whether connectivity information should be written into the pdb file.
 - **Potentially Breaking Change**: Reading of PDB files now properly ends once `ENDMDL` or `END` keyword is reached. `END` keyword is now properly written at the end of the PDB file.
 - The connectivity section of PDB files can be now read using `System::add_bonds_from_pdb` and written using `System::write_pdb`/`System::group_write_pdb`.
+#### New `System` connectivity methods
+- Introduced:
+1. `System::add_bond` for adding bonds between atoms in the `System`.
+2. `System::bonded_atoms_iter` and `System::bonded_atoms_iter_mut` for iterating through atoms that are bonded to target atom.
+3. `System::has_bonds` for checking whether connectivity information is available. 
 #### Quality-of-life improvements
 - Introduced `ProgressPrinter` for printing the progress of trajectory reading. Progress printing can be turned on for any trajectory iteration by using the `TrajMasterRead::print_progress` method.
 #### Other changes
 - **Breaking Change**: `System::get_atom_as_ref`, `System::get_atom_as_ref_mut`, and `System::get_atom_copy` now take `index` of the atom in the `System` instead of `gmx_atom_number`. Indexing is now consistent with similar functions as it start from 0.
 - Introduced `System::has_duplicate_atom_numbers` method which checks whether there are any atoms in the `System` structure sharing atom number.
+- Introduced `System::residues_renumber` method for renumbering residues in the `System`.
+- Introduced `System::atoms_wrap` and `System::group_wrap` for wrapping atoms into the simulation box.
 - Reworked all panic groan errors to specify function from which they have been called.
 
 ***

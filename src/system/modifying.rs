@@ -186,6 +186,31 @@ impl System {
         }
     }
 
+    /// Wrap atoms of the system into the simulation box.
+    pub fn atoms_wrap(&mut self) {
+        self.group_wrap("all")
+            .expect("FATAL GROAN ERROR | System::atoms_wrap | Default group 'all' does not exist.")
+    }
+
+    /// Wrap atoms of a given group into the simulation box.
+    ///
+    /// ## Returns
+    /// `Ok` if the group exists.
+    /// `GroupError` otherwise.
+    pub fn group_wrap(&mut self, name: &str) -> Result<(), GroupError> {
+        let simulation_box = self.get_box_as_ref() as *const SimBox;
+
+        unsafe {
+            for atom in self.group_iter_mut(name)? {
+                atom.wrap(simulation_box
+                    .as_ref()
+                    .expect("FATAL GROAN ERROR | System::group_wrap | SimBox is NULL which should not happen."));
+            }
+        }
+
+        Ok(())
+    }
+
     /// Add bond connecting two atoms with target indices. Atoms are indexed from 0.
     ///
     /// ## Returns
@@ -327,6 +352,163 @@ mod tests {
         assert_eq!(first_atom.get_atom_number(), 1);
         assert_eq!(middle_atom.get_atom_number(), 1);
         assert_eq!(last_atom.get_atom_number(), 50);
+    }
+
+    #[test]
+    fn atoms_wrap() {
+        let system_orig = System::from_file("test_files/example.gro").unwrap();
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        let simbox = system.get_box_copy();
+        let translate1 = Vector3D::from([simbox.x * 3.0, -simbox.y, 0.0]);
+
+        for index in [154, 1754, 12345, 4, 37, 0] {
+            system
+                .get_atom_as_ref_mut(index)
+                .unwrap()
+                .translate_nopbc(&translate1);
+        }
+
+        let translate2 = Vector3D::from([0.0, simbox.y, -simbox.z * 2.0]);
+        for index in [13, 65, 9853, 16843, 7832, 489] {
+            system
+                .get_atom_as_ref_mut(index)
+                .unwrap()
+                .translate_nopbc(&translate2);
+        }
+
+        system.atoms_wrap();
+
+        for (a1, a2) in system_orig.atoms_iter().zip(system.atoms_iter()) {
+            assert_approx_eq!(
+                f32,
+                a1.get_position().x,
+                a2.get_position().x,
+                epsilon = 0.00001
+            );
+            assert_approx_eq!(
+                f32,
+                a1.get_position().y,
+                a2.get_position().y,
+                epsilon = 0.00001
+            );
+            assert_approx_eq!(
+                f32,
+                a1.get_position().z,
+                a2.get_position().z,
+                epsilon = 0.00001
+            );
+        }
+    }
+
+    #[test]
+    fn group_wrap() {
+        let system_orig = System::from_file("test_files/example.gro").unwrap();
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let simbox = system.get_box_copy();
+        let translate1 = Vector3D::from([simbox.x * 3.0, -simbox.y, 0.0]);
+
+        for index in [154, 1754, 12345, 4, 37, 0] {
+            system
+                .get_atom_as_ref_mut(index)
+                .unwrap()
+                .translate_nopbc(&translate1);
+        }
+
+        let translate2 = Vector3D::from([0.0, simbox.y, -simbox.z * 2.0]);
+        for index in [13, 65, 9853, 16843, 7832, 489] {
+            system
+                .get_atom_as_ref_mut(index)
+                .unwrap()
+                .translate_nopbc(&translate2);
+        }
+
+        system.group_wrap("Protein").unwrap();
+
+        let nonprotein_translated1 = [154, 1754, 12345];
+        let nonprotein_translated2 = [65, 9853, 16843, 7832, 489];
+
+        for (index, (a1, a2)) in system_orig
+            .atoms_iter()
+            .zip(system.atoms_iter())
+            .enumerate()
+        {
+            if nonprotein_translated1.contains(&index) {
+                assert_approx_eq!(
+                    f32,
+                    a1.get_position().x + translate1.x,
+                    a2.get_position().x,
+                    epsilon = 0.00001
+                );
+                assert_approx_eq!(
+                    f32,
+                    a1.get_position().y + translate1.y,
+                    a2.get_position().y,
+                    epsilon = 0.00001
+                );
+                assert_approx_eq!(
+                    f32,
+                    a1.get_position().z + translate1.z,
+                    a2.get_position().z,
+                    epsilon = 0.00001
+                );
+            } else if nonprotein_translated2.contains(&index) {
+                assert_approx_eq!(
+                    f32,
+                    a1.get_position().x + translate2.x,
+                    a2.get_position().x,
+                    epsilon = 0.00001
+                );
+                assert_approx_eq!(
+                    f32,
+                    a1.get_position().y + translate2.y,
+                    a2.get_position().y,
+                    epsilon = 0.00001
+                );
+                assert_approx_eq!(
+                    f32,
+                    a1.get_position().z + translate2.z,
+                    a2.get_position().z,
+                    epsilon = 0.00001
+                );
+            } else {
+                assert_approx_eq!(
+                    f32,
+                    a1.get_position().x,
+                    a2.get_position().x,
+                    epsilon = 0.00001
+                );
+                assert_approx_eq!(
+                    f32,
+                    a1.get_position().y,
+                    a2.get_position().y,
+                    epsilon = 0.00001
+                );
+                assert_approx_eq!(
+                    f32,
+                    a1.get_position().z,
+                    a2.get_position().z,
+                    epsilon = 0.00001
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn group_wrap_fail() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        match system.group_wrap("Protein") {
+            Ok(_) => panic!("Function should have failed but it succeeded."),
+            Err(GroupError::NotFound(g)) => assert_eq!(g, "Protein"),
+            Err(e) => panic!(
+                "Function failed successfully but incorrect error type `{:?}` was returned",
+                e
+            ),
+        }
     }
 
     #[test]
