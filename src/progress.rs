@@ -147,7 +147,7 @@ impl ProgressPrinter {
     ///
     /// By default, `ProgressPrinter` prints to standard output.
     /// However, you can also let it print into a file.
-    /// ```
+    /// ```no_run
     /// use groan_rs::prelude::*;
     ///
     /// let file = std::fs::File::create("progress.log").unwrap();
