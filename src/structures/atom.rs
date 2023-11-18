@@ -654,10 +654,7 @@ mod tests {
 
         assert_eq!(atom.get_n_bonded(), 3);
         let bonded = atom.get_bonded();
-        assert_eq!(
-            bonded,
-            &AtomContainer::from_indices(vec![1, 2, 5], 10)
-        );
+        assert_eq!(bonded, &AtomContainer::from_indices(vec![1, 2, 5], 10));
     }
 
     #[test]
@@ -673,10 +670,7 @@ mod tests {
 
         assert_eq!(atom.get_n_bonded(), 3);
         let bonded = atom.get_bonded();
-        assert_eq!(
-            bonded,
-            &AtomContainer::from_indices(vec![1, 2, 5], 10)
-        );
+        assert_eq!(bonded, &AtomContainer::from_indices(vec![1, 2, 5], 10));
     }
 
     #[test]

@@ -1439,7 +1439,15 @@ mod tests_write {
     #[test]
     fn write_with_connectivity_fails_too_large() {
         let mut atoms = Vec::with_capacity(100_000);
-        let atom = Atom::new(1, "RES", 1, "ATM", Vector3D::default(), Vector3D::default(), Vector3D::default());
+        let atom = Atom::new(
+            1,
+            "RES",
+            1,
+            "ATM",
+            Vector3D::default(),
+            Vector3D::default(),
+            Vector3D::default(),
+        );
 
         for _ in 0..100_000 {
             atoms.push(atom.clone());
@@ -1451,9 +1459,12 @@ mod tests_write {
         let path_to_output = pdb_output.path();
 
         match system.write_pdb(path_to_output, true) {
-                Ok(_) => panic!("Writing should have failed but it succeeded."),
-                Err(WritePdbError::ConectTooLarge(e)) => assert_eq!(e, system.get_n_atoms()),
-                Err(e) => panic!("Writing successfully failed but incorrect error type `{:?}` was returned.", e),
+            Ok(_) => panic!("Writing should have failed but it succeeded."),
+            Err(WritePdbError::ConectTooLarge(e)) => assert_eq!(e, system.get_n_atoms()),
+            Err(e) => panic!(
+                "Writing successfully failed but incorrect error type `{:?}` was returned.",
+                e
+            ),
         }
     }
 
@@ -1468,9 +1479,12 @@ mod tests_write {
         let path_to_output = pdb_output.path();
 
         match system.write_pdb(path_to_output, true) {
-                Ok(_) => panic!("Writing should have failed but it succeeded."),
-                Err(WritePdbError::ConectDuplicateAtomNumbers) => (),
-                Err(e) => panic!("Writing successfully failed but incorrect error type `{:?}` was returned.", e),
+            Ok(_) => panic!("Writing should have failed but it succeeded."),
+            Err(WritePdbError::ConectDuplicateAtomNumbers) => (),
+            Err(e) => panic!(
+                "Writing successfully failed but incorrect error type `{:?}` was returned.",
+                e
+            ),
         }
     }
 
@@ -1479,15 +1493,21 @@ mod tests_write {
         let mut system = System::from_file("test_files/conect.pdb").unwrap();
         system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
 
-        system.get_atom_as_ref_mut(10).unwrap().set_atom_number(100_000);
+        system
+            .get_atom_as_ref_mut(10)
+            .unwrap()
+            .set_atom_number(100_000);
 
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();
 
         match system.write_pdb(path_to_output, true) {
-                Ok(_) => panic!("Writing should have failed but it succeeded."),
-                Err(WritePdbError::ConectInvalidNumber(e)) => assert_eq!(e, 100_000),
-                Err(e) => panic!("Writing successfully failed but incorrect error type `{:?}` was returned.", e),
+            Ok(_) => panic!("Writing should have failed but it succeeded."),
+            Err(WritePdbError::ConectInvalidNumber(e)) => assert_eq!(e, 100_000),
+            Err(e) => panic!(
+                "Writing successfully failed but incorrect error type `{:?}` was returned.",
+                e
+            ),
         }
     }
 }
