@@ -370,20 +370,6 @@ impl<'a> Iterator for AtomContainerIterator<'a> {
     }
 }
 
-/*
-/// Create `AtomContainer` from the provided atom ranges.
-/// Expects the total number of atoms in the system
-/// and atom ranges corresponding to the individual `AtomBlocks`.
-macro_rules! atom_container {
-    ($n_atoms:expr; $($x:expr),+ $(,)?) => {{
-        let ranges = vec![$($x),+];
-        AtomContainer::from_ranges(ranges, $n_atoms)
-    }};
-}
-
-pub(crate) use atom_container;
-*/
-
 #[cfg(test)]
 mod tests_block {
     use super::*;

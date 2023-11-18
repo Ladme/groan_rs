@@ -30,7 +30,7 @@ pub struct Atom {
     velocity: Vector3D,
     /// Force acting on the atom.
     force: Vector3D,
-    /// Indices of atoms that are bonded with this atom.
+    /// Indices of atoms that are bonded to this atom.
     bonded: AtomContainer,
 }
 
@@ -227,9 +227,15 @@ impl Atom {
     /// Set the atoms bonded to this atom.
     ///
     /// ## Safety
-    /// This method is only safe if the indices are valid indices of the system.
-    /// Neither index also can be the index of the target atom in the system.
-    /// The same method should also be applied to all other atoms in the system.
+    /// This method is only safe to use if all the following requirements are fulfilled:
+    ///
+    /// a) all indices are valid atom indices of the system,
+    ///
+    /// b) no index of `indices` corresponds to the index of the this atom,
+    ///
+    /// c) index of this atom is also added between bonded atoms of all atoms included in `indices`,
+    ///
+    /// d) `System::reset_mol_references` method is applied to the `System` this atom is part of.
     pub unsafe fn set_bonded(&mut self, indices: Vec<usize>) {
         self.bonded = AtomContainer::from_indices(indices, usize::MAX);
     }
@@ -237,9 +243,15 @@ impl Atom {
     /// Add index of atom bonded to this atom.
     ///
     /// ## Safety
-    /// This method is only safe if the index is valid index of the system.
-    /// The index also can not be the index of the target atom in the system.
-    /// This method should also be applied to the other atom, adding the index of this atom.
+    /// This method is only safe to use if all the following requirements are fulfilled:
+    ///
+    /// a) the index is a valid atom index of the system,
+    ///
+    /// b) the index does not match the index of this atom,
+    ///
+    /// c) index of this atom is also added between bonded atoms of the atom `index`,
+    ///
+    /// d) `System::reset_mol_references` method is applied to the `System` this atom is part of.
     pub unsafe fn add_bonded(&mut self, index: usize) {
         self.bonded.add(index, usize::MAX);
     }

@@ -106,11 +106,6 @@ pub enum ParsePdbConnectivityError {
     /// Used when there are multiple atoms with the same number in the PDB file.
     #[error("{} multiple atoms have the same number in the system and connectivity is thus ambiguous", "error:".red().bold())]
     DuplicateAtomNumbers,
-    /// Used when an inconsistency has been detected in the connectivity section:
-    /// one atom claims to be bonded to another atom, but the other atom does not say that.
-    #[error("{} atom number '{}' claims to be bonded to atom number '{}' but atom number '{}' disagrees", 
-    "error:".red().bold(), .0.to_string().yellow(), .1.to_string().yellow(), .1.to_string().yellow())]
-    BondingInconsistency(usize, usize),
     /// Used when an atom claims to be bonded to itself.
     #[error("{} atom '{}' claims to be bonded to itself which does not make sense", "error:".red().bold(), .0.to_string().yellow())]
     SelfBonding(usize),

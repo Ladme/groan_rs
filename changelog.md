@@ -3,7 +3,7 @@
 
 ### Version 0.5.0
 #### Changes to the Atom structure
-- Two optional fields have been aded to the `Atom` structure: `charge` and `bonded`. `charge` specifies the charge of the atom. `bonded` contains atom indices of atoms that are bonded to the given atom.
+- Two optional fields have been added to the `Atom` structure: `charge` and `bonded`. `charge` specifies the charge of the atom. `bonded` contains atom indices of atoms that are bonded to the given atom.
 - Several methods have been introduced that allow using and accessing the new `charge` and `bonded` properties.
 - Introduced `Atom::wrap` method for wrapping the atom into the simulation box.
 #### AtomContainer structure
@@ -17,6 +17,8 @@
 1. `System::add_bond` for adding bonds between atoms in the `System`.
 2. `System::bonded_atoms_iter` and `System::bonded_atoms_iter_mut` for iterating through atoms that are bonded to target atom.
 3. `System::has_bonds` for checking whether connectivity information is available. 
+4. `System::molecule_iter` and `System::molecule_iter_mut` for iterating through atoms that are part of the same molecule.
+5. `System::make_molecules_whole` for fixing molecules broken at periodic boundaries.
 #### Quality-of-life improvements
 - Introduced `ProgressPrinter` for printing the progress of trajectory reading. Progress printing can be turned on for any trajectory iteration by using the `TrajMasterRead::print_progress` method.
 #### Other changes
@@ -24,6 +26,7 @@
 - Introduced `System::has_duplicate_atom_numbers` method which checks whether there are any atoms in the `System` structure sharing atom number.
 - Introduced `System::residues_renumber` method for renumbering residues in the `System`.
 - Introduced `System::atoms_wrap` and `System::group_wrap` for wrapping atoms into the simulation box.
+- Introduced `System::atoms_distance` for calculating distance between two atoms in the system.
 - Reworked all panic groan errors to specify function from which they have been called.
 
 ***

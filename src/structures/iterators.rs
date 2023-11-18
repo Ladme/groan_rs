@@ -3,21 +3,19 @@
 
 //! Implementation of iterators over atoms and filter functions.
 
-use crate::errors::{AtomError, GroupError};
 use crate::structures::{
     atom::Atom,
     container::{AtomContainer, AtomContainerIterator},
-    group::Group,
     shape::Shape,
     simbox::SimBox,
 };
-use crate::system::general::System;
 
 /**************************/
 /*  IMMUTABLE ITERATORS   */
 /**************************/
 
 /// Immutable iterator over atoms. Constructed using `System::atoms_iter()` or `System::group_iter()`.
+/// Is guaranteed to iterate over atoms in the same order in which they are defined in the `System` structure.
 pub struct AtomIterator<'a> {
     atoms: &'a [Atom],
     container_iterator: AtomContainerIterator<'a>,
@@ -125,11 +123,65 @@ where
     }
 }
 
+/// Immutable iterator over atoms of a molecule.
+/// Iterates over atoms respecting the topology of the molecule.
+pub struct MoleculeIterator<'a> {
+    atoms: &'a [Atom],
+    container: Vec<usize>,
+    current_index: usize,
+    simbox: &'a SimBox,
+}
+
+impl<'a> MoleculeIterator<'a> {
+    /// Create a new `MoleculeIterator`
+    ///
+    /// ## Parameters
+    /// - `atoms`: reference to the atoms of the `System`
+    /// - `container`: vector specifying indices of the atoms to iterate through
+    /// - `simbox`: current dimensions of the simulation box
+    pub fn new(atoms: &'a [Atom], container: Vec<usize>, simbox: &'a SimBox) -> Self {
+        MoleculeIterator {
+            atoms,
+            container,
+            current_index: 0,
+            simbox,
+        }
+    }
+
+    /// Filter atoms located inside the specified geometric shape.
+    pub fn filter_geometry(
+        self,
+        geometry: impl Shape,
+    ) -> FilterAtomIterator<'a, MoleculeIterator<'a>, impl Shape> {
+        let simbox = self.simbox;
+        FilterAtomIterator {
+            iterator: self,
+            geometry,
+            simbox,
+        }
+    }
+}
+
+/// Iteration over atoms of the molecule.
+impl<'a> Iterator for MoleculeIterator<'a> {
+    type Item = &'a Atom;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(index) = self.container.get(self.current_index) {
+            self.current_index += 1;
+            unsafe { Some(self.atoms.get_unchecked(*index)) }
+        } else {
+            None
+        }
+    }
+}
+
 /**************************/
 /*    MUTABLE ITERATORS   */
 /**************************/
 
 /// Mutable iterator over atoms. Constructed using `System::atoms_iter_mut()` or `System::group_iter_mut()`.
+/// Is guaranteed to iterate over atoms in the same order in which they are defined in the `System` structure.
 pub struct MutAtomIterator<'a> {
     atoms: *mut [Atom],
     container_iterator: AtomContainerIterator<'a>,
@@ -241,611 +293,55 @@ where
     }
 }
 
-/**************************/
-/*    ITERATING SYSTEM    */
-/**************************/
+/// Mutable iterator over atoms of a molecule.
+/// Iterates over atoms respecting the topology of the molecule.
+pub struct MutMoleculeIterator<'a> {
+    atoms: *mut [Atom],
+    container: Vec<usize>,
+    current_index: usize,
+    simbox: &'a SimBox,
+}
 
-/// ## Methods for iterating over atoms of the system.
-impl System {
-    /// Create an iterator over a group of atoms. The atoms are immutable.
+impl<'a> MutMoleculeIterator<'a> {
+    /// Create a new `MoleculeIterator`
     ///
-    /// ## Returns
-    /// `AtomIterator` or `GroupError::NotFound` in case the group does not exist.
-    ///
-    /// ## Example
-    /// Printing the atoms of group "Protein".
-    /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
-    /// let mut system = System::from_file("system.gro").unwrap();
-    /// system.group_create("Protein", "resid 1 to 29").unwrap();
-    ///
-    /// match system.group_iter("Protein") {
-    ///     Ok(iterator) => {
-    ///         for atom in iterator {
-    ///             println!("{:?}", atom);
-    ///         }
-    ///     },
-    ///     Err(e) => eprintln!("{}", e),
-    /// };
-    /// ```
-    pub fn group_iter(&self, name: &str) -> Result<AtomIterator, GroupError> {
-        let group = self
-            .get_groups_as_ref()
-            .get(name)
-            .ok_or(GroupError::NotFound(name.to_string()))?;
-
-        Ok(AtomIterator::new(
-            self.get_atoms_as_ref(),
-            group.get_atoms(),
-            self.get_box_as_ref(),
-        ))
-    }
-
-    /// Create an iterator over a group of atoms. The atoms are mutable.
-    ///
-    /// ## Returns
-    /// `MutAtomIterator` or `GroupError::NotFound` in case the group does not exist.
-    ///
-    /// ## Example
-    /// Translating the atoms of the group "Protein".
-    /// Note that using `system.group_translate()` may be faster.
-    /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
-    /// let mut system = System::from_file("system.gro").unwrap();
-    /// system.group_create("Protein", "resid 1 to 29").unwrap();
-    /// let simulation_box = system.get_box_copy();
-    ///
-    /// match system.group_iter_mut("Protein") {
-    ///     Ok(iterator) => {
-    ///         for atom in iterator {
-    ///             atom.translate(&[1.0, 2.0, -1.0].into(), &simulation_box);
-    ///         }
-    ///     },
-    ///     Err(e) => eprintln!("{}", e),
-    /// };
-    /// ```
-    pub fn group_iter_mut(&mut self, name: &str) -> Result<MutAtomIterator, GroupError> {
-        unsafe {
-            let simbox = self.get_box_as_ref() as *const SimBox;
-
-            let group =
-                self.get_groups_as_ref_mut()
-                    .get_mut(name)
-                    .ok_or(GroupError::NotFound(name.to_string()))? as *mut Group;
-
-            Ok(MutAtomIterator::new(
-                self.get_atoms_as_ref_mut(),
-                (*group).get_atoms(),
-                simbox.as_ref().unwrap(),
-            ))
+    /// ## Parameters
+    /// - `atoms`: mutable reference to the atoms of the `System`
+    /// - `container`: vector specifying indices of the atoms to iterate through
+    /// - `simbox`: current dimensions of the simulation box
+    pub fn new(atoms: &'a mut [Atom], container: Vec<usize>, simbox: &'a SimBox) -> Self {
+        MutMoleculeIterator {
+            atoms,
+            container,
+            current_index: 0,
+            simbox,
         }
     }
 
-    /// Create an iterator over all atoms in the system. The atoms are immutable.
-    ///
-    /// ## Example
-    /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
-    /// let mut system = System::from_file("system.gro").unwrap();
-    ///
-    /// for atom in system.atoms_iter() {
-    ///     println!("{:?}", atom);
-    /// }
-    /// ```
-    ///
-    /// ## Note on performance
-    /// It might be slightly faster to iterate using `system.get_atoms_as_ref().iter()` if you do
-    /// not care about the additional methods `AtomIterator` implements.
-    pub fn atoms_iter(&self) -> AtomIterator {
-        self.group_iter("all")
-            .expect("FATAL GROAN ERROR | System::atoms_iter | Default group `all` does not exist.")
-    }
-
-    /// Create an iterator over all atoms in the system. The atoms are mutable.
-    ///
-    /// ## Example
-    /// Translating all the atoms in the system by a specified vector.
-    /// Note that using `system.atoms_translate()` may be faster.
-    /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
-    /// let mut system = System::from_file("system.gro").unwrap();
-    /// let simulation_box = system.get_box_copy();
-    ///
-    /// for atom in system.atoms_iter_mut() {
-    ///     atom.translate(&[1.0, -1.0, 2.5].into(), &simulation_box);
-    /// }
-    /// ```
-    pub fn atoms_iter_mut(&mut self) -> MutAtomIterator {
-        self.group_iter_mut("all").expect(
-            "FATAL GROAN ERROR | System::atoms_iter_mut | Default group `all` does not exist.",
-        )
-    }
-
-    /// Create an iterator over atoms that are bonded to atom with target `index`.
-    /// The atoms are immutable. Atoms are indexed starting from 0.
-    ///
-    /// ## Returns
-    /// `AtomIterator` if the index is valid. `AtomError` if the index is out of range.
-    ///
-    /// ## Example
-    /// Calculating distances between an atom and atoms that are bonded to it.
-    /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
-    /// let mut system = System::from_file("system.pdb").unwrap();
-    /// system.add_bonds_from_pdb("system.pdb").unwrap();
-    ///
-    /// // get target atom
-    /// let target_atom = match system.get_atom_as_ref(15) {
-    ///     Ok(atom) => atom,
-    ///     Err(e) => {
-    ///         eprintln!("{}", e);
-    ///         return;
-    ///     }
-    /// };
-    ///
-    /// let mut distances = Vec::new();
-    /// // iterate over atoms bonded to an atom indexed as 15
-    /// match system.bonded_atoms_iter(15) {
-    ///     Ok(iterator) => {
-    ///         for bonded_atom in iterator {
-    ///             distances.push(target_atom.distance(bonded_atom, Dimension::XYZ, system.get_box_as_ref()));
-    ///         }
-    ///         println!("{:?}", distances);
-    ///     }
-    ///     Err(e) => eprintln!("{}", e),
-    /// }
-    /// ```
-    pub fn bonded_atoms_iter(&self, index: usize) -> Result<AtomIterator, AtomError> {
-        if index >= self.get_n_atoms() {
-            return Err(AtomError::OutOfRange(index));
-        }
-
-        let atom = self
-            .get_atom_as_ref(index)
-            .expect("FATAL GROAN ERROR | System::bonded_atoms_iter() | Atom index does not exist.");
-
-        Ok(AtomIterator::new(
-            self.get_atoms_as_ref(),
-            atom.get_bonded(),
-            self.get_box_as_ref(),
-        ))
-    }
-
-    /// Create an iterator over atoms that are bonded to atom with target `index`.
-    /// The atoms are mutable. Atoms are indexed starting from 0.
-    ///
-    /// ## Returns
-    /// `MutAtomIterator` if the index is valid. `AtomError` if the index is out of range.
-    ///
-    /// ## Example
-    /// Rename atoms that are bonded to target atom.
-    /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
-    /// let mut system = System::from_file("system.pdb").unwrap();
-    /// system.add_bonds_from_pdb("system.pdb").unwrap();
-    ///
-    /// // iterate over atoms bonded to an atom indexed as 15
-    /// match system.bonded_atoms_iter_mut(15) {
-    ///     Ok(iterator) => {
-    ///         for atom in iterator {
-    ///             atom.set_atom_name("ATM");
-    ///         }
-    ///     }
-    ///     Err(e) => eprintln!("{}", e),
-    /// }
-    /// ```
-    pub fn bonded_atoms_iter_mut(&mut self, index: usize) -> Result<MutAtomIterator, AtomError> {
-        if index >= self.get_n_atoms() {
-            return Err(AtomError::OutOfRange(index));
-        }
-
-        unsafe {
-            let simbox = self.get_box_as_ref() as *const SimBox;
-
-            let atom = self.get_atom_as_ref_mut(index).expect(
-                "FATAL GROAN ERROR | System::bonded_atoms_iter() | Atom index does not exist.",
-            ) as *mut Atom;
-
-            Ok(MutAtomIterator::new(
-                self.get_atoms_as_ref_mut(),
-                (*atom).get_bonded(),
-                simbox.as_ref().unwrap(),
-            ))
+    /// Filter atoms located inside the specified geometric shape.
+    pub fn filter_geometry(
+        self,
+        geometry: impl Shape,
+    ) -> MutFilterAtomIterator<'a, MutMoleculeIterator<'a>, impl Shape> {
+        let simbox = self.simbox;
+        MutFilterAtomIterator {
+            iterator: self,
+            geometry,
+            simbox,
         }
     }
 }
 
-/**************************/
-/*       UNIT TESTS       */
-/**************************/
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::structures::{dimension::Dimension, shape::*, vector3d::Vector3D};
-
-    use float_cmp::assert_approx_eq;
-
-    #[test]
-    fn group_iter_protein() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        for (group_atom, system_atom) in system
-            .group_iter("Protein")
-            .unwrap()
-            .zip(system.get_atoms_as_ref().iter().take(61))
-        {
-            assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
-        }
-    }
-
-    #[test]
-    fn group_iter_membrane() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        for (group_atom, system_atom) in system
-            .group_iter("Membrane")
-            .unwrap()
-            .zip(system.get_atoms_as_ref().iter().skip(61))
-        {
-            assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
-        }
-    }
-
-    #[test]
-    fn group_iter_ion() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        for (group_atom, system_atom) in system
-            .group_iter("ION")
-            .unwrap()
-            .zip(system.get_atoms_as_ref().iter().skip(16604))
-        {
-            assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
-        }
-    }
-
-    #[test]
-    fn atoms_iter() {
-        let system = System::from_file("test_files/example.gro").unwrap();
-
-        let atoms = system.get_atoms_as_ref();
-
-        for (extracted_atom, system_atom) in atoms.iter().zip(system.atoms_iter()) {
-            assert_eq!(
-                system_atom.get_atom_number(),
-                extracted_atom.get_atom_number()
-            );
-        }
-    }
-
-    #[test]
-    fn group_iter_mut() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        let extracted = system.get_atoms_copy();
-
-        for (group_atom, system_atom) in system
-            .group_iter_mut("Protein")
-            .unwrap()
-            .zip(extracted.iter().take(61))
-        {
-            assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
-
-            group_atom.translate_nopbc(&Vector3D::from([0.5, -1.1, 2.4]));
-            assert_approx_eq!(
-                f32,
-                group_atom.get_position().x,
-                system_atom.get_position().x + 0.5
-            );
-            assert_approx_eq!(
-                f32,
-                group_atom.get_position().y,
-                system_atom.get_position().y - 1.1
-            );
-            assert_approx_eq!(
-                f32,
-                group_atom.get_position().z,
-                system_atom.get_position().z + 2.4
-            );
-        }
-    }
-
-    #[test]
-    fn atoms_iter_mut() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-
-        let extracted = system.get_atoms_copy();
-
-        for (group_atom, system_atom) in system.atoms_iter_mut().zip(extracted.iter()) {
-            assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
-
-            group_atom.translate_nopbc(&Vector3D::from([0.5, -1.1, 2.4]));
-            assert_approx_eq!(
-                f32,
-                group_atom.get_position().x,
-                system_atom.get_position().x + 0.5
-            );
-            assert_approx_eq!(
-                f32,
-                group_atom.get_position().y,
-                system_atom.get_position().y - 1.1
-            );
-            assert_approx_eq!(
-                f32,
-                group_atom.get_position().z,
-                system_atom.get_position().z + 2.4
-            );
-        }
-    }
-
-    #[test]
-    fn filter_sphere() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        let sphere_pos = system.group_get_center("Protein").unwrap();
-        let sphere = Sphere::new(sphere_pos.clone(), 5.0);
-
-        for atom in system.atoms_iter().filter_geometry(sphere.clone()) {
-            assert!(
-                atom.get_position()
-                    .distance(&sphere_pos, Dimension::XYZ, system.get_box_as_ref())
-                    < 5.0
-            );
-        }
-
-        let sphere_pos2 = Vector3D::from([9.0, 3.0, 1.0]);
-        let sphere2 = Sphere::new(sphere_pos2.clone(), 4.0);
-
-        for atom in system
-            .atoms_iter()
-            .filter_geometry(sphere)
-            .filter_geometry(sphere2)
-        {
-            assert!(
-                atom.get_position()
-                    .distance(&sphere_pos, Dimension::XYZ, system.get_box_as_ref())
-                    < 5.0
-            );
-            assert!(
-                atom.get_position()
-                    .distance(&sphere_pos2, Dimension::XYZ, system.get_box_as_ref())
-                    < 4.0
-            );
-        }
-    }
-
-    #[test]
-    fn filter_sphere_mut() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        let sphere = Sphere::new(system.group_get_center("Protein").unwrap(), 1.5);
-        let sphere2 = Sphere::new(system.group_get_center("Protein").unwrap(), 0.4);
-
-        let sbox = system.get_box_copy();
-
-        let orig_atoms = system.get_atoms_copy();
-
-        for atom in system
-            .atoms_iter_mut()
-            .filter_geometry(sphere.clone())
-            .filter_geometry(sphere2.clone())
-        {
-            atom.set_atom_name("XYZ");
-        }
-
-        for (i, atom) in system.atoms_iter().enumerate() {
-            if sphere.inside(atom.get_position(), &sbox)
-                && sphere2.inside(atom.get_position(), &sbox)
-            {
-                assert_eq!(atom.get_atom_name(), "XYZ");
-            } else {
-                assert_eq!(atom.get_atom_name(), orig_atoms[i].get_atom_name());
-            }
-        }
-    }
-
-    #[test]
-    fn filter_sphere_count_water() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        let sphere = Sphere::new(system.group_get_center("Protein").unwrap(), 4.5);
-        let count = system
-            .group_iter("W")
-            .unwrap()
-            .filter_geometry(sphere)
-            .count();
-
-        assert_eq!(count, 1304);
-    }
-
-    #[test]
-    fn filter_sphere_count_phosphates() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        system.group_create("Phosphates", "name PO4").unwrap();
-
-        let sphere = Sphere::new(system.group_get_center("Protein").unwrap(), 2.1);
-        let count = system
-            .group_iter("Phosphates")
-            .unwrap()
-            .filter_geometry(sphere)
-            .count();
-
-        assert_eq!(count, 6);
-    }
-
-    #[test]
-    fn filter_xcylinder_count_water() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        let cylinder = Cylinder::new(
-            system.group_get_center("Protein").unwrap(),
-            2.0,
-            3.0,
-            Dimension::X,
-        );
-        let count = system
-            .group_iter("W")
-            .unwrap()
-            .filter_geometry(cylinder)
-            .count();
-
-        assert_eq!(count, 29);
-    }
-
-    #[test]
-    fn filter_ycylinder_count_water() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        let cylinder = Cylinder::new(
-            system.group_get_center("Protein").unwrap(),
-            2.0,
-            3.0,
-            Dimension::Y,
-        );
-        let count = system
-            .group_iter("W")
-            .unwrap()
-            .filter_geometry(cylinder)
-            .count();
-
-        assert_eq!(count, 16);
-    }
-
-    #[test]
-    fn filter_zcylinder_count_water() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        let cylinder = Cylinder::new(
-            system.group_get_center("Protein").unwrap(),
-            2.0,
-            3.0,
-            Dimension::Z,
-        );
-        let count = system
-            .group_iter("W")
-            .unwrap()
-            .filter_geometry(cylinder)
-            .count();
-
-        assert_eq!(count, 79);
-    }
-
-    #[test]
-    fn filter_rectangular_count_water() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        let rect = Rectangular::new(system.group_get_center("Protein").unwrap(), 2.0, 3.0, 4.0);
-        let count = system
-            .group_iter("W")
-            .unwrap()
-            .filter_geometry(rect)
-            .count();
-
-        assert_eq!(count, 92);
-    }
-
-    #[test]
-    fn filter_rectangular_full_count_water() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
-
-        let rect = Rectangular::new([0.0, 0.0, 0.0].into(), 100.0, 100.0, 100.0);
-        let count = system
-            .group_iter("W")
-            .unwrap()
-            .filter_geometry(rect)
-            .count();
-
-        assert_eq!(count, system.group_get_n_atoms("W").unwrap());
-    }
-
-    #[test]
-    fn bonded_atoms_iter() {
-        let mut system = System::from_file("test_files/example.pdb").unwrap();
-        system
-            .add_bonds_from_pdb("test_files/bonds_for_example.pdb")
-            .unwrap();
-
-        let expected_numbers = [28, 30, 32, 36, 38, 42, 48];
-
-        for (i, bonded) in system.bonded_atoms_iter(28).unwrap().enumerate() {
-            assert_eq!(bonded.get_atom_number(), expected_numbers[i]);
-        }
-
-        assert_eq!(system.bonded_atoms_iter(28).unwrap().count(), 7);
-        assert_eq!(system.bonded_atoms_iter(49).unwrap().count(), 0);
-    }
-
-    #[test]
-    fn bonded_atoms_iter_mut() {
-        let mut system = System::from_file("test_files/example.pdb").unwrap();
-        system
-            .add_bonds_from_pdb("test_files/bonds_for_example.pdb")
-            .unwrap();
-
-        let expected_numbers = [28, 30, 32, 36, 38, 42, 48];
-
-        for (i, bonded) in system.bonded_atoms_iter_mut(28).unwrap().enumerate() {
-            bonded.set_atom_name("ATM");
-            assert_eq!(bonded.get_atom_number(), expected_numbers[i]);
-            assert_eq!(bonded.get_atom_name(), "ATM");
-        }
-
-        assert_eq!(system.bonded_atoms_iter_mut(28).unwrap().count(), 7);
-        assert_eq!(system.bonded_atoms_iter_mut(49).unwrap().count(), 0);
-    }
-
-    #[test]
-    fn bonded_atoms_iter_fail() {
-        let mut system = System::from_file("test_files/example.pdb").unwrap();
-        system
-            .add_bonds_from_pdb("test_files/bonds_for_example.pdb")
-            .unwrap();
-
-        match system.bonded_atoms_iter(50) {
-            Ok(_) => panic!("Function should have failed but it succeeded."),
-            Err(AtomError::OutOfRange(e)) => assert_eq!(e, 50),
-            Err(e) => panic!(
-                "Function failed successfully but incorrect error type `{:?}` was returned.",
-                e
-            ),
-        }
-    }
-
-    #[test]
-    fn bonded_atoms_iter_mut_fail() {
-        let mut system = System::from_file("test_files/example.pdb").unwrap();
-        system
-            .add_bonds_from_pdb("test_files/bonds_for_example.pdb")
-            .unwrap();
-
-        match system.bonded_atoms_iter_mut(50) {
-            Ok(_) => panic!("Function should have failed but it succeeded."),
-            Err(AtomError::OutOfRange(e)) => assert_eq!(e, 50),
-            Err(e) => panic!(
-                "Function failed successfully but incorrect error type `{:?}` was returned.",
-                e
-            ),
+/// Iteration over atoms of the molecule.
+impl<'a> Iterator for MutMoleculeIterator<'a> {
+    type Item = &'a mut Atom;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(index) = self.container.get(self.current_index) {
+            self.current_index += 1;
+            unsafe { Some((*self.atoms).get_unchecked_mut(*index)) }
+        } else {
+            None
         }
     }
 }

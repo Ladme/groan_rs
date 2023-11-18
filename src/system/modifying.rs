@@ -3,6 +3,8 @@
 
 //! Implementation of System methods for modifying the system.
 
+use std::collections::HashSet;
+
 use crate::errors::{AtomError, GroupError};
 use crate::structures::{atom::Atom, simbox::SimBox, vector3d::Vector3D};
 use crate::system::general::System;
@@ -157,7 +159,7 @@ impl System {
     /// - In case the residues are 'broken' meaning that atoms of one residue do not follow each other,
     /// this function will not be able to renumber the residues correctly.
     /// In other words, if your gro file looks like this:
-    /// ```ignore
+    /// ```text
     /// 1GLN      N    1   5.349   9.908   1.871 -0.3054  0.4903 -0.0291
     /// 1GLN    HT1    2   5.293   9.941   1.951  0.0970  1.0823  0.0129
     /// 1GLN    HT2    3   5.293   9.881   1.788 -1.7290  0.8706  0.8040
@@ -167,8 +169,8 @@ impl System {
     /// 1GLN     CA    7   5.432   9.785   1.924  0.2711 -0.5576 -0.7626
     /// 1GLN     HA    8   5.363   9.708   1.957 -0.1090  0.8599  1.9361
     /// ```
-    /// Atoms 1-3 will have a residue number 1, atoms 4-5 will have a residue number 2,
-    /// and atoms 6-8 will have a residue number 3 after renumbering.
+    /// After renumbering, atoms 1-3 will have a residue number 1, atoms 4-5 will have a residue number 2,
+    /// and atoms 6-8 will have a residue number 3.
     pub fn residues_renumber(&mut self) {
         unsafe {
             let mut current_res = 0;
@@ -220,10 +222,9 @@ impl System {
     ///
     /// In case the bond already exists, nothing happens.
     ///
-    /// ## Safety
-    /// This method is unsafe because adding bonds can break the topology of the system
-    /// such as the number and properties of molecules.
-    pub unsafe fn add_bond(&mut self, index1: usize, index2: usize) -> Result<(), AtomError> {
+    /// ## Notes
+    /// - This function resets the reference atoms for molecules (`mol_references`) in the system.
+    pub fn add_bond(&mut self, index1: usize, index2: usize) -> Result<(), AtomError> {
         if index1 == index2 {
             return Err(AtomError::InvalidBond(index1, index2));
         }
@@ -236,7 +237,143 @@ impl System {
             (*atom2).add_bonded(index1);
         }
 
+        // reset molecule references
+        self.reset_mol_references();
+
         Ok(())
+    }
+
+    /// Analyze topology of the system and select reference atoms
+    /// for all polyatomic molecules in the system.
+    /// (Reference atom is generally the first atom of the molecule.)
+    /// This is used to make `System::make_molecules_whole` more efficient.
+    fn create_mol_references(&mut self) {
+        let mut visited = HashSet::new();
+        let mut new_mol_refs = Vec::new();
+
+        for (a, atom) in self.atoms_iter().enumerate() {
+            if visited.contains(&a) {
+                continue;
+            }
+
+            // ignore monoatomic molecules
+            if atom.get_n_bonded() == 0 {
+                continue;
+            }
+
+            new_mol_refs.push(a);
+
+            visited.insert(a);
+            for a2 in crate::system::iterating::get_molecule_indices(self, a).expect(
+                "FATAL GROAN ERROR | System::create_mol_references | Atom index does not exist.",
+            ) {
+                visited.insert(a2);
+            }
+        }
+
+        unsafe {
+            self.set_mol_references(new_mol_refs);
+        }
+    }
+
+    /// Make molecules whole in the simulation box.
+    ///
+    /// ## Warning
+    /// Only works with orthogonal simulation boxes!
+    ///
+    /// ## Notes
+    /// - Assume you have a system composed of two molecules:
+    /// ```text
+    ///
+    ///   ╔════.═══════════╗
+    ///   ║    |     <R>   ║
+    ///   ║   <R>     |    ║
+    ///   .—o         o——o—.
+    ///   ║              | ║
+    ///   ║ o            o ║
+    ///   ║ |              ║
+    ///   .—o——o         o—.
+    ///   ╚════.═══════════╝
+    ///
+    ///
+    /// ```
+    /// All atoms are indicated by `o` except for the
+    /// reference atom of the molecule which is indicated by `<R>`.
+    ///
+    /// All the atoms are nicely wrapped to the inside of the box,
+    /// but the molecules are broken on the periodic boundaries.
+    /// This method makes molecules whole, i.e.
+    /// it transforms the above system into this:
+    /// ```text
+    ///     o
+    ///     |
+    ///  o——o——o═══════════╗
+    ///   ║    |      <R>  ║
+    ///   ║   <R>      |   ║
+    ///   ║           o——o——o
+    ///   ║              | ║
+    ///   ║              o ║
+    ///   ║                ║
+    ///   ║                ║
+    ///   ╚════════════════╝
+    ///
+    ///
+    /// ```
+    /// The reference atom is wrapped into the simulation box, while other
+    /// atoms of the molecule are positioned based on the reference atom.
+    /// - This function uses `mol_references` from the `System` structure as
+    /// the reference atoms for the polyatomic molecules.
+    /// In case `mol_references` do not exist, they are generated and stored in the `System` structure.
+    /// Note that all functions changing the topology of the `System` MUST reset `mol_references`.
+    pub fn make_molecules_whole(&mut self) {
+        if self.get_mol_references().is_none() {
+            self.create_mol_references();
+        }
+
+        let simbox = self.get_box_as_ref() as *const SimBox;
+        let starts = self
+            .get_mol_references()
+            .expect("FATAL GROAN ERROR | System::make_molecules_whole (1) | `mol_starts` should be `Some` but it is `None`.") 
+            as *const Vec<usize>;
+
+        unsafe {
+            for index in (*starts).iter() {
+                let atom = self.get_atom_as_ref_mut(*index).expect(
+                    "FATAL GROAN ERROR | System::make_molecules_whole (2) | Atom index does not exist.",
+                ) as *mut Atom;
+
+                // wrap reference atom to the simulation box
+                (*atom).wrap(simbox
+                    .as_ref()
+                    .expect("FATAL GROAN ERROR | System::make_molecules_whole (3) | SimBox is NULL which should not happen."));
+
+                let ref_atom_position = (*atom).get_position();
+
+                // iterate through other atoms of the molecule
+                for atom2 in self
+                    .molecule_iter_mut(*index)
+                    .expect("FATAL GROAN ERROR | System::make_molecules_whole (4) | Atom index does not exist.") 
+                    .skip(1)
+                {
+                    // get the shortest vector between the reference atom and the target atom
+                    let vector = ref_atom_position.vector_to(
+                    atom2.get_position(),
+                    simbox
+                            .as_ref()
+                            .expect("FATAL GROAN ERROR | System::make_molecules_whole (5) | SimBox is NULL which should not happen.")
+                    );
+
+                    // place the target atom to position based on the shortest vector
+                    let new_position = Vector3D::from(
+                        [ref_atom_position.x + vector.x,
+                        ref_atom_position.y + vector.y,
+                        ref_atom_position.z + vector.z]
+                    );
+
+                    atom2.set_position(&new_position);
+                }
+            }
+        }
     }
 }
 
@@ -248,6 +385,8 @@ impl System {
 mod tests {
     use super::*;
     use float_cmp::assert_approx_eq;
+    use std::fs::File;
+    use tempfile::NamedTempFile;
 
     #[test]
     fn atoms_translate() {
@@ -516,9 +655,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
         for a in 1..system.get_n_atoms() {
-            unsafe {
-                system.add_bond(0, a).unwrap();
-            }
+            system.add_bond(0, a).unwrap();
         }
 
         assert!(system.has_bonds());
@@ -528,9 +665,7 @@ mod tests {
             assert!(atom.get_bonded().isin(0));
         }
 
-        unsafe {
-            system.add_bond(1, 3).unwrap();
-        }
+        system.add_bond(1, 3).unwrap();
 
         let atom1 = system.get_atom_as_ref(1).unwrap();
         assert_eq!(atom1.get_n_bonded(), 2);
@@ -547,15 +682,13 @@ mod tests {
     fn add_bond_fail_outofrange_1() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        unsafe {
-            match system.add_bond(15, 102743) {
-                Err(AtomError::OutOfRange(e)) => assert_eq!(e, 102743),
-                Ok(_) => panic!("Funtion should have failed, but it succeeded."),
-                Err(e) => panic!(
-                    "Function successfully failed but incorrect error type `{:?}` was returned.",
-                    e
-                ),
-            }
+        match system.add_bond(15, 102743) {
+            Err(AtomError::OutOfRange(e)) => assert_eq!(e, 102743),
+            Ok(_) => panic!("Funtion should have failed, but it succeeded."),
+            Err(e) => panic!(
+                "Function successfully failed but incorrect error type `{:?}` was returned.",
+                e
+            ),
         }
     }
 
@@ -563,15 +696,13 @@ mod tests {
     fn add_bond_fail_outofrange_2() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        unsafe {
-            match system.add_bond(102743, 15) {
-                Err(AtomError::OutOfRange(e)) => assert_eq!(e, 102743),
-                Ok(_) => panic!("Funtion should have failed, but it succeeded."),
-                Err(e) => panic!(
-                    "Function successfully failed but incorrect error type `{:?}` was returned.",
-                    e
-                ),
-            }
+        match system.add_bond(102743, 15) {
+            Err(AtomError::OutOfRange(e)) => assert_eq!(e, 102743),
+            Ok(_) => panic!("Funtion should have failed, but it succeeded."),
+            Err(e) => panic!(
+                "Function successfully failed but incorrect error type `{:?}` was returned.",
+                e
+            ),
         }
     }
 
@@ -579,15 +710,137 @@ mod tests {
     fn add_bond_fail_selfbonding() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        unsafe {
-            match system.add_bond(15, 15) {
-                Err(AtomError::InvalidBond(i, j)) => assert_eq!((i, j), (15, 15)),
-                Ok(_) => panic!("Funtion should have failed, but it succeeded."),
-                Err(e) => panic!(
-                    "Function successfully failed but incorrect error type `{:?}` was returned.",
-                    e
-                ),
-            }
+        match system.add_bond(15, 15) {
+            Err(AtomError::InvalidBond(i, j)) => assert_eq!((i, j), (15, 15)),
+            Ok(_) => panic!("Funtion should have failed, but it succeeded."),
+            Err(e) => panic!(
+                "Function successfully failed but incorrect error type `{:?}` was returned.",
+                e
+            ),
         }
+    }
+
+    #[test]
+    fn prepare_topology() {
+        let mut system = System::from_file("test_files/multiple_molecules_conect.pdb").unwrap();
+        system
+            .add_bonds_from_pdb("test_files/multiple_molecules_conect.pdb")
+            .unwrap();
+
+        assert_eq!(system.get_mol_references(), None);
+
+        system.create_mol_references();
+
+        assert_eq!(system.get_mol_references(), Some(&vec![0, 5, 33]));
+    }
+
+    #[test]
+    fn add_bond_topology() {
+        let mut system = System::from_file("test_files/multiple_molecules_conect.pdb").unwrap();
+        system
+            .add_bonds_from_pdb("test_files/multiple_molecules_conect.pdb")
+            .unwrap();
+
+        system.create_mol_references();
+
+        system.add_bond(10, 15).unwrap();
+
+        assert_eq!(system.get_mol_references(), None);
+    }
+
+    #[test]
+    fn make_molecules_whole_basic() {
+        let atom1 = Atom::new(
+            1,
+            "RES",
+            1,
+            "ATM",
+            [6.0, 6.0, 2.0].into(),
+            Vector3D::default(),
+            Vector3D::default(),
+        );
+
+        let atom2 = Atom::new(
+            1,
+            "RES",
+            2,
+            "ATM",
+            [1.0, 4.0, 2.0].into(),
+            Vector3D::default(),
+            Vector3D::default(),
+        );
+
+        let atom3 = Atom::new(
+            1,
+            "RES",
+            2,
+            "ATM",
+            [4.0, 1.0, 2.0].into(),
+            Vector3D::default(),
+            Vector3D::default(),
+        );
+
+        let atoms = vec![atom1, atom2, atom3];
+
+        let mut system = System::new("System", atoms.clone(), [5.0, 5.0, 5.0].into());
+        
+        system.add_bond(0, 1).unwrap();
+        system.add_bond(0, 2).unwrap();
+        system.make_molecules_whole();
+
+        let atom1 = system.atoms_iter().nth(0).unwrap();
+        let atom2 = system.atoms_iter().nth(1).unwrap();
+        let atom3 = system.atoms_iter().nth(2).unwrap();
+
+        assert_eq!(atom1.get_position().x, 1.0);
+        assert_eq!(atom1.get_position().y, 1.0);
+        assert_eq!(atom1.get_position().z, 2.0);
+
+        assert_eq!(atom2.get_position().x, 1.0);
+        assert_eq!(atom2.get_position().y,-1.0);
+        assert_eq!(atom2.get_position().z, 2.0);
+
+        assert_eq!(atom3.get_position().x,-1.0);
+        assert_eq!(atom3.get_position().y, 1.0);
+        assert_eq!(atom3.get_position().z, 2.0);
+
+        let mut system = System::new("System", atoms.clone(), [5.0, 5.0, 5.0].into());
+
+        system.add_bond(1, 2).unwrap();
+        system.make_molecules_whole();
+
+        let atom1 = system.atoms_iter().nth(0).unwrap();
+        let atom2 = system.atoms_iter().nth(1).unwrap();
+        let atom3 = system.atoms_iter().nth(2).unwrap();
+
+        assert_eq!(atom1.get_position().x, 6.0);
+        assert_eq!(atom1.get_position().y, 6.0);
+        assert_eq!(atom1.get_position().z, 2.0);
+
+        assert_eq!(atom2.get_position().x, 1.0);
+        assert_eq!(atom2.get_position().y, 4.0);
+        assert_eq!(atom2.get_position().z, 2.0);
+
+        assert_eq!(atom3.get_position().x,-1.0);
+        assert_eq!(atom3.get_position().y, 6.0);
+        assert_eq!(atom3.get_position().z, 2.0);   
+    }
+
+    #[test]
+    fn make_molecules_whole() {
+        let mut system = System::from_file("test_files/conect.pdb").unwrap();
+        system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
+        system.atoms_translate(&[3.5, 4.5, -3.0].into());
+        system.make_molecules_whole();
+
+        let output = NamedTempFile::new().unwrap();
+        let path_to_output = output.path();
+
+        system.write_gro(path_to_output, false).unwrap();
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/whole_molecules_expected.gro").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
     }
 }

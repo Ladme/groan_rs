@@ -32,6 +32,11 @@ pub struct System {
     coordinates_precision: u64,
     /// Lambda
     lambda: f32,
+    /// Reference atoms for all polyatomic molecules.
+    /// (Index of the first atom of each polyatomic molecule.)
+    /// All functions changing the topology of the system, must set
+    /// `mol_references` to `None`.
+    mol_references: Option<Vec<usize>>,
 }
 
 /// ## Methods for creating `System` structures and accessing their properties.
@@ -105,6 +110,7 @@ impl System {
             simulation_time: 0.0f32,
             coordinates_precision: 100u64,
             lambda: 0.0,
+            mol_references: None,
         };
 
         match system.group_create_all() {
@@ -303,6 +309,32 @@ impl System {
     /// Set the simulation lambda.
     pub fn set_lambda(&mut self, lambda: f32) {
         self.lambda = lambda;
+    }
+
+    /// Get reference atoms of all polyatomic molecules.
+    /// This is mostly for internal use of the `groan_rs` library.
+    pub fn get_mol_references(&self) -> Option<&Vec<usize>> {
+        self.mol_references.as_ref()
+    }
+
+    /// Reset reference atoms of molecules.
+    ///
+    /// ## Notes
+    /// - **This function must be called every time topology
+    /// of the system is changed**.
+    /// - (Safe native groan library functions handle this for you.)
+    pub fn reset_mol_references(&mut self) {
+        self.mol_references = None;
+    }
+
+    /// Set reference atoms of molecules.
+    ///
+    /// ## Safety
+    /// Modifying `mol_references` may break the system.
+    /// You should not set `mol_references` manually unless you know what you are doing.
+    /// Which you do not. There really is no reason to use this method.
+    pub unsafe fn set_mol_references(&mut self, indices: Vec<usize>) {
+        self.mol_references = Some(indices);
     }
 
     /// Check whether positions are present.

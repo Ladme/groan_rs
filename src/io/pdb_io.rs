@@ -123,6 +123,8 @@ impl System {
     /// All lines other than those starting with the `CONECT` (or `END`) keyword are ignored.
     /// - This function can read `CONECT` lines of any length, i.e. it is not limited by the traditional requirement
     /// of using at most 4 bonds in a single `CONECT` line.
+    /// - This function resets the reference atoms for molecules (`mol_references`) in the system
+    /// if it completes without an error. (Warning still causes reset of the reference atoms.)
     pub fn add_bonds_from_pdb(
         &mut self,
         filename: impl AsRef<Path>,
@@ -174,39 +176,13 @@ impl System {
             }
         }
 
-        // validate that all bonded atoms agree that they are bonded
-        // i.e. all bonds must be bidirectional edges of the graph describing the system topology
-        for atom_index in 1..self.get_n_atoms() {
-            let bonded1 = temp_bonded
-                .get(atom_index)
-                .expect("FATAL GROAN ERROR | System::add_bonds_from_pdb (1) | Invalid atom index.");
-
-            for &bonded_index in bonded1.iter() {
-                let bonded2 = temp_bonded.get(bonded_index).expect(
-                    "FATAL GROAN ERROR | System::add_bonds_from_pdb (2) | Invalid atom index.",
-                );
-
-                if !bonded2.contains(&atom_index) {
-                    let atom1 = self.get_atom_as_ref(atom_index).expect(
-                        "FATAL GROAN ERROR | System::add_bonds_from_pdb (3) | Invalid atom index.",
-                    );
-                    let atom2 = self.get_atom_as_ref(bonded_index).expect(
-                        "FATAL GROAN ERROR | System::add_bonds_from_pdb (4) | Invalid atom index.",
-                    );
-                    return Err(ParsePdbConnectivityError::BondingInconsistency(
-                        atom1.get_atom_number(),
-                        atom2.get_atom_number(),
-                    ));
-                }
-            }
-        }
-
         let mut empty = true;
         // transform `temp_bonded` to information in the `System` structure
         for (bonded, atom) in temp_bonded.into_iter().zip(self.atoms_iter_mut()) {
             // safety:
             // a) we know that all indices are valid as we obtain them from `atom_number_to_index` hashmap
             // b) we apply the `set_bonded` method to all atoms
+            // c) we also reset reference atoms for molecules after the topology is constructed
             unsafe {
                 if !bonded.is_empty() {
                     empty = false;
@@ -215,6 +191,9 @@ impl System {
                 atom.set_bonded(bonded);
             }
         }
+
+        // reset information about reference atoms for molecules
+        self.reset_mol_references();
 
         if empty {
             // no bonds have been detected in the pdb file
@@ -538,6 +517,7 @@ fn line_as_conect(
 
             // storage the index of the bonded atom
             temp_bonded[*atom_index].push(*index);
+            temp_bonded[*index].push(*atom_index);
         }
 
         iterator += 5;
@@ -1013,6 +993,20 @@ mod tests_read {
     }
 
     #[test]
+    fn add_bonds_from_pdb_3() {
+        let mut system = read_pdb("test_files/conect.pdb").unwrap();
+        system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
+
+        system.make_molecules_whole();
+
+        assert!(system.get_mol_references().is_some());
+
+        system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
+
+        assert!(system.get_mol_references().is_none());
+    }
+
+    #[test]
     fn add_bonds_empty_pdb() {
         let mut system = read_pdb("test_files/example.pdb").unwrap();
 
@@ -1047,6 +1041,23 @@ mod tests_read {
                 "Parsing failed with an error `{:?}` instead of a warning.",
                 e
             ),
+        }
+    }
+
+    #[test]
+    fn add_bonds_inconsistency() {
+        let mut system1 = read_pdb("test_files/conect.pdb").unwrap();
+        system1
+            .add_bonds_from_pdb("test_files/bonds_inconsistency.pdb")
+            .unwrap();
+
+        let mut system2 = read_pdb("test_files/conect.pdb").unwrap();
+        system2
+            .add_bonds_from_pdb("test_files/bonds_for_example.pdb")
+            .unwrap();
+
+        for (atom1, atom2) in system1.atoms_iter().zip(system2.atoms_iter()) {
+            assert_eq!(atom1.get_bonded(), atom2.get_bonded());
         }
     }
 
@@ -1176,22 +1187,6 @@ mod tests_read {
                     string,
                     "CONECT   55   35   37   29                                            "
                 );
-            }
-            Ok(_) => panic!("Parsing should have failed, but it succeeded."),
-            Err(e) => panic!(
-                "Parsing successfully failed but incorrect error type `{:?}` was returned.",
-                e
-            ),
-        }
-    }
-
-    #[test]
-    fn pdb_bonds_inconsistent() {
-        let mut system = read_pdb("test_files/example.pdb").unwrap();
-        match system.add_bonds_from_pdb("test_files/bonds_inconsistency.pdb") {
-            Err(ParsePdbConnectivityError::BondingInconsistency(atom1, atom2)) => {
-                assert_eq!(atom1, 18);
-                assert_eq!(atom2, 16);
             }
             Ok(_) => panic!("Parsing should have failed, but it succeeded."),
             Err(e) => panic!(
