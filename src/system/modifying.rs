@@ -783,7 +783,7 @@ mod tests {
         let atoms = vec![atom1, atom2, atom3];
 
         let mut system = System::new("System", atoms.clone(), [5.0, 5.0, 5.0].into());
-        
+
         system.add_bond(0, 1).unwrap();
         system.add_bond(0, 2).unwrap();
         system.make_molecules_whole();
@@ -797,10 +797,10 @@ mod tests {
         assert_eq!(atom1.get_position().z, 2.0);
 
         assert_eq!(atom2.get_position().x, 1.0);
-        assert_eq!(atom2.get_position().y,-1.0);
+        assert_eq!(atom2.get_position().y, -1.0);
         assert_eq!(atom2.get_position().z, 2.0);
 
-        assert_eq!(atom3.get_position().x,-1.0);
+        assert_eq!(atom3.get_position().x, -1.0);
         assert_eq!(atom3.get_position().y, 1.0);
         assert_eq!(atom3.get_position().z, 2.0);
 
@@ -821,9 +821,9 @@ mod tests {
         assert_eq!(atom2.get_position().y, 4.0);
         assert_eq!(atom2.get_position().z, 2.0);
 
-        assert_eq!(atom3.get_position().x,-1.0);
+        assert_eq!(atom3.get_position().x, -1.0);
         assert_eq!(atom3.get_position().y, 6.0);
-        assert_eq!(atom3.get_position().z, 2.0);   
+        assert_eq!(atom3.get_position().z, 2.0);
     }
 
     #[test]
