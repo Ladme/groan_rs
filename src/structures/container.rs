@@ -611,6 +611,7 @@ mod tests_container {
             (133, 200),
             (35, 78),
             (10, 15),
+            (1033, 1055),
         ];
 
         let container = AtomContainer::from_ranges(ranges, 1028);

@@ -8,7 +8,7 @@
 //!
 //! ## What it can do
 //! - Read and write gro, pdb, ndx, xtc and trr files.
-//! - Iterate over atoms and access their properties.
+//! - Iterate over atoms and access their properties, including connectivity (bonds).
 //! - Select atoms using a selection language similar to VMD.
 //! - Calculate distances between atoms respecting periodic boundary conditions.
 //! - Select atoms based on geometric conditions.

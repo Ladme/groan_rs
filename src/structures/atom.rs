@@ -31,8 +31,7 @@ pub struct Atom {
     /// Force acting on the atom.
     force: Vector3D,
     /// Indices of atoms that are bonded with this atom.
-    /// `None` indicates that no information about the connectivity is available.
-    bonded: Option<AtomContainer>,
+    bonded: AtomContainer,
 }
 
 impl Atom {
@@ -60,7 +59,7 @@ impl Atom {
             position,
             velocity,
             force,
-            bonded: None,
+            bonded: AtomContainer::empty(),
         }
     }
 
@@ -221,8 +220,8 @@ impl Atom {
     }
 
     /// Get the atoms bonded to this atom.
-    pub fn get_bonded(&self) -> Option<&AtomContainer> {
-        self.bonded.as_ref()
+    pub fn get_bonded(&self) -> &AtomContainer {
+        &self.bonded
     }
 
     /// Set the atoms bonded to this atom.
@@ -232,7 +231,7 @@ impl Atom {
     /// Neither index also can be the index of the target atom in the system.
     /// The same method should also be applied to all other atoms in the system.
     pub unsafe fn set_bonded(&mut self, indices: Vec<usize>) {
-        self.bonded = Some(AtomContainer::from_indices(indices, usize::MAX));
+        self.bonded = AtomContainer::from_indices(indices, usize::MAX);
     }
 
     /// Add index of atom bonded to this atom.
@@ -242,10 +241,7 @@ impl Atom {
     /// The index also can not be the index of the target atom in the system.
     /// This method should also be applied to the other atom, adding the index of this atom.
     pub unsafe fn add_bonded(&mut self, index: usize) {
-        match self.bonded {
-            None => self.bonded = Some(AtomContainer::from_indices(vec![index], usize::MAX)),
-            Some(ref mut unwrapped) => unwrapped.add(index, usize::MAX),
-        }
+        self.bonded.add(index, usize::MAX);
     }
 
     /// Get the number of bonded atoms associated with this atom.
@@ -253,10 +249,7 @@ impl Atom {
     /// ## Returns
     /// The number of atoms bonded to this atom. 0 if no connectivity information is available.
     pub fn get_n_bonded(&self) -> usize {
-        match self.bonded {
-            None => 0,
-            Some(ref x) => x.get_n_atoms(),
-        }
+        self.bonded.get_n_atoms()
     }
 
     /// Check whether the atom has non-zero position.
@@ -653,7 +646,7 @@ mod tests {
         assert_eq!(atom.get_n_bonded(), 0);
 
         let bonded = atom.get_bonded();
-        assert_eq!(bonded, None);
+        assert_eq!(bonded, &AtomContainer::empty());
 
         unsafe {
             atom.set_bonded(vec![1, 2, 5]);
@@ -663,7 +656,7 @@ mod tests {
         let bonded = atom.get_bonded();
         assert_eq!(
             bonded,
-            Some(&AtomContainer::from_indices(vec![1, 2, 5], 10))
+            &AtomContainer::from_indices(vec![1, 2, 5], 10)
         );
     }
 
@@ -682,7 +675,7 @@ mod tests {
         let bonded = atom.get_bonded();
         assert_eq!(
             bonded,
-            Some(&AtomContainer::from_indices(vec![1, 2, 5], 10))
+            &AtomContainer::from_indices(vec![1, 2, 5], 10)
         );
     }
 

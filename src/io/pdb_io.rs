@@ -596,16 +596,14 @@ fn write_connectivity_section(
         .expect("FATAL GROAN ERROR | pdb_io::write_connectivity_section (1) | Group should exist but it does not.")
     {
         // select atoms from bonded which are inside the printed group
-        let bonded_in_group = match atom.get_bonded() {
-            None => return Ok(()),
-            Some(container) => {
-                container.iter().filter(|index| system
-                    .group_isin(group_name, *index)
-                    .expect("FATAL GROAN ERROR | pdb_io::write_connectivity_section (2) | Group should exist but it does not.")
-                )
-                .collect::<Vec<usize>>()
-            }
-        };
+        let bonded_in_group = atom
+            .get_bonded()
+            .iter()
+            .filter(|index| system
+                .group_isin(group_name, *index)
+                .expect("FATAL GROAN ERROR | pdb_io::write_connectivity_section (2) | Group should exist but it does not.")
+            )
+            .collect::<Vec<usize>>();
 
         let n_bonded = bonded_in_group.len();
         if n_bonded == 0 {
@@ -986,7 +984,7 @@ mod tests_read {
 
         for (a, atom) in system.atoms_iter().enumerate() {
             let expected = expected_bonded.get(a).unwrap();
-            for index in atom.get_bonded().unwrap().iter() {
+            for index in atom.get_bonded().iter() {
                 let bonded = system
                     .get_atoms_as_ref()
                     .get(index)
@@ -996,7 +994,7 @@ mod tests_read {
             }
         }
 
-        assert!(system.get_atom_as_ref(49).unwrap().get_bonded().is_some());
+        assert_eq!(system.get_atom_as_ref(49).unwrap().get_n_bonded(), 0);
     }
 
     #[test]
@@ -1021,7 +1019,7 @@ mod tests_read {
         match system.add_bonds_from_pdb("test_files/example.pdb") {
             Err(ParsePdbConnectivityError::NoBondsWarning(path)) => {
                 assert_eq!(path, Box::from(Path::new("test_files/example.pdb")));
-                assert!(system.has_bonds());
+                assert!(!system.has_bonds());
             }
             Ok(_) => {
                 panic!("Parsing should have returned a warning but it succeeded without warning.")
@@ -1040,7 +1038,7 @@ mod tests_read {
         match system.add_bonds_from_pdb("test_files/conect_end.pdb") {
             Err(ParsePdbConnectivityError::NoBondsWarning(path)) => {
                 assert_eq!(path, Box::from(Path::new("test_files/conect_end.pdb")));
-                assert!(system.has_bonds());
+                assert!(!system.has_bonds());
             }
             Ok(_) => {
                 panic!("Parsing should have returned a warning but it succeeded without warning.")
@@ -1118,7 +1116,7 @@ mod tests_read {
                     Err($variant(e)) => {
                         assert_eq!(e, $expected);
                         for atom in system.get_atoms_as_ref() {
-                            assert!(atom.get_bonded().is_none());
+                            assert_eq!(atom.get_n_bonded(), 0);
                         }
                     }
                     Ok(_) => panic!("Parsing should have failed, but it succeeded."),

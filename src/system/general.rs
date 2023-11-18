@@ -360,15 +360,13 @@ impl System {
     /// Check whether connectivity information is available for the system.
     ///
     /// ## Returns
-    /// `true` if bonds have been set for at least one atom in the system.
+    /// `true` if at least one atom in the system has more than 0 bonds.
     /// `false` otherwise.
     ///
     /// ## Notes
-    /// - This method returns `true` even if no atom has any bonds associated with it.
-    /// It only checks whether connectivity has been SET for one or more atoms.
     /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
     pub fn has_bonds(&self) -> bool {
-        self.atoms.iter().any(|atom| atom.get_bonded().is_some())
+        self.atoms.iter().any(|atom| atom.get_n_bonded() > 0)
     }
 
     /// Copy the atoms in the system into an independent vector.
@@ -698,7 +696,7 @@ mod tests {
 
         match system.add_bonds_from_pdb("test_files/example.pdb") {
             Ok(_) => panic!("Should have returned NoBonds warning."),
-            Err(ParsePdbConnectivityError::NoBondsWarning(_)) => assert!(system.has_bonds()),
+            Err(ParsePdbConnectivityError::NoBondsWarning(_)) => assert!(!system.has_bonds()),
             Err(e) => panic!("Function failed with error type `{:?}`.", e),
         }
     }

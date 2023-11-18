@@ -1,6 +1,6 @@
 # groan_rs: Gromacs Analysis Library for Rust
 
-Rust library for analyzing Gromacs simulations. Currently in very early stage of development: anything can break, change or stop working at any time.
+Rust library for analyzing Gromacs simulations. Currently in an early stage of development: anything can break, change or stop working at any time.
 
 ## Usage
 Run

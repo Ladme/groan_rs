@@ -225,7 +225,7 @@ mod tests {
 
         for atom in system.atoms_iter().skip(1) {
             assert_eq!(atom.get_n_bonded(), 1);
-            assert!(atom.get_bonded().unwrap().isin(0));
+            assert!(atom.get_bonded().isin(0));
         }
 
         unsafe {
@@ -234,13 +234,13 @@ mod tests {
 
         let atom1 = system.get_atom_as_ref(1).unwrap();
         assert_eq!(atom1.get_n_bonded(), 2);
-        assert!(atom1.get_bonded().unwrap().isin(0));
-        assert!(atom1.get_bonded().unwrap().isin(3));
+        assert!(atom1.get_bonded().isin(0));
+        assert!(atom1.get_bonded().isin(3));
 
         let atom3 = system.get_atom_as_ref(3).unwrap();
         assert_eq!(atom3.get_n_bonded(), 2);
-        assert!(atom3.get_bonded().unwrap().isin(0));
-        assert!(atom3.get_bonded().unwrap().isin(1));
+        assert!(atom3.get_bonded().isin(0));
+        assert!(atom3.get_bonded().isin(1));
     }
 
     #[test]

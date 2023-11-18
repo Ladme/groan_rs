@@ -3,7 +3,7 @@
 
 //! Implementation of iterators over atoms and filter functions.
 
-use crate::errors::GroupError;
+use crate::errors::{GroupError, AtomError};
 use crate::structures::{
     atom::Atom,
     container::{AtomContainer, AtomContainerIterator},
@@ -364,6 +364,100 @@ impl System {
             "FATAL GROAN ERROR | System::atoms_iter_mut | Default group `all` does not exist.",
         )
     }
+
+    /// Create an iterator over atoms that are bonded to atom with target `index`.
+    /// The atoms are immutable. Atoms are indexed starting from 0.
+    /// 
+    /// ## Returns
+    /// `AtomIterator` if the index is valid. `AtomError` if the index is out of range.
+    /// 
+    /// ## Example
+    /// Calculating distances between an atom and atoms that are bonded to it.
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    /// 
+    /// let mut system = System::from_file("system.pdb").unwrap();
+    /// system.add_bonds_from_pdb("system.pdb").unwrap();
+    /// 
+    /// // get target atom
+    /// let target_atom = match system.get_atom_as_ref(15) {
+    ///     Ok(atom) => atom,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;
+    ///     }
+    /// };
+    /// 
+    /// let mut distances = Vec::new();
+    /// // iterate over atoms bonded to an atom indexed as 15
+    /// match system.bonded_atoms_iter(15) {
+    ///     Ok(iterator) => {
+    ///         for bonded_atom in iterator {
+    ///             distances.push(target_atom.distance(bonded_atom, Dimension::XYZ, system.get_box_as_ref()));
+    ///         }
+    ///         println!("{:?}", distances);
+    ///     }
+    ///     Err(e) => eprintln!("{}", e),
+    /// }
+    /// ```
+    pub fn bonded_atoms_iter(&self, index: usize) -> Result<AtomIterator, AtomError> {
+        if index >= self.get_n_atoms() {
+            return Err(AtomError::OutOfRange(index));
+        }
+
+        let atom = self.get_atom_as_ref(index).expect("FATAL GROAN ERROR | System::bonded_atoms_iter() | Atom index does not exist.");
+
+        Ok(AtomIterator::new(
+            self.get_atoms_as_ref(),
+            atom.get_bonded(),
+            self.get_box_as_ref(),
+        ))
+    }
+
+    /// Create an iterator over atoms that are bonded to atom with target `index`.
+    /// The atoms are mutable. Atoms are indexed starting from 0.
+    /// 
+    /// ## Returns
+    /// `MutAtomIterator` if the index is valid. `AtomError` if the index is out of range.
+    /// 
+    /// ## Example
+    /// Rename atoms that are bonded to target atom.
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    /// 
+    /// let mut system = System::from_file("system.pdb").unwrap();
+    /// system.add_bonds_from_pdb("system.pdb").unwrap();
+    /// 
+    /// // iterate over atoms bonded to an atom indexed as 15
+    /// match system.bonded_atoms_iter_mut(15) {
+    ///     Ok(iterator) => {
+    ///         for atom in iterator {
+    ///             atom.set_atom_name("ATM");
+    ///         }
+    ///     }
+    ///     Err(e) => eprintln!("{}", e),
+    /// }
+    /// ```
+    pub fn bonded_atoms_iter_mut(&mut self, index: usize) -> Result<MutAtomIterator, AtomError> {
+        if index >= self.get_n_atoms() {
+            return Err(AtomError::OutOfRange(index));
+        }
+
+        unsafe {
+            let simbox = self.get_box_as_ref() as *const SimBox;
+
+            let atom = self
+                .get_atom_as_ref_mut(index)
+                .expect("FATAL GROAN ERROR | System::bonded_atoms_iter() | Atom index does not exist.") 
+                as *mut Atom;
+
+            Ok(MutAtomIterator::new(
+                self.get_atoms_as_ref_mut(),
+                (*atom).get_bonded(),
+                simbox.as_ref().unwrap(),
+            ))
+        }
+    }
 }
 
 /**************************/
@@ -682,5 +776,61 @@ mod tests {
             .count();
 
         assert_eq!(count, system.group_get_n_atoms("W").unwrap());
+    }
+
+    #[test]
+    fn bonded_atoms_iter() {
+        let mut system = System::from_file("test_files/example.pdb").unwrap();
+        system.add_bonds_from_pdb("test_files/bonds_for_example.pdb").unwrap();
+
+        let expected_numbers = [28, 30, 32, 36, 38, 42, 48];
+
+        for (i, bonded) in system.bonded_atoms_iter(28).unwrap().enumerate() {
+            assert_eq!(bonded.get_atom_number(), expected_numbers[i]);
+        }
+
+        assert_eq!(system.bonded_atoms_iter(28).unwrap().count(), 7);
+        assert_eq!(system.bonded_atoms_iter(49).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn bonded_atoms_iter_mut() {
+        let mut system = System::from_file("test_files/example.pdb").unwrap();
+        system.add_bonds_from_pdb("test_files/bonds_for_example.pdb").unwrap();
+
+        let expected_numbers = [28, 30, 32, 36, 38, 42, 48];
+
+        for (i, bonded) in system.bonded_atoms_iter_mut(28).unwrap().enumerate() {
+            bonded.set_atom_name("ATM");
+            assert_eq!(bonded.get_atom_number(), expected_numbers[i]);
+            assert_eq!(bonded.get_atom_name(), "ATM");
+        }
+
+        assert_eq!(system.bonded_atoms_iter_mut(28).unwrap().count(), 7);
+        assert_eq!(system.bonded_atoms_iter_mut(49).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn bonded_atoms_iter_fail() {
+        let mut system = System::from_file("test_files/example.pdb").unwrap();
+        system.add_bonds_from_pdb("test_files/bonds_for_example.pdb").unwrap();
+
+        match system.bonded_atoms_iter(50) {
+            Ok(_) => panic!("Function should have failed but it succeeded."),
+            Err(AtomError::OutOfRange(e)) => assert_eq!(e, 50),
+            Err(e) => panic!("Function failed successfully but incorrect error type `{:?}` was returned.", e),
+        }
+    }
+
+    #[test]
+    fn bonded_atoms_iter_mut_fail() {
+        let mut system = System::from_file("test_files/example.pdb").unwrap();
+        system.add_bonds_from_pdb("test_files/bonds_for_example.pdb").unwrap();
+
+        match system.bonded_atoms_iter_mut(50) {
+            Ok(_) => panic!("Function should have failed but it succeeded."),
+            Err(AtomError::OutOfRange(e)) => assert_eq!(e, 50),
+            Err(e) => panic!("Function failed successfully but incorrect error type `{:?}` was returned.", e),
+        }
     }
 }
