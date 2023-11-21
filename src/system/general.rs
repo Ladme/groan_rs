@@ -562,9 +562,21 @@ mod tests {
             assert_eq!(groa.get_residue_name(), pdba.get_residue_name());
             assert_eq!(groa.get_atom_number(), pdba.get_atom_number());
             assert_eq!(groa.get_atom_name(), pdba.get_atom_name());
-            assert_approx_eq!(f32, groa.get_position().unwrap().x, pdba.get_position().unwrap().x);
-            assert_approx_eq!(f32, groa.get_position().unwrap().y, pdba.get_position().unwrap().y);
-            assert_approx_eq!(f32, groa.get_position().unwrap().z, pdba.get_position().unwrap().z);
+            assert_approx_eq!(
+                f32,
+                groa.get_position().unwrap().x,
+                pdba.get_position().unwrap().x
+            );
+            assert_approx_eq!(
+                f32,
+                groa.get_position().unwrap().y,
+                pdba.get_position().unwrap().y
+            );
+            assert_approx_eq!(
+                f32,
+                groa.get_position().unwrap().z,
+                pdba.get_position().unwrap().z
+            );
 
             assert_eq!(groa.get_velocity(), pdba.get_velocity());
             assert_eq!(groa.get_force(), pdba.get_force());

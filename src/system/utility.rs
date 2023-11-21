@@ -86,7 +86,7 @@ impl System {
     ///
     /// ## Panics
     /// Panics if any of the atoms has no position.
-    /// 
+    ///
     /// ## Example
     /// Center the group `Protein` in the xy-plane.
     /// The positions of the atoms along the z-dimension will be unchanged.

@@ -150,12 +150,15 @@ impl Group {
             let mut inside = true;
 
             for geom in &geometries {
-                // atoms that have no positions are not inside the shape
                 if let Some(pos) = atom.get_position() {
                     if !geom.inside(pos, simbox) {
                         inside = false;
                         break;
                     }
+                // atoms that have no positions are not inside the shape
+                } else {
+                    inside = false;
+                    break;
                 }
             }
 

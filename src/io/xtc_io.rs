@@ -416,7 +416,6 @@ impl TrajWrite for XtcWriter {
                 if let Some(pos) = atom.get_position() {
                     coordinates[i] = [pos.x, pos.y, pos.z];
                 }
-                
             }
 
             // write the xtc frame

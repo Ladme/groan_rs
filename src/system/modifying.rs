@@ -18,7 +18,7 @@ impl System {
     ///
     /// ## Panics
     /// Panics if any of the atoms of the group has no position.
-    /// 
+    ///
     /// ## Example
     /// Translating the atoms of the group "Protein".
     /// ```no_run
@@ -53,7 +53,7 @@ impl System {
     ///
     /// ## Panics
     /// Panics if any of the atoms has no position.
-    /// 
+    ///
     /// ## Example
     /// ```no_run
     /// use groan_rs::prelude::*;
@@ -195,7 +195,7 @@ impl System {
     }
 
     /// Wrap atoms of the system into the simulation box.
-    /// 
+    ///
     /// ## Panics
     /// Panics if any of the atoms has no position.
     pub fn atoms_wrap(&mut self) {
@@ -204,11 +204,11 @@ impl System {
     }
 
     /// Wrap atoms of a given group into the simulation box.
-    /// 
+    ///
     /// ## Returns
     /// `Ok` if the group exists.
     /// `GroupError` otherwise.
-    /// 
+    ///
     /// ## Panics
     /// Panics if any of the atoms has no position.
     pub fn group_wrap(&mut self, name: &str) -> Result<(), GroupError> {
@@ -295,7 +295,7 @@ impl System {
     ///
     /// ## Panics
     /// Panics if any atom that is part of any polyatomic molecule has no position.
-    /// 
+    ///
     /// ## Notes
     /// - Assume you have a system composed of two molecules:
     /// ```text
@@ -362,8 +362,9 @@ impl System {
                     .as_ref()
                     .expect("FATAL GROAN ERROR | System::make_molecules_whole (3) | SimBox is NULL which should not happen."));
 
-                let ref_atom_position = (*atom).get_position()
-                    .expect("FATAL GROAN ERROR | System::make_molecules_whole (4) | Atom has no position.");
+                let ref_atom_position = (*atom).get_position().expect(
+                    "FATAL GROAN ERROR | System::make_molecules_whole (4) | Atom has no position.",
+                );
 
                 // iterate through other atoms of the molecule
                 for atom2 in self
@@ -767,26 +768,11 @@ mod tests {
 
     #[test]
     fn make_molecules_whole_basic() {
-        let atom1 = Atom::new(
-            1,
-            "RES",
-            1,
-            "ATM",
-        ).with_position([6.0, 6.0, 2.0].into());
+        let atom1 = Atom::new(1, "RES", 1, "ATM").with_position([6.0, 6.0, 2.0].into());
 
-        let atom2 = Atom::new(
-            1,
-            "RES",
-            2,
-            "ATM",
-        ).with_position([1.0, 4.0, 2.0].into());
+        let atom2 = Atom::new(1, "RES", 2, "ATM").with_position([1.0, 4.0, 2.0].into());
 
-        let atom3 = Atom::new(
-            1,
-            "RES",
-            2,
-            "ATM",
-        ).with_position([4.0, 1.0, 2.0].into());
+        let atom3 = Atom::new(1, "RES", 2, "ATM").with_position([4.0, 1.0, 2.0].into());
 
         let atoms = vec![atom1, atom2, atom3];
 

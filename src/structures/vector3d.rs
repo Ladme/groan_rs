@@ -475,7 +475,7 @@ impl Vector3D {
 
     /// Returns `true` if all the fields of the vector are exactly (positive) zero.
     /// Otherwise, returns `false`.
-    /// 
+    ///
     /// ## Warning
     /// Note that this is only guaranteed to work for vectors that have been **set** to zero, e.g.
     /// using `Vector3D::default()` or `Vector3D::from([0.0, 0.0, 0.0])`.
@@ -483,7 +483,7 @@ impl Vector3D {
         unsafe {
             let bytes: *const u8 = self as *const Vector3D as *const u8;
             let byte_slice = std::slice::from_raw_parts(bytes, std::mem::size_of::<Vector3D>());
-            byte_slice == &[0; std::mem::size_of::<Vector3D>()]
+            byte_slice == [0; std::mem::size_of::<Vector3D>()]
         }
     }
 }
@@ -1308,6 +1308,5 @@ mod tests {
 
         let vec = Vector3D::from([1.2, 0.4, 3.2]);
         assert!(!vec.is_zero());
-
     }
 }

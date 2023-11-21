@@ -463,10 +463,11 @@ mod tests {
 
         for atom in system.atoms_iter().filter_geometry(sphere.clone()) {
             assert!(
-                atom.get_position()
-                    .unwrap()
-                    .distance(&sphere_pos, Dimension::XYZ, system.get_box_as_ref())
-                    < 5.0
+                atom.get_position().unwrap().distance(
+                    &sphere_pos,
+                    Dimension::XYZ,
+                    system.get_box_as_ref()
+                ) < 5.0
             );
         }
 
@@ -479,16 +480,18 @@ mod tests {
             .filter_geometry(sphere2)
         {
             assert!(
-                atom.get_position()
-                    .unwrap()
-                    .distance(&sphere_pos, Dimension::XYZ, system.get_box_as_ref())
-                    < 5.0
+                atom.get_position().unwrap().distance(
+                    &sphere_pos,
+                    Dimension::XYZ,
+                    system.get_box_as_ref()
+                ) < 5.0
             );
             assert!(
-                atom.get_position()
-                    .unwrap()
-                    .distance(&sphere_pos2, Dimension::XYZ, system.get_box_as_ref())
-                    < 4.0
+                atom.get_position().unwrap().distance(
+                    &sphere_pos2,
+                    Dimension::XYZ,
+                    system.get_box_as_ref()
+                ) < 4.0
             );
         }
     }
@@ -647,6 +650,26 @@ mod tests {
     }
 
     #[test]
+    fn filter_atoms_without_positions() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        // remove positions
+        for atom in system.atoms_iter_mut() {
+            atom.reset_position();
+        }
+
+        let sphere = Sphere::new([0.0, 0.0, 0.0].into(), 30.0);
+        let count = system
+            .group_iter("W")
+            .unwrap()
+            .filter_geometry(sphere)
+            .count();
+
+        assert_eq!(count, 0);
+    }
+
+    #[test]
     fn bonded_atoms_iter() {
         let mut system = System::from_file("test_files/example.pdb").unwrap();
         system
@@ -786,7 +809,12 @@ mod tests {
         system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
 
         let sphere = Sphere::new(
-            system.get_atom_as_ref(0).unwrap().get_position().unwrap().clone(),
+            system
+                .get_atom_as_ref(0)
+                .unwrap()
+                .get_position()
+                .unwrap()
+                .clone(),
             2.0,
         );
 
@@ -864,7 +892,12 @@ mod tests {
         system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
 
         let sphere = Sphere::new(
-            system.get_atom_as_ref(0).unwrap().get_position().unwrap().clone(),
+            system
+                .get_atom_as_ref(0)
+                .unwrap()
+                .get_position()
+                .unwrap()
+                .clone(),
             2.0,
         );
 

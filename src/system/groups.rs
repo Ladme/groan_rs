@@ -1128,6 +1128,22 @@ mod tests {
     }
 
     #[test]
+    fn group_create_from_geometry_atoms_without_positions() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        for atom in system.atoms_iter_mut() {
+            atom.reset_position();
+        }
+
+        let rectangular = Rectangular::new([5.0, 0.0, 2.0].into(), 5.0, 4.0, 4.3);
+
+        system
+            .group_create_from_geometry("No atoms", "all", rectangular)
+            .unwrap();
+        assert_eq!(system.group_get_n_atoms("No atoms").unwrap(), 0);
+    }
+
+    #[test]
     fn group_create_from_geometries_simple() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
@@ -1276,6 +1292,32 @@ mod tests {
             }
             Err(_) => panic!("Function failed but incorrect error type has been returned."),
         }
+    }
+
+    #[test]
+    fn group_create_from_geometries_atoms_without_positions() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        for atom in system.atoms_iter_mut() {
+            atom.reset_position();
+        }
+
+        let rectangular = Rectangular::new([5.0, 0.0, 2.0].into(), 5.0, 4.0, 4.3);
+        let sphere = Sphere::new([5.5, 0.5, 2.0].into(), 4.6);
+        let cylinder = Cylinder::new([5.0, 8.0, 3.0].into(), 2.0, 8.0, Dimension::Y);
+
+        system
+            .group_create_from_geometries(
+                "No atoms",
+                "all",
+                vec![
+                    Box::from(rectangular),
+                    Box::from(sphere),
+                    Box::from(cylinder),
+                ],
+            )
+            .unwrap();
+        assert_eq!(system.group_get_n_atoms("No atoms").unwrap(), 0);
     }
 
     #[test]
