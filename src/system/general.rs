@@ -146,7 +146,7 @@ impl System {
     /// ## Notes
     /// - The returned System structure will contain two default groups "all" and "All"
     /// consisting of all the atoms in the system.
-    pub fn from_file(filename: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
+    pub fn from_file(filename: impl AsRef<Path>) -> Result<Self, Box<dyn Error + Send + Sync>> {
         match FileType::from_name(&filename) {
             FileType::GRO => gro_io::read_gro(filename).map_err(Box::from),
             FileType::PDB => pdb_io::read_pdb(filename).map_err(Box::from),
@@ -340,34 +340,37 @@ impl System {
     /// Check whether positions are present.
     ///
     /// ## Returns
-    /// `true` if any of the atoms in the system has non-zero position. `false` otherwise.
+    /// `true` if all of the atoms in the system have information about their positions.
+    /// `false` otherwise.
     ///
     /// ## Notes
     /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
     pub fn has_positions(&self) -> bool {
-        self.atoms.iter().any(|atom| atom.has_position())
+        self.atoms.iter().all(|atom| atom.has_position())
     }
 
     /// Check whether velocities are present.
     ///
     /// ## Returns
-    /// `true` if any of the atoms in the system has non-zero velocity. `false` otherwise.
+    /// `true` if all of the atoms in the system have information about their velocities.
+    /// `false` otherwise.
     ///
     /// ## Notes
     /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
     pub fn has_velocities(&self) -> bool {
-        self.atoms.iter().any(|atom| atom.has_velocity())
+        self.atoms.iter().all(|atom| atom.has_velocity())
     }
 
     /// Check whether forces are present.
     ///
     /// ## Returns
-    /// `true` if any of the atoms in the system has non-zero force acting on it. `false` otherwise.
+    /// `true` if all of the atoms in the system have information about force acting on them.
+    /// `false` otherwise.
     ///
     /// ## Notes
     /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
     pub fn has_forces(&self) -> bool {
-        self.atoms.iter().any(|atom| atom.has_force())
+        self.atoms.iter().all(|atom| atom.has_force())
     }
 
     /// Check whether there are any atoms in the system which share atom number.
@@ -559,9 +562,9 @@ mod tests {
             assert_eq!(groa.get_residue_name(), pdba.get_residue_name());
             assert_eq!(groa.get_atom_number(), pdba.get_atom_number());
             assert_eq!(groa.get_atom_name(), pdba.get_atom_name());
-            assert_approx_eq!(f32, groa.get_position().x, pdba.get_position().x);
-            assert_approx_eq!(f32, groa.get_position().y, pdba.get_position().y);
-            assert_approx_eq!(f32, groa.get_position().z, pdba.get_position().z);
+            assert_approx_eq!(f32, groa.get_position().unwrap().x, pdba.get_position().unwrap().x);
+            assert_approx_eq!(f32, groa.get_position().unwrap().y, pdba.get_position().unwrap().y);
+            assert_approx_eq!(f32, groa.get_position().unwrap().z, pdba.get_position().unwrap().z);
 
             assert_eq!(groa.get_velocity(), pdba.get_velocity());
             assert_eq!(groa.get_force(), pdba.get_force());

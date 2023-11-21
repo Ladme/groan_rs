@@ -1055,7 +1055,7 @@ mod tests {
 
         for atom in system.group_iter("Selected Membrane").unwrap() {
             assert_eq!(atom.get_residue_name(), "POPC");
-            assert!(cylinder.inside(atom.get_position(), system.get_box_as_ref()));
+            assert!(cylinder.inside(atom.get_position().unwrap(), system.get_box_as_ref()));
         }
     }
 
@@ -1075,7 +1075,7 @@ mod tests {
 
         for atom in system.group_iter("Selected Water").unwrap() {
             assert_eq!(atom.get_residue_name(), "W");
-            assert!(sphere.inside(atom.get_position(), system.get_box_as_ref()));
+            assert!(sphere.inside(atom.get_position().unwrap(), system.get_box_as_ref()));
         }
     }
 
@@ -1102,7 +1102,7 @@ mod tests {
                     || resname == "LYS"
                     || resname == "CYS"
             );
-            assert!(rectangular.inside(atom.get_position(), system.get_box_as_ref()));
+            assert!(rectangular.inside(atom.get_position().unwrap(), system.get_box_as_ref()));
         }
     }
 
@@ -1233,9 +1233,9 @@ mod tests {
         for (i, atom) in system.group_iter("Selected Membrane").unwrap().enumerate() {
             assert_eq!(atom.get_atom_number(), expected_numbers[i]);
 
-            assert!(rectangular.inside(atom.get_position(), system.get_box_as_ref()));
-            assert!(sphere.inside(atom.get_position(), system.get_box_as_ref()));
-            assert!(cylinder.inside(atom.get_position(), system.get_box_as_ref()));
+            assert!(rectangular.inside(atom.get_position().unwrap(), system.get_box_as_ref()));
+            assert!(sphere.inside(atom.get_position().unwrap(), system.get_box_as_ref()));
+            assert!(cylinder.inside(atom.get_position().unwrap(), system.get_box_as_ref()));
         }
     }
 

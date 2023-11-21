@@ -82,6 +82,9 @@ impl<'a> AtomIterator<'a> {
 
 /// Immutable iterator over atoms with applied geometry filter.
 /// Constructed by calling `filter_geometry` method on `AtomIterator` or `FilterAtomIterator`.
+///
+/// ## Notes
+/// - Atoms with no positions set are never inside any geometric shape.
 pub struct FilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a Atom>,
@@ -119,7 +122,11 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iterator
-            .find(|atom| self.geometry.inside(atom.get_position(), self.simbox))
+            .find(|atom| atom.has_position() &&
+                self.geometry.inside(atom
+                    .get_position()
+                    .expect("FATAL GROAN ERROR | MutFilterAtomIterator::next | Atom should have position."), 
+                self.simbox))
     }
 }
 
@@ -252,6 +259,8 @@ impl<'a> Iterator for MutAtomIterator<'a> {
 
 /// Mutable iterator over atoms with applied geometry filter.
 /// Constructed by calling `filter_geometry` method on `MutAtomIterator` or `MutFilterAtomIterator`.
+/// ## Notes
+/// - Atoms with no positions set are never inside any geometric shape.
 pub struct MutFilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a mut Atom>,
@@ -289,7 +298,11 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iterator
-            .find(|atom| self.geometry.inside(atom.get_position(), self.simbox))
+            .find(|atom| atom.has_position() &&
+                self.geometry.inside(atom
+                    .get_position()
+                    .expect("FATAL GROAN ERROR | MutFilterAtomIterator::next | Atom should have position."), 
+                self.simbox))
     }
 }
 

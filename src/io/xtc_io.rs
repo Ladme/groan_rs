@@ -86,7 +86,9 @@ impl FrameData for XtcFrameData {
     fn update_system(self, system: &mut System) {
         unsafe {
             for (i, atom) in system.get_atoms_as_ref_mut().iter_mut().enumerate() {
-                atom.set_position(&Vector3D::from(*self.coordinates.get_unchecked(i)));
+                atom.set_position(Vector3D::from(*self.coordinates.get_unchecked(i)));
+                atom.reset_velocity();
+                atom.reset_force();
             }
 
             // update the system
@@ -320,6 +322,7 @@ impl System {
     /// ## Notes
     /// - The function checks whether the number of atoms in the system corresponds to the number of atoms in the xtc file.
     /// - The `System` structure is modified while iterating through the xtc file.
+    /// - The `velocity` and `force` information is set to `None` for all atoms as it is not available in the xtc file.
     pub fn xtc_iter(
         &mut self,
         filename: impl AsRef<Path>,
@@ -381,7 +384,7 @@ impl TrajWrite for XtcWriter {
     /// use groan_rs::prelude::*;
     /// use std::error::Error;
     ///
-    /// fn example_fn() -> Result<(), Box<dyn Error>> {
+    /// fn example_fn() -> Result<(), Box<dyn Error + Send + Sync>> {
     ///     // load system from file
     ///     let mut system = System::from_file("system.gro")?;
     ///
@@ -410,8 +413,10 @@ impl TrajWrite for XtcWriter {
             // prepare coordinate matrix
             let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
             for (i, atom) in (*self.system).atoms_iter().enumerate() {
-                let pos = atom.get_position();
-                coordinates[i] = [pos.x, pos.y, pos.z];
+                if let Some(pos) = atom.get_position() {
+                    coordinates[i] = [pos.x, pos.y, pos.z];
+                }
+                
             }
 
             // write the xtc frame
@@ -503,7 +508,7 @@ impl TrajGroupWrite for XtcGroupWriter {
     /// use groan_rs::prelude::*;
     /// use std::error::Error;
     ///
-    /// fn example_fn() -> Result<(), Box<dyn Error>> {
+    /// fn example_fn() -> Result<(), Box<dyn Error + Send + Sync>> {
     ///     // load system from file
     ///     let mut system = System::from_file("system.gro")?;
     ///     system.read_ndx("index.ndx")?;
@@ -527,6 +532,8 @@ impl TrajGroupWrite for XtcGroupWriter {
     /// ## Notes
     /// - Precision for writing the xtc file is taken from the `System` structure.
     fn write_frame(&mut self) -> Result<(), WriteTrajError> {
+        let binding = Vector3D::default();
+
         unsafe {
             let n_atoms = self.group.get_n_atoms();
 
@@ -540,7 +547,7 @@ impl TrajGroupWrite for XtcGroupWriter {
             // prepare coordinate matrix
             let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
             for (i, atom) in iterator.enumerate() {
-                let pos = atom.get_position();
+                let pos = atom.get_position().unwrap_or(&binding);
                 coordinates[i] = [pos.x, pos.y, pos.z];
             }
 
@@ -613,17 +620,38 @@ mod tests {
         assert_eq!(atom1.get_atom_name(), atom2.get_atom_name());
         assert_eq!(atom1.get_chain(), atom2.get_chain());
 
-        assert_approx_eq!(f32, atom1.get_position().x, atom2.get_position().x);
-        assert_approx_eq!(f32, atom1.get_position().y, atom2.get_position().y);
-        assert_approx_eq!(f32, atom1.get_position().z, atom2.get_position().z);
+        if let (Some(pos1), Some(pos2)) = (atom1.get_position(), atom2.get_position()) {
+            assert_approx_eq!(f32, pos1.x, pos2.x);
+            assert_approx_eq!(f32, pos1.y, pos2.y);
+            assert_approx_eq!(f32, pos1.z, pos2.z);
+        } else {
+            assert!(
+                atom1.get_position().is_none() && atom2.get_position().is_none(),
+                "Positions are not both None"
+            );
+        }
 
-        assert_approx_eq!(f32, atom1.get_velocity().x, atom2.get_velocity().x);
-        assert_approx_eq!(f32, atom1.get_velocity().y, atom2.get_velocity().y);
-        assert_approx_eq!(f32, atom1.get_velocity().z, atom2.get_velocity().z);
+        if let (Some(vel1), Some(vel2)) = (atom1.get_velocity(), atom2.get_velocity()) {
+            assert_approx_eq!(f32, vel1.x, vel2.x);
+            assert_approx_eq!(f32, vel1.y, vel2.y);
+            assert_approx_eq!(f32, vel1.z, vel2.z);
+        } else {
+            assert!(
+                atom1.get_velocity().is_none() && atom2.get_velocity().is_none(),
+                "Velocities are not both None"
+            );
+        }
 
-        assert_approx_eq!(f32, atom1.get_force().x, atom2.get_force().x);
-        assert_approx_eq!(f32, atom1.get_force().y, atom2.get_force().y);
-        assert_approx_eq!(f32, atom1.get_force().z, atom2.get_force().z);
+        if let (Some(force1), Some(force2)) = (atom1.get_force(), atom2.get_force()) {
+            assert_approx_eq!(f32, force1.x, force2.x);
+            assert_approx_eq!(f32, force1.y, force2.y);
+            assert_approx_eq!(f32, force1.z, force2.z);
+        } else {
+            assert!(
+                atom1.get_force().is_none() && atom2.get_force().is_none(),
+                "Forces are not both None"
+            );
+        }
     }
 
     #[test]
@@ -651,34 +679,26 @@ mod tests {
         assert_eq!(atom1.get_atom_number(), 1);
         assert_eq!(atom1.get_atom_name(), "BB");
 
-        assert_approx_eq!(f32, atom1.get_position().x, 5.97);
-        assert_approx_eq!(f32, atom1.get_position().y, 7.03);
-        assert_approx_eq!(f32, atom1.get_position().z, 7.69);
+        assert_approx_eq!(f32, atom1.get_position().unwrap().x, 5.97);
+        assert_approx_eq!(f32, atom1.get_position().unwrap().y, 7.03);
+        assert_approx_eq!(f32, atom1.get_position().unwrap().z, 7.69);
 
-        assert_approx_eq!(f32, atom1.get_velocity().x, -0.0683);
-        assert_approx_eq!(f32, atom1.get_velocity().y, 0.1133);
-        assert_approx_eq!(f32, atom1.get_velocity().z, 0.0005);
+        assert_eq!(atom1.get_velocity(), None);
 
-        assert_approx_eq!(f32, atom1.get_force().x, 0.0);
-        assert_approx_eq!(f32, atom1.get_force().y, 0.0);
-        assert_approx_eq!(f32, atom1.get_force().z, 0.0);
+        assert_eq!(atom1.get_force(), None);
 
         assert_eq!(atom2.get_residue_name(), "ION");
         assert_eq!(atom2.get_residue_number(), 11180);
         assert_eq!(atom2.get_atom_number(), 16844);
         assert_eq!(atom2.get_atom_name(), "CL");
 
-        assert_approx_eq!(f32, atom2.get_position().x, 7.06);
-        assert_approx_eq!(f32, atom2.get_position().y, 0.42);
-        assert_approx_eq!(f32, atom2.get_position().z, 9.38);
+        assert_approx_eq!(f32, atom2.get_position().unwrap().x, 7.06);
+        assert_approx_eq!(f32, atom2.get_position().unwrap().y, 0.42);
+        assert_approx_eq!(f32, atom2.get_position().unwrap().z, 9.38);
 
-        assert_approx_eq!(f32, atom2.get_velocity().x, 0.0712);
-        assert_approx_eq!(f32, atom2.get_velocity().y, 0.2294);
-        assert_approx_eq!(f32, atom2.get_velocity().z, -0.1673);
+        assert_eq!(atom2.get_velocity(), None);
 
-        assert_approx_eq!(f32, atom2.get_force().x, 0.0);
-        assert_approx_eq!(f32, atom2.get_force().y, 0.0);
-        assert_approx_eq!(f32, atom2.get_force().z, 0.0);
+        assert_eq!(atom2.get_force(), None);
 
         // last frame
         system
@@ -701,34 +721,26 @@ mod tests {
         assert_eq!(atom1.get_atom_number(), 1);
         assert_eq!(atom1.get_atom_name(), "BB");
 
-        assert_approx_eq!(f32, atom1.get_position().x, 5.67);
-        assert_approx_eq!(f32, atom1.get_position().y, 6.31);
-        assert_approx_eq!(f32, atom1.get_position().z, 6.96);
+        assert_approx_eq!(f32, atom1.get_position().unwrap().x, 5.67);
+        assert_approx_eq!(f32, atom1.get_position().unwrap().y, 6.31);
+        assert_approx_eq!(f32, atom1.get_position().unwrap().z, 6.96);
 
-        assert_approx_eq!(f32, atom1.get_velocity().x, -0.0683);
-        assert_approx_eq!(f32, atom1.get_velocity().y, 0.1133);
-        assert_approx_eq!(f32, atom1.get_velocity().z, 0.0005);
+        assert_eq!(atom1.get_velocity(), None);
 
-        assert_approx_eq!(f32, atom1.get_force().x, 0.0);
-        assert_approx_eq!(f32, atom1.get_force().y, 0.0);
-        assert_approx_eq!(f32, atom1.get_force().z, 0.0);
+        assert_eq!(atom1.get_force(), None);
 
         assert_eq!(atom2.get_residue_name(), "ION");
         assert_eq!(atom2.get_residue_number(), 11180);
         assert_eq!(atom2.get_atom_number(), 16844);
         assert_eq!(atom2.get_atom_name(), "CL");
 
-        assert_approx_eq!(f32, atom2.get_position().x, 8.36);
-        assert_approx_eq!(f32, atom2.get_position().y, 1.18);
-        assert_approx_eq!(f32, atom2.get_position().z, 0.71);
+        assert_approx_eq!(f32, atom2.get_position().unwrap().x, 8.36);
+        assert_approx_eq!(f32, atom2.get_position().unwrap().y, 1.18);
+        assert_approx_eq!(f32, atom2.get_position().unwrap().z, 0.71);
 
-        assert_approx_eq!(f32, atom2.get_velocity().x, 0.0712);
-        assert_approx_eq!(f32, atom2.get_velocity().y, 0.2294);
-        assert_approx_eq!(f32, atom2.get_velocity().z, -0.1673);
+        assert_eq!(atom2.get_velocity(), None);
 
-        assert_approx_eq!(f32, atom2.get_force().x, 0.0);
-        assert_approx_eq!(f32, atom2.get_force().y, 0.0);
-        assert_approx_eq!(f32, atom2.get_force().z, 0.0);
+        assert_eq!(atom2.get_force(), None);
     }
 
     #[test]

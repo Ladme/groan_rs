@@ -24,6 +24,9 @@ impl System {
     /// ## Warning
     /// - This method currently only works for systems with orthogonal simulation boxes!
     ///
+    /// ## Panics
+    /// Panics if any of the atoms in the group has no position.
+    /// 
     /// ## Notes
     /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
     /// - It is able to calculate correct center of geometry for any distribution of atoms
@@ -55,7 +58,9 @@ impl System {
 
         for atom in self.group_iter(name)? {
             // make sure that each coordinate is inside the box
-            let mut coordinates = atom.get_position().clone();
+            let mut coordinates = atom.get_position()
+                .expect("FATAL GROAN ERROR | System::group_get_center | Atom has no position.")
+                .clone();
             coordinates.wrap(simbox);
 
             // calculate magic angles
@@ -247,10 +252,7 @@ mod tests {
             "LYS",
             1,
             "BB",
-            [4.5, 3.2, 1.7].into(),
-            Default::default(),
-            Default::default(),
-        );
+        ).with_position([4.5, 3.2, 1.7].into());
 
         let atoms = vec![atom1];
         let system = System::new("Artificial system.", atoms, [10.0, 10.0, 10.0].into());
@@ -269,20 +271,14 @@ mod tests {
             "LYS",
             1,
             "BB",
-            [4.5, 3.2, 1.7].into(),
-            Default::default(),
-            Default::default(),
-        );
+        ).with_position([4.5, 3.2, 1.7].into());
 
         let atom2 = Atom::new(
             1,
             "LYS",
             2,
             "SC1",
-            [4.0, 2.8, 3.0].into(),
-            Default::default(),
-            Default::default(),
-        );
+        ).with_position([4.0, 2.8, 3.0].into());
 
         let atoms = vec![atom1, atom2];
         let system = System::new("Artificial system.", atoms, [10.0, 10.0, 10.0].into());
@@ -301,20 +297,14 @@ mod tests {
             "LYS",
             1,
             "BB",
-            [4.5, 3.2, 1.7].into(),
-            Default::default(),
-            Default::default(),
-        );
+        ).with_position([4.5, 3.2, 1.7].into());
 
         let atom2 = Atom::new(
             1,
             "LYS",
             2,
             "SC1",
-            [9.8, 9.5, 3.0].into(),
-            Default::default(),
-            Default::default(),
-        );
+        ).with_position([9.8, 9.5, 3.0].into());
 
         let atoms = vec![atom1, atom2];
         let system = System::new("Artificial system.", atoms, [10.0, 10.0, 10.0].into());
@@ -342,10 +332,7 @@ mod tests {
                 "UNK",
                 i,
                 "BB",
-                position.into(),
-                Default::default(),
-                Default::default(),
-            );
+            ).with_position(position.into());
 
             atoms.push(atom);
         }
@@ -375,10 +362,7 @@ mod tests {
                 "UNK",
                 i,
                 "BB",
-                position.into(),
-                Default::default(),
-                Default::default(),
-            );
+            ).with_position(position.into());
 
             atoms.push(atom);
         }

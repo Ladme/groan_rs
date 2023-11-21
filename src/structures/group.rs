@@ -109,6 +109,7 @@ impl Group {
     }
 
     /// Consumes self returning a new `Group` which only contains atoms fullfilling the geometry condition.
+    /// Atoms that have no positions are never inside any geometric shape.
     fn apply_geometry(self, geometry: impl Shape, system: &System) -> Self {
         let mut indices = Vec::new();
 
@@ -119,8 +120,12 @@ impl Group {
         for index in self.atoms.iter() {
             // safety: `AtomContainerIterator` guarantees that we will only iterate through valid atoms
             let atom = unsafe { atoms.get_unchecked(index) };
-            if geometry.inside(atom.get_position(), simbox) {
-                indices.push(index);
+
+            // atoms that have no positions are not inside the shape
+            if let Some(pos) = atom.get_position() {
+                if geometry.inside(pos, simbox) {
+                    indices.push(index);
+                }
             }
         }
 
@@ -131,6 +136,7 @@ impl Group {
     }
 
     /// Consumes self returning a new `Group` which only contains atoms fulfilling the specified geometry conditions.
+    /// Atoms that have no positions are never inside any geometric shape.
     fn apply_geometries(self, geometries: Vec<Box<dyn Shape>>, system: &System) -> Self {
         let mut indices = Vec::new();
 
@@ -144,9 +150,12 @@ impl Group {
             let mut inside = true;
 
             for geom in &geometries {
-                if !geom.inside(atom.get_position(), simbox) {
-                    inside = false;
-                    break;
+                // atoms that have no positions are not inside the shape
+                if let Some(pos) = atom.get_position() {
+                    if !geom.inside(pos, simbox) {
+                        inside = false;
+                        break;
+                    }
                 }
             }
 

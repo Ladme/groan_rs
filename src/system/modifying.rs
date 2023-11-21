@@ -16,6 +16,9 @@ impl System {
     /// ## Returns
     /// `Ok` or `GroupError::NotFound` in case the group does not exist.
     ///
+    /// ## Panics
+    /// Panics if any of the atoms of the group has no position.
+    /// 
     /// ## Example
     /// Translating the atoms of the group "Protein".
     /// ```no_run
@@ -48,6 +51,9 @@ impl System {
 
     /// Translate all atoms in the system by target vector.
     ///
+    /// ## Panics
+    /// Panics if any of the atoms has no position.
+    /// 
     /// ## Example
     /// ```no_run
     /// use groan_rs::prelude::*;
@@ -189,16 +195,22 @@ impl System {
     }
 
     /// Wrap atoms of the system into the simulation box.
+    /// 
+    /// ## Panics
+    /// Panics if any of the atoms has no position.
     pub fn atoms_wrap(&mut self) {
         self.group_wrap("all")
             .expect("FATAL GROAN ERROR | System::atoms_wrap | Default group 'all' does not exist.")
     }
 
     /// Wrap atoms of a given group into the simulation box.
-    ///
+    /// 
     /// ## Returns
     /// `Ok` if the group exists.
     /// `GroupError` otherwise.
+    /// 
+    /// ## Panics
+    /// Panics if any of the atoms has no position.
     pub fn group_wrap(&mut self, name: &str) -> Result<(), GroupError> {
         let simulation_box = self.get_box_as_ref() as *const SimBox;
 
@@ -281,6 +293,9 @@ impl System {
     /// ## Warning
     /// Only works with orthogonal simulation boxes!
     ///
+    /// ## Panics
+    /// Panics if any atom that is part of any polyatomic molecule has no position.
+    /// 
     /// ## Notes
     /// - Assume you have a system composed of two molecules:
     /// ```text
@@ -347,20 +362,22 @@ impl System {
                     .as_ref()
                     .expect("FATAL GROAN ERROR | System::make_molecules_whole (3) | SimBox is NULL which should not happen."));
 
-                let ref_atom_position = (*atom).get_position();
+                let ref_atom_position = (*atom).get_position()
+                    .expect("FATAL GROAN ERROR | System::make_molecules_whole (4) | Atom has no position.");
 
                 // iterate through other atoms of the molecule
                 for atom2 in self
                     .molecule_iter_mut(*index)
-                    .expect("FATAL GROAN ERROR | System::make_molecules_whole (4) | Atom index does not exist.") 
+                    .expect("FATAL GROAN ERROR | System::make_molecules_whole (5) | Atom index does not exist.") 
                     .skip(1)
                 {
                     // get the shortest vector between the reference atom and the target atom
                     let vector = ref_atom_position.vector_to(
-                    atom2.get_position(),
+                    atom2.get_position()
+                        .expect("FATAL GROAN ERROR | System::make_molecules_whole (6) | Atom has no position."),
                     simbox
-                            .as_ref()
-                            .expect("FATAL GROAN ERROR | System::make_molecules_whole (5) | SimBox is NULL which should not happen.")
+                        .as_ref()
+                        .expect("FATAL GROAN ERROR | System::make_molecules_whole (7) | SimBox is NULL which should not happen.")
                     );
 
                     // place the target atom to position based on the shortest vector
@@ -370,7 +387,7 @@ impl System {
                         ref_atom_position.z + vector.z]
                     );
 
-                    atom2.set_position(&new_position);
+                    atom2.set_position(new_position);
                 }
             }
         }
@@ -400,13 +417,13 @@ mod tests {
         let first_pos = first.get_position();
         let last_pos = last.get_position();
 
-        assert_approx_eq!(f32, first_pos.x, 12.997);
-        assert_approx_eq!(f32, first_pos.y, 0.889);
-        assert_approx_eq!(f32, first_pos.z, 1.64453);
+        assert_approx_eq!(f32, first_pos.unwrap().x, 12.997);
+        assert_approx_eq!(f32, first_pos.unwrap().y, 0.889);
+        assert_approx_eq!(f32, first_pos.unwrap().z, 1.64453);
 
-        assert_approx_eq!(f32, last_pos.x, 12.329);
-        assert_approx_eq!(f32, last_pos.y, 10.086);
-        assert_approx_eq!(f32, last_pos.z, 7.475);
+        assert_approx_eq!(f32, last_pos.unwrap().x, 12.329);
+        assert_approx_eq!(f32, last_pos.unwrap().y, 10.086);
+        assert_approx_eq!(f32, last_pos.unwrap().z, 7.475);
     }
 
     #[test]
@@ -423,13 +440,13 @@ mod tests {
         let first_pos = first.get_position();
         let last_pos = last.get_position();
 
-        assert_approx_eq!(f32, first_pos.x, 12.997);
-        assert_approx_eq!(f32, first_pos.y, 0.889);
-        assert_approx_eq!(f32, first_pos.z, 1.64453);
+        assert_approx_eq!(f32, first_pos.unwrap().x, 12.997);
+        assert_approx_eq!(f32, first_pos.unwrap().y, 0.889);
+        assert_approx_eq!(f32, first_pos.unwrap().z, 1.64453);
 
-        assert_approx_eq!(f32, last_pos.x, 12.329);
-        assert_approx_eq!(f32, last_pos.y, 10.086);
-        assert_approx_eq!(f32, last_pos.z, 7.475);
+        assert_approx_eq!(f32, last_pos.unwrap().x, 12.329);
+        assert_approx_eq!(f32, last_pos.unwrap().y, 10.086);
+        assert_approx_eq!(f32, last_pos.unwrap().z, 7.475);
     }
 
     #[test]
@@ -521,20 +538,20 @@ mod tests {
         for (a1, a2) in system_orig.atoms_iter().zip(system.atoms_iter()) {
             assert_approx_eq!(
                 f32,
-                a1.get_position().x,
-                a2.get_position().x,
+                a1.get_position().unwrap().x,
+                a2.get_position().unwrap().x,
                 epsilon = 0.00001
             );
             assert_approx_eq!(
                 f32,
-                a1.get_position().y,
-                a2.get_position().y,
+                a1.get_position().unwrap().y,
+                a2.get_position().unwrap().y,
                 epsilon = 0.00001
             );
             assert_approx_eq!(
                 f32,
-                a1.get_position().z,
-                a2.get_position().z,
+                a1.get_position().unwrap().z,
+                a2.get_position().unwrap().z,
                 epsilon = 0.00001
             );
         }
@@ -578,58 +595,58 @@ mod tests {
             if nonprotein_translated1.contains(&index) {
                 assert_approx_eq!(
                     f32,
-                    a1.get_position().x + translate1.x,
-                    a2.get_position().x,
+                    a1.get_position().unwrap().x + translate1.x,
+                    a2.get_position().unwrap().x,
                     epsilon = 0.00001
                 );
                 assert_approx_eq!(
                     f32,
-                    a1.get_position().y + translate1.y,
-                    a2.get_position().y,
+                    a1.get_position().unwrap().y + translate1.y,
+                    a2.get_position().unwrap().y,
                     epsilon = 0.00001
                 );
                 assert_approx_eq!(
                     f32,
-                    a1.get_position().z + translate1.z,
-                    a2.get_position().z,
+                    a1.get_position().unwrap().z + translate1.z,
+                    a2.get_position().unwrap().z,
                     epsilon = 0.00001
                 );
             } else if nonprotein_translated2.contains(&index) {
                 assert_approx_eq!(
                     f32,
-                    a1.get_position().x + translate2.x,
-                    a2.get_position().x,
+                    a1.get_position().unwrap().x + translate2.x,
+                    a2.get_position().unwrap().x,
                     epsilon = 0.00001
                 );
                 assert_approx_eq!(
                     f32,
-                    a1.get_position().y + translate2.y,
-                    a2.get_position().y,
+                    a1.get_position().unwrap().y + translate2.y,
+                    a2.get_position().unwrap().y,
                     epsilon = 0.00001
                 );
                 assert_approx_eq!(
                     f32,
-                    a1.get_position().z + translate2.z,
-                    a2.get_position().z,
+                    a1.get_position().unwrap().z + translate2.z,
+                    a2.get_position().unwrap().z,
                     epsilon = 0.00001
                 );
             } else {
                 assert_approx_eq!(
                     f32,
-                    a1.get_position().x,
-                    a2.get_position().x,
+                    a1.get_position().unwrap().x,
+                    a2.get_position().unwrap().x,
                     epsilon = 0.00001
                 );
                 assert_approx_eq!(
                     f32,
-                    a1.get_position().y,
-                    a2.get_position().y,
+                    a1.get_position().unwrap().y,
+                    a2.get_position().unwrap().y,
                     epsilon = 0.00001
                 );
                 assert_approx_eq!(
                     f32,
-                    a1.get_position().z,
-                    a2.get_position().z,
+                    a1.get_position().unwrap().z,
+                    a2.get_position().unwrap().z,
                     epsilon = 0.00001
                 );
             }
@@ -755,30 +772,21 @@ mod tests {
             "RES",
             1,
             "ATM",
-            [6.0, 6.0, 2.0].into(),
-            Vector3D::default(),
-            Vector3D::default(),
-        );
+        ).with_position([6.0, 6.0, 2.0].into());
 
         let atom2 = Atom::new(
             1,
             "RES",
             2,
             "ATM",
-            [1.0, 4.0, 2.0].into(),
-            Vector3D::default(),
-            Vector3D::default(),
-        );
+        ).with_position([1.0, 4.0, 2.0].into());
 
         let atom3 = Atom::new(
             1,
             "RES",
             2,
             "ATM",
-            [4.0, 1.0, 2.0].into(),
-            Vector3D::default(),
-            Vector3D::default(),
-        );
+        ).with_position([4.0, 1.0, 2.0].into());
 
         let atoms = vec![atom1, atom2, atom3];
 
@@ -792,17 +800,17 @@ mod tests {
         let atom2 = system.atoms_iter().nth(1).unwrap();
         let atom3 = system.atoms_iter().nth(2).unwrap();
 
-        assert_eq!(atom1.get_position().x, 1.0);
-        assert_eq!(atom1.get_position().y, 1.0);
-        assert_eq!(atom1.get_position().z, 2.0);
+        assert_eq!(atom1.get_position().unwrap().x, 1.0);
+        assert_eq!(atom1.get_position().unwrap().y, 1.0);
+        assert_eq!(atom1.get_position().unwrap().z, 2.0);
 
-        assert_eq!(atom2.get_position().x, 1.0);
-        assert_eq!(atom2.get_position().y, -1.0);
-        assert_eq!(atom2.get_position().z, 2.0);
+        assert_eq!(atom2.get_position().unwrap().x, 1.0);
+        assert_eq!(atom2.get_position().unwrap().y, -1.0);
+        assert_eq!(atom2.get_position().unwrap().z, 2.0);
 
-        assert_eq!(atom3.get_position().x, -1.0);
-        assert_eq!(atom3.get_position().y, 1.0);
-        assert_eq!(atom3.get_position().z, 2.0);
+        assert_eq!(atom3.get_position().unwrap().x, -1.0);
+        assert_eq!(atom3.get_position().unwrap().y, 1.0);
+        assert_eq!(atom3.get_position().unwrap().z, 2.0);
 
         let mut system = System::new("System", atoms.clone(), [5.0, 5.0, 5.0].into());
 
@@ -813,17 +821,17 @@ mod tests {
         let atom2 = system.atoms_iter().nth(1).unwrap();
         let atom3 = system.atoms_iter().nth(2).unwrap();
 
-        assert_eq!(atom1.get_position().x, 6.0);
-        assert_eq!(atom1.get_position().y, 6.0);
-        assert_eq!(atom1.get_position().z, 2.0);
+        assert_eq!(atom1.get_position().unwrap().x, 6.0);
+        assert_eq!(atom1.get_position().unwrap().y, 6.0);
+        assert_eq!(atom1.get_position().unwrap().z, 2.0);
 
-        assert_eq!(atom2.get_position().x, 1.0);
-        assert_eq!(atom2.get_position().y, 4.0);
-        assert_eq!(atom2.get_position().z, 2.0);
+        assert_eq!(atom2.get_position().unwrap().x, 1.0);
+        assert_eq!(atom2.get_position().unwrap().y, 4.0);
+        assert_eq!(atom2.get_position().unwrap().z, 2.0);
 
-        assert_eq!(atom3.get_position().x, -1.0);
-        assert_eq!(atom3.get_position().y, 6.0);
-        assert_eq!(atom3.get_position().z, 2.0);
+        assert_eq!(atom3.get_position().unwrap().x, -1.0);
+        assert_eq!(atom3.get_position().unwrap().y, 6.0);
+        assert_eq!(atom3.get_position().unwrap().z, 2.0);
     }
 
     #[test]

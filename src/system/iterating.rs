@@ -409,18 +409,18 @@ mod tests {
             group_atom.translate_nopbc(&Vector3D::from([0.5, -1.1, 2.4]));
             assert_approx_eq!(
                 f32,
-                group_atom.get_position().x,
-                system_atom.get_position().x + 0.5
+                group_atom.get_position().unwrap().x,
+                system_atom.get_position().unwrap().x + 0.5
             );
             assert_approx_eq!(
                 f32,
-                group_atom.get_position().y,
-                system_atom.get_position().y - 1.1
+                group_atom.get_position().unwrap().y,
+                system_atom.get_position().unwrap().y - 1.1
             );
             assert_approx_eq!(
                 f32,
-                group_atom.get_position().z,
-                system_atom.get_position().z + 2.4
+                group_atom.get_position().unwrap().z,
+                system_atom.get_position().unwrap().z + 2.4
             );
         }
     }
@@ -437,18 +437,18 @@ mod tests {
             group_atom.translate_nopbc(&Vector3D::from([0.5, -1.1, 2.4]));
             assert_approx_eq!(
                 f32,
-                group_atom.get_position().x,
-                system_atom.get_position().x + 0.5
+                group_atom.get_position().unwrap().x,
+                system_atom.get_position().unwrap().x + 0.5
             );
             assert_approx_eq!(
                 f32,
-                group_atom.get_position().y,
-                system_atom.get_position().y - 1.1
+                group_atom.get_position().unwrap().y,
+                system_atom.get_position().unwrap().y - 1.1
             );
             assert_approx_eq!(
                 f32,
-                group_atom.get_position().z,
-                system_atom.get_position().z + 2.4
+                group_atom.get_position().unwrap().z,
+                system_atom.get_position().unwrap().z + 2.4
             );
         }
     }
@@ -464,6 +464,7 @@ mod tests {
         for atom in system.atoms_iter().filter_geometry(sphere.clone()) {
             assert!(
                 atom.get_position()
+                    .unwrap()
                     .distance(&sphere_pos, Dimension::XYZ, system.get_box_as_ref())
                     < 5.0
             );
@@ -479,11 +480,13 @@ mod tests {
         {
             assert!(
                 atom.get_position()
+                    .unwrap()
                     .distance(&sphere_pos, Dimension::XYZ, system.get_box_as_ref())
                     < 5.0
             );
             assert!(
                 atom.get_position()
+                    .unwrap()
                     .distance(&sphere_pos2, Dimension::XYZ, system.get_box_as_ref())
                     < 4.0
             );
@@ -511,8 +514,8 @@ mod tests {
         }
 
         for (i, atom) in system.atoms_iter().enumerate() {
-            if sphere.inside(atom.get_position(), &sbox)
-                && sphere2.inside(atom.get_position(), &sbox)
+            if sphere.inside(atom.get_position().unwrap(), &sbox)
+                && sphere2.inside(atom.get_position().unwrap(), &sbox)
             {
                 assert_eq!(atom.get_atom_name(), "XYZ");
             } else {
@@ -783,7 +786,7 @@ mod tests {
         system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
 
         let sphere = Sphere::new(
-            system.get_atom_as_ref(0).unwrap().get_position().clone(),
+            system.get_atom_as_ref(0).unwrap().get_position().unwrap().clone(),
             2.0,
         );
 
@@ -861,7 +864,7 @@ mod tests {
         system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
 
         let sphere = Sphere::new(
-            system.get_atom_as_ref(0).unwrap().get_position().clone(),
+            system.get_atom_as_ref(0).unwrap().get_position().unwrap().clone(),
             2.0,
         );
 

@@ -47,7 +47,7 @@
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
-//! fn main() -> Result<(), Box<dyn Error>> {
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     // read a gro file
 //!     let mut system = System::from_file("system.gro")?;
 //!     // `groan_rs` also supports pdb files which can be read as:
@@ -78,7 +78,7 @@
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
-//! fn main() -> Result<(), Box<dyn Error>> {
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     // read a gro file
 //!     let mut system = System::from_file("system.gro")?;
 //!
@@ -121,7 +121,7 @@
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
-//! fn main() -> Result<(), Box<dyn Error>> {
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     // read a gro file
 //!     let mut system = System::from_file("structure.gro")?;
 //!
@@ -161,7 +161,7 @@
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
-//! fn main() -> Result<(), Box<dyn Error>> {
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     // read a gro file
 //!     let mut system = System::from_file("structure.gro")?;
 //!
@@ -189,7 +189,7 @@
 //!         })
 //!         // collect the calculated distances
 //!         // if any error occured while reading the trajectory, propagate it
-//!         .collect::<Result<Vec<f32>, Box<dyn Error>>>()?;
+//!         .collect::<Result<Vec<f32>, Box<dyn Error + Send + Sync>>>()?;
 //!
 //!     // print the calculated distances
 //!     println!("{:?}", distances);
@@ -206,7 +206,7 @@
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
-//! fn main() -> Result<(), Box<dyn Error>> {
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     let mut system = System::from_file("structure.gro")?;
 //!
 //!     system.group_create("group 1", "serial 1 to 5")?;
@@ -225,7 +225,7 @@
 //!                 .group_distance("group 1", "group 2", Dimension::XYZ)
 //!                 .expect("Groups do not exist but they should."))
 //!         })
-//!         .collect::<Result<Vec<f32>, Box<dyn Error>>>()?;
+//!         .collect::<Result<Vec<f32>, Box<dyn Error + Send + Sync>>>()?;
 //!
 //!     println!("{:?}", distances);
 //!
@@ -241,7 +241,7 @@
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
-//! fn main() -> Result<(), Box<dyn Error>> {
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     // read a gro file
 //!     let mut system = System::from_file("structure.gro")?;
 //!
@@ -273,7 +273,7 @@
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
-//! fn main() -> Result<(), Box<dyn Error>> {
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     // read a gro file and an ndx file
 //!     let mut system = System::from_file("system.gro")?;
 //!     system.read_ndx("index.ndx")?;
@@ -303,7 +303,7 @@
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
-//! fn main() -> Result<(), Box<dyn Error>> {
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     // read a gro file and an ndx file
 //!     let mut system = System::from_file("system.gro")?;
 //!     system.read_ndx("index.ndx")?;
@@ -337,7 +337,7 @@
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
-//! fn main() -> Result<(), Box<dyn Error>> {
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     // read a gro file
 //!     let system = System::from_file("system.gro")?;
 //!
@@ -349,7 +349,7 @@
 //!     let cylinder = Cylinder::new([1.5, 2.5, 3.5].into(), 2.1, 4.3, Dimension::Z);
 //!
 //!     for atom in system.atoms_iter() {
-//!         if cylinder.inside(atom.get_position(), system.get_box_as_ref()) {
+//!         if cylinder.inside(atom.get_position().unwrap(), system.get_box_as_ref()) {
 //!             inside_cylinder.push(atom.clone());
 //!         }
 //!     }
@@ -369,7 +369,7 @@
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
-//! fn main() -> Result<(), Box<dyn Error>> {
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     // read a gro file
 //!     let system = System::from_file("system.gro")?;
 //!
