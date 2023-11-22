@@ -1,6 +1,7 @@
 
 ## Changelog for the `groan_rs` library
 
+### Version 0.5.0
 #### Important BREAKING CHANGES affecting the entire `groan_rs` library
 
 - **Fields `position`, `velocity`, and `force` in the `Atom` structure are now of type `Option<Vector3D>`.**
@@ -13,7 +14,7 @@
   - `System::has_forces`, `System::has_velocities`, `System::has_positions` return `true` only if *all* atoms have the respective property.
   - A position with x = 0.0, y = 0.0, z = 0.0 is now considered valid. However, atoms without positions are still written with 0.0 coordinates.
 
-#### Other changes to atom structure
+#### Other changes to the `Atom` structure
 
 - New optional fields `charge` and `bonded` added:
   - `charge`: Specifies the atom's charge.
@@ -47,11 +48,11 @@
   4. `System::molecule_iter` and `System::molecule_iter_mut`: Iterates through atoms in the same molecule.
   5. `System::make_molecules_whole`: Fixes molecules broken at periodic boundaries.
 
-#### Quality-of-Life Improvements
+#### Quality-of-Life improvements
 
 - `ProgressPrinter` introduced for trajectory reading progress. Activated via `TrajMasterRead::print_progress`.
 
-#### Other Changes
+#### Other changes
 
 - **Breaking Change**: Atom access methods (`System::get_atom_as_ref`, etc.) now use index instead of `gmx_atom_number`.
 - **Breaking Change**: `System::from_file` returns `Result<Self, Box<dyn Error + Send + Sync>>` for threading compatibility.
