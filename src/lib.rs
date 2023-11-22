@@ -1,7 +1,7 @@
 // Released under MIT License.
 // Copyright (c) 2023 Ladislav Bartos
 
-//! # groan_rs: Gromacs Analysis Library for Rust
+//! # `groan_rs`: Gromacs Analysis Library for Rust
 //!
 //! Rust library for analyzing Gromacs simulations.
 //! Currently in an early stage of development: anything can break, change or stop working at any time.
@@ -19,7 +19,6 @@
 //! ## What it CAN'T do (at the moment)
 //! - Read tpr files.
 //! - Work with atom masses.
-//! - Read xtc and trr files with non-orthogonal simulation boxes.
 //! - Work with non-orthogonal periodic boundary conditions.
 //! - Perform advanced analyses of structure and dynamics out of the box.
 //! (But `groan_rs` library tries to make it simple to implement your own!)

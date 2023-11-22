@@ -368,10 +368,10 @@ impl Atom {
             writeln!(
                 stream,
                 "{:>5}{}{}{:>5}{:>8.3}{:>8.3}{:>8.3}{:>8.4}{:>8.4}{:>8.4}",
-                self.get_residue_number() % 100000,
+                self.get_residue_number() % 100_000,
                 format_resname,
                 format_atomname,
-                self.get_atom_number() % 100000,
+                self.get_atom_number() % 100_000,
                 position.x,
                 position.y,
                 position.z,
@@ -384,10 +384,10 @@ impl Atom {
             writeln!(
                 stream,
                 "{:>5}{:<5}{:>5}{:>5}{:>8.3}{:>8.3}{:>8.3}",
-                self.get_residue_number() % 100000,
+                self.get_residue_number() % 100_000,
                 format_resname,
                 format_atomname,
-                self.get_atom_number() % 100000,
+                self.get_atom_number() % 100_000,
                 position.x,
                 position.y,
                 position.z
@@ -472,7 +472,7 @@ impl Atom {
     /// ```
     pub fn distance(&self, atom: &Atom, dim: Dimension, sbox: &SimBox) -> f32 {
         match (&self.position, &atom.position) {
-            (None, None) | (None, Some(_)) | (Some(_), None) => {
+            (None | Some(_), None) | (None, Some(_)) => {
                 panic!("FATAL GROAN ERROR | Atom::distance | Atom has no position.")
             }
             (Some(ref pos1), Some(ref pos2)) => pos1.distance(pos2, dim, sbox),

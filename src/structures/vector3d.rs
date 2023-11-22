@@ -13,7 +13,7 @@ fn floor_mod(x: f32, y: f32) -> f32 {
 /// Reciprocal of square root of 2, i.e. 1/sqrt(2).
 const REC_SQRT2: f32 = std::f32::consts::FRAC_1_SQRT_2;
 /// Reciprocal of square root of 3, i.e. 1/sqrt(3).
-const REC_SQRT3: f32 = 0.5773503f32;
+const REC_SQRT3: f32 = 0.577_350_3_f32;
 
 /// Describes length and orientation of a vector in space or a position of a point in space.
 #[derive(Debug, Clone, PartialEq)]

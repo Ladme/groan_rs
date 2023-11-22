@@ -83,9 +83,6 @@ pub enum ParsePdbError {
     /// Used when a "TITLE" line in the pdb file could not be parsed.
     #[error("{} could not parse line '{}' as title", "error:".red().bold(), .0.yellow())]
     ParseTitleLineErr(String),
-    /// Used when the simulation box specified in the pdb file is not orthogonal.
-    #[error("{} simulation box specified on line '{}' is not orthogonal", "error:".red().bold(), .0.yellow())]
-    NonOrthogonalBox(String),
 }
 
 /// Errors that can occur when reading the connectivity section of a PDB file.
@@ -263,6 +260,9 @@ pub enum ReadTrajError {
     /// Used when the step of the iteration is invalid, usually zero.
     #[error("{} unsupported iteration step '{}' - must be > 0", "error:".red().bold(), .0.to_string().yellow())]
     InvalidStep(usize),
+    /// Used when simulation box read from the trajectory is invalid.
+    #[error("{} simulation box is invalid", "error:".red().bold())]
+    InvalidSimBox,
 }
 
 /// Errors that can occur when writing a trajectory file.

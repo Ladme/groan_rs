@@ -1,8 +1,6 @@
 extern crate cc;
 
-use std::io::Result;
-
-fn main() -> Result<()> {
+fn main() {
     // compile the xdrfile library
     let source_files = vec![
         "external/xdrfile/xdrfile.c",
@@ -25,6 +23,4 @@ fn main() -> Result<()> {
     println!("cargo:rerun-if-changed=external/xdrfile/xdrfile_trr.h");
     println!("cargo:rerun-if-changed=external/xdrfile/xdrfile_jump.c");
     println!("cargo:rerun-if-changed=external/xdrfile/xdrfile_jump.h");
-
-    Ok(())
 }

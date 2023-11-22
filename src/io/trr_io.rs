@@ -14,7 +14,7 @@ use crate::io::traj_io::{
 };
 use crate::io::xdrfile::{self, CXdrFile, OpenMode, XdrFile};
 use crate::structures::iterators::AtomIterator;
-use crate::structures::{group::Group, vector3d::Vector3D};
+use crate::structures::{group::Group, vector3d::Vector3D, simbox::SimBox};
 use crate::system::general::System;
 
 /**************************/
@@ -26,7 +26,7 @@ use crate::system::general::System;
 pub struct TrrFrameData {
     step: c_int,
     time: c_float,
-    boxvector: [[c_float; 3usize]; 3usize],
+    simbox: SimBox,
     lambda: c_float,
     coordinates: Vec<[f32; 3]>,
     velocities: Vec<[f32; 3]>,
@@ -69,15 +69,22 @@ impl FrameData for TrrFrameData {
 
             match return_code {
                 // reading successful and there is more to read
-                0 => Some(Ok(TrrFrameData {
-                    step,
-                    time,
-                    boxvector,
-                    lambda,
-                    coordinates,
-                    velocities,
-                    forces,
-                })),
+                0 => {
+                    let simbox = match xdrfile::matrix2simbox(boxvector) {
+                        Ok(x) => x,
+                        Err(e) => return Some(Err(e))
+                    };
+
+                    Some(Ok(TrrFrameData {
+                        step,
+                        time,
+                        simbox,
+                        lambda,
+                        coordinates,
+                        velocities,
+                        forces,
+                    }))
+                }
                 // file is completely read
                 4 | 11 => None,
                 // error occured
@@ -87,10 +94,6 @@ impl FrameData for TrrFrameData {
     }
 
     /// Update the `System` structure based on data from `TrrFrameData`.
-    ///
-    /// ## Warning
-    /// - This function currently only supports orthogonal simulation boxes!
-    /// Updating `System` using `TrrFrameData` structure containing simulation box of a different shape will fail.
     fn update_system(self, system: &mut System) {
         unsafe {
             for (i, atom) in system.get_atoms_as_ref_mut().iter_mut().enumerate() {
@@ -120,7 +123,7 @@ impl FrameData for TrrFrameData {
             // update the system
             system.set_simulation_step(self.step as u64);
             system.set_simulation_time(self.time);
-            system.set_box(xdrfile::matrix2simbox(self.boxvector));
+            system.set_box(self.simbox);
             system.set_lambda(self.lambda);
         }
     }
@@ -1593,6 +1596,154 @@ mod tests {
     }
 
     #[test]
+    fn read_trr_triclinic() {
+        let mut system = System::from_file("test_files/triclinic.gro").unwrap();
+
+        // second frame
+        let frame = system.trr_iter("test_files/triclinic_trajectory.trr").unwrap().nth(1).unwrap().unwrap();
+        assert_eq!(frame.get_simulation_step(), 6000);
+        assert_approx_eq!(f32, frame.get_simulation_time(), 120.0);
+
+        let simbox = frame.get_box_as_ref();
+        assert_approx_eq!(f32, simbox.v1x, 5.2841544);
+        assert_approx_eq!(f32, simbox.v2y, 4.7775064);
+        assert_approx_eq!(f32, simbox.v3z, 2.2274022);
+        assert_approx_eq!(f32, simbox.v1y, 0.0000000);
+        assert_approx_eq!(f32, simbox.v1z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v2x, 0.8424022);
+        assert_approx_eq!(f32, simbox.v2z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v3x, 1.0153817);
+        assert_approx_eq!(f32, simbox.v3y,-1.6863307);
+
+        // last frame
+        let frame = system.trr_iter("test_files/triclinic_trajectory.trr").unwrap().nth(12).unwrap().unwrap();
+        assert_eq!(frame.get_simulation_step(), 48000);
+        assert_approx_eq!(f32, frame.get_simulation_time(), 960.0);
+
+        let simbox = frame.get_box_as_ref();
+        assert_approx_eq!(f32, simbox.v1x, 5.2607775);
+        assert_approx_eq!(f32, simbox.v2y, 4.7563710);
+        assert_approx_eq!(f32, simbox.v3z, 2.1813555);
+        assert_approx_eq!(f32, simbox.v1y, 0.0000000);
+        assert_approx_eq!(f32, simbox.v1z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v2x, 0.8386754);
+        assert_approx_eq!(f32, simbox.v2z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v3x, 1.0108896);
+        assert_approx_eq!(f32, simbox.v3y,-1.6788703);
+    }
+
+    #[test]
+    fn read_trr_octahedron() {
+        let mut system = System::from_file("test_files/octahedron.gro").unwrap();
+
+        // second frame
+        let frame = system.trr_iter("test_files/octahedron_trajectory.trr").unwrap().nth(1).unwrap().unwrap();
+        assert_eq!(frame.get_simulation_step(), 6000);
+        assert_approx_eq!(f32, frame.get_simulation_time(), 120.0);
+
+        let simbox = frame.get_box_as_ref();
+        assert_approx_eq!(f32, simbox.v1x, 6.2648335);
+        assert_approx_eq!(f32, simbox.v2y, 5.9065430);
+        assert_approx_eq!(f32, simbox.v3z, 5.1107280);
+        assert_approx_eq!(f32, simbox.v1y, 0.0000000);
+        assert_approx_eq!(f32, simbox.v1z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v2x, 2.0882778);
+        assert_approx_eq!(f32, simbox.v2z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v3x,-2.0882778);
+        assert_approx_eq!(f32, simbox.v3y, 2.9532664);
+
+        // last frame
+        let frame = system.trr_iter("test_files/octahedron_trajectory.trr").unwrap().nth(12).unwrap().unwrap();
+        assert_eq!(frame.get_simulation_step(), 48000);
+        assert_approx_eq!(f32, frame.get_simulation_time(), 960.0);
+
+        let simbox = frame.get_box_as_ref();
+        assert_approx_eq!(f32, simbox.v1x, 6.2079663);
+        assert_approx_eq!(f32, simbox.v2y, 5.8529277);
+        assert_approx_eq!(f32, simbox.v3z, 5.0791510);
+        assert_approx_eq!(f32, simbox.v1y, 0.0000000);
+        assert_approx_eq!(f32, simbox.v1z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v2x, 2.0693220);
+        assert_approx_eq!(f32, simbox.v2z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v3x,-2.0693220);
+        assert_approx_eq!(f32, simbox.v3y, 2.9264590);
+    }
+
+    #[test]
+    fn read_trr_dodecahedron() {
+        let mut system = System::from_file("test_files/dodecahedron.gro").unwrap();
+
+        // second frame
+        let frame = system.trr_iter("test_files/dodecahedron_trajectory.trr").unwrap().nth(1).unwrap().unwrap();
+        assert_eq!(frame.get_simulation_step(), 6000);
+        assert_approx_eq!(f32, frame.get_simulation_time(), 120.0);
+
+        let simbox = frame.get_box_as_ref();
+        assert_approx_eq!(f32, simbox.v1x, 6.2602970);
+        assert_approx_eq!(f32, simbox.v2y, 6.2602970);
+        assert_approx_eq!(f32, simbox.v3z, 4.4314090);
+        assert_approx_eq!(f32, simbox.v1y, 0.0000000);
+        assert_approx_eq!(f32, simbox.v1z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v2x, 0.0000000);
+        assert_approx_eq!(f32, simbox.v2z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v3x, 3.1301484);
+        assert_approx_eq!(f32, simbox.v3y, 3.1301484);
+
+        // last frame
+        let frame = system.trr_iter("test_files/dodecahedron_trajectory.trr").unwrap().nth(12).unwrap().unwrap();
+        assert_eq!(frame.get_simulation_step(), 48000);
+        assert_approx_eq!(f32, frame.get_simulation_time(), 960.0);
+
+        let simbox = frame.get_box_as_ref();
+        assert_approx_eq!(f32, simbox.v1x, 6.2228966);
+        assert_approx_eq!(f32, simbox.v2y, 6.2228966);
+        assert_approx_eq!(f32, simbox.v3z, 4.4067430);
+        assert_approx_eq!(f32, simbox.v1y, 0.0000000);
+        assert_approx_eq!(f32, simbox.v1z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v2x, 0.0000000);
+        assert_approx_eq!(f32, simbox.v2z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v3x, 3.1114483);
+        assert_approx_eq!(f32, simbox.v3y, 3.1114483);
+    }
+
+    #[test]
+    fn read_trr_triclinic_double_precision() {
+        let mut system = System::from_file("test_files/triclinic.gro").unwrap();
+
+        // second frame
+        let frame = system.trr_iter("test_files/triclinic_trajectory_double_precision.trr").unwrap().nth(1).unwrap().unwrap();
+        assert_eq!(frame.get_simulation_step(), 6000);
+        assert_approx_eq!(f32, frame.get_simulation_time(), 120.0);
+
+        let simbox = frame.get_box_as_ref();
+        assert_approx_eq!(f32, simbox.v1x, 5.2975800);
+        assert_approx_eq!(f32, simbox.v2y, 4.7896442);
+        assert_approx_eq!(f32, simbox.v3z, 2.1716056);
+        assert_approx_eq!(f32, simbox.v1y, 0.0000000);
+        assert_approx_eq!(f32, simbox.v1z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v2x, 0.8445424);
+        assert_approx_eq!(f32, simbox.v2z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v3x, 1.0179615);
+        assert_approx_eq!(f32, simbox.v3y,-1.6906150);
+
+        // last frame
+        let frame = system.trr_iter("test_files/triclinic_trajectory_double_precision.trr").unwrap().nth(12).unwrap().unwrap();
+        assert_eq!(frame.get_simulation_step(), 48000);
+        assert_approx_eq!(f32, frame.get_simulation_time(), 960.0);
+
+        let simbox = frame.get_box_as_ref();
+        assert_approx_eq!(f32, simbox.v1x, 5.1767554);
+        assert_approx_eq!(f32, simbox.v2y, 4.6804047);
+        assert_approx_eq!(f32, simbox.v3z, 2.0012338);
+        assert_approx_eq!(f32, simbox.v1y, 0.0000000);
+        assert_approx_eq!(f32, simbox.v1z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v2x, 0.8252806);
+        assert_approx_eq!(f32, simbox.v2z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v3x, 0.9947443);
+        assert_approx_eq!(f32, simbox.v3y,-1.6520565);
+    }
+
+    #[test]
     fn write_trr() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
@@ -1742,5 +1893,74 @@ mod tests {
             Err(WriteTrajError::GroupNotFound(g)) => assert_eq!(g, "Protein"),
             _ => panic!("Output XTC file should not have been created."),
         }
+    }
+
+    #[test]
+    fn write_trr_triclinic() {
+        let mut system = System::from_file("test_files/triclinic.gro").unwrap();
+
+        let trr_output = NamedTempFile::new().unwrap();
+        let path_to_output = trr_output.path();
+
+        let mut writer = TrrWriter::new(&system, path_to_output).unwrap();
+
+        for frame in system.trr_iter("test_files/triclinic_trajectory.trr").unwrap() {
+            let _ = frame.unwrap();
+
+            writer.write_frame().unwrap();
+        }
+
+        drop(writer);
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/triclinic_trajectory_full.trr").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_trr_octahedron() {
+        let mut system = System::from_file("test_files/octahedron.gro").unwrap();
+
+        let trr_output = NamedTempFile::new().unwrap();
+        let path_to_output = trr_output.path();
+
+        let mut writer = TrrWriter::new(&system, path_to_output).unwrap();
+
+        for frame in system.trr_iter("test_files/octahedron_trajectory.trr").unwrap() {
+            let _ = frame.unwrap();
+
+            writer.write_frame().unwrap();
+        }
+
+        drop(writer);
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/octahedron_trajectory_full.trr").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_trr_dodecahedron() {
+        let mut system = System::from_file("test_files/dodecahedron.gro").unwrap();
+
+        let trr_output = NamedTempFile::new().unwrap();
+        let path_to_output = trr_output.path();
+
+        let mut writer = TrrWriter::new(&system, path_to_output).unwrap();
+
+        for frame in system.trr_iter("test_files/dodecahedron_trajectory.trr").unwrap() {
+            let _ = frame.unwrap();
+
+            writer.write_frame().unwrap();
+        }
+
+        drop(writer);
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/dodecahedron_trajectory_full.trr").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
     }
 }
