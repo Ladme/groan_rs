@@ -9,7 +9,7 @@ use std::{
     path::Path,
 };
 
-use crate::errors::{TrajError, ReadTrajError};
+use crate::errors::{ReadTrajError, TrajError};
 use crate::structures::simbox::SimBox;
 
 #[repr(C)]
@@ -171,17 +171,26 @@ pub fn mode2cstring(mode: OpenMode) -> CString {
 }
 
 /// Convert C box matrix from an xtc file to SimBox.
-/// 
+///
 /// ## Returns
 /// `SimBox` or `ReadTrajError::InvalidSimBox` if the simulation box is not valid.
-pub fn matrix2simbox(matrix: [[c_float; 3usize]; 3usize]) -> Result<SimBox, ReadTrajError>  {
+pub fn matrix2simbox(matrix: [[c_float; 3usize]; 3usize]) -> Result<SimBox, ReadTrajError> {
     if matrix[0][1] != 0.0 || matrix[0][2] != 0.0 || matrix[1][2] != 0.0 {
         return Err(ReadTrajError::InvalidSimBox);
     }
 
-    Ok([matrix[0][0], matrix[1][1], matrix[2][2],
-     matrix[0][1], matrix[0][2], matrix[1][0],
-     matrix[1][2], matrix[2][0], matrix[2][1]].into())
+    Ok([
+        matrix[0][0],
+        matrix[1][1],
+        matrix[2][2],
+        matrix[0][1],
+        matrix[0][2],
+        matrix[1][0],
+        matrix[1][2],
+        matrix[2][0],
+        matrix[2][1],
+    ]
+    .into())
 }
 
 /// Convert SimBox to C box matrix for an xtc file.

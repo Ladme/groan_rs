@@ -14,7 +14,7 @@ use crate::io::traj_io::{
 use crate::io::xdrfile::{self, CXdrFile, OpenMode, XdrFile};
 use crate::prelude::TrajReader;
 use crate::structures::iterators::AtomIterator;
-use crate::structures::{group::Group, vector3d::Vector3D, simbox::SimBox};
+use crate::structures::{group::Group, simbox::SimBox, vector3d::Vector3D};
 use crate::system::general::System;
 
 /**************************/
@@ -64,10 +64,9 @@ impl FrameData for XtcFrameData {
             match return_code {
                 // reading successful and there is more to read
                 0 => {
-
                     let simbox = match xdrfile::matrix2simbox(boxvector) {
                         Ok(x) => x,
-                        Err(e) => return Some(Err(e))
+                        Err(e) => return Some(Err(e)),
                     };
 
                     Some(Ok(XtcFrameData {
@@ -1093,7 +1092,12 @@ mod tests {
         let mut system = System::from_file("test_files/triclinic.gro").unwrap();
 
         // second frame
-        let frame = system.xtc_iter("test_files/triclinic_trajectory.xtc").unwrap().nth(1).unwrap().unwrap();
+        let frame = system
+            .xtc_iter("test_files/triclinic_trajectory.xtc")
+            .unwrap()
+            .nth(1)
+            .unwrap()
+            .unwrap();
         assert_eq!(frame.get_simulation_step(), 5000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 100.0);
 
@@ -1106,10 +1110,15 @@ mod tests {
         assert_approx_eq!(f32, simbox.v2x, 0.8428372);
         assert_approx_eq!(f32, simbox.v2z, 0.0000000);
         assert_approx_eq!(f32, simbox.v3x, 1.0159061);
-        assert_approx_eq!(f32, simbox.v3y,-1.6872015);
+        assert_approx_eq!(f32, simbox.v3y, -1.6872015);
 
         // last frame
-        let frame = system.xtc_iter("test_files/triclinic_trajectory.xtc").unwrap().nth(10).unwrap().unwrap();
+        let frame = system
+            .xtc_iter("test_files/triclinic_trajectory.xtc")
+            .unwrap()
+            .nth(10)
+            .unwrap()
+            .unwrap();
         assert_eq!(frame.get_simulation_step(), 50000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 1000.0);
 
@@ -1122,7 +1131,7 @@ mod tests {
         assert_approx_eq!(f32, simbox.v2x, 0.8403500);
         assert_approx_eq!(f32, simbox.v2z, 0.0000000);
         assert_approx_eq!(f32, simbox.v3x, 1.0129081);
-        assert_approx_eq!(f32, simbox.v3y,-1.6822226);
+        assert_approx_eq!(f32, simbox.v3y, -1.6822226);
     }
 
     #[test]
@@ -1130,7 +1139,12 @@ mod tests {
         let mut system = System::from_file("test_files/octahedron.gro").unwrap();
 
         // second frame
-        let frame = system.xtc_iter("test_files/octahedron_trajectory.xtc").unwrap().nth(1).unwrap().unwrap();
+        let frame = system
+            .xtc_iter("test_files/octahedron_trajectory.xtc")
+            .unwrap()
+            .nth(1)
+            .unwrap()
+            .unwrap();
         assert_eq!(frame.get_simulation_step(), 5000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 100.0);
 
@@ -1142,11 +1156,16 @@ mod tests {
         assert_approx_eq!(f32, simbox.v1z, 0.0000000);
         assert_approx_eq!(f32, simbox.v2x, 2.0888677);
         assert_approx_eq!(f32, simbox.v2z, 0.0000000);
-        assert_approx_eq!(f32, simbox.v3x,-2.0888677);
+        assert_approx_eq!(f32, simbox.v3x, -2.0888677);
         assert_approx_eq!(f32, simbox.v3y, 2.9541006);
 
         // last frame
-        let frame = system.xtc_iter("test_files/octahedron_trajectory.xtc").unwrap().nth(10).unwrap().unwrap();
+        let frame = system
+            .xtc_iter("test_files/octahedron_trajectory.xtc")
+            .unwrap()
+            .nth(10)
+            .unwrap()
+            .unwrap();
         assert_eq!(frame.get_simulation_step(), 50000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 1000.0);
 
@@ -1158,7 +1177,7 @@ mod tests {
         assert_approx_eq!(f32, simbox.v1z, 0.0000000);
         assert_approx_eq!(f32, simbox.v2x, 2.0668030);
         assert_approx_eq!(f32, simbox.v2z, 0.0000000);
-        assert_approx_eq!(f32, simbox.v3x,-2.0668030);
+        assert_approx_eq!(f32, simbox.v3x, -2.0668030);
         assert_approx_eq!(f32, simbox.v3y, 2.9228961);
     }
 
@@ -1167,7 +1186,12 @@ mod tests {
         let mut system = System::from_file("test_files/dodecahedron.gro").unwrap();
 
         // second frame
-        let frame = system.xtc_iter("test_files/dodecahedron_trajectory.xtc").unwrap().nth(1).unwrap().unwrap();
+        let frame = system
+            .xtc_iter("test_files/dodecahedron_trajectory.xtc")
+            .unwrap()
+            .nth(1)
+            .unwrap()
+            .unwrap();
         assert_eq!(frame.get_simulation_step(), 5000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 100.0);
 
@@ -1183,7 +1207,12 @@ mod tests {
         assert_approx_eq!(f32, simbox.v3y, 3.1303544);
 
         // last frame
-        let frame = system.xtc_iter("test_files/dodecahedron_trajectory.xtc").unwrap().nth(10).unwrap().unwrap();
+        let frame = system
+            .xtc_iter("test_files/dodecahedron_trajectory.xtc")
+            .unwrap()
+            .nth(10)
+            .unwrap()
+            .unwrap();
         assert_eq!(frame.get_simulation_step(), 50000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 1000.0);
 
@@ -1356,7 +1385,10 @@ mod tests {
 
         let mut writer = XtcWriter::new(&system, path_to_output).unwrap();
 
-        for frame in system.xtc_iter("test_files/triclinic_trajectory.xtc").unwrap() {
+        for frame in system
+            .xtc_iter("test_files/triclinic_trajectory.xtc")
+            .unwrap()
+        {
             let _ = frame.unwrap();
 
             writer.write_frame().unwrap();
@@ -1379,7 +1411,10 @@ mod tests {
 
         let mut writer = XtcWriter::new(&system, path_to_output).unwrap();
 
-        for frame in system.xtc_iter("test_files/octahedron_trajectory.xtc").unwrap() {
+        for frame in system
+            .xtc_iter("test_files/octahedron_trajectory.xtc")
+            .unwrap()
+        {
             let _ = frame.unwrap();
 
             writer.write_frame().unwrap();
@@ -1402,7 +1437,10 @@ mod tests {
 
         let mut writer = XtcWriter::new(&system, path_to_output).unwrap();
 
-        for frame in system.xtc_iter("test_files/dodecahedron_trajectory.xtc").unwrap() {
+        for frame in system
+            .xtc_iter("test_files/dodecahedron_trajectory.xtc")
+            .unwrap()
+        {
             let _ = frame.unwrap();
 
             writer.write_frame().unwrap();

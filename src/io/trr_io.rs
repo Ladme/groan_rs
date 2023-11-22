@@ -14,7 +14,7 @@ use crate::io::traj_io::{
 };
 use crate::io::xdrfile::{self, CXdrFile, OpenMode, XdrFile};
 use crate::structures::iterators::AtomIterator;
-use crate::structures::{group::Group, vector3d::Vector3D, simbox::SimBox};
+use crate::structures::{group::Group, simbox::SimBox, vector3d::Vector3D};
 use crate::system::general::System;
 
 /**************************/
@@ -72,7 +72,7 @@ impl FrameData for TrrFrameData {
                 0 => {
                     let simbox = match xdrfile::matrix2simbox(boxvector) {
                         Ok(x) => x,
-                        Err(e) => return Some(Err(e))
+                        Err(e) => return Some(Err(e)),
                     };
 
                     Some(Ok(TrrFrameData {
@@ -1600,7 +1600,12 @@ mod tests {
         let mut system = System::from_file("test_files/triclinic.gro").unwrap();
 
         // second frame
-        let frame = system.trr_iter("test_files/triclinic_trajectory.trr").unwrap().nth(1).unwrap().unwrap();
+        let frame = system
+            .trr_iter("test_files/triclinic_trajectory.trr")
+            .unwrap()
+            .nth(1)
+            .unwrap()
+            .unwrap();
         assert_eq!(frame.get_simulation_step(), 6000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 120.0);
 
@@ -1613,10 +1618,15 @@ mod tests {
         assert_approx_eq!(f32, simbox.v2x, 0.8424022);
         assert_approx_eq!(f32, simbox.v2z, 0.0000000);
         assert_approx_eq!(f32, simbox.v3x, 1.0153817);
-        assert_approx_eq!(f32, simbox.v3y,-1.6863307);
+        assert_approx_eq!(f32, simbox.v3y, -1.6863307);
 
         // last frame
-        let frame = system.trr_iter("test_files/triclinic_trajectory.trr").unwrap().nth(12).unwrap().unwrap();
+        let frame = system
+            .trr_iter("test_files/triclinic_trajectory.trr")
+            .unwrap()
+            .nth(12)
+            .unwrap()
+            .unwrap();
         assert_eq!(frame.get_simulation_step(), 48000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 960.0);
 
@@ -1629,7 +1639,7 @@ mod tests {
         assert_approx_eq!(f32, simbox.v2x, 0.8386754);
         assert_approx_eq!(f32, simbox.v2z, 0.0000000);
         assert_approx_eq!(f32, simbox.v3x, 1.0108896);
-        assert_approx_eq!(f32, simbox.v3y,-1.6788703);
+        assert_approx_eq!(f32, simbox.v3y, -1.6788703);
     }
 
     #[test]
@@ -1637,7 +1647,12 @@ mod tests {
         let mut system = System::from_file("test_files/octahedron.gro").unwrap();
 
         // second frame
-        let frame = system.trr_iter("test_files/octahedron_trajectory.trr").unwrap().nth(1).unwrap().unwrap();
+        let frame = system
+            .trr_iter("test_files/octahedron_trajectory.trr")
+            .unwrap()
+            .nth(1)
+            .unwrap()
+            .unwrap();
         assert_eq!(frame.get_simulation_step(), 6000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 120.0);
 
@@ -1649,11 +1664,16 @@ mod tests {
         assert_approx_eq!(f32, simbox.v1z, 0.0000000);
         assert_approx_eq!(f32, simbox.v2x, 2.0882778);
         assert_approx_eq!(f32, simbox.v2z, 0.0000000);
-        assert_approx_eq!(f32, simbox.v3x,-2.0882778);
+        assert_approx_eq!(f32, simbox.v3x, -2.0882778);
         assert_approx_eq!(f32, simbox.v3y, 2.9532664);
 
         // last frame
-        let frame = system.trr_iter("test_files/octahedron_trajectory.trr").unwrap().nth(12).unwrap().unwrap();
+        let frame = system
+            .trr_iter("test_files/octahedron_trajectory.trr")
+            .unwrap()
+            .nth(12)
+            .unwrap()
+            .unwrap();
         assert_eq!(frame.get_simulation_step(), 48000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 960.0);
 
@@ -1665,7 +1685,7 @@ mod tests {
         assert_approx_eq!(f32, simbox.v1z, 0.0000000);
         assert_approx_eq!(f32, simbox.v2x, 2.0693220);
         assert_approx_eq!(f32, simbox.v2z, 0.0000000);
-        assert_approx_eq!(f32, simbox.v3x,-2.0693220);
+        assert_approx_eq!(f32, simbox.v3x, -2.0693220);
         assert_approx_eq!(f32, simbox.v3y, 2.9264590);
     }
 
@@ -1674,7 +1694,12 @@ mod tests {
         let mut system = System::from_file("test_files/dodecahedron.gro").unwrap();
 
         // second frame
-        let frame = system.trr_iter("test_files/dodecahedron_trajectory.trr").unwrap().nth(1).unwrap().unwrap();
+        let frame = system
+            .trr_iter("test_files/dodecahedron_trajectory.trr")
+            .unwrap()
+            .nth(1)
+            .unwrap()
+            .unwrap();
         assert_eq!(frame.get_simulation_step(), 6000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 120.0);
 
@@ -1690,7 +1715,12 @@ mod tests {
         assert_approx_eq!(f32, simbox.v3y, 3.1301484);
 
         // last frame
-        let frame = system.trr_iter("test_files/dodecahedron_trajectory.trr").unwrap().nth(12).unwrap().unwrap();
+        let frame = system
+            .trr_iter("test_files/dodecahedron_trajectory.trr")
+            .unwrap()
+            .nth(12)
+            .unwrap()
+            .unwrap();
         assert_eq!(frame.get_simulation_step(), 48000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 960.0);
 
@@ -1711,7 +1741,12 @@ mod tests {
         let mut system = System::from_file("test_files/triclinic.gro").unwrap();
 
         // second frame
-        let frame = system.trr_iter("test_files/triclinic_trajectory_double_precision.trr").unwrap().nth(1).unwrap().unwrap();
+        let frame = system
+            .trr_iter("test_files/triclinic_trajectory_double_precision.trr")
+            .unwrap()
+            .nth(1)
+            .unwrap()
+            .unwrap();
         assert_eq!(frame.get_simulation_step(), 6000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 120.0);
 
@@ -1724,10 +1759,15 @@ mod tests {
         assert_approx_eq!(f32, simbox.v2x, 0.8445424);
         assert_approx_eq!(f32, simbox.v2z, 0.0000000);
         assert_approx_eq!(f32, simbox.v3x, 1.0179615);
-        assert_approx_eq!(f32, simbox.v3y,-1.6906150);
+        assert_approx_eq!(f32, simbox.v3y, -1.6906150);
 
         // last frame
-        let frame = system.trr_iter("test_files/triclinic_trajectory_double_precision.trr").unwrap().nth(12).unwrap().unwrap();
+        let frame = system
+            .trr_iter("test_files/triclinic_trajectory_double_precision.trr")
+            .unwrap()
+            .nth(12)
+            .unwrap()
+            .unwrap();
         assert_eq!(frame.get_simulation_step(), 48000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 960.0);
 
@@ -1740,7 +1780,7 @@ mod tests {
         assert_approx_eq!(f32, simbox.v2x, 0.8252806);
         assert_approx_eq!(f32, simbox.v2z, 0.0000000);
         assert_approx_eq!(f32, simbox.v3x, 0.9947443);
-        assert_approx_eq!(f32, simbox.v3y,-1.6520565);
+        assert_approx_eq!(f32, simbox.v3y, -1.6520565);
     }
 
     #[test]
@@ -1904,7 +1944,10 @@ mod tests {
 
         let mut writer = TrrWriter::new(&system, path_to_output).unwrap();
 
-        for frame in system.trr_iter("test_files/triclinic_trajectory.trr").unwrap() {
+        for frame in system
+            .trr_iter("test_files/triclinic_trajectory.trr")
+            .unwrap()
+        {
             let _ = frame.unwrap();
 
             writer.write_frame().unwrap();
@@ -1927,7 +1970,10 @@ mod tests {
 
         let mut writer = TrrWriter::new(&system, path_to_output).unwrap();
 
-        for frame in system.trr_iter("test_files/octahedron_trajectory.trr").unwrap() {
+        for frame in system
+            .trr_iter("test_files/octahedron_trajectory.trr")
+            .unwrap()
+        {
             let _ = frame.unwrap();
 
             writer.write_frame().unwrap();
@@ -1950,7 +1996,10 @@ mod tests {
 
         let mut writer = TrrWriter::new(&system, path_to_output).unwrap();
 
-        for frame in system.trr_iter("test_files/dodecahedron_trajectory.trr").unwrap() {
+        for frame in system
+            .trr_iter("test_files/dodecahedron_trajectory.trr")
+            .unwrap()
+        {
             let _ = frame.unwrap();
 
             writer.write_frame().unwrap();
