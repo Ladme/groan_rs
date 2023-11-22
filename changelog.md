@@ -25,6 +25,7 @@
 - **Breaking Change**: `System::write_pdb` and `System::group_write_pdb` now require additional argument specifying whether connectivity information should be written into the pdb file.
 - **Potentially Breaking Change**: Reading of PDB files now properly ends once `ENDMDL` or `END` keyword is reached. `END` keyword is now properly written at the end of the PDB file.
 - The connectivity section of PDB files can be now read using `System::add_bonds_from_pdb` and written using `System::write_pdb`/`System::group_write_pdb`.
+- Systems with non-orthogonal simulation boxes can be now read from and written to PDB files.
 
 #### New `System` connectivity methods
 - Introduced:

@@ -14,9 +14,6 @@ use crate::system::general::System;
 
 /// Read a pdb file and construct a System structure. Does not read connectivity.
 ///
-/// ## Warning
-/// Currently only supports orthogonal simulation boxes!
-///
 /// ## Supported keywords
 /// This function can handle lines starting with ATOM, HETATM, TITLE, ENDMDL, END, and CRYST1.
 /// All other lines are ignored.
@@ -213,9 +210,6 @@ impl System {
     /// ## Returns
     /// `Ok` if writing has been successful. Otherwise `WritePdbError`.
     ///
-    /// ## Warning
-    /// This function only supports orthogonal rectangular simulation boxes.
-    ///
     /// ## Example
     /// ```no_run
     /// use groan_rs::prelude::*;
@@ -256,9 +250,6 @@ impl System {
     ///
     /// ## Returns
     /// `Ok` if writing has been successful. Otherwise `WritePdbError`.
-    ///
-    /// ## Warning
-    /// This function only supports orthogonal rectangular simulation boxes.
     ///
     /// ## Example
     /// ```no_run
@@ -418,21 +409,18 @@ fn line_as_box(line: &str) -> Result<SimBox, ParsePdbError> {
         curr += 9;
     }
 
-    // check that the box is orthogonal
-    for _ in 0..3 {
-        let value = line[curr..curr + 7]
+    // load box angles
+    let mut angles = [0.0, 0.0, 0.0];
+    for ang in &mut angles {
+        *ang = line[curr..curr + 7]
             .trim()
             .parse::<f32>()
             .map_err(|_| ParsePdbError::ParseBoxLineErr(line.to_string()))?;
 
-        if value != 90.0 {
-            return Err(ParsePdbError::NonOrthogonalBox(line.to_string()));
-        }
-
         curr += 7;
     }
 
-    Ok(SimBox::from(boxsize))
+    Ok(SimBox::from_lengths_angles(boxsize.into(), angles.into()))
 }
 
 /// Parse a single line as a title.
@@ -528,9 +516,6 @@ fn write<W: Write>(writer: &mut W, string: &str) -> Result<(), WritePdbError> {
 }
 
 /// Write a header for a PDB file.
-///
-/// ## Warning
-/// Currently only supports orthogonal simulation boxes.
 fn write_header(
     writer: &mut BufWriter<File>,
     title: &str,
@@ -540,16 +525,17 @@ fn write_header(
 
     write_line(writer, "REMARK    THIS IS A SIMULATION BOX")?;
 
+    let (lengths, angles) = simbox.to_lengths_angles();
     write_line(
         writer,
         &format!(
             "CRYST1{:>9.3}{:>9.3}{:>9.3}{:>7.2}{:>7.2}{:>7.2} P 1           1",
-            simbox.x * 10.0,
-            simbox.y * 10.0,
-            simbox.z * 10.0,
-            90.0,
-            90.0,
-            90.0
+            lengths.x * 10.0,
+            lengths.y * 10.0,
+            lengths.z * 10.0,
+            angles.x,
+            angles.y,
+            angles.z,
         ),
     )?;
 
@@ -626,7 +612,49 @@ fn write_connectivity_section(
 #[cfg(test)]
 mod tests_read {
     use super::*;
-    use float_cmp::approx_eq;
+    use crate::io::gro_io::read_gro;
+    use float_cmp::assert_approx_eq;
+
+    fn compare_atoms(atom1: &Atom, atom2: &Atom) {
+        assert_eq!(atom1.get_residue_number(), atom2.get_residue_number());
+        assert_eq!(atom1.get_residue_name(), atom2.get_residue_name());
+        assert_eq!(atom1.get_atom_number(), atom2.get_atom_number());
+        assert_eq!(atom1.get_atom_name(), atom2.get_atom_name());
+        assert_eq!(atom1.get_chain(), atom2.get_chain());
+
+        if let (Some(pos1), Some(pos2)) = (atom1.get_position(), atom2.get_position()) {
+            assert_approx_eq!(f32, pos1.x, pos2.x);
+            assert_approx_eq!(f32, pos1.y, pos2.y);
+            assert_approx_eq!(f32, pos1.z, pos2.z);
+        } else {
+            assert!(
+                atom1.get_position().is_none() && atom2.get_position().is_none(),
+                "Positions are not both None"
+            );
+        }
+
+        if let (Some(vel1), Some(vel2)) = (atom1.get_velocity(), atom2.get_velocity()) {
+            assert_approx_eq!(f32, vel1.x, vel2.x);
+            assert_approx_eq!(f32, vel1.y, vel2.y);
+            assert_approx_eq!(f32, vel1.z, vel2.z);
+        } else {
+            assert!(
+                atom1.get_velocity().is_none() && atom2.get_velocity().is_none(),
+                "Velocities are not both None"
+            );
+        }
+
+        if let (Some(force1), Some(force2)) = (atom1.get_force(), atom2.get_force()) {
+            assert_approx_eq!(f32, force1.x, force2.x);
+            assert_approx_eq!(f32, force1.y, force2.y);
+            assert_approx_eq!(f32, force1.z, force2.z);
+        } else {
+            assert!(
+                atom1.get_force().is_none() && atom2.get_force().is_none(),
+                "Forces are not both None"
+            );
+        }
+    }
 
     #[test]
     fn read_simple() {
@@ -637,9 +665,9 @@ mod tests_read {
 
         // check box size
         let simbox = system.get_box_as_ref();
-        assert!(approx_eq!(f32, simbox.x, 6.0861));
-        assert!(approx_eq!(f32, simbox.y, 6.0861));
-        assert!(approx_eq!(f32, simbox.z, 6.0861));
+        assert_approx_eq!(f32, simbox.x, 6.0861);
+        assert_approx_eq!(f32, simbox.y, 6.0861);
+        assert_approx_eq!(f32, simbox.z, 6.0861);
 
         assert_eq!(simbox.v1y, 0.0f32);
         assert_eq!(simbox.v1z, 0.0f32);
@@ -659,9 +687,9 @@ mod tests_read {
         assert_eq!(first.get_atom_number(), 1);
         assert_eq!(first.get_chain().unwrap(), 'A');
 
-        assert!(approx_eq!(f32, first.get_position().unwrap().x, 1.660));
-        assert!(approx_eq!(f32, first.get_position().unwrap().y, 2.061));
-        assert!(approx_eq!(f32, first.get_position().unwrap().z, 3.153));
+        assert_approx_eq!(f32, first.get_position().unwrap().x, 1.660);
+        assert_approx_eq!(f32, first.get_position().unwrap().y, 2.061);
+        assert_approx_eq!(f32, first.get_position().unwrap().z, 3.153);
 
         // check atom somewhere in the middle
         let middle = &atoms[24];
@@ -671,9 +699,9 @@ mod tests_read {
         assert_eq!(middle.get_atom_number(), 25);
         assert_eq!(middle.get_chain().unwrap(), 'B');
 
-        assert!(approx_eq!(f32, middle.get_position().unwrap().x, 3.161));
-        assert!(approx_eq!(f32, middle.get_position().unwrap().y, 2.868));
-        assert!(approx_eq!(f32, middle.get_position().unwrap().z, 2.797));
+        assert_approx_eq!(f32, middle.get_position().unwrap().x, 3.161);
+        assert_approx_eq!(f32, middle.get_position().unwrap().y, 2.868);
+        assert_approx_eq!(f32, middle.get_position().unwrap().z, 2.797);
 
         // check the last atom
         let last = &atoms[49];
@@ -683,9 +711,9 @@ mod tests_read {
         assert_eq!(last.get_atom_number(), 50);
         assert_eq!(last.get_chain().unwrap(), 'C');
 
-        assert!(approx_eq!(f32, last.get_position().unwrap().x, 4.706));
-        assert!(approx_eq!(f32, last.get_position().unwrap().y, 4.447));
-        assert!(approx_eq!(f32, last.get_position().unwrap().z, 2.813));
+        assert_approx_eq!(f32, last.get_position().unwrap().x, 4.706);
+        assert_approx_eq!(f32, last.get_position().unwrap().y, 4.447);
+        assert_approx_eq!(f32, last.get_position().unwrap().z, 2.813);
 
         // check that the velocity and force of all atoms is zero
         for atom in atoms.iter() {
@@ -760,9 +788,9 @@ mod tests_read {
 
         // check box size
         let simbox = system.get_box_as_ref();
-        assert!(approx_eq!(f32, simbox.x, 6.0861));
-        assert!(approx_eq!(f32, simbox.y, 6.0861));
-        assert!(approx_eq!(f32, simbox.z, 6.0861));
+        assert_approx_eq!(f32, simbox.x, 6.0861);
+        assert_approx_eq!(f32, simbox.y, 6.0861);
+        assert_approx_eq!(f32, simbox.z, 6.0861);
 
         assert_eq!(simbox.v1y, 0.0f32);
         assert_eq!(simbox.v1z, 0.0f32);
@@ -782,9 +810,9 @@ mod tests_read {
         assert_eq!(first.get_atom_number(), 1);
         assert_eq!(first.get_chain().unwrap(), 'A');
 
-        assert!(approx_eq!(f32, first.get_position().unwrap().x, 1.660));
-        assert!(approx_eq!(f32, first.get_position().unwrap().y, 2.061));
-        assert!(approx_eq!(f32, first.get_position().unwrap().z, 3.153));
+        assert_approx_eq!(f32, first.get_position().unwrap().x, 1.660);
+        assert_approx_eq!(f32, first.get_position().unwrap().y, 2.061);
+        assert_approx_eq!(f32, first.get_position().unwrap().z, 3.153);
 
         // check atom somewhere in the middle
         let middle = &atoms[24];
@@ -794,9 +822,9 @@ mod tests_read {
         assert_eq!(middle.get_atom_number(), 25);
         assert_eq!(middle.get_chain().unwrap(), 'A');
 
-        assert!(approx_eq!(f32, middle.get_position().unwrap().x, 3.161));
-        assert!(approx_eq!(f32, middle.get_position().unwrap().y, 2.868));
-        assert!(approx_eq!(f32, middle.get_position().unwrap().z, 2.797));
+        assert_approx_eq!(f32, middle.get_position().unwrap().x, 3.161);
+        assert_approx_eq!(f32, middle.get_position().unwrap().y, 2.868);
+        assert_approx_eq!(f32, middle.get_position().unwrap().z, 2.797);
 
         // check the last atom
         let last = &atoms[49];
@@ -806,9 +834,9 @@ mod tests_read {
         assert_eq!(last.get_atom_number(), 50);
         assert_eq!(last.get_chain().unwrap(), 'A');
 
-        assert!(approx_eq!(f32, last.get_position().unwrap().x, 4.706));
-        assert!(approx_eq!(f32, last.get_position().unwrap().y, 4.447));
-        assert!(approx_eq!(f32, last.get_position().unwrap().z, 2.813));
+        assert_approx_eq!(f32, last.get_position().unwrap().x, 4.706);
+        assert_approx_eq!(f32, last.get_position().unwrap().y, 4.447);
+        assert_approx_eq!(f32, last.get_position().unwrap().z, 2.813);
 
         // check that the velocity and force of all atoms is zero
         for atom in atoms.iter() {
@@ -827,9 +855,9 @@ mod tests_read {
 
         // check box size
         let simbox = system.get_box_as_ref();
-        assert!(approx_eq!(f32, simbox.x, 6.0861));
-        assert!(approx_eq!(f32, simbox.y, 6.0861));
-        assert!(approx_eq!(f32, simbox.z, 6.0861));
+        assert_approx_eq!(f32, simbox.x, 6.0861);
+        assert_approx_eq!(f32, simbox.y, 6.0861);
+        assert_approx_eq!(f32, simbox.z, 6.0861);
     }
 
     #[test]
@@ -841,9 +869,9 @@ mod tests_read {
 
         // check box size
         let simbox = system.get_box_as_ref();
-        assert!(approx_eq!(f32, simbox.x, 6.0861));
-        assert!(approx_eq!(f32, simbox.y, 6.0861));
-        assert!(approx_eq!(f32, simbox.z, 6.0861));
+        assert_approx_eq!(f32, simbox.x, 6.0861);
+        assert_approx_eq!(f32, simbox.y, 6.0861);
+        assert_approx_eq!(f32, simbox.z, 6.0861);
     }
 
     #[test]
@@ -855,9 +883,9 @@ mod tests_read {
 
         // check box size
         let simbox = system.get_box_as_ref();
-        assert!(approx_eq!(f32, simbox.x, 0.0));
-        assert!(approx_eq!(f32, simbox.y, 0.0));
-        assert!(approx_eq!(f32, simbox.z, 0.0));
+        assert_approx_eq!(f32, simbox.x, 0.0);
+        assert_approx_eq!(f32, simbox.y, 0.0);
+        assert_approx_eq!(f32, simbox.z, 0.0);
     }
 
     #[test]
@@ -869,9 +897,9 @@ mod tests_read {
 
         // check box size
         let simbox = system.get_box_as_ref();
-        assert!(approx_eq!(f32, simbox.x, 6.0861));
-        assert!(approx_eq!(f32, simbox.y, 6.0861));
-        assert!(approx_eq!(f32, simbox.z, 6.0861));
+        assert_approx_eq!(f32, simbox.x, 6.0861);
+        assert_approx_eq!(f32, simbox.y, 6.0861);
+        assert_approx_eq!(f32, simbox.z, 6.0861);
     }
 
     #[test]
@@ -883,9 +911,9 @@ mod tests_read {
 
         // check box size
         let simbox = system.get_box_as_ref();
-        assert!(approx_eq!(f32, simbox.x, 5.0861));
-        assert!(approx_eq!(f32, simbox.y, 5.0861));
-        assert!(approx_eq!(f32, simbox.z, 5.0861));
+        assert_approx_eq!(f32, simbox.x, 5.0861);
+        assert_approx_eq!(f32, simbox.y, 5.0861);
+        assert_approx_eq!(f32, simbox.z, 5.0861);
     }
 
     #[test]
@@ -1060,13 +1088,6 @@ mod tests_read {
     }
 
     read_pdb_fails!(
-        read_nonorthogonal_box,
-        "test_files/example_nonorthogonal.pdb",
-        ParsePdbError::NonOrthogonalBox,
-        "CRYST1   60.861   60.861   60.861  90.00  89.00  90.00 P 1           1"
-    );
-
-    read_pdb_fails!(
         read_invalid_box,
         "test_files/example_invalid_box.pdb",
         ParsePdbError::ParseBoxLineErr,
@@ -1200,6 +1221,75 @@ mod tests_read {
                 "Parsing successfully failed but incorrect error type `{:?}` was returned.",
                 e
             ),
+        }
+    }
+
+    #[test]
+    fn pdb_read_triclinic() {
+        let system_pdb = read_pdb("test_files/triclinic.pdb").unwrap();
+        let system_gro = read_gro("test_files/triclinic.gro").unwrap();
+
+        let box_pdb = system_pdb.get_box_as_ref();
+        let box_gro = system_gro.get_box_as_ref();
+
+        assert_approx_eq!(f32, box_pdb.v1x, box_gro.v1x, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v1y, box_gro.v1y, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v1z, box_gro.v1z, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v2x, box_gro.v2x, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v2y, box_gro.v2y, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v2z, box_gro.v2z, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v3x, box_gro.v3x, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v3y, box_gro.v3y, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v3z, box_gro.v3z, epsilon = 0.001);
+
+        for (atom_pdb, atom_gro) in system_pdb.atoms_iter().zip(system_gro.atoms_iter()) {
+            compare_atoms(atom_pdb, atom_gro);
+        }
+    }
+
+    #[test]
+    fn pdb_read_dodecahedron() {
+        let system_pdb = read_pdb("test_files/dodecahedron.pdb").unwrap();
+        let system_gro = read_gro("test_files/dodecahedron.gro").unwrap();
+
+        let box_pdb = system_pdb.get_box_as_ref();
+        let box_gro = system_gro.get_box_as_ref();
+
+        assert_approx_eq!(f32, box_pdb.v1x, box_gro.v1x, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v1y, box_gro.v1y, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v1z, box_gro.v1z, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v2x, box_gro.v2x, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v2y, box_gro.v2y, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v2z, box_gro.v2z, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v3x, box_gro.v3x, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v3y, box_gro.v3y, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v3z, box_gro.v3z, epsilon = 0.001);
+
+        for (atom_pdb, atom_gro) in system_pdb.atoms_iter().zip(system_gro.atoms_iter()) {
+            compare_atoms(atom_pdb, atom_gro);
+        }
+    }
+
+    #[test]
+    fn pdb_read_octahedron() {
+        let system_pdb = read_pdb("test_files/octahedron.pdb").unwrap();
+        let system_gro = read_gro("test_files/octahedron.gro").unwrap();
+
+        let box_pdb = system_pdb.get_box_as_ref();
+        let box_gro = system_gro.get_box_as_ref();
+
+        assert_approx_eq!(f32, box_pdb.v1x, box_gro.v1x, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v1y, box_gro.v1y, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v1z, box_gro.v1z, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v2x, box_gro.v2x, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v2y, box_gro.v2y, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v2z, box_gro.v2z, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v3x, box_gro.v3x, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v3y, box_gro.v3y, epsilon = 0.001);
+        assert_approx_eq!(f32, box_pdb.v3z, box_gro.v3z, epsilon = 0.001);
+
+        for (atom_pdb, atom_gro) in system_pdb.atoms_iter().zip(system_gro.atoms_iter()) {
+            compare_atoms(atom_pdb, atom_gro);
         }
     }
 }
@@ -1440,5 +1530,50 @@ mod tests_write {
                 e
             ),
         }
+    }
+
+    #[test]
+    fn write_pdb_triclinic() {
+        let system = System::from_file("test_files/triclinic.gro").unwrap();
+
+        let pdb_output = NamedTempFile::new().unwrap();
+        let path_to_output = pdb_output.path();
+
+        system.write_pdb(path_to_output, false).unwrap();
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/triclinic.pdb").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_pdb_dodecahedron() {
+        let system = System::from_file("test_files/dodecahedron.gro").unwrap();
+
+        let pdb_output = NamedTempFile::new().unwrap();
+        let path_to_output = pdb_output.path();
+
+        system.write_pdb(path_to_output, false).unwrap();
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/dodecahedron.pdb").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_pdb_octahedron() {
+        let system = System::from_file("test_files/octahedron.gro").unwrap();
+
+        let pdb_output = NamedTempFile::new().unwrap();
+        let path_to_output = pdb_output.path();
+
+        system.write_pdb(path_to_output, false).unwrap();
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/octahedron.pdb").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
     }
 }

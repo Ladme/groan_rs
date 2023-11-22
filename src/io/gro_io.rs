@@ -468,8 +468,8 @@ mod tests_read {
         assert!(approx_eq!(f32, simbox.y, 6.08608));
         assert!(approx_eq!(f32, simbox.z, 6.08608));
 
-        assert!(approx_eq!(f32, simbox.v1y, 1.4));
-        assert!(approx_eq!(f32, simbox.v1z, 0.16));
+        assert!(approx_eq!(f32, simbox.v1y, 0.0));
+        assert!(approx_eq!(f32, simbox.v1z, 0.0));
         assert!(approx_eq!(f32, simbox.v2x, 2.2));
 
         assert!(approx_eq!(f32, simbox.v2z, 0.0));

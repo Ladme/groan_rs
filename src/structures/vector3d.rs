@@ -230,7 +230,7 @@ impl Vector3D {
         self.z = Vector3D::wrap_coordinate(self.z, sbox.z);
     }
 
-    ///Wrap a single coordinate into a simulation box.
+    /// Wrap a single coordinate into a simulation box.
     ///
     /// ## Note on performance
     /// You may think that the body of this function should look rather like this:
@@ -473,18 +473,10 @@ impl Vector3D {
         }
     }
 
-    /// Returns `true` if all the fields of the vector are exactly (positive) zero.
+    /// Returns `true` if all the fields of the vector are exactly zero.
     /// Otherwise, returns `false`.
-    ///
-    /// ## Warning
-    /// Note that this is only guaranteed to work for vectors that have been **set** to zero, e.g.
-    /// using `Vector3D::default()` or `Vector3D::from([0.0, 0.0, 0.0])`.
     pub fn is_zero(&self) -> bool {
-        unsafe {
-            let bytes: *const u8 = self as *const Vector3D as *const u8;
-            let byte_slice = std::slice::from_raw_parts(bytes, std::mem::size_of::<Vector3D>());
-            byte_slice == [0; std::mem::size_of::<Vector3D>()]
-        }
+        self.x == 0.0 && self.y == 0.0 && self.z == 0.0
     }
 }
 

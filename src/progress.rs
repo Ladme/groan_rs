@@ -4,7 +4,7 @@
 //! Implementation of ProgressPrinter structure for printing the progress of trajectory reading.
 
 use colored::{ColoredString, Colorize};
-use std::io::Write;
+use std::{io::Write, num::NonZeroUsize};
 
 /// Progress of trajectory reading.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -77,7 +77,7 @@ pub struct ProgressPrinter {
     /// Current status of reading. Default: ProgressStatus::Running.
     status: ProgressStatus,
     /// Frequency of printing. Print every `print_freq`th frame. Default: 100 frames.
-    print_freq: usize,
+    print_freq: NonZeroUsize,
     /// If true, the output will be colored. Default: true.
     colored: bool,
     /// String to be printed with the current simulation step. Default: "Step".cyan().
@@ -162,7 +162,7 @@ impl ProgressPrinter {
         ProgressPrinter {
             output: Box::from(std::io::stdout()),
             status: ProgressStatus::Running,
-            print_freq: 100,
+            print_freq: NonZeroUsize::new(100).unwrap(),
             colored: true,
             step_msg: "Step".cyan(),
             time_msg: "Time".bright_purple(),
@@ -192,8 +192,13 @@ impl ProgressPrinter {
     }
 
     /// Create new `ProgressPrinter` with specific value for `print_freq`.
+    ///
+    /// ## Panics
+    /// Panics if `print_freq` is zero.
     pub fn with_print_freq(mut self, print_freq: usize) -> Self {
-        self.print_freq = print_freq;
+        self.print_freq = NonZeroUsize::new(print_freq).expect(
+            "FATAL GROAN ERROR | ProgressPrinter::with_print_freq | `print_freq` must be non-zero.",
+        );
         self
     }
 
@@ -330,7 +335,7 @@ mod tests {
         let printer = ProgressPrinter::new();
 
         assert_eq!(printer.status, ProgressStatus::Running);
-        assert_eq!(printer.print_freq, 100);
+        assert_eq!(printer.print_freq.get(), 100);
         assert_eq!(printer.colored, true);
         assert_eq!(printer.step_msg, "Step".cyan());
         assert_eq!(printer.time_msg, "Time".bright_purple());
@@ -354,7 +359,7 @@ mod tests {
         let printer = ProgressPrinter::default();
 
         assert_eq!(printer.status, ProgressStatus::Running);
-        assert_eq!(printer.print_freq, 100);
+        assert_eq!(printer.print_freq.get(), 100);
         assert_eq!(printer.colored, true);
         assert_eq!(printer.step_msg, "Step".cyan());
         assert_eq!(printer.time_msg, "Time".bright_purple());
@@ -407,7 +412,7 @@ mod tests {
             .with_jumping_msg("JUMP".underline());
 
         assert_eq!(printer.status, ProgressStatus::Jumping);
-        assert_eq!(printer.print_freq, 200);
+        assert_eq!(printer.print_freq.get(), 200);
         assert_eq!(printer.colored, false);
         assert_eq!(printer.step_msg, "STEP".into());
         assert_eq!(printer.time_msg, "time".yellow());
@@ -524,5 +529,13 @@ mod tests {
         let mut result = File::open(path_to_output).unwrap();
         let mut expected = File::open("test_files/progress_expected_terminating.txt").unwrap();
         assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "FATAL GROAN ERROR | ProgressPrinter::with_print_freq | `print_freq` must be non-zero."
+    )]
+    fn print_freq_zero_panic() {
+        let _printer = ProgressPrinter::new().with_print_freq(0);
     }
 }

@@ -24,11 +24,11 @@ pub struct Atom {
     chain: Option<char>,
     /// Charge of the atom. (Optional.)
     charge: Option<f32>,
-    /// Position of the atom in 3D space.
+    /// Position of the atom in 3D space. (Optional.)
     position: Option<Vector3D>,
-    /// Velocity of the atom.
+    /// Velocity of the atom. (Optional.)
     velocity: Option<Vector3D>,
-    /// Force acting on the atom.
+    /// Force acting on the atom. (Optional.)
     force: Option<Vector3D>,
     /// Indices of atoms that are bonded to this atom.
     bonded: AtomContainer,
@@ -160,7 +160,7 @@ impl Atom {
         self.position = Some(pos);
     }
 
-    // Set the coordinates of the atom to None.
+    /// Set the coordinates of the atom to `None`.
     pub fn reset_position(&mut self) {
         self.position = None;
     }
@@ -199,7 +199,7 @@ impl Atom {
         self.velocity = Some(vel);
     }
 
-    // Set the velocity vector of the atom to None.
+    /// Set the velocity vector of the atom to `None`.
     pub fn reset_velocity(&mut self) {
         self.velocity = None;
     }
@@ -214,7 +214,7 @@ impl Atom {
         self.force = Some(force);
     }
 
-    // Set the vector of the total force acting on the atom to None.
+    /// Set the vector of the total force acting on the atom to `None`.
     pub fn reset_force(&mut self) {
         self.force = None;
     }
@@ -309,7 +309,7 @@ impl Atom {
     /// Does **not** wrap the atom to the simulation box.
     ///
     /// ## Panics
-    /// Panics if atom has no position
+    /// Panics if atom has no position.
     pub fn translate_nopbc(&mut self, translate: &Vector3D) {
         if let Some(ref mut pos) = self.position {
             pos.x += translate.x;
@@ -337,7 +337,7 @@ impl Atom {
     /// ## Notes
     /// - Allows for 0 to 5-letter atom names, 0 to 5-letter residue names, 1 to 5-digit atom numbers, and 1 to 5-digit residue numbers.
     /// - Longer names are shortened, longer numbers are wrapped to 0.
-    /// - If atom has no position (or velocity, if requested), it is set to 0.
+    /// - If atom has no position (or velocity, if requested), 0 is printed out for all dimensions.
     pub fn write_gro(
         &self,
         stream: &mut impl Write,
@@ -404,6 +404,7 @@ impl Atom {
     /// - All atoms are treated as 'ATOM'. 'HETATM' is not used at all.
     /// - Allows for 0 to 4-letter atom names, 0 to 4-letter residue names, 1 to 5-digit atom numbers and 1 to 4-digit residue numbers.
     /// - Longer names are shortened, longer numbers are wrapped to 0.
+    /// - If atom has no position, 0 is printed out for all dimensions.
     pub fn write_pdb(&self, stream: &mut impl Write) -> Result<(), WritePdbError> {
         let binding = Vector3D::default();
         let position = self.get_position().unwrap_or(&binding);
