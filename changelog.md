@@ -1,53 +1,65 @@
 
 ## Changelog for the `groan_rs` library
 
-### Version 0.5.0
 #### Important BREAKING CHANGES affecting the entire `groan_rs` library
-- **Fields `position`, `velocity`, and `force` of the `Atom` structure are now optional, i.e. they are no longer of type `Vector3D`, instead they are `Option<Vector3D>`!**
-  - `Atom::new` no longer requires these values, they are automatically set to `None`. If you want to provide them for the atom, use `Atom::with_position`, `Atom::with_velocity`, or `Atom::with_force`. 
-  - `Atom::get_position`, `Atom::get_velocity`, and `Atom::get_force` now return `Option<&Vector3D>`.
-  - Functions working with distances between atoms expect all atoms to have the position information. If this is not the case, they panic.
-  - When writing structure or trajectory files, positions (and velocities) of atoms without this information are considered to be 0 in all dimensions. 
-  - Reading xtc trajectories now sets `velocity` and `force` for all atoms to `None`.
-  - Atoms without `position` are not considered to be inside any geometric shape when working with `(Mut)FilterAtomIterator` or `System::group_create_from_geometry`.
-  - `System::has_forces`, `System::has_velocities`, and `System::has_positions` now returns `true` only if **all** the atoms in the system have the specified property.
-  - An atom which has a position of x = 0.0, y = 0.0, z = 0.0 is now considered to *actually* have a position. (However, when writing atoms without positions into structure or trajectory files, their positions are still printed as x = 0.0, y = 0.0, z = 0.0.)
 
-#### Other changes to the Atom structure
-- Two optional fields have been added to the `Atom` structure: `charge` and `bonded`. `charge` specifies the charge of the atom. `bonded` contains atom indices of atoms that are bonded to the given atom.
-- Several methods have been introduced that allow using and accessing the new `charge` and `bonded` properties.
-- Introduced `Atom::wrap` method for wrapping the atom into the simulation box.
+- **Fields `position`, `velocity`, and `force` in the `Atom` structure are now of type `Option<Vector3D>`.**
+  - `Atom::new` initializes these values to `None`. Use `Atom::with_position`, `Atom::with_velocity`, or `Atom::with_force` to set them.
+  - Accessor methods (`Atom::get_position`, etc.) now return `Option<&Vector3D>`.
+  - Distance functions require all atoms to have position information; absence leads to panic.
+  - When writing files, undefined positions (and velocities) are output as 0.0 in all dimensions.
+  - Reading xtc trajectories sets `velocity` and `force` of all atoms to `None`.
+  - Atoms without `position` are excluded from geometric shape calculations in `(Mut)FilterAtomIterator` and `System::group_create_from_geometry`.
+  - `System::has_forces`, `System::has_velocities`, `System::has_positions` return `true` only if *all* atoms have the respective property.
+  - A position with x = 0.0, y = 0.0, z = 0.0 is now considered valid. However, atoms without positions are still written with 0.0 coordinates.
 
-#### AtomContainer structure
-- **Breaking Change**: Introduced `AtomContainer`: a general structure describing a collection of atoms in the `System` structure. `Group` structure and all atom iterators have been reworked to employ `AtomContainer`. Many methods associated with `Group` have consequently been removed/renamed/rewritten.
+#### Other changes to atom structure
+
+- New optional fields `charge` and `bonded` added:
+  - `charge`: Specifies the atom's charge.
+  - `bonded`: Contains indices of atoms bonded to the atom.
+  - Methods added to use and access `charge` and `bonded`.
+  - `Atom::wrap` method introduced for wrapping the atom into the simulation box.
+
+#### `AtomContainer` structure
+
+- **Breaking Change**: Introduction of `AtomContainer`:
+  - Describes a collection of atoms in the `System` structure.
+  - `Group` structure and all atom iterators reworked to use `AtomContainer`.
+  - Many methods associated with `Group` removed/renamed/rewritten.
 
 #### Reading and writing PDB files
-- **Breaking Change**: `System::write_pdb` and `System::group_write_pdb` now require additional argument specifying whether connectivity information should be written into the pdb file.
-- **Potentially Breaking Change**: Reading of PDB files now properly ends once `ENDMDL` or `END` keyword is reached. `END` keyword is now properly written at the end of the PDB file.
-- The connectivity section of PDB files can be now read using `System::add_bonds_from_pdb` and written using `System::write_pdb`/`System::group_write_pdb`.
+
+- **Breaking Change**: `System::write_pdb` and `System::group_write_pdb` now require an argument for connectivity information.
+- **Potentially Breaking Change**: Reading of PDB files now stops at `ENDMDL` or `END`. `END` keyword is written correctly at the end of files.
+- Connectivity section can now be read with `System::add_bonds_from_pdb` and written with `System::write_pdb`/`System::group_write_pdb`.
 
 #### Reading systems with non-orthogonal simulation boxes
-- Systems with non-orthogonal simulation boxes can be now read from and written to PDB, XTC, and TRR files.
+
+- Support added for reading/writing systems with non-orthogonal simulation boxes from/to PDB, XTC, and TRR files.
 
 #### New `System` connectivity methods
-- Introduced:
-1. `System::add_bond` for adding bonds between atoms in the `System`.
-2. `System::bonded_atoms_iter` and `System::bonded_atoms_iter_mut` for iterating through atoms that are bonded to target atom.
-3. `System::has_bonds` for checking whether connectivity information is available. 
-4. `System::molecule_iter` and `System::molecule_iter_mut` for iterating through atoms that are part of the same molecule.
-5. `System::make_molecules_whole` for fixing molecules broken at periodic boundaries.
 
-#### Quality-of-life improvements
-- Introduced `ProgressPrinter` for printing the progress of trajectory reading. Progress printing can be turned on for any trajectory iteration by using the `TrajMasterRead::print_progress` method.
+- New methods introduced:
+  1. `System::add_bond`: Adds a bond between atoms.
+  2. `System::bonded_atoms_iter` and `System::bonded_atoms_iter_mut`: Iterates through bonded atoms.
+  3. `System::has_bonds`: Checks for available connectivity information.
+  4. `System::molecule_iter` and `System::molecule_iter_mut`: Iterates through atoms in the same molecule.
+  5. `System::make_molecules_whole`: Fixes molecules broken at periodic boundaries.
 
-#### Other changes
-- **Breaking Change**: `System::get_atom_as_ref`, `System::get_atom_as_ref_mut`, and `System::get_atom_copy` now take `index` of the atom in the `System` instead of `gmx_atom_number`. Indexing is now consistent with similar functions as it start from 0.
-- **Breaking Change**: `System::from_file` now returns `Result<Self, Box<dyn Error + Send + Sync>>` to allow use in threads.
-- Introduced `System::has_duplicate_atom_numbers` method which checks whether there are any atoms in the `System` structure sharing atom number.
-- Introduced `System::residues_renumber` method for renumbering residues in the `System`.
-- Introduced `System::atoms_wrap` and `System::group_wrap` for wrapping atoms into the simulation box.
-- Introduced `System::atoms_distance` for calculating distance between two atoms in the system.
-- Reworked all panic groan errors to specify function from which they have been called.
+#### Quality-of-Life Improvements
+
+- `ProgressPrinter` introduced for trajectory reading progress. Activated via `TrajMasterRead::print_progress`.
+
+#### Other Changes
+
+- **Breaking Change**: Atom access methods (`System::get_atom_as_ref`, etc.) now use index instead of `gmx_atom_number`.
+- **Breaking Change**: `System::from_file` returns `Result<Self, Box<dyn Error + Send + Sync>>` for threading compatibility.
+- `System::has_duplicate_atom_numbers`: Checks for duplicate atom numbers.
+- `System::residues_renumber`: Renumbers residues in the system.
+- `System::atoms_wrap` and `System::group_wrap`: Wraps atoms into the simulation box.
+- `System::atoms_distance`: Calculates distance between two atoms.
+- Panic groan errors now specify the originating function.
 
 ***
 
