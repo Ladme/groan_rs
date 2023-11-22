@@ -1,7 +1,7 @@
 // Released under MIT License.
 // Copyright (c) 2023 Ladislav Bartos
 
-//! # `groan_rs`: Gromacs Analysis Library for Rust
+//! # groan_rs: Gromacs Analysis Library for Rust
 //!
 //! Rust library for analyzing Gromacs simulations.
 //! Currently in an early stage of development: anything can break, change or stop working at any time.
