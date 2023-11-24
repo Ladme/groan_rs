@@ -161,7 +161,7 @@ pub fn parse_numbers(token: &[String]) -> Result<Vec<(usize, usize)>, SelectErro
                     NumberToken::Lower if next > 1 => numbers.push((1, next - 1)),
                     NumberToken::Lower if next <= 1 => (),
                     NumberToken::LowerOrEqual => numbers.push((1, next)),
-                    _ => panic!("Groan error. Impossible match condition reached in `parse_numbers` function.")
+                    _ => panic!("FATAL GROAN ERROR | numbers::parse_numbers | Impossible match condition reached."),
                 }
 
                 t += 2;

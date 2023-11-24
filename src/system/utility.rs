@@ -84,6 +84,9 @@ impl System {
     /// ## Warning
     /// - This function currently only supports orthogonal simulation boxes.
     ///
+    /// ## Panics
+    /// Panics if any of the atoms has no position.
+    ///
     /// ## Example
     /// Center the group `Protein` in the xy-plane.
     /// The positions of the atoms along the z-dimension will be unchanged.
@@ -274,13 +277,13 @@ mod tests {
         let atom1 = system.atoms_iter().next().unwrap().get_position();
         let atom2 = system.atoms_iter().last().unwrap().get_position();
 
-        assert_approx_eq!(f32, atom1.x, 9.497);
-        assert_approx_eq!(f32, atom1.y, 1.989);
-        assert_approx_eq!(f32, atom1.z, 7.498);
+        assert_approx_eq!(f32, atom1.unwrap().x, 9.497);
+        assert_approx_eq!(f32, atom1.unwrap().y, 1.989);
+        assert_approx_eq!(f32, atom1.unwrap().z, 7.498);
 
-        assert_approx_eq!(f32, atom2.x, 8.829);
-        assert_approx_eq!(f32, atom2.y, 11.186);
-        assert_approx_eq!(f32, atom2.z, 2.075);
+        assert_approx_eq!(f32, atom2.unwrap().x, 8.829);
+        assert_approx_eq!(f32, atom2.unwrap().y, 11.186);
+        assert_approx_eq!(f32, atom2.unwrap().z, 2.075);
     }
 
     #[test]
@@ -299,13 +302,13 @@ mod tests {
         let atom1 = system.atoms_iter().next().unwrap().get_position();
         let atom2 = system.atoms_iter().last().unwrap().get_position();
 
-        assert_approx_eq!(f32, atom1.x, 6.1465545);
-        assert_approx_eq!(f32, atom1.y, 1.989);
-        assert_approx_eq!(f32, atom1.z, 7.498);
+        assert_approx_eq!(f32, atom1.unwrap().x, 6.1465545);
+        assert_approx_eq!(f32, atom1.unwrap().y, 1.989);
+        assert_approx_eq!(f32, atom1.unwrap().z, 7.498);
 
-        assert_approx_eq!(f32, atom2.x, 5.478555);
-        assert_approx_eq!(f32, atom2.y, 11.186);
-        assert_approx_eq!(f32, atom2.z, 2.075);
+        assert_approx_eq!(f32, atom2.unwrap().x, 5.478555);
+        assert_approx_eq!(f32, atom2.unwrap().y, 11.186);
+        assert_approx_eq!(f32, atom2.unwrap().z, 2.075);
     }
 
     #[test]
@@ -324,13 +327,13 @@ mod tests {
         let atom1 = system.atoms_iter().next().unwrap().get_position();
         let atom2 = system.atoms_iter().last().unwrap().get_position();
 
-        assert_approx_eq!(f32, atom1.x, 9.497);
-        assert_approx_eq!(f32, atom1.y, 6.033055);
-        assert_approx_eq!(f32, atom1.z, 7.498);
+        assert_approx_eq!(f32, atom1.unwrap().x, 9.497);
+        assert_approx_eq!(f32, atom1.unwrap().y, 6.033055);
+        assert_approx_eq!(f32, atom1.unwrap().z, 7.498);
 
-        assert_approx_eq!(f32, atom2.x, 8.829);
-        assert_approx_eq!(f32, atom2.y, 2.2167444);
-        assert_approx_eq!(f32, atom2.z, 2.075);
+        assert_approx_eq!(f32, atom2.unwrap().x, 8.829);
+        assert_approx_eq!(f32, atom2.unwrap().y, 2.2167444);
+        assert_approx_eq!(f32, atom2.unwrap().z, 2.075);
     }
 
     #[test]
@@ -349,13 +352,13 @@ mod tests {
         let atom1 = system.atoms_iter().next().unwrap().get_position();
         let atom2 = system.atoms_iter().last().unwrap().get_position();
 
-        assert_approx_eq!(f32, atom1.x, 9.497);
-        assert_approx_eq!(f32, atom1.y, 1.989);
-        assert_approx_eq!(f32, atom1.z, 7.6634398);
+        assert_approx_eq!(f32, atom1.unwrap().x, 9.497);
+        assert_approx_eq!(f32, atom1.unwrap().y, 1.989);
+        assert_approx_eq!(f32, atom1.unwrap().z, 7.6634398);
 
-        assert_approx_eq!(f32, atom2.x, 8.829);
-        assert_approx_eq!(f32, atom2.y, 11.186);
-        assert_approx_eq!(f32, atom2.z, 2.2404397);
+        assert_approx_eq!(f32, atom2.unwrap().x, 8.829);
+        assert_approx_eq!(f32, atom2.unwrap().y, 11.186);
+        assert_approx_eq!(f32, atom2.unwrap().z, 2.2404397);
     }
 
     #[test]
@@ -372,13 +375,13 @@ mod tests {
         let atom1 = system.atoms_iter().next().unwrap().get_position();
         let atom2 = system.atoms_iter().last().unwrap().get_position();
 
-        assert_approx_eq!(f32, atom1.x, 6.1465545);
-        assert_approx_eq!(f32, atom1.y, 6.033055);
-        assert_approx_eq!(f32, atom1.z, 7.498);
+        assert_approx_eq!(f32, atom1.unwrap().x, 6.1465545);
+        assert_approx_eq!(f32, atom1.unwrap().y, 6.033055);
+        assert_approx_eq!(f32, atom1.unwrap().z, 7.498);
 
-        assert_approx_eq!(f32, atom2.x, 5.478555);
-        assert_approx_eq!(f32, atom2.y, 2.2167444);
-        assert_approx_eq!(f32, atom2.z, 2.075);
+        assert_approx_eq!(f32, atom2.unwrap().x, 5.478555);
+        assert_approx_eq!(f32, atom2.unwrap().y, 2.2167444);
+        assert_approx_eq!(f32, atom2.unwrap().z, 2.075);
     }
 
     #[test]
@@ -395,13 +398,13 @@ mod tests {
         let atom1 = system.atoms_iter().next().unwrap().get_position();
         let atom2 = system.atoms_iter().last().unwrap().get_position();
 
-        assert_approx_eq!(f32, atom1.x, 6.1465545);
-        assert_approx_eq!(f32, atom1.y, 1.989);
-        assert_approx_eq!(f32, atom1.z, 7.6634398);
+        assert_approx_eq!(f32, atom1.unwrap().x, 6.1465545);
+        assert_approx_eq!(f32, atom1.unwrap().y, 1.989);
+        assert_approx_eq!(f32, atom1.unwrap().z, 7.6634398);
 
-        assert_approx_eq!(f32, atom2.x, 5.478555);
-        assert_approx_eq!(f32, atom2.y, 11.186);
-        assert_approx_eq!(f32, atom2.z, 2.2404397);
+        assert_approx_eq!(f32, atom2.unwrap().x, 5.478555);
+        assert_approx_eq!(f32, atom2.unwrap().y, 11.186);
+        assert_approx_eq!(f32, atom2.unwrap().z, 2.2404397);
     }
 
     #[test]
@@ -418,13 +421,13 @@ mod tests {
         let atom1 = system.atoms_iter().next().unwrap().get_position();
         let atom2 = system.atoms_iter().last().unwrap().get_position();
 
-        assert_approx_eq!(f32, atom1.x, 9.497);
-        assert_approx_eq!(f32, atom1.y, 6.033055);
-        assert_approx_eq!(f32, atom1.z, 7.6634398);
+        assert_approx_eq!(f32, atom1.unwrap().x, 9.497);
+        assert_approx_eq!(f32, atom1.unwrap().y, 6.033055);
+        assert_approx_eq!(f32, atom1.unwrap().z, 7.6634398);
 
-        assert_approx_eq!(f32, atom2.x, 8.829);
-        assert_approx_eq!(f32, atom2.y, 2.2167444);
-        assert_approx_eq!(f32, atom2.z, 2.2404397);
+        assert_approx_eq!(f32, atom2.unwrap().x, 8.829);
+        assert_approx_eq!(f32, atom2.unwrap().y, 2.2167444);
+        assert_approx_eq!(f32, atom2.unwrap().z, 2.2404397);
     }
 
     #[test]
@@ -442,12 +445,12 @@ mod tests {
         let atom1 = system.atoms_iter().next().unwrap().get_position();
         let atom2 = system.atoms_iter().last().unwrap().get_position();
 
-        assert_approx_eq!(f32, atom1.x, 6.1465545);
-        assert_approx_eq!(f32, atom1.y, 6.033055);
-        assert_approx_eq!(f32, atom1.z, 7.6634398);
+        assert_approx_eq!(f32, atom1.unwrap().x, 6.1465545);
+        assert_approx_eq!(f32, atom1.unwrap().y, 6.033055);
+        assert_approx_eq!(f32, atom1.unwrap().z, 7.6634398);
 
-        assert_approx_eq!(f32, atom2.x, 5.478555);
-        assert_approx_eq!(f32, atom2.y, 2.2167444);
-        assert_approx_eq!(f32, atom2.z, 2.2404397);
+        assert_approx_eq!(f32, atom2.unwrap().x, 5.478555);
+        assert_approx_eq!(f32, atom2.unwrap().y, 2.2167444);
+        assert_approx_eq!(f32, atom2.unwrap().z, 2.2404397);
     }
 }

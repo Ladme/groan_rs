@@ -42,7 +42,9 @@ impl System {
         match self.group_write_gro("all", filename, write_velocities) {
             Ok(_) => Ok(()),
             Err(WriteGroError::GroupNotFound(_)) => {
-                panic!("Groan error. Default group 'all' does not exist.")
+                panic!(
+                    "FATAL GROAN ERROR | System::write_gro | Default group 'all' does not exist."
+                )
             }
             Err(e) => Err(e),
         }
@@ -248,9 +250,12 @@ fn line_as_atom(line: &str) -> Result<Atom, ParseGroError> {
             .map_err(|_| ParseGroError::ParseAtomLineErr(line.to_string()))?;
     }
 
+    let atom = Atom::new(resid, &resname, atomid, &atomname).with_position(position.into());
+
     // parse velocity, if present
-    let mut velocity = [0.0; 3];
     if line.len() >= 68 {
+        let mut velocity = [0.0; 3];
+
         for (i, item) in velocity.iter_mut().enumerate() {
             let curr = 44 + i * 8;
             *item = line[curr..curr + 8]
@@ -258,17 +263,11 @@ fn line_as_atom(line: &str) -> Result<Atom, ParseGroError> {
                 .parse::<f32>()
                 .map_err(|_| ParseGroError::ParseAtomLineErr(line.to_string()))?;
         }
-    }
 
-    Ok(Atom::new(
-        resid,
-        &resname,
-        atomid,
-        &atomname,
-        position.into(),
-        velocity.into(),
-        Default::default(),
-    ))
+        Ok(atom.with_velocity(velocity.into()))
+    } else {
+        Ok(atom)
+    }
 }
 
 /// Parse a line as simulation box dimensions.
@@ -352,17 +351,15 @@ mod tests_read {
         assert_eq!(first.get_atom_name(), "BB");
         assert_eq!(first.get_atom_number(), 1);
 
-        assert!(approx_eq!(f32, first.get_position().x, 9.497));
-        assert!(approx_eq!(f32, first.get_position().y, 1.989));
-        assert!(approx_eq!(f32, first.get_position().z, 7.498));
+        assert!(approx_eq!(f32, first.get_position().unwrap().x, 9.497));
+        assert!(approx_eq!(f32, first.get_position().unwrap().y, 1.989));
+        assert!(approx_eq!(f32, first.get_position().unwrap().z, 7.498));
 
-        assert!(approx_eq!(f32, first.get_velocity().x, -0.0683));
-        assert!(approx_eq!(f32, first.get_velocity().y, 0.1133));
-        assert!(approx_eq!(f32, first.get_velocity().z, 0.0005));
+        assert!(approx_eq!(f32, first.get_velocity().unwrap().x, -0.0683));
+        assert!(approx_eq!(f32, first.get_velocity().unwrap().y, 0.1133));
+        assert!(approx_eq!(f32, first.get_velocity().unwrap().z, 0.0005));
 
-        assert_eq!(first.get_force().x, 0.0f32);
-        assert_eq!(first.get_force().y, 0.0f32);
-        assert_eq!(first.get_force().z, 0.0f32);
+        assert_eq!(first.get_force(), None);
 
         // check atom somewhere in the middle
         let middle = &atoms[4932];
@@ -371,17 +368,15 @@ mod tests_read {
         assert_eq!(middle.get_atom_name(), "C4B");
         assert_eq!(middle.get_atom_number(), 4933);
 
-        assert!(approx_eq!(f32, middle.get_position().x, 6.384));
-        assert!(approx_eq!(f32, middle.get_position().y, 11.908));
-        assert!(approx_eq!(f32, middle.get_position().z, 5.471));
+        assert!(approx_eq!(f32, middle.get_position().unwrap().x, 6.384));
+        assert!(approx_eq!(f32, middle.get_position().unwrap().y, 11.908));
+        assert!(approx_eq!(f32, middle.get_position().unwrap().z, 5.471));
 
-        assert!(approx_eq!(f32, middle.get_velocity().x, -0.2271));
-        assert!(approx_eq!(f32, middle.get_velocity().y, 0.1287));
-        assert!(approx_eq!(f32, middle.get_velocity().z, 0.1784));
+        assert!(approx_eq!(f32, middle.get_velocity().unwrap().x, -0.2271));
+        assert!(approx_eq!(f32, middle.get_velocity().unwrap().y, 0.1287));
+        assert!(approx_eq!(f32, middle.get_velocity().unwrap().z, 0.1784));
 
-        assert_eq!(middle.get_force().x, 0.0f32);
-        assert_eq!(middle.get_force().y, 0.0f32);
-        assert_eq!(middle.get_force().z, 0.0f32);
+        assert_eq!(middle.get_force(), None);
 
         // check the last atom
         let last = &atoms[16843];
@@ -390,17 +385,15 @@ mod tests_read {
         assert_eq!(last.get_atom_name(), "CL");
         assert_eq!(last.get_atom_number(), 16844);
 
-        assert!(approx_eq!(f32, last.get_position().x, 8.829));
-        assert!(approx_eq!(f32, last.get_position().y, 11.186));
-        assert!(approx_eq!(f32, last.get_position().z, 2.075));
+        assert!(approx_eq!(f32, last.get_position().unwrap().x, 8.829));
+        assert!(approx_eq!(f32, last.get_position().unwrap().y, 11.186));
+        assert!(approx_eq!(f32, last.get_position().unwrap().z, 2.075));
 
-        assert!(approx_eq!(f32, last.get_velocity().x, 0.0712));
-        assert!(approx_eq!(f32, last.get_velocity().y, 0.2294));
-        assert!(approx_eq!(f32, last.get_velocity().z, -0.1673));
+        assert!(approx_eq!(f32, last.get_velocity().unwrap().x, 0.0712));
+        assert!(approx_eq!(f32, last.get_velocity().unwrap().y, 0.2294));
+        assert!(approx_eq!(f32, last.get_velocity().unwrap().z, -0.1673));
 
-        assert_eq!(last.get_force().x, 0.0f32);
-        assert_eq!(last.get_force().y, 0.0f32);
-        assert_eq!(last.get_force().z, 0.0f32);
+        assert_eq!(last.get_force(), None);
     }
 
     #[test]
@@ -433,9 +426,9 @@ mod tests_read {
         assert_eq!(first.get_atom_name(), "BB");
         assert_eq!(first.get_atom_number(), 1);
 
-        assert!(approx_eq!(f32, first.get_position().x, 1.660));
-        assert!(approx_eq!(f32, first.get_position().y, 2.061));
-        assert!(approx_eq!(f32, first.get_position().z, 3.153));
+        assert!(approx_eq!(f32, first.get_position().unwrap().x, 1.660));
+        assert!(approx_eq!(f32, first.get_position().unwrap().y, 2.061));
+        assert!(approx_eq!(f32, first.get_position().unwrap().z, 3.153));
 
         // check atom somewhere in the middle
         let middle = &atoms[24];
@@ -444,9 +437,9 @@ mod tests_read {
         assert_eq!(middle.get_atom_name(), "SC1");
         assert_eq!(middle.get_atom_number(), 25);
 
-        assert!(approx_eq!(f32, middle.get_position().x, 3.161));
-        assert!(approx_eq!(f32, middle.get_position().y, 2.868));
-        assert!(approx_eq!(f32, middle.get_position().z, 2.797));
+        assert!(approx_eq!(f32, middle.get_position().unwrap().x, 3.161));
+        assert!(approx_eq!(f32, middle.get_position().unwrap().y, 2.868));
+        assert!(approx_eq!(f32, middle.get_position().unwrap().z, 2.797));
 
         // check the last atom
         let last = &atoms[49];
@@ -455,19 +448,14 @@ mod tests_read {
         assert_eq!(last.get_atom_name(), "SC2");
         assert_eq!(last.get_atom_number(), 50);
 
-        assert!(approx_eq!(f32, last.get_position().x, 4.706));
-        assert!(approx_eq!(f32, last.get_position().y, 4.447));
-        assert!(approx_eq!(f32, last.get_position().z, 2.813));
+        assert!(approx_eq!(f32, last.get_position().unwrap().x, 4.706));
+        assert!(approx_eq!(f32, last.get_position().unwrap().y, 4.447));
+        assert!(approx_eq!(f32, last.get_position().unwrap().z, 2.813));
 
         // check that the velocity and force of all atoms is zero
         for atom in atoms.iter() {
-            assert_eq!(atom.get_velocity().x, 0.0f32);
-            assert_eq!(atom.get_velocity().y, 0.0f32);
-            assert_eq!(atom.get_velocity().z, 0.0f32);
-
-            assert_eq!(atom.get_force().x, 0.0f32);
-            assert_eq!(atom.get_force().y, 0.0f32);
-            assert_eq!(atom.get_force().z, 0.0f32);
+            assert_eq!(atom.get_velocity(), None);
+            assert_eq!(atom.get_force(), None);
         }
     }
 
@@ -480,8 +468,8 @@ mod tests_read {
         assert!(approx_eq!(f32, simbox.y, 6.08608));
         assert!(approx_eq!(f32, simbox.z, 6.08608));
 
-        assert!(approx_eq!(f32, simbox.v1y, 1.4));
-        assert!(approx_eq!(f32, simbox.v1z, 0.16));
+        assert!(approx_eq!(f32, simbox.v1y, 0.0));
+        assert!(approx_eq!(f32, simbox.v1z, 0.0));
         assert!(approx_eq!(f32, simbox.v2x, 2.2));
 
         assert!(approx_eq!(f32, simbox.v2z, 0.0));
@@ -709,55 +697,15 @@ mod tests_write {
 
     #[test]
     fn write_wrap() {
-        let atom1 = Atom::new(
-            158,
-            "THR",
-            1,
-            "BBBBBT",
-            [0.0, 0.0, 0.0].into(),
-            [0.0, 0.0, 0.0].into(),
-            [0.0, 0.0, 0.0].into(),
-        );
+        let atom1 = Atom::new(158, "THR", 1, "BBBBBT");
 
-        let atom2 = Atom::new(
-            158,
-            "THR",
-            99999,
-            "SC1",
-            [0.0, 0.0, 0.0].into(),
-            [0.0, 0.0, 0.0].into(),
-            [0.0, 0.0, 0.0].into(),
-        );
+        let atom2 = Atom::new(158, "THR", 99999, "SC1");
 
-        let atom3 = Atom::new(
-            100003,
-            "ARG",
-            100000,
-            "BB",
-            [0.0, 0.0, 0.0].into(),
-            [0.0, 0.0, 0.0].into(),
-            [0.0, 0.0, 0.0].into(),
-        );
+        let atom3 = Atom::new(100003, "ARG", 100000, "BB");
 
-        let atom4 = Atom::new(
-            100003,
-            "ARGGGT",
-            200001,
-            "SC1",
-            [0.0, 0.0, 0.0].into(),
-            [0.0, 0.0, 0.0].into(),
-            [0.0, 0.0, 0.0].into(),
-        );
+        let atom4 = Atom::new(100003, "ARGGGT", 200001, "SC1");
 
-        let atom5 = Atom::new(
-            100003,
-            "ARG",
-            200005,
-            "SC2",
-            [0.0, 0.0, 0.0].into(),
-            [0.0, 0.0, 0.0].into(),
-            [0.0, 0.0, 0.0].into(),
-        );
+        let atom5 = Atom::new(100003, "ARG", 200005, "SC2");
 
         let atoms = vec![atom1, atom2, atom3, atom4, atom5];
         let simbox = SimBox::from([1.0, 1.0, 1.0]);

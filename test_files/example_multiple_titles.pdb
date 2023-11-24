@@ -54,5 +54,6 @@ ATOM     48  BB  LYS A  21      43.620  40.080  31.610  1.00  0.00
 ATOM     49  SC1 LYS A  21      45.800  41.620  29.780  1.00  0.00            
 ATOM     50  SC2 LYS A  21      47.060  44.470  28.130  1.00  0.00            
 TER
-ENDMDL
 TITLE              Third title
+ENDMDL
+TITLE              This title should not be read

@@ -12,9 +12,9 @@ use crate::io::traj_io::{
     FrameData, FrameDataTime, TrajGroupWrite, TrajRangeRead, TrajRead, TrajStepRead, TrajWrite,
 };
 use crate::io::xdrfile::{self, CXdrFile, OpenMode, XdrFile};
-use crate::iterators::AtomIterator;
 use crate::prelude::TrajReader;
-use crate::structures::{group::Group, vector3d::Vector3D};
+use crate::structures::iterators::AtomIterator;
+use crate::structures::{group::Group, simbox::SimBox, vector3d::Vector3D};
 use crate::system::general::System;
 
 /**************************/
@@ -26,7 +26,7 @@ use crate::system::general::System;
 pub struct XtcFrameData {
     step: c_int,
     time: c_float,
-    boxvector: [[c_float; 3usize]; 3usize],
+    simbox: SimBox,
     precision: c_float,
     coordinates: Vec<[f32; 3]>,
 }
@@ -63,13 +63,20 @@ impl FrameData for XtcFrameData {
 
             match return_code {
                 // reading successful and there is more to read
-                0 => Some(Ok(XtcFrameData {
-                    step,
-                    time,
-                    boxvector,
-                    precision,
-                    coordinates,
-                })),
+                0 => {
+                    let simbox = match xdrfile::matrix2simbox(boxvector) {
+                        Ok(x) => x,
+                        Err(e) => return Some(Err(e)),
+                    };
+
+                    Some(Ok(XtcFrameData {
+                        step,
+                        time,
+                        simbox,
+                        precision,
+                        coordinates,
+                    }))
+                }
                 // file is completely read
                 11 => None,
                 // error occured
@@ -79,20 +86,18 @@ impl FrameData for XtcFrameData {
     }
 
     /// Update the `System` structure based on data from `XtcFrameData`.
-    ///
-    /// ## Warning
-    /// - This function currently only supports orthogonal simulation boxes!
-    /// Updating `System` using `XtcFrameData` structure containing simulation box of a different shape will fail.
     fn update_system(self, system: &mut System) {
         unsafe {
             for (i, atom) in system.get_atoms_as_ref_mut().iter_mut().enumerate() {
-                atom.set_position(&Vector3D::from(*self.coordinates.get_unchecked(i)));
+                atom.set_position(Vector3D::from(*self.coordinates.get_unchecked(i)));
+                atom.reset_velocity();
+                atom.reset_force();
             }
 
             // update the system
             system.set_simulation_step(self.step as u64);
             system.set_simulation_time(self.time);
-            system.set_box(xdrfile::matrix2simbox(self.boxvector));
+            system.set_box(self.simbox);
             system.set_precision(self.precision as u64);
         }
     }
@@ -174,7 +179,7 @@ impl<'a> TrajStepRead<'a> for XtcReader<'a> {
                 1 => Err(ReadTrajError::SkipFailed),
                 2 => Ok(false),
                 number => panic!(
-                    "Groan error. `xtc_skip_frame` returned '{}' which is unsupported.",
+                    "FATAL GROAN ERROR | XtcReader::skip_frame | `xdrfile::xtc_skip_frame` returned an unsupported number '{}'",
                     number
                 ),
             }
@@ -320,6 +325,7 @@ impl System {
     /// ## Notes
     /// - The function checks whether the number of atoms in the system corresponds to the number of atoms in the xtc file.
     /// - The `System` structure is modified while iterating through the xtc file.
+    /// - The `velocity` and `force` information is set to `None` for all atoms as it is not available in the xtc file.
     pub fn xtc_iter(
         &mut self,
         filename: impl AsRef<Path>,
@@ -381,7 +387,7 @@ impl TrajWrite for XtcWriter {
     /// use groan_rs::prelude::*;
     /// use std::error::Error;
     ///
-    /// fn example_fn() -> Result<(), Box<dyn Error>> {
+    /// fn example_fn() -> Result<(), Box<dyn Error + Send + Sync>> {
     ///     // load system from file
     ///     let mut system = System::from_file("system.gro")?;
     ///
@@ -410,8 +416,9 @@ impl TrajWrite for XtcWriter {
             // prepare coordinate matrix
             let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
             for (i, atom) in (*self.system).atoms_iter().enumerate() {
-                let pos = atom.get_position();
-                coordinates[i] = [pos.x, pos.y, pos.z];
+                if let Some(pos) = atom.get_position() {
+                    coordinates[i] = [pos.x, pos.y, pos.z];
+                }
             }
 
             // write the xtc frame
@@ -503,7 +510,7 @@ impl TrajGroupWrite for XtcGroupWriter {
     /// use groan_rs::prelude::*;
     /// use std::error::Error;
     ///
-    /// fn example_fn() -> Result<(), Box<dyn Error>> {
+    /// fn example_fn() -> Result<(), Box<dyn Error + Send + Sync>> {
     ///     // load system from file
     ///     let mut system = System::from_file("system.gro")?;
     ///     system.read_ndx("index.ndx")?;
@@ -527,20 +534,22 @@ impl TrajGroupWrite for XtcGroupWriter {
     /// ## Notes
     /// - Precision for writing the xtc file is taken from the `System` structure.
     fn write_frame(&mut self) -> Result<(), WriteTrajError> {
+        let binding = Vector3D::default();
+
         unsafe {
             let n_atoms = self.group.get_n_atoms();
 
             // create an iterator over the atoms of the group
             let iterator = AtomIterator::new(
                 (*self.system).get_atoms_as_ref(),
-                self.group.get_atom_ranges(),
+                self.group.get_atoms(),
                 (*self.system).get_box_as_ref(),
             );
 
             // prepare coordinate matrix
             let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
             for (i, atom) in iterator.enumerate() {
-                let pos = atom.get_position();
+                let pos = atom.get_position().unwrap_or(&binding);
                 coordinates[i] = [pos.x, pos.y, pos.z];
             }
 
@@ -613,17 +622,38 @@ mod tests {
         assert_eq!(atom1.get_atom_name(), atom2.get_atom_name());
         assert_eq!(atom1.get_chain(), atom2.get_chain());
 
-        assert_approx_eq!(f32, atom1.get_position().x, atom2.get_position().x);
-        assert_approx_eq!(f32, atom1.get_position().y, atom2.get_position().y);
-        assert_approx_eq!(f32, atom1.get_position().z, atom2.get_position().z);
+        if let (Some(pos1), Some(pos2)) = (atom1.get_position(), atom2.get_position()) {
+            assert_approx_eq!(f32, pos1.x, pos2.x);
+            assert_approx_eq!(f32, pos1.y, pos2.y);
+            assert_approx_eq!(f32, pos1.z, pos2.z);
+        } else {
+            assert!(
+                atom1.get_position().is_none() && atom2.get_position().is_none(),
+                "Positions are not both None"
+            );
+        }
 
-        assert_approx_eq!(f32, atom1.get_velocity().x, atom2.get_velocity().x);
-        assert_approx_eq!(f32, atom1.get_velocity().y, atom2.get_velocity().y);
-        assert_approx_eq!(f32, atom1.get_velocity().z, atom2.get_velocity().z);
+        if let (Some(vel1), Some(vel2)) = (atom1.get_velocity(), atom2.get_velocity()) {
+            assert_approx_eq!(f32, vel1.x, vel2.x);
+            assert_approx_eq!(f32, vel1.y, vel2.y);
+            assert_approx_eq!(f32, vel1.z, vel2.z);
+        } else {
+            assert!(
+                atom1.get_velocity().is_none() && atom2.get_velocity().is_none(),
+                "Velocities are not both None"
+            );
+        }
 
-        assert_approx_eq!(f32, atom1.get_force().x, atom2.get_force().x);
-        assert_approx_eq!(f32, atom1.get_force().y, atom2.get_force().y);
-        assert_approx_eq!(f32, atom1.get_force().z, atom2.get_force().z);
+        if let (Some(force1), Some(force2)) = (atom1.get_force(), atom2.get_force()) {
+            assert_approx_eq!(f32, force1.x, force2.x);
+            assert_approx_eq!(f32, force1.y, force2.y);
+            assert_approx_eq!(f32, force1.z, force2.z);
+        } else {
+            assert!(
+                atom1.get_force().is_none() && atom2.get_force().is_none(),
+                "Forces are not both None"
+            );
+        }
     }
 
     #[test]
@@ -651,34 +681,26 @@ mod tests {
         assert_eq!(atom1.get_atom_number(), 1);
         assert_eq!(atom1.get_atom_name(), "BB");
 
-        assert_approx_eq!(f32, atom1.get_position().x, 5.97);
-        assert_approx_eq!(f32, atom1.get_position().y, 7.03);
-        assert_approx_eq!(f32, atom1.get_position().z, 7.69);
+        assert_approx_eq!(f32, atom1.get_position().unwrap().x, 5.97);
+        assert_approx_eq!(f32, atom1.get_position().unwrap().y, 7.03);
+        assert_approx_eq!(f32, atom1.get_position().unwrap().z, 7.69);
 
-        assert_approx_eq!(f32, atom1.get_velocity().x, -0.0683);
-        assert_approx_eq!(f32, atom1.get_velocity().y, 0.1133);
-        assert_approx_eq!(f32, atom1.get_velocity().z, 0.0005);
+        assert_eq!(atom1.get_velocity(), None);
 
-        assert_approx_eq!(f32, atom1.get_force().x, 0.0);
-        assert_approx_eq!(f32, atom1.get_force().y, 0.0);
-        assert_approx_eq!(f32, atom1.get_force().z, 0.0);
+        assert_eq!(atom1.get_force(), None);
 
         assert_eq!(atom2.get_residue_name(), "ION");
         assert_eq!(atom2.get_residue_number(), 11180);
         assert_eq!(atom2.get_atom_number(), 16844);
         assert_eq!(atom2.get_atom_name(), "CL");
 
-        assert_approx_eq!(f32, atom2.get_position().x, 7.06);
-        assert_approx_eq!(f32, atom2.get_position().y, 0.42);
-        assert_approx_eq!(f32, atom2.get_position().z, 9.38);
+        assert_approx_eq!(f32, atom2.get_position().unwrap().x, 7.06);
+        assert_approx_eq!(f32, atom2.get_position().unwrap().y, 0.42);
+        assert_approx_eq!(f32, atom2.get_position().unwrap().z, 9.38);
 
-        assert_approx_eq!(f32, atom2.get_velocity().x, 0.0712);
-        assert_approx_eq!(f32, atom2.get_velocity().y, 0.2294);
-        assert_approx_eq!(f32, atom2.get_velocity().z, -0.1673);
+        assert_eq!(atom2.get_velocity(), None);
 
-        assert_approx_eq!(f32, atom2.get_force().x, 0.0);
-        assert_approx_eq!(f32, atom2.get_force().y, 0.0);
-        assert_approx_eq!(f32, atom2.get_force().z, 0.0);
+        assert_eq!(atom2.get_force(), None);
 
         // last frame
         system
@@ -701,34 +723,26 @@ mod tests {
         assert_eq!(atom1.get_atom_number(), 1);
         assert_eq!(atom1.get_atom_name(), "BB");
 
-        assert_approx_eq!(f32, atom1.get_position().x, 5.67);
-        assert_approx_eq!(f32, atom1.get_position().y, 6.31);
-        assert_approx_eq!(f32, atom1.get_position().z, 6.96);
+        assert_approx_eq!(f32, atom1.get_position().unwrap().x, 5.67);
+        assert_approx_eq!(f32, atom1.get_position().unwrap().y, 6.31);
+        assert_approx_eq!(f32, atom1.get_position().unwrap().z, 6.96);
 
-        assert_approx_eq!(f32, atom1.get_velocity().x, -0.0683);
-        assert_approx_eq!(f32, atom1.get_velocity().y, 0.1133);
-        assert_approx_eq!(f32, atom1.get_velocity().z, 0.0005);
+        assert_eq!(atom1.get_velocity(), None);
 
-        assert_approx_eq!(f32, atom1.get_force().x, 0.0);
-        assert_approx_eq!(f32, atom1.get_force().y, 0.0);
-        assert_approx_eq!(f32, atom1.get_force().z, 0.0);
+        assert_eq!(atom1.get_force(), None);
 
         assert_eq!(atom2.get_residue_name(), "ION");
         assert_eq!(atom2.get_residue_number(), 11180);
         assert_eq!(atom2.get_atom_number(), 16844);
         assert_eq!(atom2.get_atom_name(), "CL");
 
-        assert_approx_eq!(f32, atom2.get_position().x, 8.36);
-        assert_approx_eq!(f32, atom2.get_position().y, 1.18);
-        assert_approx_eq!(f32, atom2.get_position().z, 0.71);
+        assert_approx_eq!(f32, atom2.get_position().unwrap().x, 8.36);
+        assert_approx_eq!(f32, atom2.get_position().unwrap().y, 1.18);
+        assert_approx_eq!(f32, atom2.get_position().unwrap().z, 0.71);
 
-        assert_approx_eq!(f32, atom2.get_velocity().x, 0.0712);
-        assert_approx_eq!(f32, atom2.get_velocity().y, 0.2294);
-        assert_approx_eq!(f32, atom2.get_velocity().z, -0.1673);
+        assert_eq!(atom2.get_velocity(), None);
 
-        assert_approx_eq!(f32, atom2.get_force().x, 0.0);
-        assert_approx_eq!(f32, atom2.get_force().y, 0.0);
-        assert_approx_eq!(f32, atom2.get_force().z, 0.0);
+        assert_eq!(atom2.get_force(), None);
     }
 
     #[test]
@@ -1074,6 +1088,147 @@ mod tests {
     }
 
     #[test]
+    fn read_xtc_triclinic() {
+        let mut system = System::from_file("test_files/triclinic.gro").unwrap();
+
+        // second frame
+        let frame = system
+            .xtc_iter("test_files/triclinic_trajectory.xtc")
+            .unwrap()
+            .nth(1)
+            .unwrap()
+            .unwrap();
+        assert_eq!(frame.get_simulation_step(), 5000);
+        assert_approx_eq!(f32, frame.get_simulation_time(), 100.0);
+
+        let simbox = frame.get_box_as_ref();
+        assert_approx_eq!(f32, simbox.v1x, 5.2868834);
+        assert_approx_eq!(f32, simbox.v2y, 4.7799735);
+        assert_approx_eq!(f32, simbox.v3z, 2.2256064);
+        assert_approx_eq!(f32, simbox.v1y, 0.0000000);
+        assert_approx_eq!(f32, simbox.v1z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v2x, 0.8428372);
+        assert_approx_eq!(f32, simbox.v2z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v3x, 1.0159061);
+        assert_approx_eq!(f32, simbox.v3y, -1.6872015);
+
+        // last frame
+        let frame = system
+            .xtc_iter("test_files/triclinic_trajectory.xtc")
+            .unwrap()
+            .nth(10)
+            .unwrap()
+            .unwrap();
+        assert_eq!(frame.get_simulation_step(), 50000);
+        assert_approx_eq!(f32, frame.get_simulation_time(), 1000.0);
+
+        let simbox = frame.get_box_as_ref();
+        assert_approx_eq!(f32, simbox.v1x, 5.2712817);
+        assert_approx_eq!(f32, simbox.v2y, 4.7658677);
+        assert_approx_eq!(f32, simbox.v3z, 2.1743093);
+        assert_approx_eq!(f32, simbox.v1y, 0.0000000);
+        assert_approx_eq!(f32, simbox.v1z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v2x, 0.8403500);
+        assert_approx_eq!(f32, simbox.v2z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v3x, 1.0129081);
+        assert_approx_eq!(f32, simbox.v3y, -1.6822226);
+    }
+
+    #[test]
+    fn read_xtc_octahedron() {
+        let mut system = System::from_file("test_files/octahedron.gro").unwrap();
+
+        // second frame
+        let frame = system
+            .xtc_iter("test_files/octahedron_trajectory.xtc")
+            .unwrap()
+            .nth(1)
+            .unwrap()
+            .unwrap();
+        assert_eq!(frame.get_simulation_step(), 5000);
+        assert_approx_eq!(f32, frame.get_simulation_time(), 100.0);
+
+        let simbox = frame.get_box_as_ref();
+        assert_approx_eq!(f32, simbox.v1x, 6.2666030);
+        assert_approx_eq!(f32, simbox.v2y, 5.9082110);
+        assert_approx_eq!(f32, simbox.v3z, 5.1106043);
+        assert_approx_eq!(f32, simbox.v1y, 0.0000000);
+        assert_approx_eq!(f32, simbox.v1z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v2x, 2.0888677);
+        assert_approx_eq!(f32, simbox.v2z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v3x, -2.0888677);
+        assert_approx_eq!(f32, simbox.v3y, 2.9541006);
+
+        // last frame
+        let frame = system
+            .xtc_iter("test_files/octahedron_trajectory.xtc")
+            .unwrap()
+            .nth(10)
+            .unwrap()
+            .unwrap();
+        assert_eq!(frame.get_simulation_step(), 50000);
+        assert_approx_eq!(f32, frame.get_simulation_time(), 1000.0);
+
+        let simbox = frame.get_box_as_ref();
+        assert_approx_eq!(f32, simbox.v1x, 6.2004085);
+        assert_approx_eq!(f32, simbox.v2y, 5.8458023);
+        assert_approx_eq!(f32, simbox.v3z, 5.0840497);
+        assert_approx_eq!(f32, simbox.v1y, 0.0000000);
+        assert_approx_eq!(f32, simbox.v1z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v2x, 2.0668030);
+        assert_approx_eq!(f32, simbox.v2z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v3x, -2.0668030);
+        assert_approx_eq!(f32, simbox.v3y, 2.9228961);
+    }
+
+    #[test]
+    fn read_xtc_dodecahedron() {
+        let mut system = System::from_file("test_files/dodecahedron.gro").unwrap();
+
+        // second frame
+        let frame = system
+            .xtc_iter("test_files/dodecahedron_trajectory.xtc")
+            .unwrap()
+            .nth(1)
+            .unwrap()
+            .unwrap();
+        assert_eq!(frame.get_simulation_step(), 5000);
+        assert_approx_eq!(f32, frame.get_simulation_time(), 100.0);
+
+        let simbox = frame.get_box_as_ref();
+        assert_approx_eq!(f32, simbox.v1x, 6.2607090);
+        assert_approx_eq!(f32, simbox.v2y, 6.2607090);
+        assert_approx_eq!(f32, simbox.v3z, 4.4316807);
+        assert_approx_eq!(f32, simbox.v1y, 0.0000000);
+        assert_approx_eq!(f32, simbox.v1z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v2x, 0.0000000);
+        assert_approx_eq!(f32, simbox.v2z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v3x, 3.1303544);
+        assert_approx_eq!(f32, simbox.v3y, 3.1303544);
+
+        // last frame
+        let frame = system
+            .xtc_iter("test_files/dodecahedron_trajectory.xtc")
+            .unwrap()
+            .nth(10)
+            .unwrap()
+            .unwrap();
+        assert_eq!(frame.get_simulation_step(), 50000);
+        assert_approx_eq!(f32, frame.get_simulation_time(), 1000.0);
+
+        let simbox = frame.get_box_as_ref();
+        assert_approx_eq!(f32, simbox.v1x, 6.2197995);
+        assert_approx_eq!(f32, simbox.v2y, 6.2197995);
+        assert_approx_eq!(f32, simbox.v3z, 4.4066653);
+        assert_approx_eq!(f32, simbox.v1y, 0.0000000);
+        assert_approx_eq!(f32, simbox.v1z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v2x, 0.0000000);
+        assert_approx_eq!(f32, simbox.v2z, 0.0000000);
+        assert_approx_eq!(f32, simbox.v3x, 3.1098998);
+        assert_approx_eq!(f32, simbox.v3y, 3.1098998);
+    }
+
+    #[test]
     fn write_xtc() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
@@ -1191,7 +1346,7 @@ mod tests {
         // remove the protein group from the system; this should not change the output of the XtcGroupWriter
         unsafe {
             let val = system.get_groups_as_ref_mut().remove("Protein").unwrap();
-            assert_eq!(val.get_atom_ranges(), writer.group.get_atom_ranges());
+            assert_eq!(val.get_atoms(), writer.group.get_atoms());
             assert!(!system.group_exists("Protein"));
         }
 
@@ -1219,5 +1374,83 @@ mod tests {
             Err(WriteTrajError::GroupNotFound(g)) => assert_eq!(g, "Protein"),
             _ => panic!("Output XTC file should not have been created."),
         }
+    }
+
+    #[test]
+    fn write_xtc_triclinic() {
+        let mut system = System::from_file("test_files/triclinic.gro").unwrap();
+
+        let xtc_output = NamedTempFile::new().unwrap();
+        let path_to_output = xtc_output.path();
+
+        let mut writer = XtcWriter::new(&system, path_to_output).unwrap();
+
+        for frame in system
+            .xtc_iter("test_files/triclinic_trajectory.xtc")
+            .unwrap()
+        {
+            let _ = frame.unwrap();
+
+            writer.write_frame().unwrap();
+        }
+
+        drop(writer);
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/triclinic_trajectory.xtc").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_xtc_octahedron() {
+        let mut system = System::from_file("test_files/octahedron.gro").unwrap();
+
+        let xtc_output = NamedTempFile::new().unwrap();
+        let path_to_output = xtc_output.path();
+
+        let mut writer = XtcWriter::new(&system, path_to_output).unwrap();
+
+        for frame in system
+            .xtc_iter("test_files/octahedron_trajectory.xtc")
+            .unwrap()
+        {
+            let _ = frame.unwrap();
+
+            writer.write_frame().unwrap();
+        }
+
+        drop(writer);
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/octahedron_trajectory.xtc").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_xtc_dodecahedron() {
+        let mut system = System::from_file("test_files/dodecahedron.gro").unwrap();
+
+        let xtc_output = NamedTempFile::new().unwrap();
+        let path_to_output = xtc_output.path();
+
+        let mut writer = XtcWriter::new(&system, path_to_output).unwrap();
+
+        for frame in system
+            .xtc_iter("test_files/dodecahedron_trajectory.xtc")
+            .unwrap()
+        {
+            let _ = frame.unwrap();
+
+            writer.write_frame().unwrap();
+        }
+
+        drop(writer);
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/dodecahedron_trajectory.xtc").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
     }
 }

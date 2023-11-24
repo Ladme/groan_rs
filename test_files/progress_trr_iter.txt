@@ -1,0 +1,1 @@
+[ RUNNING ]   Step            0 | Time            0 ps[ RUNNING ]   Step        12000 | Time          240 ps[ RUNNING ]   Step        24000 | Time          480 ps[COMPLETED]   Step        32000 | Time          640 ps

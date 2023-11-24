@@ -7,7 +7,6 @@ use std::collections::HashMap;
 
 use crate::errors::SelectError;
 use crate::selections::{name::Name, numbers};
-use crate::structures::group::Group;
 use crate::system::general::System;
 
 #[derive(Debug, PartialEq)]
@@ -150,7 +149,7 @@ fn parse_subquery(expression: &str, start: usize, end: usize) -> Result<Box<Sele
                 let new_end = match find_parenthesis(expression, i, end) {
                     Some(x) => x,
                     None => {
-                        panic!("Groan error. Parentheses should be balanced but they are not.")
+                        panic!("FATAL GROAN ERROR | select::parse_subquery | Despite all efforts, parentheses are not balanced.");
                     }
                 };
 
@@ -230,7 +229,7 @@ fn process_operation(
                 Operator::And => Ok(Some(Box::from(Select::And(t, parsed)))),
                 Operator::Or => Ok(Some(Box::from(Select::Or(t, parsed)))),
                 Operator::Not => panic!(
-                    "Groan error. Somehow, NOT operator is being treated as binary operator."
+                    "FATAL GROAN ERROR | select::process_operation | NOT operator is being treated as a binary operator."
                 ),
             }
         } else {
@@ -239,7 +238,7 @@ fn process_operation(
     // or create a new tree
     } else {
         if tree.is_some() {
-            panic!("Groan error. No binary operator detected but the tree already exists.")
+            panic!("FATAL GROAN ERROR | select::process_operation | No binary operator detected but the parsing tree already exists.")
         }
         Ok(Some(parsed))
     }
@@ -474,10 +473,7 @@ fn parse_token(string: &str) -> Result<Select, SelectError> {
             }
 
             let range = numbers::parse_numbers(&token[1..])?;
-            Ok(Select::ResidueNumber(Group::fix_atom_ranges(
-                range,
-                usize::MAX,
-            )))
+            Ok(Select::ResidueNumber(fix_ranges(range)))
         }
         "serial" => {
             if token.len() <= 1 {
@@ -485,10 +481,7 @@ fn parse_token(string: &str) -> Result<Select, SelectError> {
             }
 
             let range = numbers::parse_numbers(&token[1..])?;
-            Ok(Select::GmxAtomNumber(Group::fix_atom_ranges(
-                range,
-                usize::MAX,
-            )))
+            Ok(Select::GmxAtomNumber(fix_ranges(range)))
         }
 
         "atomid" | "atomnum" => {
@@ -497,10 +490,7 @@ fn parse_token(string: &str) -> Result<Select, SelectError> {
             }
 
             let range = numbers::parse_numbers(&token[1..])?;
-            Ok(Select::AtomNumber(Group::fix_atom_ranges(
-                range,
-                usize::MAX,
-            )))
+            Ok(Select::AtomNumber(fix_ranges(range)))
         }
 
         "chain" => {
@@ -533,6 +523,45 @@ fn parse_token(string: &str) -> Result<Select, SelectError> {
         // it is not necessary to provide group identifier for groups
         _ => Ok(Select::GroupName(collect_words(&token)?)),
     }
+}
+
+fn fix_ranges(mut ranges: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
+    if ranges.is_empty() {
+        return ranges;
+    }
+
+    // sort the ranges in ascending order
+    ranges.sort_unstable();
+
+    let mut merged_indices = Vec::new();
+    let mut current_start = std::usize::MAX;
+    let mut current_end = 0usize;
+
+    for (start, end) in &ranges {
+        // start must not not larger than end
+        if *start > *end {
+            continue;
+        }
+
+        // current range does not overlap with the previous one nor is adjacent to it
+        if *start > current_end + 1 || (current_end == 0usize && current_start != 0usize) {
+            if current_start != std::usize::MAX {
+                merged_indices.push((current_start, current_end));
+            }
+            current_start = *start;
+            current_end = *end;
+        // current range overlaps
+        } else if *end > current_end {
+            current_end = *end;
+        }
+    }
+
+    if current_start != std::usize::MAX {
+        // add the last merged range to the result if it exists
+        merged_indices.push((current_start, current_end));
+    }
+
+    merged_indices
 }
 
 /******************************/
@@ -728,61 +757,61 @@ mod pass_tests {
     parsing_success!(
         open_ended_range_6,
         " resnum  >44",
-        Select::ResidueNumber(vec![(45, usize::MAX - 1)])
+        Select::ResidueNumber(vec![(45, usize::MAX)])
     );
 
     parsing_success!(
         open_ended_range_7,
         "serial  >  44",
-        Select::GmxAtomNumber(vec![(45, usize::MAX - 1)])
+        Select::GmxAtomNumber(vec![(45, usize::MAX)])
     );
 
     parsing_success!(
         open_ended_range_8,
         "atomnum  >=44",
-        Select::AtomNumber(vec![(44, usize::MAX - 1)])
+        Select::AtomNumber(vec![(44, usize::MAX)])
     );
 
     parsing_success!(
         open_ended_range_9,
         "resid  >=  44   ",
-        Select::ResidueNumber(vec![(44, usize::MAX - 1)])
+        Select::ResidueNumber(vec![(44, usize::MAX)])
     );
 
     parsing_success!(
         open_ended_range_10,
         "serial 1 4 > 50 7-11",
-        Select::GmxAtomNumber(vec![(1, 1), (4, 4), (7, 11), (51, usize::MAX - 1)])
+        Select::GmxAtomNumber(vec![(1, 1), (4, 4), (7, 11), (51, usize::MAX)])
     );
 
     parsing_success!(
         open_ended_range_11,
         "resid   1   4 >50 7 - 11",
-        Select::ResidueNumber(vec![(1, 1), (4, 4), (7, 11), (51, usize::MAX - 1)])
+        Select::ResidueNumber(vec![(1, 1), (4, 4), (7, 11), (51, usize::MAX)])
     );
 
     parsing_success!(
         open_ended_range_12,
         "atomid 1 4 >= 50 7-11",
-        Select::AtomNumber(vec![(1, 1), (4, 4), (7, 11), (50, usize::MAX - 1)])
+        Select::AtomNumber(vec![(1, 1), (4, 4), (7, 11), (50, usize::MAX)])
     );
 
     parsing_success!(
         open_ended_range_13,
         "serial 1 4 >=50 7-11",
-        Select::GmxAtomNumber(vec![(1, 1), (4, 4), (7, 11), (50, usize::MAX - 1)])
+        Select::GmxAtomNumber(vec![(1, 1), (4, 4), (7, 11), (50, usize::MAX)])
     );
 
     parsing_success!(
         open_ended_range_14,
         "serial 1 4>=50 7-11",
-        Select::GmxAtomNumber(vec![(1, 1), (4, 4), (7, 11), (50, usize::MAX - 1)])
+        Select::GmxAtomNumber(vec![(1, 1), (4, 4), (7, 11), (50, usize::MAX)])
     );
 
     parsing_success!(
         open_ended_range_15,
         "resid 4>50",
-        Select::ResidueNumber(vec![(4, 4), (51, usize::MAX - 1)])
+        Select::ResidueNumber(vec![(4, 4), (51, usize::MAX)])
     );
 
     parsing_success!(
@@ -812,13 +841,13 @@ mod pass_tests {
     parsing_success!(
         open_ended_range_20,
         "resnum 5> 20",
-        Select::ResidueNumber(vec![(5, 5), (21, usize::MAX - 1)])
+        Select::ResidueNumber(vec![(5, 5), (21, usize::MAX)])
     );
 
     parsing_success!(
         open_ended_range_21,
         "serial 5>= 20",
-        Select::GmxAtomNumber(vec![(5, 5), (20, usize::MAX - 1)])
+        Select::GmxAtomNumber(vec![(5, 5), (20, usize::MAX)])
     );
 
     parsing_success!(
@@ -830,7 +859,7 @@ mod pass_tests {
     parsing_success!(
         open_ended_range_23,
         "serial 24-37<=10-13to17>88",
-        Select::GmxAtomNumber(vec![(1, 17), (24, 37), (89, usize::MAX - 1)])
+        Select::GmxAtomNumber(vec![(1, 17), (24, 37), (89, usize::MAX)])
     );
 
     parsing_success!(
@@ -854,7 +883,7 @@ mod pass_tests {
     parsing_success!(
         open_ended_range_negation_1,
         "not resid >20",
-        Select::Not(Box::from(Select::ResidueNumber(vec![(21, usize::MAX - 1)])))
+        Select::Not(Box::from(Select::ResidueNumber(vec![(21, usize::MAX)])))
     );
 
     parsing_success!(

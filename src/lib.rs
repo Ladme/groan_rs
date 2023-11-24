@@ -8,7 +8,7 @@
 //!
 //! ## What it can do
 //! - Read and write gro, pdb, ndx, xtc and trr files.
-//! - Iterate over atoms and access their properties.
+//! - Iterate over atoms and access their properties, including connectivity (bonds).
 //! - Select atoms using a selection language similar to VMD.
 //! - Calculate distances between atoms respecting periodic boundary conditions.
 //! - Select atoms based on geometric conditions.
@@ -19,7 +19,6 @@
 //! ## What it CAN'T do (at the moment)
 //! - Read tpr files.
 //! - Work with atom masses.
-//! - Read xtc and trr files with non-orthogonal simulation boxes.
 //! - Work with non-orthogonal periodic boundary conditions.
 //! - Perform advanced analyses of structure and dynamics out of the box.
 //! (But `groan_rs` library tries to make it simple to implement your own!)
@@ -47,7 +46,7 @@
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
-//! fn main() -> Result<(), Box<dyn Error>> {
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     // read a gro file
 //!     let mut system = System::from_file("system.gro")?;
 //!     // `groan_rs` also supports pdb files which can be read as:
@@ -78,7 +77,7 @@
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
-//! fn main() -> Result<(), Box<dyn Error>> {
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     // read a gro file
 //!     let mut system = System::from_file("system.gro")?;
 //!
@@ -93,8 +92,8 @@
 //!     system.group_create("my group", "'My Group' || resid 87 to 124")?;
 //!
 //!     // we can then perform operations with the groups, e.g. write them into separate pdb files
-//!     system.group_write_pdb("My Group", "My_Group.pdb")?;
-//!     system.group_write_pdb("my group", "my_group.pdb")?;
+//!     system.group_write_pdb("My Group", "My_Group.pdb", false)?;
+//!     system.group_write_pdb("my group", "my_group.pdb", false)?;
 //!
 //!     // each system also be default contains two groups consisting of all atoms in the system
 //!     // this groups are called 'All' and 'all'
@@ -121,7 +120,7 @@
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
-//! fn main() -> Result<(), Box<dyn Error>> {
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     // read a gro file
 //!     let mut system = System::from_file("structure.gro")?;
 //!
@@ -161,7 +160,7 @@
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
-//! fn main() -> Result<(), Box<dyn Error>> {
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     // read a gro file
 //!     let mut system = System::from_file("structure.gro")?;
 //!
@@ -189,7 +188,7 @@
 //!         })
 //!         // collect the calculated distances
 //!         // if any error occured while reading the trajectory, propagate it
-//!         .collect::<Result<Vec<f32>, Box<dyn Error>>>()?;
+//!         .collect::<Result<Vec<f32>, Box<dyn Error + Send + Sync>>>()?;
 //!
 //!     // print the calculated distances
 //!     println!("{:?}", distances);
@@ -201,6 +200,38 @@
 //! Note that `with_range` is a very efficient method and will skip xtc frames that are not
 //! in the specified range without actually reading properties of the atoms from these frames.
 //!
+//! You can also let the trajectory iterator print information about trajectory reading to the standard output:
+//! ```no_run
+//! use groan_rs::prelude::*;
+//! use std::error::Error;
+//!
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
+//!     let mut system = System::from_file("structure.gro")?;
+//!
+//!     system.group_create("group 1", "serial 1 to 5")?;
+//!     system.group_create("group 2", "resid 45")?;
+//!
+//!     // create default progress printer
+//!     let printer = ProgressPrinter::new();
+//!
+//!     let distances: Vec<f32> = system
+//!         .xtc_iter("trajectory.xtc")?
+//!         // attach progress printer to the iterator
+//!         .print_progress(printer)
+//!         .map(|frame| {
+//!             let frame = frame?;
+//!             Ok(frame
+//!                 .group_distance("group 1", "group 2", Dimension::XYZ)
+//!                 .expect("Groups do not exist but they should."))
+//!         })
+//!         .collect::<Result<Vec<f32>, Box<dyn Error + Send + Sync>>>()?;
+//!
+//!     println!("{:?}", distances);
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
 //! #### Converting between trr and xtc files
 //!
 //! Read a trr file and write the velocities of particles into a new xtc file.
@@ -209,7 +240,7 @@
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
-//! fn main() -> Result<(), Box<dyn Error>> {
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     // read a gro file
 //!     let mut system = System::from_file("structure.gro")?;
 //!
@@ -241,7 +272,7 @@
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
-//! fn main() -> Result<(), Box<dyn Error>> {
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     // read a gro file and an ndx file
 //!     let mut system = System::from_file("system.gro")?;
 //!     system.read_ndx("index.ndx")?;
@@ -271,7 +302,7 @@
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
-//! fn main() -> Result<(), Box<dyn Error>> {
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     // read a gro file and an ndx file
 //!     let mut system = System::from_file("system.gro")?;
 //!     system.read_ndx("index.ndx")?;
@@ -305,7 +336,7 @@
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
-//! fn main() -> Result<(), Box<dyn Error>> {
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     // read a gro file
 //!     let system = System::from_file("system.gro")?;
 //!
@@ -317,7 +348,7 @@
 //!     let cylinder = Cylinder::new([1.5, 2.5, 3.5].into(), 2.1, 4.3, Dimension::Z);
 //!
 //!     for atom in system.atoms_iter() {
-//!         if cylinder.inside(atom.get_position(), system.get_box_as_ref()) {
+//!         if cylinder.inside(atom.get_position().unwrap(), system.get_box_as_ref()) {
 //!             inside_cylinder.push(atom.clone());
 //!         }
 //!     }
@@ -337,7 +368,7 @@
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
-//! fn main() -> Result<(), Box<dyn Error>> {
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     // read a gro file
 //!     let system = System::from_file("system.gro")?;
 //!
@@ -501,16 +532,18 @@ pub mod io {
     mod xdrfile;
     pub mod xtc_io;
 }
-pub mod iterators;
 mod selections {
     mod name;
     mod numbers;
     pub mod select;
 }
+pub mod progress;
 pub mod structures {
     pub mod atom;
+    mod container;
     pub mod dimension;
     pub mod group;
+    pub mod iterators;
     pub mod shape;
     pub mod simbox;
     pub mod vector3d;
@@ -519,6 +552,7 @@ pub mod system {
     mod analysis;
     pub mod general;
     mod groups;
+    mod iterating;
     mod modifying;
     mod utility;
 }
@@ -532,6 +566,7 @@ pub mod prelude {
     };
     pub use crate::io::trr_io::{TrrGroupWriter, TrrReader, TrrWriter};
     pub use crate::io::xtc_io::{XtcGroupWriter, XtcReader, XtcWriter};
+    pub use crate::progress::ProgressPrinter;
     pub use crate::structures::atom::Atom;
     pub use crate::structures::dimension::Dimension;
     pub use crate::structures::shape::{Cylinder, Rectangular, Shape, Sphere};

@@ -5,6 +5,7 @@
 
 use crate::errors::{ReadTrajError, WriteTrajError};
 use crate::io::xdrfile::CXdrFile;
+use crate::progress::{ProgressPrinter, ProgressStatus};
 use crate::system::general::System;
 use std::marker::PhantomData;
 use std::path::Path;
@@ -97,6 +98,8 @@ pub trait TrajRead<'a> {
 /// Wrapper for any structure implementing `TrajRead` so the `Iterator` trait can be implemented for it.
 pub struct TrajReader<'a, R: TrajRead<'a>> {
     pub traj_reader: R,
+    progress_printer: Option<ProgressPrinter>,
+    frame_number: usize,
     _phantom: &'a PhantomData<R>,
 }
 
@@ -108,6 +111,8 @@ where
     pub fn wrap_traj(traj_reader: R) -> TrajReader<'a, R> {
         TrajReader {
             traj_reader,
+            progress_printer: None,
+            frame_number: 0,
             _phantom: &PhantomData,
         }
     }
@@ -127,14 +132,26 @@ impl<'a, R: TrajRead<'a>> Iterator for TrajReader<'a, R> {
         unsafe {
             let system = self.traj_reader.get_system();
 
-            match R::FrameData::from_frame(self.traj_reader.get_file_handle(), &*system) {
-                None => None,
-                Some(Err(e)) => Some(Err(e)),
-                Some(Ok(data)) => {
-                    data.update_system(&mut *system);
-                    Some(Ok(&mut *system))
-                }
-            }
+            let result =
+                match R::FrameData::from_frame(self.traj_reader.get_file_handle(), &*system) {
+                    None => None,
+                    Some(Err(e)) => Some(Err(e)),
+                    Some(Ok(data)) => {
+                        data.update_system(&mut *system);
+                        Some(Ok(&mut *system))
+                    }
+                };
+
+            self.progress_set(&result);
+            self.progress_print(
+                self.frame_number,
+                (*system).get_simulation_step(),
+                (*system).get_simulation_time(),
+            );
+
+            self.frame_number += 1;
+
+            result
         }
     }
 }
@@ -180,11 +197,22 @@ where
             traj_reader: self.traj_reader,
             start_time,
             end_time,
+            frame_number: self.frame_number,
+            progress_printer: self.progress_printer,
             _phantom: &PhantomData,
         };
 
+        if let Some(ref mut printer) = reader.progress_printer {
+            printer.set_status(ProgressStatus::Jumping);
+            printer.print(0, 0, 0.0);
+        }
+
         // jump to the start of iteration
         reader.traj_reader.jump_to_start(start_time)?;
+
+        if let Some(ref mut printer) = reader.progress_printer {
+            printer.set_status(ProgressStatus::Running);
+        }
 
         Ok(reader)
     }
@@ -220,6 +248,8 @@ where
         Ok(TrajStepReader {
             traj_reader: self.traj_reader,
             skip: step - 1,
+            progress_printer: self.progress_printer,
+            frame_number: self.frame_number,
             _phantom: &PhantomData,
         })
     }
@@ -244,6 +274,8 @@ pub struct TrajRangeReader<'a, R: TrajRangeRead<'a>> {
     pub traj_reader: R,
     pub start_time: f32,
     pub end_time: f32,
+    progress_printer: Option<ProgressPrinter>,
+    frame_number: usize,
     _phantom: &'a PhantomData<R>,
 }
 
@@ -265,18 +297,30 @@ where
         unsafe {
             let system = self.traj_reader.get_system();
 
-            match R::FrameData::from_frame(self.traj_reader.get_file_handle(), &*system) {
-                None => None,
-                Some(Err(e)) => Some(Err(e)),
-                Some(Ok(data)) => {
-                    if data.get_time() > self.end_time {
-                        None
-                    } else {
-                        data.update_system(&mut *system);
-                        Some(Ok(&mut *system))
+            let result =
+                match R::FrameData::from_frame(self.traj_reader.get_file_handle(), &*system) {
+                    None => None,
+                    Some(Err(e)) => Some(Err(e)),
+                    Some(Ok(data)) => {
+                        if data.get_time() > self.end_time {
+                            None
+                        } else {
+                            data.update_system(&mut *system);
+                            Some(Ok(&mut *system))
+                        }
                     }
-                }
-            }
+                };
+
+            self.progress_set(&result);
+            self.progress_print(
+                self.frame_number,
+                (*system).get_simulation_step(),
+                (*system).get_simulation_time(),
+            );
+
+            self.frame_number += 1;
+
+            result
         }
     }
 }
@@ -299,6 +343,8 @@ where
             start_time: self.start_time,
             end_time: self.end_time,
             skip: step - 1,
+            progress_printer: self.progress_printer,
+            frame_number: self.frame_number,
             _phantom: &PhantomData,
         })
     }
@@ -325,6 +371,8 @@ pub struct TrajStepReader<'a, R: TrajStepRead<'a>> {
     /// - `skip = 0` => all frames will be read
     /// - `skip = 1` => every other frame will be read
     pub skip: usize,
+    progress_printer: Option<ProgressPrinter>,
+    frame_number: usize,
     _phantom: &'a PhantomData<R>,
 }
 
@@ -347,9 +395,11 @@ where
         unsafe {
             let system = self.traj_reader.get_system();
 
+            let mut result = None;
+
             match R::FrameData::from_frame(self.traj_reader.get_file_handle(), &*system) {
-                None => None,
-                Some(Err(e)) => Some(Err(e)),
+                None => result = None,
+                Some(Err(e)) => result = Some(Err(e)),
                 Some(Ok(data)) => {
                     data.update_system(&mut *system);
 
@@ -359,13 +409,29 @@ where
                             Ok(true) => continue,
                             // EOF reached
                             Ok(false) => break,
-                            Err(e) => return Some(Err(e)),
+                            Err(e) => {
+                                result = Some(Err(e));
+                                break;
+                            }
                         }
                     }
 
-                    Some(Ok(&mut *system))
+                    if result.is_none() {
+                        result = Some(Ok(&mut *system));
+                    }
                 }
-            }
+            };
+
+            self.progress_set(&result);
+            self.progress_print(
+                self.frame_number,
+                (*system).get_simulation_step(),
+                (*system).get_simulation_time(),
+            );
+
+            self.frame_number += 1;
+
+            result
         }
     }
 }
@@ -394,11 +460,22 @@ where
             start_time,
             end_time,
             skip: self.skip,
+            progress_printer: self.progress_printer,
+            frame_number: self.frame_number,
             _phantom: &PhantomData,
         };
 
+        if let Some(ref mut printer) = reader.progress_printer {
+            printer.set_status(ProgressStatus::Jumping);
+            printer.print(0, 0, 0.0);
+        }
+
         // jump to the start of iteration
         reader.traj_reader.jump_to_start(start_time)?;
+
+        if let Some(ref mut printer) = reader.progress_printer {
+            printer.set_status(ProgressStatus::Running);
+        }
 
         Ok(reader)
     }
@@ -414,6 +491,8 @@ pub struct TrajRangeStepReader<'a, R: TrajRangeRead<'a> + TrajStepRead<'a>> {
     pub start_time: f32,
     pub end_time: f32,
     pub skip: usize,
+    progress_printer: Option<ProgressPrinter>,
+    frame_number: usize,
     _phantom: &'a PhantomData<R>,
 }
 
@@ -436,12 +515,14 @@ where
         unsafe {
             let system = self.traj_reader.get_system();
 
+            let mut result = None;
+
             match R::FrameData::from_frame(self.traj_reader.get_file_handle(), &*system) {
-                None => None,
-                Some(Err(e)) => Some(Err(e)),
+                None => result = None,
+                Some(Err(e)) => result = Some(Err(e)),
                 Some(Ok(data)) => {
                     if data.get_time() > self.end_time {
-                        None
+                        result = None
                     } else {
                         data.update_system(&mut *system);
 
@@ -451,14 +532,30 @@ where
                                 Ok(true) => continue,
                                 // EOF reached
                                 Ok(false) => break,
-                                Err(e) => return Some(Err(e)),
+                                Err(e) => {
+                                    result = Some(Err(e));
+                                    break;
+                                }
                             }
                         }
 
-                        Some(Ok(&mut *system))
+                        if result.is_none() {
+                            result = Some(Ok(&mut *system));
+                        }
                     }
                 }
             }
+
+            self.progress_set(&result);
+            self.progress_print(
+                self.frame_number,
+                (*system).get_simulation_step(),
+                (*system).get_simulation_time(),
+            );
+
+            self.frame_number += 1;
+
+            result
         }
     }
 }
@@ -468,7 +565,88 @@ where
 /***************************************/
 
 /// This trait is implemented by all trajectory readers so they can be used in generic functions.
-pub trait TrajMasterRead<'a>: Iterator<Item = Result<&'a mut System, ReadTrajError>> {}
+pub trait TrajMasterRead<'a>:
+    Iterator<Item = Result<&'a mut System, ReadTrajError>> + ProgressPrintable
+{
+    /// Print progress of the trajectory reading. This can be applied to any trajectory reader.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    ///
+    /// let mut system = System::from_file("system.gro").unwrap();
+    ///
+    /// // create the `ProgressPrinter` defining how often and in what format the
+    /// // information about the progress of trajectory reading should be printed
+    /// let printer = ProgressPrinter::new().with_print_freq(10);
+    ///
+    /// // iterate through the trajectory while printing progress of the iteration
+    /// // information will be printed every 10 trajectory frames, as set by the `ProgressPrinter`
+    /// for raw_frame in system
+    ///     .xtc_iter("trajectory.xtc")
+    ///     .unwrap()
+    ///     .print_progress(printer)
+    /// {
+    ///     let frame = raw_frame.unwrap();
+    ///
+    ///     // perform some analysis
+    /// }
+    /// ```
+    ///
+    /// ## Note on the order of operations
+    /// The `print_progress` method can be applied to any trajectory reader.
+    /// However, when iterating through a part of the trajectory using `with_range` method,
+    /// it is useful to first associate the `ProgressPrinter` with the trajectory
+    /// before calling the `with_range` method.
+    ///
+    /// This is because, when the `with_range` method is called, the iterator
+    /// immediately jumps forward in the trajectory file until it reaches the given starting time.
+    /// If the `ProgressPrinter` is already associated with the trajectory iterator,
+    /// information about this jump will be printed.
+    /// Otherwise, this information will not appear and the iteration may seem to be
+    /// momentarily frozen (until the starting time is reached).
+    /// This is the most relevant when very large trajectory files are read.
+    ///
+    /// Example:
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    ///
+    /// let mut system = System::from_file("system.gro").unwrap();
+    ///
+    /// let printer_jump = ProgressPrinter::new();
+    /// let printer_nojump = ProgressPrinter::new();
+    ///
+    /// // creating iterator that will print information about the jump
+    /// let iterator = system
+    ///     .xtc_iter("trajectory.xtc")
+    ///     .unwrap()
+    ///     // `print_progress` is called BEFORE `with_range`
+    ///     .print_progress(printer_jump)
+    ///     .with_range(9_000_000.0, f32::INFINITY)
+    ///     .unwrap();
+    /// // creating this iterator will immediately print:
+    /// // `[ JUMPING ]   Jumping to the start of the iteration...`
+    ///
+    /// // creating iterator that will NOT print information about the jump
+    /// let iterator = system
+    ///     .xtc_iter("trajectory.xtc")
+    ///     .unwrap()
+    ///     .with_range(9_000_000.0, f32::INFINITY)
+    ///     .unwrap()
+    ///     // `print_progress` is called AFTER `with_range`
+    ///     .print_progress(printer_nojump);
+    /// // this iterator will only start printing information about the trajectory reading once it is actually used
+    /// // it will not print any information about the jump as the `ProgressPrinter` was associated
+    /// // with the iterator only after the jump to the starting time was already performed.
+    /// ```
+    fn print_progress(mut self, printer: ProgressPrinter) -> Self
+    where
+        Self: Sized,
+    {
+        self.set_progress_printer(printer);
+        self
+    }
+}
 
 impl<'a, R: TrajRead<'a>> TrajMasterRead<'a> for TrajReader<'a, R> {}
 
@@ -482,6 +660,81 @@ impl<'a, R: TrajStepRead<'a>> TrajMasterRead<'a> for TrajStepReader<'a, R> {}
 impl<'a, R: TrajRangeRead<'a> + TrajStepRead<'a>> TrajMasterRead<'a> for TrajRangeStepReader<'a, R> where
     R::FrameData: FrameDataTime
 {
+}
+
+/***************************************/
+/*     ProgressPrintable trait         */
+/***************************************/
+
+/// This trait is implemented for all trajectory readers and
+/// allows for printing of the progress of the trajectory reading.
+pub trait ProgressPrintable {
+    /// Set the status of the progress printer associated with the trajectory reader according to the progress of the reading.
+    fn progress_set(&mut self, result: &Option<Result<&mut System, ReadTrajError>>) {
+        if let Some(printer) = self.get_progress_printer_mut() {
+            match result {
+                None => printer.set_status(ProgressStatus::Completed),
+                Some(Err(_)) => printer.set_status(ProgressStatus::Failed),
+                Some(Ok(_)) => (),
+            }
+        }
+    }
+
+    /// Print the current progress of the trajectory reading.
+    fn progress_print(&mut self, frame_number: usize, simulation_step: u64, simulation_time: f32) {
+        if let Some(printer) = self.get_progress_printer_mut() {
+            printer.print(frame_number, simulation_step, simulation_time)
+        }
+    }
+
+    /// Return mutable pointer to the progress printer associated with the trajectory reader.
+    fn get_progress_printer_mut(&mut self) -> Option<&mut ProgressPrinter>;
+
+    /// Associate progress printer with the trajectory reader.
+    fn set_progress_printer(&mut self, printer: ProgressPrinter);
+}
+
+impl<'a, R: TrajRead<'a>> ProgressPrintable for TrajReader<'a, R> {
+    fn get_progress_printer_mut(&mut self) -> Option<&mut ProgressPrinter> {
+        self.progress_printer.as_mut()
+    }
+
+    fn set_progress_printer(&mut self, printer: ProgressPrinter) {
+        self.progress_printer = Some(printer);
+    }
+}
+
+impl<'a, R: TrajRangeRead<'a>> ProgressPrintable for TrajRangeReader<'a, R> {
+    fn get_progress_printer_mut(&mut self) -> Option<&mut ProgressPrinter> {
+        self.progress_printer.as_mut()
+    }
+
+    fn set_progress_printer(&mut self, printer: ProgressPrinter) {
+        self.progress_printer = Some(printer);
+    }
+}
+
+impl<'a, R: TrajStepRead<'a>> ProgressPrintable for TrajStepReader<'a, R> {
+    fn get_progress_printer_mut(&mut self) -> Option<&mut ProgressPrinter> {
+        self.progress_printer.as_mut()
+    }
+
+    fn set_progress_printer(&mut self, printer: ProgressPrinter) {
+        self.progress_printer = Some(printer);
+    }
+}
+
+impl<'a, R: TrajRangeRead<'a> + TrajStepRead<'a>> ProgressPrintable for TrajRangeStepReader<'a, R>
+where
+    R::FrameData: FrameDataTime,
+{
+    fn get_progress_printer_mut(&mut self) -> Option<&mut ProgressPrinter> {
+        self.progress_printer.as_mut()
+    }
+
+    fn set_progress_printer(&mut self, printer: ProgressPrinter) {
+        self.progress_printer = Some(printer);
+    }
 }
 
 /***************************************/
@@ -623,6 +876,8 @@ pub trait TrajGroupWrite {
 
 #[cfg(test)]
 mod tests {
+    use std::fs::File;
+
     use super::*;
     use crate::prelude::*;
     use float_cmp::assert_approx_eq;
@@ -634,17 +889,38 @@ mod tests {
         assert_eq!(atom1.get_atom_name(), atom2.get_atom_name());
         assert_eq!(atom1.get_chain(), atom2.get_chain());
 
-        assert_approx_eq!(f32, atom1.get_position().x, atom2.get_position().x);
-        assert_approx_eq!(f32, atom1.get_position().y, atom2.get_position().y);
-        assert_approx_eq!(f32, atom1.get_position().z, atom2.get_position().z);
+        if let (Some(pos1), Some(pos2)) = (atom1.get_position(), atom2.get_position()) {
+            assert_approx_eq!(f32, pos1.x, pos2.x);
+            assert_approx_eq!(f32, pos1.y, pos2.y);
+            assert_approx_eq!(f32, pos1.z, pos2.z);
+        } else {
+            assert!(
+                atom1.get_position().is_none() && atom2.get_position().is_none(),
+                "Positions are not both None"
+            );
+        }
 
-        assert_approx_eq!(f32, atom1.get_velocity().x, atom2.get_velocity().x);
-        assert_approx_eq!(f32, atom1.get_velocity().y, atom2.get_velocity().y);
-        assert_approx_eq!(f32, atom1.get_velocity().z, atom2.get_velocity().z);
+        if let (Some(vel1), Some(vel2)) = (atom1.get_velocity(), atom2.get_velocity()) {
+            assert_approx_eq!(f32, vel1.x, vel2.x);
+            assert_approx_eq!(f32, vel1.y, vel2.y);
+            assert_approx_eq!(f32, vel1.z, vel2.z);
+        } else {
+            assert!(
+                atom1.get_velocity().is_none() && atom2.get_velocity().is_none(),
+                "Velocities are not both None"
+            );
+        }
 
-        assert_approx_eq!(f32, atom1.get_force().x, atom2.get_force().x);
-        assert_approx_eq!(f32, atom1.get_force().y, atom2.get_force().y);
-        assert_approx_eq!(f32, atom1.get_force().z, atom2.get_force().z);
+        if let (Some(force1), Some(force2)) = (atom1.get_force(), atom2.get_force()) {
+            assert_approx_eq!(f32, force1.x, force2.x);
+            assert_approx_eq!(f32, force1.y, force2.y);
+            assert_approx_eq!(f32, force1.z, force2.z);
+        } else {
+            assert!(
+                atom1.get_force().is_none() && atom2.get_force().is_none(),
+                "Forces are not both None"
+            );
+        }
     }
 
     #[test]
@@ -691,5 +967,274 @@ mod tests {
                 compare_atoms(atom1, atom2);
             }
         }
+    }
+
+    #[test]
+    fn xtc_iter_print_progress() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        let output = File::create("tmp_xtc_iter_print_progress.txt").unwrap();
+
+        let printer = ProgressPrinter::new()
+            .with_print_freq(3)
+            .with_output(Box::from(output))
+            .with_colored(false);
+
+        for (raw1, raw2) in system1
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .print_progress(printer)
+            .zip(system2.xtc_iter("test_files/short_trajectory.xtc").unwrap())
+        {
+            let frame1 = raw1.unwrap();
+            let frame2 = raw2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+
+        let mut result = File::open("tmp_xtc_iter_print_progress.txt").unwrap();
+        let mut expected = File::open("test_files/progress_xtc_iter.txt").unwrap();
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+
+        std::fs::remove_file("tmp_xtc_iter_print_progress.txt").unwrap();
+    }
+
+    #[test]
+    fn xtc_iter_print_progress_with_newline() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        let output = File::create("tmp_xtc_iter_print_progress_newline.txt").unwrap();
+
+        let printer = ProgressPrinter::new()
+            .with_print_freq(3)
+            .with_output(Box::from(output))
+            .with_colored(false)
+            .with_terminating("\n");
+
+        for (raw1, raw2) in system1
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .print_progress(printer)
+            .zip(system2.xtc_iter("test_files/short_trajectory.xtc").unwrap())
+        {
+            let frame1 = raw1.unwrap();
+            let frame2 = raw2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+
+        let mut result = File::open("tmp_xtc_iter_print_progress_newline.txt").unwrap();
+        let mut expected = File::open("test_files/progress_xtc_iter_newline.txt").unwrap();
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+
+        std::fs::remove_file("tmp_xtc_iter_print_progress_newline.txt").unwrap();
+    }
+
+    #[test]
+    fn xtc_iter_range_print_progress() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        let output = File::create("tmp_xtc_iter_range_print_progress.txt").unwrap();
+
+        let printer = ProgressPrinter::new()
+            .with_print_freq(3)
+            .with_output(Box::from(output))
+            .with_colored(false);
+
+        for (raw1, raw2) in system1
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .print_progress(printer)
+            .with_range(300.0, 800.0)
+            .unwrap()
+            .zip(
+                system2
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_range(300.0, 800.0)
+                    .unwrap(),
+            )
+        {
+            let frame1 = raw1.unwrap();
+            let frame2 = raw2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+
+        let mut result = File::open("tmp_xtc_iter_range_print_progress.txt").unwrap();
+        let mut expected = File::open("test_files/progress_xtc_iter_range.txt").unwrap();
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+
+        std::fs::remove_file("tmp_xtc_iter_range_print_progress.txt").unwrap();
+    }
+
+    #[test]
+    fn xtc_iter_step_print_progress() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        let output = File::create("tmp_xtc_iter_step_print_progress.txt").unwrap();
+
+        let printer = ProgressPrinter::new()
+            .with_print_freq(1)
+            .with_output(Box::from(output))
+            .with_colored(false);
+
+        for (raw1, raw2) in system1
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .print_progress(printer)
+            .with_step(3)
+            .unwrap()
+            .zip(
+                system2
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_step(3)
+                    .unwrap(),
+            )
+        {
+            let frame1 = raw1.unwrap();
+            let frame2 = raw2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+
+        let mut result = File::open("tmp_xtc_iter_step_print_progress.txt").unwrap();
+        let mut expected = File::open("test_files/progress_xtc_iter_step.txt").unwrap();
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+
+        std::fs::remove_file("tmp_xtc_iter_step_print_progress.txt").unwrap();
+    }
+
+    #[test]
+    fn xtc_iter_step_range_print_progress() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        let output = File::create("tmp_xtc_iter_step_range_print_progress.txt").unwrap();
+
+        let printer = ProgressPrinter::new()
+            .with_print_freq(1)
+            .with_output(Box::from(output))
+            .with_colored(false);
+
+        for (raw1, raw2) in system1
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .print_progress(printer)
+            .with_step(3)
+            .unwrap()
+            .with_range(300.0, 800.0)
+            .unwrap()
+            .zip(
+                system2
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_step(3)
+                    .unwrap()
+                    .with_range(300.0, 800.0)
+                    .unwrap(),
+            )
+        {
+            let frame1 = raw1.unwrap();
+            let frame2 = raw2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+
+        let mut result = File::open("tmp_xtc_iter_step_range_print_progress.txt").unwrap();
+        let mut expected = File::open("test_files/progress_xtc_iter_step_range.txt").unwrap();
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+
+        std::fs::remove_file("tmp_xtc_iter_step_range_print_progress.txt").unwrap();
+    }
+
+    /// `print_progress` is called at different place
+    #[test]
+    fn xtc_iter_range_print_progress_alternative() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        let output = File::create("tmp_xtc_iter_range_alt_print_progress.txt").unwrap();
+
+        let printer = ProgressPrinter::new()
+            .with_print_freq(3)
+            .with_output(Box::from(output))
+            .with_colored(false);
+
+        for (raw1, raw2) in system1
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .with_range(300.0, 800.0)
+            .unwrap()
+            .print_progress(printer)
+            .zip(
+                system2
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_range(300.0, 800.0)
+                    .unwrap(),
+            )
+        {
+            let frame1 = raw1.unwrap();
+            let frame2 = raw2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+
+        let mut result = File::open("tmp_xtc_iter_range_alt_print_progress.txt").unwrap();
+        let mut expected = File::open("test_files/progress_xtc_iter_range_alt.txt").unwrap();
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+
+        std::fs::remove_file("tmp_xtc_iter_range_alt_print_progress.txt").unwrap();
+    }
+
+    #[test]
+    fn trr_iter_print_progress() {
+        let mut system1 = System::from_file("test_files/example.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        let output = File::create("tmp_trr_iter_print_progress.txt").unwrap();
+
+        let printer = ProgressPrinter::new()
+            .with_print_freq(3)
+            .with_output(Box::from(output))
+            .with_colored(false);
+
+        for (raw1, raw2) in system1
+            .trr_iter("test_files/short_trajectory.trr")
+            .unwrap()
+            .print_progress(printer)
+            .zip(system2.trr_iter("test_files/short_trajectory.trr").unwrap())
+        {
+            let frame1 = raw1.unwrap();
+            let frame2 = raw2.unwrap();
+
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
+
+        let mut result = File::open("tmp_trr_iter_print_progress.txt").unwrap();
+        let mut expected = File::open("test_files/progress_trr_iter.txt").unwrap();
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+
+        std::fs::remove_file("tmp_trr_iter_print_progress.txt").unwrap();
     }
 }

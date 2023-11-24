@@ -13,7 +13,7 @@ fn floor_mod(x: f32, y: f32) -> f32 {
 /// Reciprocal of square root of 2, i.e. 1/sqrt(2).
 const REC_SQRT2: f32 = std::f32::consts::FRAC_1_SQRT_2;
 /// Reciprocal of square root of 3, i.e. 1/sqrt(3).
-const REC_SQRT3: f32 = 0.5773503f32;
+const REC_SQRT3: f32 = 0.577_350_3_f32;
 
 /// Describes length and orientation of a vector in space or a position of a point in space.
 #[derive(Debug, Clone, PartialEq)]
@@ -230,7 +230,7 @@ impl Vector3D {
         self.z = Vector3D::wrap_coordinate(self.z, sbox.z);
     }
 
-    ///Wrap a single coordinate into a simulation box.
+    /// Wrap a single coordinate into a simulation box.
     ///
     /// ## Note on performance
     /// You may think that the body of this function should look rather like this:
@@ -471,6 +471,12 @@ impl Vector3D {
         if !dim.is_z() {
             self.z = 0.0;
         }
+    }
+
+    /// Returns `true` if all the fields of the vector are exactly zero.
+    /// Otherwise, returns `false`.
+    pub fn is_zero(&self) -> bool {
+        self.x == 0.0 && self.y == 0.0 && self.z == 0.0
     }
 }
 
@@ -1282,5 +1288,17 @@ mod tests {
         let vec = Vector3D::from(Dimension::XYZ);
         assert_eq!(vec, [REC_SQRT3, REC_SQRT3, REC_SQRT3].into());
         assert_approx_eq!(f32, vec.len(), 1.0);
+    }
+
+    #[test]
+    fn is_zero() {
+        let vec = Vector3D::default();
+        assert!(vec.is_zero());
+
+        let vec = Vector3D::from([0.00001, 0.00001, 0.00001]);
+        assert!(!vec.is_zero());
+
+        let vec = Vector3D::from([1.2, 0.4, 3.2]);
+        assert!(!vec.is_zero());
     }
 }

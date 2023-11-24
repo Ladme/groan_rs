@@ -61,6 +61,8 @@ pub enum ParseGroError {
 }
 
 /// Errors that can occur when reading and parsing pdb file.
+/// Does not include errors that can occur when reading connectivity section of a PDB file.
+/// For these errors, see `ParsePdbConnectivityError`.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum ParsePdbError {
     /// Used when the pdb file was not found (i.e. does not exist).
@@ -81,9 +83,32 @@ pub enum ParsePdbError {
     /// Used when a "TITLE" line in the pdb file could not be parsed.
     #[error("{} could not parse line '{}' as title", "error:".red().bold(), .0.yellow())]
     ParseTitleLineErr(String),
-    /// Used when the simulation box specified in the pdb file is not orthogonal.
-    #[error("{} simulation box specified on line '{}' is not orthogonal", "error:".red().bold(), .0.yellow())]
-    NonOrthogonalBox(String),
+}
+
+/// Errors that can occur when reading the connectivity section of a PDB file.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum ParsePdbConnectivityError {
+    /// Used when the pdb file was not found (i.e. does not exist).
+    #[error("{} file '{}' was not found", "error:".red().bold(), path_to_yellow(.0))]
+    FileNotFound(Box<Path>),
+    /// Used when the pdb file ended unexpectedly.
+    #[error("{} file '{}' ended unexpectedly", "error:".red().bold(), path_to_yellow(.0))]
+    LineNotFound(Box<Path>),
+    /// Used when "CONECT" line in the pdb file could not be parsed.
+    #[error("{} could not parse line '{}' as connectivity information", "error:".red().bold(), .0.yellow())]
+    ParseConectLineErr(String),
+    /// Used when an non-existent atom number is found on a "CONECT" line.
+    #[error("{} atom number '{}' mentioned on line '{}' does not exist", "error:".red().bold(), .0.to_string().yellow(), .1.yellow())]
+    AtomNotFound(usize, String),
+    /// Used when there are multiple atoms with the same number in the PDB file.
+    #[error("{} multiple atoms have the same number in the system and connectivity is thus ambiguous", "error:".red().bold())]
+    DuplicateAtomNumbers,
+    /// Used when an atom claims to be bonded to itself.
+    #[error("{} atom '{}' claims to be bonded to itself which does not make sense", "error:".red().bold(), .0.to_string().yellow())]
+    SelfBonding(usize),
+    /// Used when no connectivity information has been read from the PDB file.
+    #[error("{} no bonds have been found in the PDB file '{}'", "warning:".yellow().bold(), path_to_yellow(.0))]
+    NoBondsWarning(Box<Path>),
 }
 
 /// Errors that can occur when writing a gro file.
@@ -112,6 +137,15 @@ pub enum WritePdbError {
     /// Used when the group of atoms selected to be written into the pdb file does not exist.
     #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
     GroupNotFound(String),
+    /// Used when connectivity printing is requested and the system is too large for the PDB file.
+    #[error("{} system is too large ('{}' atoms) for PDB connectivity section", "error:".red().bold(), .0.to_string().yellow())]
+    ConectTooLarge(usize),
+    /// Used when there are multiple atoms with the same number in the system and connectivity thus can't be printed.
+    #[error("{} multiple atoms have the same number in the system and connectivity is thus ambiguous", "error:".red().bold())]
+    ConectDuplicateAtomNumbers,
+    /// Used when the atom number to be printed in the connectivity section is higher than 99,999.
+    #[error("{} atom number '{}' is too high for PDB connectivity section and can not be wrapped", "error:".red().bold(), .0.to_string().yellow())]
+    ConectInvalidNumber(usize),
 }
 
 /// Errors that can occur when working with Groups of atoms.
@@ -139,9 +173,12 @@ pub enum GroupError {
 /// Errors that can occur when working with atoms in a system.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum AtomError {
-    /// Used when selecting an atom from the system with invalid atom number.
-    #[error("{} atom number '{}' is out of range", "error:".red().bold(), .0.to_string().as_str().yellow())]
+    /// Used when selecting an atom from the system with invalid atom index.
+    #[error("{} atom index '{}' is out of range", "error:".red().bold(), .0.to_string().yellow())]
     OutOfRange(usize),
+    /// Used when attempting to create a bond that is invalid.
+    #[error("{} bond could not be created between atoms {} and {}", "error:".red().bold(), .0.to_string().yellow(), .1.to_string().yellow())]
+    InvalidBond(usize, usize),
 }
 
 /// Errors that can occur when reading and parsing ndx file.
@@ -223,6 +260,9 @@ pub enum ReadTrajError {
     /// Used when the step of the iteration is invalid, usually zero.
     #[error("{} unsupported iteration step '{}' - must be > 0", "error:".red().bold(), .0.to_string().yellow())]
     InvalidStep(usize),
+    /// Used when simulation box read from the trajectory is invalid.
+    #[error("{} simulation box is invalid", "error:".red().bold())]
+    InvalidSimBox,
 }
 
 /// Errors that can occur when writing a trajectory file.

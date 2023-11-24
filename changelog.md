@@ -1,6 +1,69 @@
 
 ## Changelog for the `groan_rs` library
 
+### Version 0.5.0
+#### Important BREAKING CHANGES affecting the entire `groan_rs` library
+
+- **Fields `position`, `velocity`, and `force` in the `Atom` structure are now of type `Option<Vector3D>`.**
+  - `Atom::new` initializes these values to `None`. Use `Atom::with_position`, `Atom::with_velocity`, or `Atom::with_force` to set them.
+  - Accessor methods (`Atom::get_position`, etc.) now return `Option<&Vector3D>`.
+  - Distance functions require all atoms to have position information; absence leads to panic.
+  - When writing files, undefined positions (and velocities) are output as 0.0 in all dimensions.
+  - Reading xtc trajectories sets `velocity` and `force` of all atoms to `None`.
+  - Atoms without `position` are excluded from geometric shape calculations in `(Mut)FilterAtomIterator` and `System::group_create_from_geometry`.
+  - `System::has_forces`, `System::has_velocities`, `System::has_positions` return `true` only if *all* atoms have the respective property.
+  - A position with x = 0.0, y = 0.0, z = 0.0 is now considered valid. However, atoms without positions are still written with 0.0 coordinates.
+
+#### Other changes to the `Atom` structure
+
+- New optional fields `charge` and `bonded` added:
+  - `charge`: Specifies the atom's charge.
+  - `bonded`: Contains indices of atoms bonded to the atom.
+  - Methods added to use and access `charge` and `bonded`.
+  - `Atom::wrap` method introduced for wrapping the atom into the simulation box.
+
+#### `AtomContainer` structure
+
+- **Breaking Change**: Introduction of `AtomContainer`:
+  - Describes a collection of atoms in the `System` structure.
+  - `Group` structure and all atom iterators reworked to use `AtomContainer`.
+  - Many methods associated with `Group` removed/renamed/rewritten.
+
+#### Reading and writing PDB files
+
+- **Breaking Change**: `System::write_pdb` and `System::group_write_pdb` now require an argument for connectivity information.
+- **Potentially Breaking Change**: Reading of PDB files now stops at `ENDMDL` or `END`. `END` keyword is written correctly at the end of files.
+- Connectivity section can now be read with `System::add_bonds_from_pdb` and written with `System::write_pdb`/`System::group_write_pdb`.
+
+#### Reading systems with non-orthogonal simulation boxes
+
+- Support added for reading/writing systems with non-orthogonal simulation boxes from/to PDB, XTC, and TRR files.
+
+#### New `System` connectivity methods
+
+- New methods introduced:
+  1. `System::add_bond`: Adds a bond between atoms.
+  2. `System::bonded_atoms_iter` and `System::bonded_atoms_iter_mut`: Iterates through bonded atoms.
+  3. `System::has_bonds`: Checks for available connectivity information.
+  4. `System::molecule_iter` and `System::molecule_iter_mut`: Iterates through atoms in the same molecule.
+  5. `System::make_molecules_whole`: Fixes molecules broken at periodic boundaries.
+
+#### Quality-of-Life improvements
+
+- `ProgressPrinter` introduced for trajectory reading progress. Activated via `TrajMasterRead::print_progress`.
+
+#### Other changes
+
+- **Breaking Change**: Atom access methods (`System::get_atom_as_ref`, etc.) now use index instead of `gmx_atom_number`.
+- **Breaking Change**: `System::from_file` returns `Result<Self, Box<dyn Error + Send + Sync>>` for threading compatibility.
+- `System::has_duplicate_atom_numbers`: Checks for duplicate atom numbers.
+- `System::residues_renumber`: Renumbers residues in the system.
+- `System::atoms_wrap` and `System::group_wrap`: Wraps atoms into the simulation box.
+- `System::atoms_distance`: Calculates distance between two atoms.
+- Panic groan errors now specify the originating function.
+
+***
+
 ### Version 0.4.2
 - Introduced `System::group_create_from_geometries` for group creation with multiple geometry constraints.
 - Excluded test files from the `crates.io` crate distribution.
@@ -30,6 +93,8 @@
 - Added tests for reading double-precision trr files.
 - Enhanced documentation for error variants within the `errors` module.
 
+***
+
 ### Version 0.3.3
 - `@ion` macro should no longer identify any part of proteins as ions.
 
@@ -53,6 +118,7 @@
   - Placed files defining fundamental data structures into their own directory.
 - Made minor documentation tweaks.
 
+***
 
 ### Version 0.2.0
 - Added functionality to write atom groups into xtc and trr files using the `XdrGroupWriter` trait along with the `XtcGroupWriter` and `TrrGroupWriter` structures.
@@ -63,3 +129,5 @@
 - Implemented operations for ndx-writable and ndx-nonwritable groups, including `System::group_make_writable`, `System::group_make_nonwritable`, and `System::group_names_writable`.
 - Performed small code refactors.
 - Made minor documentation fixes.
+
+***

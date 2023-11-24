@@ -4,6 +4,7 @@
 //! Implementation of the `System` structure and methods for constructing the `System` and accessing its properties.
 
 use indexmap::IndexMap;
+use std::collections::HashSet;
 use std::error::Error;
 use std::path::Path;
 
@@ -31,6 +32,11 @@ pub struct System {
     coordinates_precision: u64,
     /// Lambda
     lambda: f32,
+    /// Reference atoms for all polyatomic molecules.
+    /// (Index of the first atom of each polyatomic molecule.)
+    /// All functions changing the topology of the system, must set
+    /// `mol_references` to `None`.
+    mol_references: Option<Vec<usize>>,
 }
 
 /// ## Methods for creating `System` structures and accessing their properties.
@@ -104,11 +110,12 @@ impl System {
             simulation_time: 0.0f32,
             coordinates_precision: 100u64,
             lambda: 0.0,
+            mol_references: None,
         };
 
         match system.group_create_all() {
             Err(_) => {
-                panic!("Groan error. Group `all` or `All` already exists as System is created.")
+                panic!("FATAL GROAN ERROR | System::new | Group 'all' or 'All' already exists as the System is created.");
             }
             Ok(_) => system,
         }
@@ -139,7 +146,7 @@ impl System {
     /// ## Notes
     /// - The returned System structure will contain two default groups "all" and "All"
     /// consisting of all the atoms in the system.
-    pub fn from_file(filename: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
+    pub fn from_file(filename: impl AsRef<Path>) -> Result<Self, Box<dyn Error + Send + Sync>> {
         match FileType::from_name(&filename) {
             FileType::GRO => gro_io::read_gro(filename).map_err(Box::from),
             FileType::PDB => pdb_io::read_pdb(filename).map_err(Box::from),
@@ -160,12 +167,12 @@ impl System {
         unsafe {
             self.get_groups_as_ref_mut()
                 .get_mut("all")
-                .expect("Groan error. Group `all` is not available after creating it.")
+                .expect("FATAL GROAN ERROR | System::group_create_all | Group 'all' is not available immediately after its construction.")
                 .print_ndx = false;
 
             self.get_groups_as_ref_mut()
                 .get_mut("All")
-                .expect("Groan error. Group `All` is not available after creating it.")
+                .expect("FATAL GROAN ERROR | System::group_create_all | Group 'All' is not available immediately after its construction.")
                 .print_ndx = false;
         }
 
@@ -304,37 +311,97 @@ impl System {
         self.lambda = lambda;
     }
 
+    /// Get reference atoms of all polyatomic molecules.
+    /// This is mostly for internal use of the `groan_rs` library.
+    pub fn get_mol_references(&self) -> Option<&Vec<usize>> {
+        self.mol_references.as_ref()
+    }
+
+    /// Reset reference atoms of molecules.
+    ///
+    /// ## Notes
+    /// - **This function must be called every time topology
+    /// of the system is changed**.
+    /// - (Safe native groan library functions handle this for you.)
+    pub fn reset_mol_references(&mut self) {
+        self.mol_references = None;
+    }
+
+    /// Set reference atoms of molecules.
+    ///
+    /// ## Safety
+    /// Modifying `mol_references` may break the system.
+    /// You should not set `mol_references` manually unless you know what you are doing.
+    /// Which you do not. There really is no reason to use this method.
+    pub unsafe fn set_mol_references(&mut self, indices: Vec<usize>) {
+        self.mol_references = Some(indices);
+    }
+
     /// Check whether positions are present.
     ///
     /// ## Returns
-    /// `true` if any of the atoms in the system has non-zero position. `false` otherwise.
+    /// `true` if all of the atoms in the system have information about their positions.
+    /// `false` otherwise.
     ///
     /// ## Notes
     /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
     pub fn has_positions(&self) -> bool {
-        self.atoms.iter().any(|atom| atom.has_position())
+        self.atoms.iter().all(|atom| atom.has_position())
     }
 
     /// Check whether velocities are present.
     ///
     /// ## Returns
-    /// `true` if any of the atoms in the system has non-zero velocity. `false` otherwise.
+    /// `true` if all of the atoms in the system have information about their velocities.
+    /// `false` otherwise.
     ///
     /// ## Notes
     /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
     pub fn has_velocities(&self) -> bool {
-        self.atoms.iter().any(|atom| atom.has_velocity())
+        self.atoms.iter().all(|atom| atom.has_velocity())
     }
 
     /// Check whether forces are present.
     ///
     /// ## Returns
-    /// `true` if any of the atoms in the system has non-zero force acting on it. `false` otherwise.
+    /// `true` if all of the atoms in the system have information about force acting on them.
+    /// `false` otherwise.
     ///
     /// ## Notes
     /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
     pub fn has_forces(&self) -> bool {
-        self.atoms.iter().any(|atom| atom.has_force())
+        self.atoms.iter().all(|atom| atom.has_force())
+    }
+
+    /// Check whether there are any atoms in the system which share atom number.
+    ///
+    /// ## Returns
+    /// `true` if at least two atoms share the atom number. `false` otherwise.
+    ///
+    /// ## Notes
+    /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
+    pub fn has_duplicate_atom_numbers(&self) -> bool {
+        let mut set = HashSet::new();
+
+        for atom in self.atoms.iter() {
+            if !set.insert(atom.get_atom_number()) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// Check whether connectivity information is available for the system.
+    ///
+    /// ## Returns
+    /// `true` if at least one atom in the system has more than 0 bonds.
+    /// `false` otherwise.
+    ///
+    /// ## Notes
+    /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
+    pub fn has_bonds(&self) -> bool {
+        self.atoms.iter().any(|atom| atom.get_n_bonded() > 0)
     }
 
     /// Copy the atoms in the system into an independent vector.
@@ -377,40 +444,40 @@ impl System {
         Ok(self.group_iter(name)?.cloned().collect())
     }
 
-    /// Get immutable reference to an atom with target atom number.
+    /// Get immutable reference to an atom at target index. Atoms are indexed starting from 0.
     ///
     /// ## Returns
-    /// Reference to `Atom` structure or `AtomError::OutOfRange` if `gmx_number` is out of range.
-    pub fn get_atom_as_ref(&self, gmx_number: usize) -> Result<&Atom, AtomError> {
-        if gmx_number == 0 || gmx_number > self.atoms.len() {
-            return Err(AtomError::OutOfRange(gmx_number));
+    /// Reference to `Atom` structure or `AtomError::OutOfRange` if `index` is out of range.
+    pub fn get_atom_as_ref(&self, index: usize) -> Result<&Atom, AtomError> {
+        if index >= self.atoms.len() {
+            return Err(AtomError::OutOfRange(index));
         }
 
-        Ok(&self.atoms[gmx_number - 1])
+        Ok(&self.atoms[index])
     }
 
-    /// Get mutable reference to an atom with target atom number.
+    /// Get mutable reference to an atom with target index. Atoms are indexed starting from 0.
     ///
     /// ## Returns
-    /// Mutable reference to `Atom` structure or `AtomError::OutOfRange` if `gmx_number` is out of range.
-    pub fn get_atom_as_ref_mut(&mut self, gmx_number: usize) -> Result<&mut Atom, AtomError> {
-        if gmx_number == 0 || gmx_number > self.atoms.len() {
-            return Err(AtomError::OutOfRange(gmx_number));
+    /// Mutable reference to `Atom` structure or `AtomError::OutOfRange` if `index` is out of range.
+    pub fn get_atom_as_ref_mut(&mut self, index: usize) -> Result<&mut Atom, AtomError> {
+        if index >= self.atoms.len() {
+            return Err(AtomError::OutOfRange(index));
         }
 
-        Ok(&mut self.atoms[gmx_number - 1])
+        Ok(&mut self.atoms[index])
     }
 
-    /// Get copy of an atom with target atom number.
+    /// Get copy of an atom with target index. Atoms are indexed starting from 0.
     ///
     /// ## Returns
-    /// Copy of an `Atom` structure or `AtomError::OutOfRange` if `gmx_number` is out of range
-    pub fn get_atom_copy(&self, gmx_number: usize) -> Result<Atom, AtomError> {
-        if gmx_number == 0 || gmx_number > self.atoms.len() {
-            return Err(AtomError::OutOfRange(gmx_number));
+    /// Copy of an `Atom` structure or `AtomError::OutOfRange` if `index` is out of range
+    pub fn get_atom_copy(&self, index: usize) -> Result<Atom, AtomError> {
+        if index >= self.atoms.len() {
+            return Err(AtomError::OutOfRange(index));
         }
 
-        Ok(self.atoms[gmx_number - 1].clone())
+        Ok(self.atoms[index].clone())
     }
 }
 
@@ -420,6 +487,8 @@ impl System {
 
 #[cfg(test)]
 mod tests {
+    use crate::errors::ParsePdbConnectivityError;
+
     use super::*;
     use float_cmp::assert_approx_eq;
 
@@ -493,9 +562,21 @@ mod tests {
             assert_eq!(groa.get_residue_name(), pdba.get_residue_name());
             assert_eq!(groa.get_atom_number(), pdba.get_atom_number());
             assert_eq!(groa.get_atom_name(), pdba.get_atom_name());
-            assert_approx_eq!(f32, groa.get_position().x, pdba.get_position().x);
-            assert_approx_eq!(f32, groa.get_position().y, pdba.get_position().y);
-            assert_approx_eq!(f32, groa.get_position().z, pdba.get_position().z);
+            assert_approx_eq!(
+                f32,
+                groa.get_position().unwrap().x,
+                pdba.get_position().unwrap().x
+            );
+            assert_approx_eq!(
+                f32,
+                groa.get_position().unwrap().y,
+                pdba.get_position().unwrap().y
+            );
+            assert_approx_eq!(
+                f32,
+                groa.get_position().unwrap().z,
+                pdba.get_position().unwrap().z
+            );
 
             assert_eq!(groa.get_velocity(), pdba.get_velocity());
             assert_eq!(groa.get_force(), pdba.get_force());
@@ -640,6 +721,45 @@ mod tests {
     }
 
     #[test]
+    fn has_duplicate_atom_numbers() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        assert!(!system.has_duplicate_atom_numbers());
+
+        unsafe {
+            system
+                .get_atoms_as_ref_mut()
+                .get_mut(10)
+                .unwrap()
+                .set_atom_number(44);
+        }
+
+        assert!(system.has_duplicate_atom_numbers());
+    }
+
+    #[test]
+    fn has_bonds_1() {
+        let mut system = System::from_file("test_files/example.pdb").unwrap();
+        assert!(!system.has_bonds());
+
+        match system.add_bonds_from_pdb("test_files/example.pdb") {
+            Ok(_) => panic!("Should have returned NoBonds warning."),
+            Err(ParsePdbConnectivityError::NoBondsWarning(_)) => assert!(!system.has_bonds()),
+            Err(e) => panic!("Function failed with error type `{:?}`.", e),
+        }
+    }
+
+    #[test]
+    fn has_bonds_2() {
+        let mut system = System::from_file("test_files/example.pdb").unwrap();
+        assert!(!system.has_bonds());
+
+        system
+            .add_bonds_from_pdb("test_files/bonds_for_example.pdb")
+            .unwrap();
+        assert!(system.has_bonds());
+    }
+
+    #[test]
     fn atoms_extract() {
         let system = System::from_file("test_files/example.gro").unwrap();
 
@@ -695,13 +815,12 @@ mod tests {
     fn get_atom_as_ref() {
         let system = System::from_file("test_files/example.gro").unwrap();
 
-        assert!(system.get_atom_as_ref(0).is_err());
-        assert!(system.get_atom_as_ref(16845).is_err());
+        assert!(system.get_atom_as_ref(16844).is_err());
 
-        let atom = system.get_atom_as_ref(1).unwrap();
+        let atom = system.get_atom_as_ref(0).unwrap();
         assert_eq!(atom.get_atom_number(), 1);
 
-        let atom = system.get_atom_as_ref(16844).unwrap();
+        let atom = system.get_atom_as_ref(16843).unwrap();
         assert_eq!(atom.get_atom_number(), 16844);
     }
 
@@ -709,13 +828,12 @@ mod tests {
     fn get_atom_as_ref_mut() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        assert!(system.get_atom_as_ref_mut(0).is_err());
-        assert!(system.get_atom_as_ref_mut(16845).is_err());
+        assert!(system.get_atom_as_ref_mut(16844).is_err());
 
-        let atom = system.get_atom_as_ref_mut(1).unwrap();
+        let atom = system.get_atom_as_ref_mut(0).unwrap();
         assert_eq!(atom.get_atom_number(), 1);
 
-        let atom = system.get_atom_as_ref_mut(16844).unwrap();
+        let atom = system.get_atom_as_ref_mut(16843).unwrap();
         assert_eq!(atom.get_atom_number(), 16844);
     }
 
@@ -723,13 +841,12 @@ mod tests {
     fn get_atom_copy() {
         let system = System::from_file("test_files/example.gro").unwrap();
 
-        assert!(system.get_atom_copy(0).is_err());
-        assert!(system.get_atom_copy(16845).is_err());
+        assert!(system.get_atom_copy(16844).is_err());
 
-        let atom = system.get_atom_copy(1).unwrap();
+        let atom = system.get_atom_copy(0).unwrap();
         assert_eq!(atom.get_atom_number(), 1);
 
-        let atom = system.get_atom_copy(16844).unwrap();
+        let atom = system.get_atom_copy(16843).unwrap();
         assert_eq!(atom.get_atom_number(), 16844);
     }
 }

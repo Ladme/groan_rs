@@ -45,9 +45,9 @@ impl Name {
 
                 for name in group_names {
                     if r.is_match(name) {
-                        return Ok(system
-                            .group_isin(name, atom_index)
-                            .expect("Groan error. `match_groups` regex: group must exist."));
+                        return Ok(system.group_isin(name, atom_index).expect(
+                            "FATAL GROAN ERROR | Name::match_groups | Regex arm: group must exist.",
+                        ));
                     }
                 }
                 Ok(false)

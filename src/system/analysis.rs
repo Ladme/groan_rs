@@ -3,7 +3,7 @@
 
 //! Implementation of various methods for analysis of `System`.
 
-use crate::errors::GroupError;
+use crate::errors::{AtomError, GroupError};
 use crate::structures::{dimension::Dimension, vector3d::Vector3D};
 use crate::system::general::System;
 
@@ -23,6 +23,9 @@ impl System {
     ///
     /// ## Warning
     /// - This method currently only works for systems with orthogonal simulation boxes!
+    ///
+    /// ## Panics
+    /// Panics if any of the atoms in the group has no position.
     ///
     /// ## Notes
     /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
@@ -55,7 +58,10 @@ impl System {
 
         for atom in self.group_iter(name)? {
             // make sure that each coordinate is inside the box
-            let mut coordinates = atom.get_position().clone();
+            let mut coordinates = atom
+                .get_position()
+                .expect("FATAL GROAN ERROR | System::group_get_center | Atom has no position.")
+                .clone();
             coordinates.wrap(simbox);
 
             // calculate magic angles
@@ -185,6 +191,48 @@ impl System {
 
         Ok(distances)
     }
+
+    /// Calculate distance between two atoms in the system.
+    /// Assumes orthogonal periodic boundary conditions.
+    /// Atoms are indexed starting from 0.
+    /// Oriented distance is used for 1D problems.
+    ///
+    /// ## Returns
+    /// `f32` corresponding to the distance between the atoms.
+    /// `AtomError` if any of the atom indices is out of range.
+    ///
+    /// ## Warning
+    /// - This method currently only works for systems with orthogonal simulation boxes!
+    ///
+    /// ## Example
+    /// Calculate distance between atoms with index 3 and 17 in the xy plane.
+    /// ```no_run
+    /// use groan_rs::prelude::*;
+    ///
+    /// let system = System::from_file("system.gro").unwrap();
+    ///
+    /// let result = match system.atoms_distance(3, 17, Dimension::XY) {
+    ///     Ok(x) => x,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;    
+    ///     }
+    /// };
+    ///
+    /// // print the result
+    /// println!("XY-distance between atoms 3 and 17 is {}.", result);
+    /// ```
+    pub fn atoms_distance(
+        &self,
+        index1: usize,
+        index2: usize,
+        dim: Dimension,
+    ) -> Result<f32, AtomError> {
+        let atom1 = self.get_atom_as_ref(index1)?;
+        let atom2 = self.get_atom_as_ref(index2)?;
+
+        Ok(atom1.distance(atom2, dim, self.get_box_as_ref()))
+    }
 }
 
 /******************************/
@@ -200,15 +248,7 @@ mod tests {
 
     #[test]
     fn center_single_atom() {
-        let atom1 = Atom::new(
-            1,
-            "LYS",
-            1,
-            "BB",
-            [4.5, 3.2, 1.7].into(),
-            Default::default(),
-            Default::default(),
-        );
+        let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([4.5, 3.2, 1.7].into());
 
         let atoms = vec![atom1];
         let system = System::new("Artificial system.", atoms, [10.0, 10.0, 10.0].into());
@@ -222,25 +262,9 @@ mod tests {
 
     #[test]
     fn center_two_atoms() {
-        let atom1 = Atom::new(
-            1,
-            "LYS",
-            1,
-            "BB",
-            [4.5, 3.2, 1.7].into(),
-            Default::default(),
-            Default::default(),
-        );
+        let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([4.5, 3.2, 1.7].into());
 
-        let atom2 = Atom::new(
-            1,
-            "LYS",
-            2,
-            "SC1",
-            [4.0, 2.8, 3.0].into(),
-            Default::default(),
-            Default::default(),
-        );
+        let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([4.0, 2.8, 3.0].into());
 
         let atoms = vec![atom1, atom2];
         let system = System::new("Artificial system.", atoms, [10.0, 10.0, 10.0].into());
@@ -254,25 +278,9 @@ mod tests {
 
     #[test]
     fn center_two_atoms_pbc() {
-        let atom1 = Atom::new(
-            1,
-            "LYS",
-            1,
-            "BB",
-            [4.5, 3.2, 1.7].into(),
-            Default::default(),
-            Default::default(),
-        );
+        let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([4.5, 3.2, 1.7].into());
 
-        let atom2 = Atom::new(
-            1,
-            "LYS",
-            2,
-            "SC1",
-            [9.8, 9.5, 3.0].into(),
-            Default::default(),
-            Default::default(),
-        );
+        let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([9.8, 9.5, 3.0].into());
 
         let atoms = vec![atom1, atom2];
         let system = System::new("Artificial system.", atoms, [10.0, 10.0, 10.0].into());
@@ -295,15 +303,7 @@ mod tests {
         ];
         let mut atoms = Vec::new();
         for (i, position) in atom_positions.into_iter().enumerate() {
-            let atom = Atom::new(
-                i,
-                "UNK",
-                i,
-                "BB",
-                position.into(),
-                Default::default(),
-                Default::default(),
-            );
+            let atom = Atom::new(i, "UNK", i, "BB").with_position(position.into());
 
             atoms.push(atom);
         }
@@ -328,15 +328,7 @@ mod tests {
         ];
         let mut atoms = Vec::new();
         for (i, position) in atom_positions.into_iter().enumerate() {
-            let atom = Atom::new(
-                i,
-                "UNK",
-                i,
-                "BB",
-                position.into(),
-                Default::default(),
-                Default::default(),
-            );
+            let atom = Atom::new(i, "UNK", i, "BB").with_position(position.into());
 
             atoms.push(atom);
         }
@@ -610,6 +602,56 @@ mod tests {
         assert_approx_eq!(f32, distances[1240][12], 3.7207017);
         assert_approx_eq!(f32, distances[12][34], 6.2494035);
         assert_approx_eq!(f32, distances[6143][60], 4.7850933);
+    }
+
+    #[test]
+    fn atoms_distance_xyz() {
+        let system = System::from_file("test_files/example.gro").unwrap();
+
+        let n_atoms = system.get_n_atoms();
+
+        assert_approx_eq!(
+            f32,
+            system.atoms_distance(0, 1, Dimension::XYZ).unwrap(),
+            0.31040135
+        );
+        assert_approx_eq!(
+            f32,
+            system
+                .atoms_distance(n_atoms - 1, 0, Dimension::XYZ)
+                .unwrap(),
+            6.664787
+        );
+        assert_approx_eq!(
+            f32,
+            system
+                .atoms_distance(n_atoms - 1, n_atoms - 2, Dimension::XYZ)
+                .unwrap(),
+            4.062491
+        );
+    }
+
+    #[test]
+    fn atoms_distance_fail() {
+        let system = System::from_file("test_files/example.gro").unwrap();
+
+        match system.atoms_distance(12, 16844, Dimension::XY) {
+            Ok(_) => panic!("Function should have failed but it succeeded."),
+            Err(AtomError::OutOfRange(e)) => assert_eq!(e, 16844),
+            Err(e) => panic!(
+                "Function failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+
+        match system.atoms_distance(197_392, 12, Dimension::YZ) {
+            Ok(_) => panic!("Function should have failed but it succeeded."),
+            Err(AtomError::OutOfRange(e)) => assert_eq!(e, 197_392),
+            Err(e) => panic!(
+                "Function failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
     }
 
     #[test]
