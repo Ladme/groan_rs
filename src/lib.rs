@@ -95,8 +95,8 @@
 //!     system.group_write_pdb("My Group", "My_Group.pdb", false)?;
 //!     system.group_write_pdb("my group", "my_group.pdb", false)?;
 //!
-//!     // each system also be default contains two groups consisting of all atoms in the system
-//!     // this groups are called 'All' and 'all'
+//!     // each system also by default contains two groups consisting of all atoms in the system
+//!     // these groups are called 'All' and 'all'
 //!     assert!(system.group_exists("all"));
 //!     assert!(system.group_exists("All"));
 //!
@@ -234,7 +234,7 @@
 //!
 //! #### Converting between trr and xtc files
 //!
-//! Read a trr file and write the velocities of particles into a new xtc file.
+//! Read a trr file and write the positions of particles into a new xtc file.
 //!
 //! ```no_run
 //! use groan_rs::prelude::*;
@@ -509,8 +509,9 @@
 //! Note that `groan_rs` will still work correctly even if you do not explicitly include the error types.
 //!
 //! ## Limitations
-//! - Currently, most of the `groan_rs` library only supports simulation boxes that are orthogonal!
-//! If you intend to analyze simulations with non-orthogonal simulation boxes, look elsewhere.
+//! - Currently, `groan_rs` library is not able to properly work with periodic simulation boxes that are **not orthogonal**.
+//! While it can read structures and trajectories with non-orthogonal boxes, calculated distances and similar properties may be incorrect!
+//! Tread very carefully!
 //!
 //! - While `groan_rs` can read double-precision trr files, it uses single-precision floating point numbers everywhere in its code.
 //! If you require double-precision for your analyses, look elsewhere.
