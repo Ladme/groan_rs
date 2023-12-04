@@ -9,7 +9,7 @@ use crate::errors::SelectError;
 use crate::selections::{name::Name, numbers};
 use crate::system::general::System;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Select {
     ResidueName(Vec<Name>),
     AtomName(Vec<Name>),

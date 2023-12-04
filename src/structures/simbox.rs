@@ -92,7 +92,10 @@ impl SimBox {
     /// - Adapted from Tsjerk Wassenaar's `triclinic` function:
     /// <https://www.mail-archive.com/gmx-users@gromacs.org/msg28032.html>
     pub fn from_lengths_angles(lengths: Vector3D, angles: Vector3D) -> Self {
-        let mut simbox = SimBox { v1x: lengths.x, ..Default::default() };
+        let mut simbox = SimBox {
+            v1x: lengths.x,
+            ..Default::default()
+        };
 
         if angles.x == 90.0 && angles.y == 90.0 && angles.z == 90.0 {
             simbox.v2y = lengths.y;

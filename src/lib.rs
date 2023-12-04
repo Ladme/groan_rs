@@ -543,6 +543,7 @@ pub mod structures {
     pub mod atom;
     mod container;
     pub mod dimension;
+    pub mod element;
     pub mod group;
     pub mod iterators;
     pub mod shape;

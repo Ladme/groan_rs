@@ -8,7 +8,7 @@ use crate::system::general::System;
 use regex::Regex;
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Name {
     String(String),
     Regex(Regex),

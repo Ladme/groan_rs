@@ -1,0 +1,15 @@
+---
+hydrogen:
+  symbol: H
+  query: name r'^[1-9]?[Hh].*'
+  mass: 1.0079
+  vdw: 0.12
+  expected_max_bonds: 1
+carbon:
+  symbol: C
+  unexpected_field: this will fail
+  query: name r'^[Cc].*$' and not @ion
+  mass: 12.0107
+  vdw: 0.17
+  expected_max_bonds: 4
+...

@@ -323,3 +323,27 @@ pub enum SelectError {
     #[error("{} the provided query '{}' could not be understood for unknown reason", "error:".red().bold(), .0.to_string().yellow())]
     UnknownError(String),
 }
+
+/// Errors that can occur when reading element data.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum ParseElementError {
+    /// Used when the yaml file was not found (i.e. does not exist).
+    #[error("{} file '{}' was not found", "error:".red().bold(), path_to_yellow(.0))]
+    FileNotFound(Box<Path>),
+    /// Used when the content of the yaml file could not be read.
+    #[error("{} file '{}' could not be read", "error:".red().bold(), path_to_yellow(.0))]
+    FileCouldNotBeRead(Box<Path>),
+    /// Used when the yaml string containing element data can't be parsed.
+    #[error("{} could not parse yaml input as elements (error at line {}, column {})", "error:".red().bold(), .0.to_string().yellow(), .1.to_string().yellow())]
+    CouldNotParseYaml(usize, usize),
+    /// Used when a query provided in the element data is invalid.
+    /// Encapsulates the `SelectError` providing more information about the type of error.
+    #[error("{}", .0)]
+    InvalidQuery(SelectError),
+    /// Used when the mass of the element is invalid (i.e. negative).
+    #[error("{} invalid mass detected for element '{}'", "error:".red().bold(), .0.to_string().yellow())]
+    InvalidMass(String),
+    /// Used when the van der Waals radius of the element is invalid (i.e. negative).
+    #[error("{} invalid van der Waals radius detected for element '{}'", "error:".red().bold(), .0.to_string().yellow())]
+    InvalidVdW(String),
+}
