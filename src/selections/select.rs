@@ -304,7 +304,7 @@ fn get_macros() -> HashMap<&'static str, &'static str> {
         "@rna",
         "(resname A U C G RA RU RC RG RA5 RT5 RU5 RC5 RG5 RA3 RT3 RU3 RC3 RG3 RAN RTN RUN RCN RGN)",
     );
-    macros.insert("@hydrogen", "(name r'^[1-9]?H.*')");
+    macros.insert("@hydrogen", "(name r'^[1-9]?[Hh].*')");
 
     macros
 }
@@ -1835,7 +1835,7 @@ mod pass_tests {
     parsing_success!(
         hydrogen_macro,
         "@hydrogen",
-        Select::AtomName(vec![Name::new("r'^[1-9]?H.*'").unwrap()])
+        Select::AtomName(vec![Name::new("r'^[1-9]?[Hh].*'").unwrap()])
     );
 }
 

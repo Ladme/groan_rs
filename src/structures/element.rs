@@ -3,7 +3,7 @@
 
 //! Implementation of the Element structure and its methods.
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::fs::File;
 use std::io::Read;
 use std::{collections::HashMap, path::Path};
@@ -86,7 +86,7 @@ impl ElementsProperties {
 
     /// Parse yaml string into `ElementsProperties` structure.
     fn new_from_string(yaml: &str) -> Result<Self, ParseElementError> {
-        #[derive(Serialize, Deserialize, Debug)]
+        #[derive(Deserialize, Debug)]
         #[serde(deny_unknown_fields)]
         struct TempElement {
             symbol: Option<String>,
