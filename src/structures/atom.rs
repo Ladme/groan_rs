@@ -7,7 +7,7 @@ use std::io::Write;
 
 use crate::errors::{WriteGroError, WritePdbError};
 use crate::structures::{
-    container::AtomContainer, dimension::Dimension, simbox::SimBox, vector3d::Vector3D,
+    container::AtomContainer, dimension::Dimension, element::Element, simbox::SimBox, vector3d::Vector3D,
 };
 
 #[derive(Debug, Clone)]
@@ -24,6 +24,12 @@ pub struct Atom {
     chain: Option<char>,
     /// Charge of the atom. (Optional.)
     charge: Option<f32>,
+    /// Mass of the atom. (Optional.)
+    /// If not provided, mass of the `element` is used.
+    /// If `element` is not provided, atom has undefined mass.
+    mass: Option<f32>,
+    /// Element of the atom. (Optional.)
+    element: Option<Element>,
     /// Position of the atom in 3D space. (Optional.)
     position: Option<Vector3D>,
     /// Velocity of the atom. (Optional.)
@@ -53,6 +59,8 @@ impl Atom {
             atom_name: atom_name.to_string(),
             chain: None,
             charge: None,
+            mass: None,
+            element: None,
             position: None,
             velocity: None,
             force: None,
@@ -87,6 +95,18 @@ impl Atom {
     /// Add charge to target atom.
     pub fn with_charge(mut self, charge: f32) -> Self {
         self.set_charge(charge);
+        self
+    }
+
+    /// Add mass to target atom.
+    pub fn with_mass(mut self, mass: f32) -> Self {
+        self.set_mass(mass);
+        self
+    }
+
+    /// Add element to target atom.
+    pub fn with_element(mut self, element: Element) -> Self {
+        self.set_element(element);
         self
     }
 
@@ -140,6 +160,11 @@ impl Atom {
         self.chain = Some(chain);
     }
 
+    /// Set the chain of the atom to `None`.
+    pub fn reset_chain(&mut self) {
+        self.chain = None;
+    }
+
     /// Get the charge of the atom.
     pub fn get_charge(&self) -> Option<f32> {
         self.charge
@@ -148,6 +173,62 @@ impl Atom {
     /// Set the charge of the atom.
     pub fn set_charge(&mut self, charge: f32) {
         self.charge = Some(charge);
+    }
+
+    /// Set the charge of the atom to `None`.
+    pub fn reset_charge(&mut self) {
+        self.charge = None;
+    }
+
+    /// Get the mass of the atom.
+    /// If the atom has no explicitely provided mass,
+    /// the mass of the element is returned.
+    /// If the atom has no assigned element,
+    /// or the element has no assigned mass,
+    /// this function returns `None`.
+    pub fn get_mass(&mut self) -> Option<f32> {
+        if self.mass.is_some() {
+            self.mass
+        } else {
+            self.get_element()?.get_mass()
+        }
+    }
+
+    /// Set the mass of the atom.
+    /// Explicitely provided mass takes
+    /// priority over element mass.
+    pub fn set_mass(&mut self, mass: f32) {
+        self.mass = Some(mass);
+    }
+
+    /// Set mass of the atom to `None`.
+    pub fn reset_mass(&mut self) {
+        self.mass = None;
+    }
+
+    /// Get the element of the atom.
+    pub fn get_element(&self) -> Option<&Element> {
+        self.element.as_ref()
+    }
+
+    /// Get the element name of the atom.
+    pub fn get_element_name(&self) -> Option<&str> {
+        Some(self.get_element()?.get_name())
+    }
+
+    /// Get the element symbol of the atom.
+    pub fn get_element_symbol(&self) -> Option<&str> {
+        self.get_element()?.get_symbol()
+    }
+
+    /// Set the element of the atom.
+    pub fn set_element(&mut self, element: Element) {
+        self.element = Some(element);
+    }
+
+    /// Set the element of the atom to `None`.
+    pub fn reset_element(&mut self) {
+        self.element = None;
     }
 
     /// Get the coordinates of the atom.

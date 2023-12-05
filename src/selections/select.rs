@@ -294,7 +294,7 @@ fn get_macros() -> HashMap<&'static str, &'static str> {
     );
     macros.insert(
         "@ion",
-        "(name NA NA+ CL CL- K K+ SOD CLA CA CA2+ MG ZN CU1 CU LI RB CS F BR I OH Cal IB+ and resname ION NA NA+ CL CL- K K+ SOD CLA CA CA2+ MG ZN CU1 CU LI RB CS F BR I OH Cal IB+)",
+        "(name NA NA+ CL CL- K K+ SOD CLA CA CA2+ MG ZN CU1 CU LI RB CS F BR I OH Cal CAL IB+ and resname ION NA NA+ CL CL- K K+ SOD CLA CA CA2+ MG ZN CU1 CU LI RB CS F BR I OH Cal CAL IB+)",
     );
     macros.insert(
         "@dna",

@@ -175,14 +175,14 @@ where
     /// Iteration is ended at the frame with time corresponding to `end_time` or once the end of the trajectory file is reached.
     /// The range is inclusive on both ends, i.e., frames with `time = start_time` and `time = end_time` will be included in the iteration.
     ///
-    /// If the frame corresponding to the `start_time` doesn't exist in the trajectory file,
+    /// If the frame corresponding to the `start_time` does not exist in the trajectory file,
     /// the iterator starts at the frame closest in time to but greater than the `start_time`.
     ///
     /// If either the `start_time` or the `end_time` is negative, it results in a `ReadTrajError::TimeRangeNegative` error.
     ///
     /// If the `start_time` is greater than the `end_time`, it results in a `ReadTrajError::InvalidTimeRange` error.
     ///
-    /// If the `start_time` exceeds the time of any frame in the xtc file, it results in a `ReadTrajError::StartNotFound` error.
+    /// If the `start_time` exceeds the time of all frames in the xtc file, it results in a `ReadTrajError::StartNotFound` error.
     pub fn with_range(
         self,
         start_time: f32,

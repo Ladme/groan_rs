@@ -347,3 +347,9 @@ pub enum ParseElementError {
     #[error("{} invalid van der Waals radius detected for element '{}'", "error:".red().bold(), .0.to_string().yellow())]
     InvalidVdW(String),
 }
+
+/// Errors that can occur when working with elements.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum ElementError {
+    
+}

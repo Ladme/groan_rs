@@ -464,7 +464,7 @@ impl TrajWrite for TrrWriter {
 /// `TrrGroupWriter` will still use the original group of atoms.
 /// If you completely remove the original group, `TrrGroupWriter` will still maintain a working copy of it.
 ///
-/// `TrrGroupWriter` implements the `TrajGroupWritr` trait.
+/// `TrrGroupWriter` implements the `TrajGroupWrite` trait.
 pub struct TrrGroupWriter {
     system: *const System,
     trr: XdrFile,

@@ -45,11 +45,11 @@ sulfur:
   vdw: 0.18
 sodium:
   symbol: Na
-  query: name r'^[Nn][Aa]\+?$' and @ion
+  query: name r'^[Nn][Aa]\+?$' SOD and @ion
   mass: 22.98970
 chlorine:
   symbol: Cl
-  query: name r'^[Cc][Ll]\-?$' and @ion
+  query: name r'^[Cc][Ll]\-?$' CLA and @ion
   mass: 35.45300
 potassium:
   symbol: K
@@ -57,7 +57,7 @@ potassium:
   mass: 39.09830
 calcium:
   symbol: Ca
-  query: name r'^[Cc][Aa]2?\+?$' and @ion
+  query: name r'^[Cc][Aa]2?\+?$' CAL Cal and @ion
   mass: 40.07800
 magnesium:
   symbol: Mg
