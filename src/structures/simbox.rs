@@ -72,9 +72,9 @@ impl SimBox {
     ///
     /// ## Example
     /// ```
-    /// use groan_rs::prelude::*;
-    /// use float_cmp::assert_approx_eq;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
     /// let simbox = SimBox::from_lengths_angles([5.0, 4.0, 3.0].into(), [80.0, 70.0, 120.0].into());
     ///
     /// assert_approx_eq!(f32, simbox.v1x,  5.000000, epsilon = 0.0001);
@@ -127,9 +127,9 @@ impl SimBox {
     ///
     /// ## Example
     /// ```
-    /// use groan_rs::prelude::*;
-    /// use float_cmp::assert_approx_eq;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
     /// let simbox = SimBox::from([
     ///     5.0, 3.464102, 2.553768,
     ///     0.0, 0.0, -2.000000,

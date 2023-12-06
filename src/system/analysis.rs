@@ -34,8 +34,8 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.read_ndx("index.ndx").unwrap();
     ///
@@ -109,8 +109,8 @@ impl System {
     /// ## Example
     /// Calculating the distance between the group 'Protein' and 'Membrane' along the z-dimension.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.read_ndx("index.ndx").unwrap();
     ///
@@ -146,8 +146,8 @@ impl System {
     /// ## Example
     /// Calculate distances between atoms of group 'Protein' and 'Membrane'.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.read_ndx("index.ndx").unwrap();
     ///
@@ -207,8 +207,8 @@ impl System {
     /// ## Example
     /// Calculate distance between atoms with index 3 and 17 in the xy plane.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let system = System::from_file("system.gro").unwrap();
     ///
     /// let result = match system.atoms_distance(3, 17, Dimension::XY) {

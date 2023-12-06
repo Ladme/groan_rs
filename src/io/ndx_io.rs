@@ -120,10 +120,10 @@ impl System {
     /// `Ok` if writing is successful, else `WriteNdxError`.
     ///
     /// ## Example
-    /// Creating groups for residue names and writing them into ndx file.
+    /// Creating groups for residue names and writing them into an ndx file.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     /// let (_, _residues) = system.atoms_split_by_resname();
     /// if let Err(e) = system.write_ndx("output.ndx") {

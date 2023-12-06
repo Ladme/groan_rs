@@ -20,6 +20,7 @@
 
 #### Other changes
 - Added more tests for basic `Atom` get, set, reset, and with functions.
+- Documentation examples now no longer repeat that you have to use `groan_rs::prelude::*`.
 
 ***
 

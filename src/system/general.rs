@@ -49,8 +49,8 @@ impl System {
     ///
     /// ## Example 1: Manually creating a system
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let name = "My System";
     /// let atoms = Vec::new();
     ///
@@ -64,8 +64,8 @@ impl System {
     ///
     /// ## Example 2: Creating system from other system using `extract`
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// // load system from file
     /// let mut original_system = System::from_file("system.gro").unwrap();
     /// // create a group "Protein" consisting of atoms of residues 1 to 29
@@ -82,8 +82,8 @@ impl System {
     ///
     /// ## Example 3: Creating system from other system using iterators
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut original_system = System::from_file("system.gro").unwrap();
     ///
     /// // construct a sphere located at x = 1, y = 2, z = 3 with a radius of 2.5 nm
@@ -133,8 +133,8 @@ impl System {
     /// ## Example
     /// Reading gro file.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let system = match System::from_file("system.gro") {
     ///     Ok(x) => x,
     ///     Err(e) => {

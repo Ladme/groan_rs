@@ -55,9 +55,9 @@ impl Vector3D {
     ///
     /// ## Example
     /// ```
-    /// use groan_rs::prelude::*;
-    /// use float_cmp::assert_approx_eq;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
     /// let vector = Vector3D::from([1.0, 2.0, 3.0]);
     /// assert_approx_eq!(f32, vector.len(), 3.741657);
     /// ```
@@ -72,9 +72,9 @@ impl Vector3D {
     ///
     /// ## Example
     /// ```
-    /// use groan_rs::prelude::*;
-    /// use float_cmp::assert_approx_eq;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
     /// let vector = Vector3D::from([1.0, 2.0, 3.0]).to_unit();
     ///
     /// assert_approx_eq!(f32, vector.x, 0.2672612);
@@ -98,9 +98,9 @@ impl Vector3D {
     ///
     /// ## Example
     /// ```
-    /// use groan_rs::prelude::*;
-    /// use float_cmp::assert_approx_eq;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
     /// let vector = Vector3D::from([1.0, -2.0, 3.0]).invert();
     ///
     /// assert_approx_eq!(f32, vector.x, -1.0);
@@ -119,9 +119,9 @@ impl Vector3D {
     ///
     /// ## Example
     /// ```
-    /// use groan_rs::prelude::*;
-    /// use float_cmp::assert_approx_eq;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
     /// let vector1 = Vector3D::from([4.0, 2.0, -1.0]);
     /// let vector2 = Vector3D::from([1.0, -3.0, 2.0]);
     ///
@@ -135,9 +135,9 @@ impl Vector3D {
     ///
     /// ## Example
     /// ```
-    /// use groan_rs::prelude::*;
-    /// use float_cmp::assert_approx_eq;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
     /// let vector1 = Vector3D::from([4.0, 2.0, -1.0]);
     /// let vector2 = Vector3D::from([1.0, -3.0, 2.0]);
     ///
@@ -159,9 +159,9 @@ impl Vector3D {
     ///
     /// ## Example
     /// ```
-    /// use groan_rs::prelude::*;
-    /// use float_cmp::assert_approx_eq;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
     /// let vector1 = Vector3D::from([1.0, 2.0, 3.0]);
     /// let vector2 = Vector3D::from([3.0, 2.0, 1.0]);
     ///
@@ -187,9 +187,9 @@ impl Vector3D {
     /// ## Example
     /// Shift a given point in space by 2 nm (in total) along x and y dimensions.
     /// ```
-    /// use groan_rs::prelude::*;
-    /// use float_cmp::assert_approx_eq;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
     /// let mut vector = Vector3D::from([1.0, 2.0, 3.0]);
     /// let orientation = Dimension::XY.into();
     ///
@@ -213,9 +213,9 @@ impl Vector3D {
     ///
     /// ## Example
     /// ```
-    /// use groan_rs::prelude::*;
-    /// use float_cmp::assert_approx_eq;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
     /// let mut point = Vector3D::from([-0.5, 2.0, 4.2]);
     /// let simbox = SimBox::from([4.0, 4.0, 4.0]);
     ///
@@ -271,9 +271,9 @@ impl Vector3D {
     /// ## Example 1: Two-dimensional distance
     /// Calculate distance between two points in the xy-plane.
     /// ```
-    /// use groan_rs::prelude::*;
-    /// use float_cmp::assert_approx_eq;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
     /// let point1 = Vector3D::from([1.0, 2.0, 3.0]);
     /// let point2 = Vector3D::from([3.5, 1.0, 2.0]);
     ///
@@ -285,9 +285,9 @@ impl Vector3D {
     /// ## Example 2: One-dimensional oriented distance
     /// Calculate oriented distance between two points along the x-axis.
     /// ```
-    /// use groan_rs::prelude::*;
-    /// use float_cmp::assert_approx_eq;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
     /// let point1 = Vector3D::from([1.0, 2.0, 3.0]);
     /// let point2 = Vector3D::from([3.5, 1.0, 2.0]);
     ///
@@ -335,9 +335,9 @@ impl Vector3D {
     /// ## Example 1: Two-dimensional distance
     /// Calculate naive distance between two points in the xy-plane.
     /// ```
-    /// use groan_rs::prelude::*;
-    /// use float_cmp::assert_approx_eq;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
     /// let point1 = Vector3D::from([1.0, 2.0, 3.0]);
     /// let point2 = Vector3D::from([3.5, 1.0, 2.0]);
     ///
@@ -347,9 +347,9 @@ impl Vector3D {
     /// ## Example 2: One-dimensional oriented distance
     /// Calculate naive oriented distance between two points along the x-axis.
     /// ```
-    /// use groan_rs::prelude::*;
-    /// use float_cmp::assert_approx_eq;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
     /// let point1 = Vector3D::from([1.0, 2.0, 3.0]);
     /// let point2 = Vector3D::from([3.5, 1.0, 2.0]);
     ///
@@ -400,9 +400,9 @@ impl Vector3D {
     ///
     /// ## Example
     /// ```
-    /// use groan_rs::prelude::*;
-    /// use float_cmp::assert_approx_eq;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
     /// let point1 = Vector3D::from([1.0, 2.0, 3.0]);
     /// let point2 = Vector3D::from([3.0, 2.0, 1.0]);
     /// let simbox = SimBox::from([3.5, 5.0, 5.0]);
@@ -449,8 +449,8 @@ impl Vector3D {
     ///
     /// ## Example
     /// ```
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut vec: Vector3D = [1.0, 2.0, 3.0].into();
     ///
     /// vec.filter(Dimension::XZ);

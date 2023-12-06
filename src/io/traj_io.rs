@@ -572,8 +572,8 @@ pub trait TrajMasterRead<'a>:
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # 
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// // create the `ProgressPrinter` defining how often and in what format the
@@ -609,8 +609,8 @@ pub trait TrajMasterRead<'a>:
     ///
     /// Example:
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// let printer_jump = ProgressPrinter::new();
@@ -752,9 +752,9 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use groan_rs::errors::ReadTrajError;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use groan_rs::errors::ReadTrajError;
+    /// #
     /// fn example_fn() -> Result<(), ReadTrajError> {
     ///     // load system from file
     ///     let mut system = System::from_file("system.gro").unwrap();
@@ -804,9 +804,9 @@ pub trait TrajWrite {
     /// ## Example
     /// Using `TrajWrite::new` in a generic function.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use std::path::Path;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use std::path::Path;
+    /// # 
     /// // this function can write any trajectory file implementing `TrajWrite` trait
     /// fn write_trajectory<Writer>(system: &System, file: impl AsRef<Path>)
     ///     where Writer: TrajWrite
@@ -838,9 +838,9 @@ pub trait TrajGroupWrite {
     /// ## Example
     /// Using `TrajGroupWrite::new` in a generic function.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use std::path::Path;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use std::path::Path;
+    /// #
     /// // this function can write any trajectory file implementing `TrajGroupWrite` trait
     /// fn write_trajectory_group<Writer>(system: &System, file: impl AsRef<Path>)
     ///     where Writer: TrajGroupWrite

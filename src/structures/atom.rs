@@ -123,18 +123,6 @@ impl Atom {
         self
     }
 
-    /// Add element name to target atom.
-    pub fn with_element_name(mut self, name: &str) -> Self {
-        self.set_element_name(name);
-        self
-    }
-
-    /// Add element symbol to target atom.
-    pub fn with_element_symbol(mut self, symbol: &str) -> Self {
-        self.set_element_symbol(symbol);
-        self
-    }
-
     /// Get the number of the residue to which the atom belongs.
     pub fn get_residue_number(&self) -> usize {
         self.residue_number
@@ -256,7 +244,12 @@ impl Atom {
     }
 
     /// Set the element name of the atom.
-    pub fn set_element_name(&mut self, name: &str) {
+    /// 
+    /// ## Safety
+    /// This function is only safe to use if the `name` is
+    /// in the `SupportedElements` structure associated with 
+    /// the corresponding `System` structure. 
+    pub unsafe fn set_element_name(&mut self, name: &str) {
         self.element_name = Some(name.to_string());
     }
 
@@ -271,7 +264,12 @@ impl Atom {
     }
 
     /// Set the element symbol of the atom.
-    pub fn set_element_symbol(&mut self, symbol: &str) {
+    /// 
+    /// ## Safety
+    /// This function is only safe to use if the `symbol` is
+    /// in the `SupportedElements` structure associated with 
+    /// the corresponding `System` structure. 
+    pub unsafe fn set_element_symbol(&mut self, symbol: &str) {
         self.element_symbol = Some(symbol.to_string());
     }
 
@@ -589,9 +587,9 @@ impl Atom {
     /// ## Example
     /// Calculate distance between two atoms in the xy-plane.
     /// ```
-    /// use groan_rs::prelude::*;
-    /// use float_cmp::assert_approx_eq;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
     /// let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([1.0, 2.0, 3.0].into());
     /// let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([3.5, 1.0, 2.0].into());
     ///
@@ -622,9 +620,9 @@ impl Atom {
     /// ## Example
     /// Calculate distance between an atom and a point in the xy-plane.
     /// ```
-    /// use groan_rs::prelude::*;
-    /// use float_cmp::assert_approx_eq;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
     /// let atom = Atom::new(1, "LYS", 1, "BB").with_position([1.0, 2.0, 3.0].into());
     /// let point = Vector3D::from([3.5, 1.0, 2.0]);
     ///
@@ -795,14 +793,11 @@ mod tests {
         let mut atom = make_default_atom();
         assert_eq!(atom.get_element_name(), None);
 
-        atom.set_element_name("carbon");
+        unsafe { atom.set_element_name("carbon"); }
         assert_eq!(atom.get_element_name().unwrap(), String::from("carbon"));
 
         atom.reset_element_name();
         assert_eq!(atom.get_element_name(), None);
-
-        let atom2 = make_default_atom().with_element_name("carbon");
-        assert_eq!(atom2.get_element_name().unwrap(), String::from("carbon"));
     }
 
     #[test]
@@ -810,14 +805,11 @@ mod tests {
         let mut atom = make_default_atom();
         assert_eq!(atom.get_element_symbol(), None);
 
-        atom.set_element_symbol("C");
+        unsafe { atom.set_element_symbol("C"); }
         assert_eq!(atom.get_element_symbol().unwrap(), String::from("C"));
 
         atom.reset_element_symbol();
         assert_eq!(atom.get_element_symbol(), None);
-
-        let atom2 = make_default_atom().with_element_symbol("C");
-        assert_eq!(atom2.get_element_symbol().unwrap(), String::from("C"));
     }
 
     #[test]

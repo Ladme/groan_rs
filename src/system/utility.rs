@@ -91,8 +91,8 @@ impl System {
     /// Center the group `Protein` in the xy-plane.
     /// The positions of the atoms along the z-dimension will be unchanged.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// // load system from a gro file
     /// let mut system = System::from_file("system.gro").unwrap();
     ///  

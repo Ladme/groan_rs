@@ -56,8 +56,8 @@ impl<'a> AtomIterator<'a> {
     /// Iterating over all atoms of the system
     /// that are located in a sphere around a specific point.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let system = System::from_file("system.gro").unwrap();
     ///
     /// // construct a sphere located at x = 1, y = 2, z = 3 with a radius of 2.5 nm
@@ -221,8 +221,8 @@ impl<'a> MutAtomIterator<'a> {
     /// that are located in a sphere around a specific point
     /// and change their names.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// // construct a sphere located at x = 1, y = 2, z = 3 with a radius of 2.5 nm

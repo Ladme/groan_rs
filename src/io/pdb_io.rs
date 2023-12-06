@@ -84,8 +84,8 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// // read structure from a pdb file
     /// let mut system = System::from_file("system.pdb").unwrap();
     ///
@@ -105,8 +105,8 @@ impl System {
     ///
     /// In other words, **don't** do this:
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # 
     /// let mut system = System::from_file("system.pdb").unwrap();
     /// system.atoms_renumber(); // <--- DON'T!
     ///
@@ -212,8 +212,8 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let system = System::from_file("system.gro").unwrap();
     /// if let Err(e) = system.write_pdb("system.pdb", false) {
     ///     eprintln!("{}", e);
@@ -253,8 +253,8 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// system.read_ndx("index.ndx").unwrap();

@@ -152,8 +152,8 @@ impl SupportedElements {
     ///
     /// The modified `SupportedElements` structure can be obtained using:
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// // load default parameters for the elements
     /// let mut elements = SupportedElements::default();
     /// // update the `elements` structure with your custom information

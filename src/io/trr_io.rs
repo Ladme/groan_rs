@@ -226,9 +226,9 @@ impl System {
     /// and printing the current center of geometry of the system.
     ///
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use groan_rs::errors::ReadTrajError;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use groan_rs::errors::ReadTrajError;
+    /// #
     /// fn example_fn() -> Result<(), ReadTrajError> {
     ///     // load system from file
     ///     let mut system = System::from_file("system.gro").unwrap();
@@ -249,9 +249,9 @@ impl System {
     /// as the particle properties from the trr frames outside of
     /// the range will not be read.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use groan_rs::errors::ReadTrajError;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use groan_rs::errors::ReadTrajError;
+    /// # 
     /// fn example_fn() -> Result<(), ReadTrajError> {
     ///     let mut system = System::from_file("system.gro").unwrap();
     ///
@@ -272,9 +272,9 @@ impl System {
     /// The `with_step` method is very efficient for the trr files as the
     /// particle properties from the skipped over frames will not be read.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use groan_rs::errors::ReadTrajError;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use groan_rs::errors::ReadTrajError;
+    /// #
     /// fn example_fn() -> Result<(), ReadTrajError> {
     ///     let mut system = System::from_file("system.gro").unwrap();
     ///
@@ -296,9 +296,9 @@ impl System {
     /// Here, only every other frame will be read and the iteration
     /// will start at time 10 ns and end at time 100 ns.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use groan_rs::errors::ReadTrajError;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use groan_rs::errors::ReadTrajError;
+    /// #
     /// fn example_fn() -> Result<(), ReadTrajError> {
     ///     let mut system = System::from_file("system.gro").unwrap();
     ///
@@ -356,10 +356,9 @@ impl TrajWrite for TrrWriter {
     /// ## Example
     /// Create a new trr file for writing and associate a system with it.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let system = System::from_file("system.gro").unwrap();
-    ///
     /// let mut writer = TrrWriter::new(&system, "output.trr").unwrap();
     /// ```
     fn new(system: &System, filename: impl AsRef<Path>) -> Result<TrrWriter, WriteTrajError> {
@@ -381,9 +380,9 @@ impl TrajWrite for TrrWriter {
     /// ## Example
     /// Reading and writing a trr file.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use std::error::Error;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use std::error::Error;
+    /// #
     /// fn example_fn() -> Result<(), Box<dyn Error + Send + Sync>> {
     ///     // load system from file
     ///     let mut system = System::from_file("system.gro")?;
@@ -482,8 +481,8 @@ impl TrajGroupWrite for TrrGroupWriter {
     /// ## Example
     /// Create a new trr file for writing and associate a group with it.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.group_create("My Group", "resid 1-4").unwrap();
     ///
@@ -518,9 +517,9 @@ impl TrajGroupWrite for TrrGroupWriter {
     /// ## Example
     /// Reading a trr file and writing only the atoms corresponding to an ndx group `Protein` into the output trr file.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use std::error::Error;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use std::error::Error;
+    /// #
     /// fn example_fn() -> Result<(), Box<dyn Error + Send + Sync>> {
     ///     // load system from file
     ///     let mut system = System::from_file("system.gro")?;

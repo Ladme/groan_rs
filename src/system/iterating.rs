@@ -25,8 +25,8 @@ impl System {
     /// ## Example
     /// Printing the atoms of group "Protein".
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.group_create("Protein", "resid 1 to 29").unwrap();
     ///
@@ -61,8 +61,8 @@ impl System {
     /// Translating the atoms of the group "Protein".
     /// Note that using `system.group_translate()` may be faster.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.group_create("Protein", "resid 1 to 29").unwrap();
     /// let simulation_box = system.get_box_copy();
@@ -97,8 +97,8 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// for atom in system.atoms_iter() {
@@ -120,8 +120,8 @@ impl System {
     /// Translating all the atoms in the system by a specified vector.
     /// Note that using `system.atoms_translate()` may be faster.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     /// let simulation_box = system.get_box_copy();
     ///
@@ -144,8 +144,8 @@ impl System {
     /// ## Example
     /// Calculating distances between an atom and atoms that are bonded to it.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.pdb").unwrap();
     /// system.add_bonds_from_pdb("system.pdb").unwrap();
     ///
@@ -189,8 +189,8 @@ impl System {
     /// ## Example
     /// Rename atoms that are bonded to target atom.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.pdb").unwrap();
     /// system.add_bonds_from_pdb("system.pdb").unwrap();
     ///

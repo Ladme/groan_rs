@@ -24,8 +24,8 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// if let Err(e) = system.group_create("Phosphori", "resname POPE POPG and name P") {
@@ -69,8 +69,8 @@ impl System {
     /// Select phosphori atoms which are inside a z-axis oriented cylinder
     /// with a radius of 2 nm and height of 4 nm located at coordinates x = 5 nm, y = 5 nm, z = 3 nm.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// let cylinder = Cylinder::new([5.0, 5.0, 3.0].into(), 2.0, 4.0, Dimension::Z);
@@ -128,8 +128,8 @@ impl System {
     /// with a radius of 2 nm and height of 4 nm located at coordinates x = 5 nm, y = 5 nm, z = 3 nm
     /// while also being inside a sphere with a radius of 3 nm at corodinates x = 5 nm, y = 5 nm, z = 3 nm.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// let cylinder = Cylinder::new([5.0, 5.0, 3.0].into(), 2.0, 4.0, Dimension::Z);
@@ -188,8 +188,8 @@ impl System {
     /// ## Example
     /// Creating a group "My Group" containing the atoms indexed as 0, 1, 2, 3, 10, 11, and 12.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// match system.group_create_from_indices("My Group", vec![0, 1, 2, 3, 12, 10, 11]) {
@@ -230,8 +230,8 @@ impl System {
     /// ## Example
     /// Creating a group "My Group" containing the atoms of the system with indices 0-25 and 50-75 (including).
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// match system.group_create_from_ranges("My Group", vec![(0, 25), (50, 75)]) {
@@ -272,8 +272,8 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// let (result, residues) = system.atoms_split_by_resid();
@@ -317,8 +317,8 @@ impl System {
     /// ## Example
     /// Creating a group for each residue of the group 'Protein', i.e. creating a group for each amino acid.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// system.read_ndx("index.ndx").unwrap();
@@ -397,8 +397,8 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// let (result, residues) = system.atoms_split_by_resname();
@@ -441,8 +441,8 @@ impl System {
     /// ## Example
     /// Creating a group for each residue type of the group 'Protein', i.e. creating a group for each amino acid type.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// system.read_ndx("index.ndx").unwrap();
@@ -696,8 +696,8 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.group_create("Custom Group", "resid 1 to 3").unwrap();
     ///
@@ -721,8 +721,8 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.group_create("Custom Group", "resid 1 to 3").unwrap();
     ///

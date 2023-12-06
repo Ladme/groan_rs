@@ -22,8 +22,8 @@ impl System {
     /// ## Example
     /// Translating the atoms of the group "Protein".
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.group_create("Protein", "resid 1 to 29");
     ///
@@ -56,8 +56,8 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// system.atoms_translate(&[1.0, 2.0, -1.0].into());
@@ -84,8 +84,8 @@ impl System {
     /// Constructing a new system containing a dimer
     /// of a protein from the original system.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// // load system and ndx groups from files
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.read_ndx("index.ndx").unwrap();
@@ -130,8 +130,8 @@ impl System {
     /// Constructing a new system containing a dimer
     /// of a protein from the original system.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// // load system and ndx groups from files
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.read_ndx("index.ndx").unwrap();
