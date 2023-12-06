@@ -3,7 +3,9 @@
 
 //! Implementation of the Element structure and its methods.
 
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer, de};
+use serde::de::{Visitor, MapAccess};
+use std::fmt;
 use std::fs::File;
 use std::io::Read;
 use std::{collections::HashMap, path::Path};
@@ -33,16 +35,17 @@ impl System {
 #[derive(Debug, Clone)]
 #[allow(unused)]
 pub struct SupportedElements {
-    /// All supported elements
-    elements: Vec<Element>,
+    /// All supported elements.
+    /// Keys are names of the elements.
+    elements: HashMap<String, Element>,
+    /// HashMap converting element symbol to element name.
+    symbols2names: HashMap<String, String>,
 }
 
 /// Contains information about specific element.
 #[derive(Debug, Clone)]
 #[allow(unused)]
-pub struct Element {
-    /// Name of the element
-    name: String,
+struct Element {
     /// Symbol of the element
     symbol: Option<String>,
     /// `Select` structure identifying the atoms of this element
@@ -56,36 +59,28 @@ pub struct Element {
 }
 
 impl Element {
-    /// Get name of the element.
-    pub fn get_name(&self) -> &str {
-        &self.name
-    }
+    /// Update fields of `self` based on another `Element` structure.
+    fn update(&mut self, element: Element) {
+        if element.symbol.is_some() {
+            self.symbol = element.symbol;
+        }
 
-    /// Get symbol of the element.
-    pub fn get_symbol(&self) -> Option<&str> {
-        self.symbol.as_deref()
-    }
+        if element.select.is_some() {
+            self.select = element.select;
+        }
 
-    /// Get select tree of the element.
-    pub fn get_select(&self) -> Option<&Select> {
-        self.select.as_ref()
-    }
+        if element.mass.is_some() {
+            self.mass = element.mass;
+        }
 
-    /// Get mass of the element.
-    pub fn get_mass(&self) -> Option<f32> {
-        self.mass
-    }
+        if element.vdw.is_some() {
+            self.vdw = element.vdw;
+        }
 
-    /// Get van der Waals radius of the element.
-    pub fn get_vdw(&self) -> Option<f32> {
-        self.vdw
+        if element.expected_max_bonds.is_some() {
+            self.expected_max_bonds = element.expected_max_bonds;
+        }
     }
-
-    /// Get the expected maximal number of bonds.
-    pub fn get_expected_max_bonds(&self) -> Option<u8> {
-        self.expected_max_bonds
-    }
-
 }
 
 impl Default for SupportedElements {
@@ -106,6 +101,7 @@ impl Default for SupportedElements {
     }
 }
 
+
 impl SupportedElements {
     /// Construct a new `SupportedElements` structure from the provided YAML file.
     ///
@@ -121,12 +117,14 @@ impl SupportedElements {
 
     /// Parse yaml string into `SupportedElements` structure.
     fn new_from_string(yaml: &str) -> Result<Self, ParseElementError> {
-        let elements = parse_yaml_raw(yaml)?
-            .into_iter()
-            .map(|(name, temp)| temp.to_element(name))
-            .collect::<Result<Vec<Element>, ParseElementError>>()?;
+        let elements: HashMap<String, Element> = match serde_yaml::from_str(yaml) {
+            Ok(x) => x,
+            Err(e) => return Err(ParseElementError::CouldNotParseYaml(e)),
+        };
+        
+        let symbols2names = SupportedElements::make_symbols2names(&elements)?;
 
-        Ok(SupportedElements { elements })
+        Ok(SupportedElements { elements, symbols2names })
     }
 
     /// Update `SupportedElements` structure using data from the provided YAML file.
@@ -169,10 +167,47 @@ impl SupportedElements {
         &mut self,
         filename: impl AsRef<Path>,
     ) -> Result<(), ParseElementError> {
-        SupportedElements::update_from_string(
-            self,
-            &SupportedElements::load_yaml_to_string(filename)?,
-        )
+        let parsed_elements = SupportedElements::new_from_file(filename)?;
+
+        // check that the merged elements do not have duplicate element symbols
+        for (name1, element1) in parsed_elements.elements.iter() {
+            for (name2, element2) in self.elements.iter() {
+                match (element1.symbol.as_ref(), element2.symbol.as_ref()) {
+                    (Some(sym1), Some(sym2)) if sym1 == sym2 && name1 != name2 => {
+                        // check for switched
+                        let exchange = match parsed_elements.elements.get(name2) {
+                            Some(element3) => element3.symbol.as_ref(),
+                            None => return Err(ParseElementError::DuplicateSymbol(sym1.to_string(), name1.to_string(), name2.to_string())),
+                        };
+
+                        match exchange {
+                            Some(sym3) if sym3 != sym1 => (),
+                            _ => return Err(ParseElementError::DuplicateSymbol(sym1.to_string(), name1.to_string(), name2.to_string())),
+                        }
+                    }
+                    _ => continue,
+                }
+            }
+        }
+
+        // update the elements
+        for (name, element) in parsed_elements.elements.into_iter() {
+            match self.elements.get_mut(&name) {
+                Some(old) => old.update(element),
+                None => {
+                    match self.elements.insert(name, element) {
+                        None => (),
+                        Some(_) => panic!("FATAL GROAN ERROR | SupportedElements::update_from_file | Element should not exist.")
+                    }
+                }
+            }
+        }
+
+        // generate new symbols2names map
+        self.symbols2names = SupportedElements::make_symbols2names(&self.elements)
+            .expect("FATAL GROAN ERROR | SupportedElements::update_from_file | `symbols2names` hashmap should have been created.");
+
+        Ok(())
     }
 
     /// Opens the specified file and loads its contents into a string.
@@ -197,148 +232,94 @@ impl SupportedElements {
         }
     }
 
-    /// Update `SupportedElements` structure from yaml string.
-    /// Previously defined elements are updated. New elements are added.
-    /// In case an error occurs, `self` is not changed.
-    fn update_from_string(&mut self, yaml: &str) -> Result<(), ParseElementError> {
-        let parsed_elements = parse_yaml_raw(yaml)?;
+    /// Creates new `symbols2names` hashmap from the provided `elements`.
+    fn make_symbols2names(elements: &HashMap<String, Element>) -> Result<HashMap<String, String>, ParseElementError> {
+        let mut symbols2names = HashMap::new();
 
-        // first check for the validity of all elements
-        // this is necessary because we do not want to disrupt the SupportedElements
-        // structure if the parsed yaml is invalid
-        for (name, temp) in &parsed_elements {
-            temp.validate(name)?;
-        }
-
-        // then update the structure
-        for (name, temp) in parsed_elements {
-            if let Some(element) = self.elements.iter_mut().find(|e| e.name == name) {
-                temp.update_element(element);
-            } else {
-                let new_element = temp.to_element(name)
-                    .expect("FATAL GROAN ERROR | SupportedElements::update_from_string | TempElement should be valid.");
-                self.elements.push(new_element);
+        for (name, element) in elements.iter() {
+            if let Some(ref symbol) = element.symbol {
+                match symbols2names.insert(symbol.to_string(), name.to_string()) {
+                    Some(x) => return Err(ParseElementError::DuplicateSymbol(symbol.to_string(), name.to_string(), x)),
+                    None => (),
+                }
             }
         }
 
-        Ok(())
+        Ok(symbols2names)
     }
 }
 
-/// Temporary `Element` structure for parsing YAML.
-#[derive(Deserialize, Debug)]
-#[serde(deny_unknown_fields)]
-struct TempElement {
-    symbol: Option<String>,
-    query: Option<String>,
-    mass: Option<f32>,
-    vdw: Option<f32>,
-    expected_max_bonds: Option<u8>,
-}
+/// Handles parsing of the yaml file and basic sanity checks.
+struct ElementVisitor;
 
-impl TempElement {
-    /// Convert `TempElement` and name to `Element` structure.
-    /// Checks for validity of the query, mass, and vdw radius.
-    #[allow(clippy::wrong_self_convention)]
-    fn to_element(self, name: String) -> Result<Element, ParseElementError> {
-        let select = TempElement::query2select(self.query.as_deref())?;
+impl<'de> Visitor<'de> for ElementVisitor {
+    type Value = Element;
 
-        TempElement::check_mass(self.mass, &name)?;
-        TempElement::check_vdw(self.vdw, &name)?;
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("struct Element")
+    }
+
+    fn visit_map<V>(self, mut map: V) -> Result<Element, V::Error>
+    where
+        V: MapAccess<'de>,
+    {
+        let mut symbol = None;
+        let mut select = None;
+        let mut mass = None;
+        let mut vdw = None;
+        let mut expected_max_bonds = None;
+
+        while let Some(key) = map.next_key::<String>()? {
+            match key.as_str() {
+                "symbol" => symbol = map.next_value()?,
+                "query" => {
+                    let query: Option<String> = map.next_value()?;
+                    select = match query {
+                        Some(q) => match parse_query(&q) {
+                            Ok(sel) => Some(*sel),
+                            Err(_) => return Err(de::Error::custom("invalid query")),
+                        },
+                        None => None,
+                    };
+                },
+                "mass" => {
+                    let value: Option<f32> = map.next_value()?;
+                    mass = match value {
+                        Some(v) if v < 0.0 => return Err(de::Error::custom("mass is negative")),
+                        _ => value,
+                    };
+                },
+                "vdw" => {
+                    let value: Option<f32> = map.next_value()?;
+                    vdw = match value {
+                        Some(v) if v < 0.0 => return Err(de::Error::custom("vdw is negative")),
+                        _ => value,
+                    };
+                },
+                "expected_max_bonds" => expected_max_bonds = map.next_value()?,
+                _ => return Err(de::Error::unknown_field(&key, FIELDS)),
+            }
+        }
 
         Ok(Element {
-            name,
-            symbol: self.symbol,
+            symbol,
             select,
-            mass: self.mass,
-            vdw: self.vdw,
-            expected_max_bonds: self.expected_max_bonds,
+            mass,
+            vdw,
+            expected_max_bonds,
         })
-    }
-
-    /// Update `Element` structure based on the provided `TempElement` structure.
-    ///
-    /// ## Panics
-    /// Panics if the `TempElement` is invalid (its validity should be checked before using `TempElement::validate`).
-    fn update_element(self, element: &mut Element) {
-        if self.symbol.is_some() {
-            element.symbol = self.symbol;
-        }
-
-        if self.query.is_some() {
-            element.select = TempElement::query2select(self.query.as_deref())
-                .expect("FATAL GROAN ERROR | TempElement::update_element | Query should be valid.");
-        }
-
-        if self.mass.is_some() {
-            TempElement::check_mass(self.mass, &element.name)
-                .expect("FATAL GROAN ERROR | TempElement::update_element | Mass should be valid.");
-            element.mass = self.mass;
-        }
-
-        if self.vdw.is_some() {
-            TempElement::check_vdw(self.vdw, &element.name)
-                .expect("FATAL GROAN ERROR | TempElement::update_element | VdW should be valid.");
-            element.vdw = self.vdw;
-        }
-
-        if self.expected_max_bonds.is_some() {
-            element.expected_max_bonds = self.expected_max_bonds;
-        }
-    }
-
-    /// Checks that the properties of the TempElement are valid.
-    fn validate(&self, name: &str) -> Result<(), ParseElementError> {
-        TempElement::query2select(self.query.as_deref())?;
-        TempElement::check_mass(self.mass, name)?;
-        TempElement::check_vdw(self.vdw, name)?;
-
-        Ok(())
-    }
-
-    /// Convert query to select tree. If `query` is None, returns `Ok(None)`.
-    fn query2select(query: Option<&str>) -> Result<Option<Select>, ParseElementError> {
-        match query {
-            Some(x) => match parse_query(x) {
-                Ok(x) => Ok(Some(*x)),
-                Err(e) => Err(ParseElementError::InvalidQuery(e)),
-            },
-            None => Ok(None),
-        }
-    }
-
-    /// Check that `mass` is not negative. If `mass` is None, returns `Ok`.
-    fn check_mass(mass: Option<f32>, name: &str) -> Result<(), ParseElementError> {
-        match mass {
-            Some(x) if x < 0.0 => Err(ParseElementError::InvalidMass(name.to_owned())),
-            Some(_) | None => Ok(()),
-        }
-    }
-
-    /// Check that `vdw` is not negative. If `mass` is None, returns `Ok`.
-    fn check_vdw(vdw: Option<f32>, name: &str) -> Result<(), ParseElementError> {
-        match vdw {
-            Some(x) if x < 0.0 => Err(ParseElementError::InvalidVdW(name.to_owned())),
-            Some(_) | None => Ok(()),
-        }
     }
 }
 
-fn parse_yaml_raw(yaml: &str) -> Result<HashMap<String, TempElement>, ParseElementError> {
-    // if parsing yaml fails, return location of the error
-    let raw_elements: HashMap<String, TempElement> = match serde_yaml::from_str(yaml) {
-        Ok(x) => x,
-        Err(e) => {
-            let (line, col) = match e.location() {
-                Some(x) => (x.line(), x.column()),
-                None => (0, 0),
-            };
+const FIELDS: &'static [&'static str] = &["symbol", "query", "mass", "vdw", "expected_max_bonds"];
 
-            return Err(ParseElementError::CouldNotParseYaml(line, col));
-        }
-    };
-
-    Ok(raw_elements)
+impl<'de> Deserialize<'de> for Element {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_struct("Element", FIELDS, ElementVisitor)
+    }
 }
 
 /******************************/
@@ -347,7 +328,6 @@ fn parse_yaml_raw(yaml: &str) -> Result<HashMap<String, TempElement>, ParseEleme
 
 #[cfg(test)]
 mod tests {
-    use crate::errors::SelectError;
     use float_cmp::assert_approx_eq;
 
     use super::*;
@@ -357,56 +337,35 @@ mod tests {
         let elements = SupportedElements::default();
 
         assert_eq!(elements.elements.len(), 39);
+        assert_eq!(elements.symbols2names.len(), 38); // dummy does not have a symbol
 
-        let names: Vec<String> = elements.elements.iter().map(|x| x.name.clone()).collect();
-
-        assert!(names.contains(&String::from("dummy")));
-        assert!(names.contains(&String::from("hydrogen")));
-        assert!(names.contains(&String::from("carbon")));
-        assert!(names.contains(&String::from("bismuth")));
-        assert!(names.contains(&String::from("lithium")));
-
-        let mut visited = 0;
-
-        for e in &elements.elements {
-            // first element
-            if e.name == "dummy" {
-                assert!(e.symbol.is_none());
-                assert!(e.select.is_some());
-                assert_approx_eq!(f32, e.mass.unwrap(), 0.0);
-                assert!(e.vdw.is_none());
-                assert!(e.expected_max_bonds.is_none());
-                visited += 1;
-
-                continue;
-            }
-
-            // important element
-            if e.name == "carbon" {
-                assert_eq!(e.symbol.as_ref().unwrap(), "C");
-                assert!(e.select.is_some());
-                assert_approx_eq!(f32, e.mass.unwrap(), 12.0107);
-                assert_approx_eq!(f32, e.vdw.unwrap(), 0.17);
-                assert_eq!(e.expected_max_bonds.unwrap(), 4);
-                visited += 1;
-
-                continue;
-            }
-
-            // last element
-            if e.name == "bismuth" {
-                assert_eq!(e.symbol.as_ref().unwrap(), "Bi");
-                assert!(e.select.is_some());
-                assert_approx_eq!(f32, e.mass.unwrap(), 208.98040);
-                assert!(e.vdw.is_none());
-                assert!(e.expected_max_bonds.is_none());
-                visited += 1;
-
-                continue;
-            }
+        for name in elements.symbols2names.values() {
+            assert!(elements.elements.get(name).is_some());
         }
 
-        assert_eq!(visited, 3);
+        // first element
+        let e = elements.elements.get("dummy").unwrap();
+        assert!(e.symbol.is_none());
+        assert!(e.select.is_some());
+        assert_approx_eq!(f32, e.mass.unwrap(), 0.0);
+        assert!(e.vdw.is_none());
+        assert!(e.expected_max_bonds.is_none());
+
+        // important element
+        let e = elements.elements.get("carbon").unwrap();
+        assert_eq!(e.symbol.as_ref().unwrap(), "C");
+        assert!(e.select.is_some());
+        assert_approx_eq!(f32, e.mass.unwrap(), 12.0107);
+        assert_approx_eq!(f32, e.vdw.unwrap(), 0.17);
+        assert_eq!(e.expected_max_bonds.unwrap(), 4);
+
+        // last element
+        let e = elements.elements.get("bismuth").unwrap();
+        assert_eq!(e.symbol.as_ref().unwrap(), "Bi");
+        assert!(e.select.is_some());
+        assert_approx_eq!(f32, e.mass.unwrap(), 208.98040);
+        assert!(e.vdw.is_none());
+        assert!(e.expected_max_bonds.is_none());
     }
 
     fn elements_match(el1: &mut SupportedElements, el2: &mut SupportedElements) {
@@ -415,19 +374,8 @@ mod tests {
             el2.elements.len()
         );
 
-        el1
-            .elements
-            .sort_by(|x, y| x.name.cmp(&y.name));
-        el2
-            .elements
-            .sort_by(|x, y| x.name.cmp(&y.name));
-
-        for (e1, e2) in el1
-            .elements
-            .iter()
-            .zip(el2.elements.iter())
-        {
-            assert_eq!(e1.name, e2.name);
+        for (name1, e1) in el1.elements.iter() {
+            let e2 = el2.elements.get(name1).unwrap();
 
             match (&e1.symbol, &e2.symbol) {
                 (Some(x), Some(y)) => assert_eq!(x, y),
@@ -458,6 +406,7 @@ mod tests {
                 (None, None) => (),
                 _ => panic!("Expected max bonds do not match."),
             }
+
         }
     }
 
@@ -474,9 +423,9 @@ mod tests {
     fn elements_invalid_field() {
         match SupportedElements::new_from_file("test_files/elements_invalid_field.yaml") {
             Ok(_) => panic!("Function should have failed but it succeeded."),
-            Err(ParseElementError::CouldNotParseYaml(line, col)) => {
-                assert_eq!(line, 10);
-                assert_eq!(col, 3);
+            Err(ParseElementError::CouldNotParseYaml(e)) => {
+                let string = e.to_string();
+                assert!(string.contains("unknown field"));
             }
             Err(e) => panic!(
                 "Function failed successfully but incorrect error type `{}` was returned.",
@@ -503,8 +452,9 @@ mod tests {
     fn elements_invalid_query() {
         match SupportedElements::new_from_file("test_files/elements_invalid_query.yaml") {
             Ok(_) => panic!("Function should have failed but it succeeded."),
-            Err(ParseElementError::InvalidQuery(SelectError::InvalidNumber(query))) => {
-                assert_eq!(query, "resid 14 15 17 X 18 19 20")
+            Err(ParseElementError::CouldNotParseYaml(e)) => {
+                let string = e.to_string();
+                assert!(string.contains("invalid query"));
             }
             Err(e) => panic!(
                 "Function failed successfully but incorrect error type `{}` was returned.",
@@ -513,11 +463,15 @@ mod tests {
         }
     }
 
+    
     #[test]
     fn elements_invalid_mass() {
         match SupportedElements::new_from_file("test_files/elements_invalid_mass.yaml") {
             Ok(_) => panic!("Function should have failed but it succeeded."),
-            Err(ParseElementError::InvalidMass(name)) => assert_eq!(name, String::from("hydrogen")),
+            Err(ParseElementError::CouldNotParseYaml(e)) => {
+                let string = e.to_string();
+                assert!(string.contains("mass is negative"));
+            }
             Err(e) => panic!(
                 "Function failed successfully but incorrect error type `{}` was returned.",
                 e
@@ -529,7 +483,27 @@ mod tests {
     fn elements_invalid_vdw() {
         match SupportedElements::new_from_file("test_files/elements_invalid_vdw.yaml") {
             Ok(_) => panic!("Function should have failed but it succeeded."),
-            Err(ParseElementError::InvalidVdW(name)) => assert_eq!(name, String::from("carbon")),
+            Err(ParseElementError::CouldNotParseYaml(e)) => {
+                let string = e.to_string();
+                assert!(string.contains("vdw is negative"));
+            }
+            Err(e) => panic!(
+                "Function failed successfully but incorrect error type `{}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn elements_duplicate_symbol() {
+        match SupportedElements::new_from_file("test_files/elements_duplicate_symbol.yaml") {
+            Ok(_) => panic!("Function should have failed but it succeeded."),
+            Err(ParseElementError::DuplicateSymbol(sym, n1, n2)) => {
+                assert_eq!(sym, String::from("H"));
+                assert!(n1 == String::from("helium") || n1 == String::from("hydrogen"));
+                assert!(n2 == String::from("helium") || n2 == String::from("hydrogen"));
+                assert_ne!(n1, n2);
+            }
             Err(e) => panic!(
                 "Function failed successfully but incorrect error type `{}` was returned.",
                 e
@@ -543,72 +517,54 @@ mod tests {
         elements
             .update_from_file("test_files/elements_update.yaml")
             .unwrap();
+        
+        assert_eq!(elements.elements.len(), 40);
+        assert_eq!(elements.symbols2names.len(), 39); // dummy does not have a symbol
 
-        let mut visited = 0;
-
-        for e in &elements.elements {
-            // first element
-            if e.name == "dummy" {
-                assert!(e.symbol.is_none());
-                assert!(e.select.is_some());
-                assert_approx_eq!(f32, e.mass.unwrap(), 0.0);
-                assert!(e.vdw.is_none());
-                assert!(e.expected_max_bonds.is_none());
-
-                visited += 1;
-                continue;
-            }
-
-            // changed element #1
-            if e.name == "carbon" {
-                assert_eq!(e.symbol.as_ref().unwrap(), "C");
-                assert!(e.select.is_some());
-                assert_approx_eq!(f32, e.mass.unwrap(), 12.0107);
-                assert_approx_eq!(f32, e.vdw.unwrap(), 0.20);
-                assert_eq!(e.expected_max_bonds.unwrap(), 4);
-
-                visited += 1;
-                continue;
-            }
-
-            // change element #2
-            if e.name == "hydrogen" {
-                assert_eq!(e.symbol.as_ref().unwrap(), "HH");
-                assert!(e.select.is_some());
-                assert_approx_eq!(f32, e.mass.unwrap(), 2.014);
-                assert_approx_eq!(f32, e.vdw.unwrap(), 0.12);
-                assert_eq!(e.expected_max_bonds.unwrap(), 8);
-
-                visited += 1;
-                continue;
-            }
-
-            // added element
-            if e.name == "polonium" {
-                assert_eq!(e.symbol.as_ref().unwrap(), "Po");
-                assert!(e.select.is_some());
-                assert_approx_eq!(f32, e.mass.unwrap(), 209.0);
-                assert!(e.vdw.is_none());
-                assert!(e.expected_max_bonds.is_none());
-
-                visited += 1;
-                continue;
-            }
-
-            // last element
-            if e.name == "bismuth" {
-                assert_eq!(e.symbol.as_ref().unwrap(), "Bi");
-                assert!(e.select.is_some());
-                assert_approx_eq!(f32, e.mass.unwrap(), 208.98040);
-                assert!(e.vdw.is_none());
-                assert!(e.expected_max_bonds.is_none());
-
-                visited += 1;
-                continue;
-            }
+        for name in elements.symbols2names.values() {
+            assert!(elements.elements.get(name).is_some());
         }
 
-        assert_eq!(visited, 5);
+        // first element
+        let e = elements.elements.get("dummy").unwrap();
+        assert!(e.symbol.is_none());
+        assert!(e.select.is_some());
+        assert_approx_eq!(f32, e.mass.unwrap(), 0.0);
+        assert!(e.vdw.is_none());
+        assert!(e.expected_max_bonds.is_none());
+
+        // changed element #1
+        let e = elements.elements.get("carbon").unwrap();
+        assert_eq!(e.symbol.as_ref().unwrap(), "C");
+        assert!(e.select.is_some());
+        assert_approx_eq!(f32, e.mass.unwrap(), 12.0107);
+        assert_approx_eq!(f32, e.vdw.unwrap(), 0.20);
+        assert_eq!(e.expected_max_bonds.unwrap(), 4);
+
+        // changed element #2
+        let e = elements.elements.get("hydrogen").unwrap();
+        assert_eq!(e.symbol.as_ref().unwrap(), "HH");
+        assert!(e.select.is_some());
+        assert_approx_eq!(f32, e.mass.unwrap(), 2.014);
+        assert_approx_eq!(f32, e.vdw.unwrap(), 0.12);
+        assert_eq!(e.expected_max_bonds.unwrap(), 8);
+
+        // added element
+        let e = elements.elements.get("polonium").unwrap();
+        assert_eq!(e.symbol.as_ref().unwrap(), "Po");
+        assert!(e.select.is_some());
+        assert_approx_eq!(f32, e.mass.unwrap(), 209.0);
+        assert!(e.vdw.is_none());
+        assert!(e.expected_max_bonds.is_none());
+
+        // last element
+        let e = elements.elements.get("bismuth").unwrap();
+        assert_eq!(e.symbol.as_ref().unwrap(), "Bi");
+        assert!(e.select.is_some());
+        assert_approx_eq!(f32, e.mass.unwrap(), 208.98040);
+        assert!(e.vdw.is_none());
+        assert!(e.expected_max_bonds.is_none());
+
     }
 
     #[test]
@@ -617,9 +573,9 @@ mod tests {
 
         match elements.update_from_file("test_files/elements_invalid_field.yaml") {
             Ok(_) => panic!("Function should have failed but it succeeded."),
-            Err(ParseElementError::CouldNotParseYaml(line, col)) => {
-                assert_eq!(line, 10);
-                assert_eq!(col, 3);
+            Err(ParseElementError::CouldNotParseYaml(e)) => {
+                let string = e.to_string();
+                assert!(string.contains("unknown field"));
             }
             Err(e) => panic!(
                 "Function failed successfully but incorrect error type `{}` was returned.",
@@ -656,8 +612,9 @@ mod tests {
 
         match elements.update_from_file("test_files/elements_invalid_query.yaml") {
             Ok(_) => panic!("Function should have failed but it succeeded."),
-            Err(ParseElementError::InvalidQuery(SelectError::InvalidNumber(query))) => {
-                assert_eq!(query, "resid 14 15 17 X 18 19 20")
+            Err(ParseElementError::CouldNotParseYaml(e)) => {
+                let string = e.to_string();
+                assert!(string.contains("invalid query"));
             }
             Err(e) => panic!(
                 "Function failed successfully but incorrect error type `{}` was returned.",
@@ -673,9 +630,12 @@ mod tests {
     fn elements_update_invalid_mass() {
         let mut elements = SupportedElements::default();
 
-        match SupportedElements::new_from_file("test_files/elements_invalid_mass.yaml") {
+        match elements.update_from_file("test_files/elements_invalid_mass.yaml") {
             Ok(_) => panic!("Function should have failed but it succeeded."),
-            Err(ParseElementError::InvalidMass(name)) => assert_eq!(name, String::from("hydrogen")),
+            Err(ParseElementError::CouldNotParseYaml(e)) => {
+                let string = e.to_string();
+                assert!(string.contains("mass is negative"));
+            }
             Err(e) => panic!(
                 "Function failed successfully but incorrect error type `{}` was returned.",
                 e
@@ -690,9 +650,12 @@ mod tests {
     fn elements_update_invalid_vdw() {
         let mut elements = SupportedElements::default();
 
-        match SupportedElements::new_from_file("test_files/elements_invalid_vdw.yaml") {
+        match elements.update_from_file("test_files/elements_invalid_vdw.yaml") {
             Ok(_) => panic!("Function should have failed but it succeeded."),
-            Err(ParseElementError::InvalidVdW(name)) => assert_eq!(name, String::from("carbon")),
+            Err(ParseElementError::CouldNotParseYaml(e)) => {
+                let string = e.to_string();
+                assert!(string.contains("vdw is negative"));
+            }
             Err(e) => panic!(
                 "Function failed successfully but incorrect error type `{}` was returned.",
                 e
@@ -703,4 +666,81 @@ mod tests {
         elements_match(&mut elements, &mut default);
     }
 
+    #[test]
+    fn elements_update_duplicate_symbol() {
+        let mut elements = SupportedElements::default();
+
+        match elements.update_from_file("test_files/elements_duplicate_symbol.yaml") {
+            Ok(_) => panic!("Function should have failed but it succeeded."),
+            Err(ParseElementError::DuplicateSymbol(sym, n1, n2)) => {
+                assert_eq!(sym, String::from("H"));
+                assert!(n1 == String::from("helium") || n1 == String::from("hydrogen"));
+                assert!(n2 == String::from("helium") || n2 == String::from("hydrogen"));
+                assert_ne!(n1, n2);
+            }
+            Err(e) => panic!(
+                "Function failed successfully but incorrect error type `{}` was returned.",
+                e
+            ),
+        }
+
+        let mut default = SupportedElements::default();
+        elements_match(&mut elements, &mut default);
+    }
+
+    #[test]
+    fn elements_update_duplicate_symbol_new() {
+        let mut elements = SupportedElements::default();
+
+        match elements.update_from_file("test_files/elements_duplicate_symbol3.yaml") {
+            Ok(_) => panic!("Function should have failed but it succeeded."),
+            Err(ParseElementError::DuplicateSymbol(sym, n1, n2)) => {
+                assert_eq!(sym, String::from("H"));
+                assert!(n1 == String::from("polonium") || n1 == String::from("hydrogen"));
+                assert!(n2 == String::from("polonium") || n2 == String::from("hydrogen"));
+                assert_ne!(n1, n2);
+            }
+            Err(e) => panic!(
+                "Function failed successfully but incorrect error type `{}` was returned.",
+                e
+            ),
+        }
+
+        let mut default = SupportedElements::default();
+        elements_match(&mut elements, &mut default);
+    }
+
+    #[test]
+    fn elements_update_switched_symbols() {
+        let mut elements = SupportedElements::default();
+
+        elements.update_from_file("test_files/elements_symbols_switched.yaml").unwrap();
+
+        let e = elements.elements.get("carbon").unwrap();
+        assert_eq!(e.symbol.as_deref().unwrap(), "H");
+        let e = elements.elements.get("hydrogen").unwrap();
+        assert_eq!(e.symbol.as_deref().unwrap(), "C");
+        // unchanged
+        let e = elements.elements.get("bismuth").unwrap();
+        assert_eq!(e.symbol.as_deref().unwrap(), "Bi");
+    }
+
+    #[test]
+    fn elements_update_complex_switched_symbols() {
+        let mut elements = SupportedElements::default();
+
+        elements.update_from_file("test_files/elements_complex_switches.yaml").unwrap();
+
+        let e = elements.elements.get("carbon").unwrap();
+        assert_eq!(e.symbol.as_deref().unwrap(), "N");
+        let e = elements.elements.get("hydrogen").unwrap();
+        assert_eq!(e.symbol.as_deref().unwrap(), "C");
+        let e = elements.elements.get("nitrogen").unwrap();
+        assert_eq!(e.symbol.as_deref().unwrap(), "P");
+        let e = elements.elements.get("phosphorus").unwrap();
+        assert_eq!(e.symbol.as_deref().unwrap(), "H");
+        // unchanged
+        let e = elements.elements.get("bismuth").unwrap();
+        assert_eq!(e.symbol.as_deref().unwrap(), "Bi");
+    }
 }

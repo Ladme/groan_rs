@@ -1,0 +1,10 @@
+---
+hydrogen:
+  symbol: C
+carbon:
+  symbol: N
+nitrogen:
+  symbol: P
+phosphorus:
+  symbol: H
+...

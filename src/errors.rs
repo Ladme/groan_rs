@@ -325,7 +325,7 @@ pub enum SelectError {
 }
 
 /// Errors that can occur when reading element data.
-#[derive(Error, Debug, PartialEq, Eq)]
+#[derive(Error, Debug)]
 pub enum ParseElementError {
     /// Used when the yaml file was not found (i.e. does not exist).
     #[error("{} file '{}' was not found", "error:".red().bold(), path_to_yellow(.0))]
@@ -334,18 +334,11 @@ pub enum ParseElementError {
     #[error("{} file '{}' could not be read", "error:".red().bold(), path_to_yellow(.0))]
     FileCouldNotBeRead(Box<Path>),
     /// Used when the yaml string containing element data can't be parsed.
-    #[error("{} could not parse yaml input as elements (error at line {}, column {})", "error:".red().bold(), .0.to_string().yellow(), .1.to_string().yellow())]
-    CouldNotParseYaml(usize, usize),
-    /// Used when a query provided in the element data is invalid.
-    /// Encapsulates the `SelectError` providing more information about the type of error.
-    #[error("{}", .0)]
-    InvalidQuery(SelectError),
-    /// Used when the mass of the element is invalid (i.e. negative).
-    #[error("{} invalid mass detected for element '{}'", "error:".red().bold(), .0.to_string().yellow())]
-    InvalidMass(String),
-    /// Used when the van der Waals radius of the element is invalid (i.e. negative).
-    #[error("{} invalid van der Waals radius detected for element '{}'", "error:".red().bold(), .0.to_string().yellow())]
-    InvalidVdW(String),
+    #[error("{} could not parse yaml input as elements ({})", "error:".red().bold(), .0.to_string().yellow())]
+    CouldNotParseYaml(serde_yaml::Error),
+    /// Used when the same element symbol corresponds to multiple elements.
+    #[error("{} element symbol '{}' corresponds to both '{}' and '{}'", "error:".red().bold(), .0.yellow(), .1.yellow(), .2.yellow())]
+    DuplicateSymbol(String, String, String),
 }
 
 /// Errors that can occur when working with elements.

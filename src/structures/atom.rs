@@ -7,7 +7,7 @@ use std::io::Write;
 
 use crate::errors::{WriteGroError, WritePdbError};
 use crate::structures::{
-    container::AtomContainer, dimension::Dimension, element::Element, simbox::SimBox, vector3d::Vector3D,
+    container::AtomContainer, dimension::Dimension, simbox::SimBox, vector3d::Vector3D,
 };
 
 #[derive(Debug, Clone)]
@@ -20,21 +20,25 @@ pub struct Atom {
     atom_number: usize,
     /// Name of the atom.
     atom_name: String,
-    /// Identifier of the chain this atom is part of. (Optional.)
+    /// Identifier of the chain this atom is part of. (Optional)
     chain: Option<char>,
-    /// Charge of the atom. (Optional.)
+    /// Charge of the atom. (Optional)
     charge: Option<f32>,
-    /// Mass of the atom. (Optional.)
-    /// If not provided, mass of the `element` is used.
-    /// If `element` is not provided, atom has undefined mass.
+    /// Mass of the atom. (Optional)
     mass: Option<f32>,
-    /// Element of the atom. (Optional.)
-    element: Option<Element>,
-    /// Position of the atom in 3D space. (Optional.)
+    /// Van der Waals radius of the atom. (Optional)
+    vdw: Option<f32>,
+    /// Expected maximal number of bonded atoms. (Optional.)
+    expected_max_bonds: Option<u8>,
+    /// Name of the element of the atom. (Optional.)
+    element_name: Option<String>,
+    /// Symbol of the element of the atom. (Optional.)
+    element_symbol: Option<String>,
+    /// Position of the atom in 3D space. (Optional)
     position: Option<Vector3D>,
-    /// Velocity of the atom. (Optional.)
+    /// Velocity of the atom. (Optional)
     velocity: Option<Vector3D>,
-    /// Force acting on the atom. (Optional.)
+    /// Force acting on the atom. (Optional)
     force: Option<Vector3D>,
     /// Indices of atoms that are bonded to this atom.
     bonded: AtomContainer,
@@ -60,7 +64,10 @@ impl Atom {
             chain: None,
             charge: None,
             mass: None,
-            element: None,
+            vdw: None,
+            expected_max_bonds: None,
+            element_name: None,
+            element_symbol: None,
             position: None,
             velocity: None,
             force: None,
@@ -104,9 +111,27 @@ impl Atom {
         self
     }
 
-    /// Add element to target atom.
-    pub fn with_element(mut self, element: Element) -> Self {
-        self.set_element(element);
+    /// Add vdw to target atom.
+    pub fn with_vdw(mut self, vdw: f32) -> Self {
+        self.set_vdw(vdw);
+        self
+    }
+
+    /// Add expected maximal number of bonds to target atom.
+    pub fn with_expected_max_bonds(mut self, expected_max_bonds: u8) -> Self {
+        self.set_expected_max_bonds(expected_max_bonds);
+        self
+    }
+
+    /// Add element name to target atom.
+    pub fn with_element_name(mut self, name: &str) -> Self {
+        self.set_element_name(name);
+        self
+    }
+
+    /// Add element symbol to target atom.
+    pub fn with_element_symbol(mut self, symbol: &str) -> Self {
+        self.set_element_symbol(symbol);
         self
     }
 
@@ -181,22 +206,11 @@ impl Atom {
     }
 
     /// Get the mass of the atom.
-    /// If the atom has no explicitely provided mass,
-    /// the mass of the element is returned.
-    /// If the atom has no assigned element,
-    /// or the element has no assigned mass,
-    /// this function returns `None`.
-    pub fn get_mass(&mut self) -> Option<f32> {
-        if self.mass.is_some() {
-            self.mass
-        } else {
-            self.get_element()?.get_mass()
-        }
+    pub fn get_mass(&self) -> Option<f32> {
+        self.mass
     }
 
     /// Set the mass of the atom.
-    /// Explicitely provided mass takes
-    /// priority over element mass.
     pub fn set_mass(&mut self, mass: f32) {
         self.mass = Some(mass);
     }
@@ -206,29 +220,64 @@ impl Atom {
         self.mass = None;
     }
 
-    /// Get the element of the atom.
-    pub fn get_element(&self) -> Option<&Element> {
-        self.element.as_ref()
+    /// Get the vdW radius of the atom.
+    pub fn get_vdw(&self) -> Option<f32> {
+        self.vdw
+    }
+
+    /// Set the vdW radius of the atom.
+    pub fn set_vdw(&mut self, vdw: f32) {
+        self.vdw = Some(vdw);
+    }
+
+    /// Set the vdW radius of the atom to `None`.
+    pub fn reset_vdw(&mut self) {
+        self.vdw = None;
+    }
+
+    /// Get the expected maximal number of bonds of the atom.
+    pub fn get_expected_max_bonds(&self) -> Option<u8> {
+        self.expected_max_bonds
+    }
+
+    /// Set the expected maximal number of bonds of the atom.
+    pub fn set_expected_max_bonds(&mut self, expected_max_bonds: u8) {
+        self.expected_max_bonds = Some(expected_max_bonds);
+    }
+
+    /// Set the expected maximal number of bonds of the atom to `None`.
+    pub fn reset_expected_max_bonds(&mut self) {
+        self.expected_max_bonds = None;
     }
 
     /// Get the element name of the atom.
     pub fn get_element_name(&self) -> Option<&str> {
-        Some(self.get_element()?.get_name())
+        self.element_name.as_deref()
+    }
+
+    /// Set the element name of the atom.
+    pub fn set_element_name(&mut self, name: &str) {
+        self.element_name = Some(name.to_string());
+    }
+
+    /// Set the element name of the atom to `None`.
+    pub fn reset_element_name(&mut self) {
+        self.element_name = None;
     }
 
     /// Get the element symbol of the atom.
     pub fn get_element_symbol(&self) -> Option<&str> {
-        self.get_element()?.get_symbol()
+        self.element_symbol.as_deref()
     }
 
-    /// Set the element of the atom.
-    pub fn set_element(&mut self, element: Element) {
-        self.element = Some(element);
+    /// Set the element symbol of the atom.
+    pub fn set_element_symbol(&mut self, symbol: &str) {
+        self.element_symbol = Some(symbol.to_string());
     }
 
-    /// Set the element of the atom to `None`.
-    pub fn reset_element(&mut self) {
-        self.element = None;
+    /// Set the element symbol of the atom to `None`.
+    pub fn reset_element_symbol(&mut self) {
+        self.element_symbol = None;
     }
 
     /// Get the coordinates of the atom.
@@ -631,55 +680,144 @@ mod tests {
     }
 
     #[test]
-    fn get_residue_number() {
-        let atom = make_default_atom();
-        assert_eq!(atom.get_residue_number(), 45);
-    }
-
-    #[test]
-    fn set_residue_number() {
+    fn residue_number() {
         let mut atom = make_default_atom();
+        assert_eq!(atom.get_residue_number(), 45);
+
         atom.set_residue_number(187);
         assert_eq!(atom.get_residue_number(), 187);
     }
 
     #[test]
-    fn get_residue_name() {
-        let atom = make_default_atom();
-        assert_eq!(atom.get_residue_name(), "GLY");
-    }
-
-    #[test]
-    fn set_residue_name() {
+    fn residue_name() {
         let mut atom = make_default_atom();
+        assert_eq!(atom.get_residue_name(), "GLY");
+
         atom.set_residue_name("LYS");
         assert_eq!(atom.get_residue_name(), "LYS");
     }
 
     #[test]
-    fn get_atom_number() {
-        let atom = make_default_atom();
-        assert_eq!(atom.get_atom_number(), 123);
-    }
-
-    #[test]
-    fn set_atom_number() {
+    fn atom_number() {
         let mut atom = make_default_atom();
+        assert_eq!(atom.get_atom_number(), 123);
+
         atom.set_atom_number(13);
         assert_eq!(atom.get_atom_number(), 13);
     }
 
     #[test]
-    fn get_atom_name() {
-        let atom = make_default_atom();
+    fn atom_name() {
+        let mut atom = make_default_atom();
         assert_eq!(atom.get_atom_name(), "BB");
+
+        atom.set_atom_name("SC1");
+        assert_eq!(atom.get_atom_name(), "SC1");
     }
 
     #[test]
-    fn set_atom_name() {
+    fn chain() {
         let mut atom = make_default_atom();
-        atom.set_atom_name("SC1");
-        assert_eq!(atom.get_atom_name(), "SC1");
+        assert_eq!(atom.get_chain(), None);
+
+        atom.set_chain('B');
+        assert_eq!(atom.get_chain().unwrap(), 'B');
+
+        atom.reset_chain();
+        assert_eq!(atom.get_chain(), None);
+
+        let atom2 = make_default_atom().with_chain('B');
+        assert_eq!(atom2.get_chain().unwrap(), 'B');
+    }
+
+    #[test]
+    fn charge() {
+        let mut atom = make_default_atom();
+        assert_eq!(atom.get_charge(), None);
+
+        atom.set_charge(0.453);
+        assert_approx_eq!(f32, atom.get_charge().unwrap(), 0.453);
+
+        atom.reset_charge();
+        assert_eq!(atom.get_charge(), None);
+
+        let atom2 = make_default_atom().with_charge(0.453);
+        assert_approx_eq!(f32, atom2.get_charge().unwrap(), 0.453);
+    }
+
+    #[test]
+    fn mass() {
+        let mut atom = make_default_atom();
+        assert_eq!(atom.get_mass(), None);
+
+        atom.set_mass(10.453);
+        assert_approx_eq!(f32, atom.get_mass().unwrap(), 10.453);
+
+        atom.reset_mass();
+        assert_eq!(atom.get_mass(), None);
+
+        let atom2 = make_default_atom().with_mass(10.453);
+        assert_approx_eq!(f32, atom2.get_mass().unwrap(), 10.453);
+    }
+
+    #[test]
+    fn vdw() {
+        let mut atom = make_default_atom();
+        assert_eq!(atom.get_vdw(), None);
+
+        atom.set_vdw(0.19);
+        assert_approx_eq!(f32, atom.get_vdw().unwrap(), 0.19);
+
+        atom.reset_vdw();
+        assert_eq!(atom.get_vdw(), None);
+
+        let atom2 = make_default_atom().with_vdw(0.19);
+        assert_approx_eq!(f32, atom2.get_vdw().unwrap(), 0.19);
+    }
+
+    #[test]
+    fn expected_max_bonds() {
+        let mut atom = make_default_atom();
+        assert_eq!(atom.get_expected_max_bonds(), None);
+
+        atom.set_expected_max_bonds(3);
+        assert_eq!(atom.get_expected_max_bonds().unwrap(), 3);
+
+        atom.reset_expected_max_bonds();
+        assert_eq!(atom.get_expected_max_bonds(), None);
+
+        let atom2 = make_default_atom().with_expected_max_bonds(3);
+        assert_eq!(atom2.get_expected_max_bonds().unwrap(), 3);
+    }
+
+    #[test]
+    fn element_name() {
+        let mut atom = make_default_atom();
+        assert_eq!(atom.get_element_name(), None);
+
+        atom.set_element_name("carbon");
+        assert_eq!(atom.get_element_name().unwrap(), String::from("carbon"));
+
+        atom.reset_element_name();
+        assert_eq!(atom.get_element_name(), None);
+
+        let atom2 = make_default_atom().with_element_name("carbon");
+        assert_eq!(atom2.get_element_name().unwrap(), String::from("carbon"));
+    }
+
+    #[test]
+    fn element_symbol() {
+        let mut atom = make_default_atom();
+        assert_eq!(atom.get_element_symbol(), None);
+
+        atom.set_element_symbol("C");
+        assert_eq!(atom.get_element_symbol().unwrap(), String::from("C"));
+
+        atom.reset_element_symbol();
+        assert_eq!(atom.get_element_symbol(), None);
+
+        let atom2 = make_default_atom().with_element_symbol("C");
+        assert_eq!(atom2.get_element_symbol().unwrap(), String::from("C"));
     }
 
     #[test]

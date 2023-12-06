@@ -18,6 +18,9 @@
   is used as the mass of the atom.
 - Methods were added to use and access `mass` and `element`.
 
+#### Other changes
+- Added more tests for basic `Atom` get, set, reset, and with functions.
+
 ***
 
 ### Version 0.5.0
