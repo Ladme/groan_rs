@@ -85,6 +85,34 @@ impl Select {
             other => Ok(other),
         }
     }
+
+    /// Validate that all groups specified in the `Select` structure actually exist in the system.
+    /// Returns `Ok` if they all exist, otherwise returns a `SelectError`
+    pub(crate) fn validate_groups(&self, system: &System) -> Result<(), SelectError> {
+        match self {
+            Select::GroupName(names) => {
+                for name in names.iter() {
+                    // we can use the index 0 even if the system contains no atoms
+                    // due to the way `AtomContainer::isin` works
+                    match name.match_groups(system, 0) {
+                        Ok(_) => (),
+                        Err(e) => return Err(e),
+                    }
+                }
+            }
+
+            Select::And(left, right) | Select::Or(left, right) => {
+                left.validate_groups(system)?;
+                right.validate_groups(system)?;
+            }
+
+            Select::Not(operand) => operand.validate_groups(system)?,
+
+            _ => (),
+        }
+
+        Ok(())
+    }
 }
 
 pub fn parse_query(query: &str) -> Result<Box<Select>, SelectError> {
@@ -128,6 +156,9 @@ pub fn parse_query(query: &str) -> Result<Box<Select>, SelectError> {
         Err(SelectError::InvalidNumber(_)) => Err(SelectError::InvalidNumber(query.to_string())),
         Err(SelectError::InvalidChainId(_)) => Err(SelectError::InvalidChainId(query.to_string())),
         Err(SelectError::InvalidRegex(e)) => Err(SelectError::InvalidRegex(e)),
+        Err(SelectError::InvalidTokenAfterParentheses(_)) => {
+            Err(SelectError::InvalidTokenAfterParentheses(query.to_string()))
+        }
         Err(_) => Err(SelectError::UnknownError(query.to_string())),
     }
 }
@@ -238,7 +269,7 @@ fn process_operation(
     // or create a new tree
     } else {
         if tree.is_some() {
-            panic!("FATAL GROAN ERROR | select::process_operation | No binary operator detected but the parsing tree already exists.")
+            return Err(SelectError::InvalidTokenAfterParentheses("".to_string()));
         }
         Ok(Some(parsed))
     }
@@ -1101,6 +1132,17 @@ mod pass_tests {
             Name::new("Membrane").unwrap(),
             Name::new("ION").unwrap()
         ])
+    );
+    parsing_success!(
+        multiple_groups_binary,
+        "Protein and Membrane or ION",
+        Select::Or(
+            Box::new(Select::And(
+                Box::new(Select::GroupName(vec![Name::new("Protein").unwrap()])),
+                Box::new(Select::GroupName(vec![Name::new("Membrane").unwrap()]))
+            )),
+            Box::new(Select::GroupName(vec![Name::new("ION").unwrap()]))
+        )
     );
     parsing_success!(
         multiple_explicit_groups,
@@ -2037,6 +2079,21 @@ mod fail_tests {
         invalid_operator_3,
         "resname LYS &&& name SC1",
         SelectError::InvalidOperator
+    );
+    parsing_fails!(
+        invalid_token_after_parentheses_1,
+        "(name CA CB) resname LYS",
+        SelectError::InvalidTokenAfterParentheses
+    );
+    parsing_fails!(
+        invalid_token_after_parentheses_2,
+        "(namne BB or group Protein) (resid 1 to 54)",
+        SelectError::InvalidTokenAfterParentheses
+    );
+    parsing_fails!(
+        invalid_token_after_parentheses_3,
+        "(namne BB or group Protein)!serial 7",
+        SelectError::InvalidTokenAfterParentheses
     );
 
     #[test]

@@ -30,6 +30,8 @@ pub struct Atom {
     vdw: Option<f32>,
     /// Expected maximal number of bonded atoms. (Optional.)
     expected_max_bonds: Option<u8>,
+    /// Expected minimal number of bonded atoms. (Optional.)
+    expected_min_bonds: Option<u8>,
     /// Name of the element of the atom. (Optional.)
     element_name: Option<String>,
     /// Symbol of the element of the atom. (Optional.)
@@ -66,6 +68,7 @@ impl Atom {
             mass: None,
             vdw: None,
             expected_max_bonds: None,
+            expected_min_bonds: None,
             element_name: None,
             element_symbol: None,
             position: None,
@@ -120,6 +123,24 @@ impl Atom {
     /// Add expected maximal number of bonds to target atom.
     pub fn with_expected_max_bonds(mut self, expected_max_bonds: u8) -> Self {
         self.set_expected_max_bonds(expected_max_bonds);
+        self
+    }
+
+    /// Add expected minimal number of bonds to target atom.
+    pub fn with_expected_min_bonds(mut self, expected_min_bonds: u8) -> Self {
+        self.set_expected_min_bonds(expected_min_bonds);
+        self
+    }
+
+    /// Add element name to target atom.
+    pub fn with_element_name(mut self, name: &str) -> Self {
+        self.set_element_name(name);
+        self
+    }
+
+    /// Add element name to target atom.
+    pub fn with_element_symbol(mut self, symbol: &str) -> Self {
+        self.set_element_symbol(symbol);
         self
     }
 
@@ -238,18 +259,28 @@ impl Atom {
         self.expected_max_bonds = None;
     }
 
+    /// Get the expected minimal number of bonds of the atom.
+    pub fn get_expected_min_bonds(&self) -> Option<u8> {
+        self.expected_min_bonds
+    }
+
+    /// Set the expected minimal number of bonds of the atom.
+    pub fn set_expected_min_bonds(&mut self, expected_min_bonds: u8) {
+        self.expected_min_bonds = Some(expected_min_bonds);
+    }
+
+    /// Set the expected minimal number of bonds of the atom to `None`.
+    pub fn reset_expected_min_bonds(&mut self) {
+        self.expected_min_bonds = None;
+    }
+
     /// Get the element name of the atom.
     pub fn get_element_name(&self) -> Option<&str> {
         self.element_name.as_deref()
     }
 
     /// Set the element name of the atom.
-    /// 
-    /// ## Safety
-    /// This function is only safe to use if the `name` is
-    /// in the `SupportedElements` structure associated with 
-    /// the corresponding `System` structure. 
-    pub unsafe fn set_element_name(&mut self, name: &str) {
+    pub fn set_element_name(&mut self, name: &str) {
         self.element_name = Some(name.to_string());
     }
 
@@ -264,12 +295,7 @@ impl Atom {
     }
 
     /// Set the element symbol of the atom.
-    /// 
-    /// ## Safety
-    /// This function is only safe to use if the `symbol` is
-    /// in the `SupportedElements` structure associated with 
-    /// the corresponding `System` structure. 
-    pub unsafe fn set_element_symbol(&mut self, symbol: &str) {
+    pub fn set_element_symbol(&mut self, symbol: &str) {
         self.element_symbol = Some(symbol.to_string());
     }
 
@@ -789,15 +815,33 @@ mod tests {
     }
 
     #[test]
+    fn expected_min_bonds() {
+        let mut atom = make_default_atom();
+        assert_eq!(atom.get_expected_min_bonds(), None);
+
+        atom.set_expected_min_bonds(3);
+        assert_eq!(atom.get_expected_min_bonds().unwrap(), 3);
+
+        atom.reset_expected_min_bonds();
+        assert_eq!(atom.get_expected_min_bonds(), None);
+
+        let atom2 = make_default_atom().with_expected_min_bonds(3);
+        assert_eq!(atom2.get_expected_min_bonds().unwrap(), 3);
+    }
+
+    #[test]
     fn element_name() {
         let mut atom = make_default_atom();
         assert_eq!(atom.get_element_name(), None);
 
-        unsafe { atom.set_element_name("carbon"); }
+        atom.set_element_name("carbon");
         assert_eq!(atom.get_element_name().unwrap(), String::from("carbon"));
 
         atom.reset_element_name();
         assert_eq!(atom.get_element_name(), None);
+
+        let atom2 = make_default_atom().with_element_name("carbon");
+        assert_eq!(atom2.get_element_name().unwrap(), String::from("carbon"));
     }
 
     #[test]
@@ -805,11 +849,14 @@ mod tests {
         let mut atom = make_default_atom();
         assert_eq!(atom.get_element_symbol(), None);
 
-        unsafe { atom.set_element_symbol("C"); }
+        atom.set_element_symbol("C");
         assert_eq!(atom.get_element_symbol().unwrap(), String::from("C"));
 
         atom.reset_element_symbol();
         assert_eq!(atom.get_element_symbol(), None);
+
+        let atom2 = make_default_atom().with_element_symbol("C");
+        assert_eq!(atom2.get_element_symbol().unwrap(), String::from("C"));
     }
 
     #[test]

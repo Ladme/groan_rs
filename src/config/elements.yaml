@@ -1,10 +1,10 @@
 --- # Parameters for default elements supported by the `groan_rs` library.
 # Taken from Gromacs `atommass.dat` and `vdwradii.dat`. 
+# Modified based on VMD's https://www.cgl.ucsf.edu/chimera/docs/UsersGuide/midas/vdwtables.html#allatom.
 # All fields are optional.
 # When using `System::quess_elements` function, the elements are assigned to atoms based on the herein provided Groan Selection Language query.
 # Higher placed elements have priority over the lower placed ones.
 # Unknown fields and invalid queries, masses, van der Waals radii, and max bonds will raise a parsing error.
-# Using the same symbol for multiple elements will also raise a parsing error.
 # If you define multiple elements with the same name, only the last element with this name will be used!
 
 dummy:
@@ -14,37 +14,43 @@ hydrogen:
   symbol: H
   query: name r'^[1-9]?[Hh].*'
   mass: 1.0079
-  vdw: 0.12
+  vdw: 0.1
   expected_max_bonds: 1
+  expected_min_bonds: 1
 carbon:
   symbol: C
   query: name r'^[Cc].*$' and not @ion
   mass: 12.0107
   vdw: 0.17
   expected_max_bonds: 4
+  expected_min_bonds: 2
 nitrogen:
   symbol: N
   query: name r'^[Nn].*$' and not @ion
   mass: 14.00670
-  vdw: 0.155
-  expected_max_bonds: 3
+  vdw: 0.1625
+  expected_max_bonds: 4
+  expected_min_bonds: 1
 oxygen:
   symbol: O
   query: name r'^[Oo].*$'
   mass: 15.99940
-  vdw: 0.152
+  vdw: 0.15
   expected_max_bonds: 2
+  expected_min_bonds: 1
 phosphorus:
   symbol: P
   query: name r'^[Pp].*$'
   mass: 30.97380
-  vdw: 0.18
+  vdw: 0.1871
   expected_max_bonds: 5
+  expected_min_bonds: 2
 sulfur:
   symbol: S
   query: name r'^[Ss][^iI].*$'
   mass: 32.06500
-  vdw: 0.18
+  vdw: 0.1782
+  expected_min_bonds: 1
 sodium:
   symbol: Na
   query: name r'^[Nn][Aa]\+?$' SOD and @ion
@@ -69,7 +75,7 @@ fluorine:
   symbol: F
   query: name r'^[Ff]\-?$'
   mass: 18.99840
-  vdw: 0.147
+  vdw: 0.156
 iodine:
   symbol: I
   query: name r'^[Ii]\-?$'
@@ -164,7 +170,7 @@ platinum:
   mass: 195.07800
 mercury:
   symbol: Hg
-  query: name r'^[Hh][Gg].*$'
+  query: name r'^[Hh][Gg].*$' and not @protein
   mass: 200.59000
 lead:
   symbol: Pb

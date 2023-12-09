@@ -1,0 +1,8 @@
+---
+protein element:
+  symbol: P
+  query: (Protein and not r'^ION') and !Membrane
+other:
+  symbol: O
+  query: not (r'[Mm]embrane' and not Membrane)
+...

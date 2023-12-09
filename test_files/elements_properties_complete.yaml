@@ -1,0 +1,44 @@
+---
+hydrogen:
+  symbol: H
+  mass: 1.5079
+  vdw: 0.15
+  expected_max_bonds: 2
+  expected_min_bonds: 2
+carbon:
+  symbol: C
+  mass: 16.0107
+  vdw: 0.21
+  expected_max_bonds: 3
+  expected_min_bonds: 3
+nitrogen:
+  symbol: N
+  mass: 17.00670
+  vdw: 0.255
+  expected_max_bonds: 5
+  expected_min_bonds: 4
+oxygen:
+  symbol: O
+  mass: 19.99940
+  vdw: 0.08
+  expected_max_bonds: 4
+  expected_min_bonds: 3
+phosphorus:
+  symbol: P
+  mass: 32.97380
+  vdw: 0.32
+  expected_max_bonds: 6
+  expected_min_bonds: 5
+sodium:
+  symbol: Na
+  mass: 25.98970
+  vdw: 0.21
+  expected_max_bonds: 0
+  expected_min_bonds: 0
+chlorine:
+  symbol: Cl
+  mass: 37.45300
+  vdw: 0.20
+  expected_max_bonds: 0
+  expected_min_bonds: 0
+...

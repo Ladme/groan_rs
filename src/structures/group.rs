@@ -174,7 +174,7 @@ impl Group {
     }
 
     /// Check whether properties of target atom match conditions prescribed by target Select tree.
-    fn matches_select(
+    pub(super) fn matches_select(
         atom_index: usize,
         select: &Select,
         system: &System,

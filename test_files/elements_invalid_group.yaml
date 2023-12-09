@@ -1,0 +1,40 @@
+---
+hydrogen:
+  symbol: H
+  query: name r'^[1-9]?[Hh].*'
+  mass: 1.0079
+  vdw: 0.12
+  expected_max_bonds: 1
+carbon:
+  symbol: C
+  query: name r'^[Cc].*$' and !(not @ion or !(name C and !Membrane))
+  mass: 12.0107
+  vdw: 0.17
+  expected_max_bonds: 4
+nitrogen:
+  symbol: N
+  query: name r'^[Nn].*$' and not @ion
+  mass: 14.00670
+  vdw: 0.155
+  expected_max_bonds: 3
+oxygen:
+  symbol: O
+  query: name r'^[Oo].*$'
+  mass: 15.99940
+  vdw: 0.152
+  expected_max_bonds: 2
+phosphorus:
+  symbol: P
+  query: name r'^[Pp].*$'
+  mass: 30.97380
+  vdw: 0.18
+  expected_max_bonds: 5
+sodium:
+  symbol: Na
+  query: name r'^[Nn][Aa]\+?$' SOD and @ion
+  mass: 22.98970
+chlorine:
+  symbol: Cl
+  query: name r'^[Cc][Ll]\-?$' CLA
+  mass: 35.45300
+...

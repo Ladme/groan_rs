@@ -3,23 +3,27 @@
 
 ### Version 0.6.0
 
-#### `Element` and `SupportedElements` structures
-- `Element` structure defines properties of an element, such as its name, symbol, mass, van der Waals radius etc.
-- `SupportedElements` structure contains all supported elements.
-- `SupportedElements` structure can be constructed from a YAML file containing the element definitions by calling `SupportedElements::new_from_file`.
-- Default properties of the elements supported by `groan_rs` are stored in `src/config/elements.yaml`. Default `SupportedElements` structure, containing elements and their properties from this YAML file, can be constructed using `SupportedElements::default`.
-- `SupportedElements` structure can be updated using `SupportedElements::update_from_file`. In such case, a new YAML file must be provided which specifies changes to be made in the `SupportedElements` structure.
+#### Assigning and guessing elements
+- Added `Elements` structure which defines properties of the supported elements.
+- `Elements` structure can be constructed from a YAML file containing the element definitions by calling `Elements::from_file`.
+- Default properties of the elements supported by `groan_rs` are stored in `src/config/elements.yaml`. Default `Elements` structure, containing elements and their properties from this YAML file, can be constructed using `Elements::default`.
+- `Elements` structure can be updated using `Elements::update`. In such case, another `Elements` structure must be provided which specifies changes to be made in the original `Elements` structure.
 
 #### Changes to the `Atom` structure
-- New optional fields `mass` and `element` added:
+- New optional fields `mass`, `element_name`, `element_symbol`, `vdw`, and `expected_max_bonds` added:
   - `mass` specifies mass of the atom.
-  - `element` specifies the element of the atom. The element also contains information about the mass. 
-  If the atom has no explicitely provided mass but does have an element assigned, the mass of the element
-  is used as the mass of the atom.
-- Methods were added to use and access `mass` and `element`.
+  - `element_name` specifies name of the element assigned to this atom.
+  - `element_symbol` specifies the symbol of the element.
+  - `vdw` specifies the van der Waals radius used to guess bonds between atoms.
+  - `expected_max_bonds` specifies the expected maximal number of bonds this atom may form.
+  - `expected_min_bonds` specifies the expected minimal number of bonds this atom may form.
+- Methods were added to use and access the new fields.
+
+#### Groan Selection Language
+- Bug fix: Invalid queries containing a command in parentheses followed by anything other than a binary operator (e.g. `(name CA CB) resname LYS`) no longer cause a panic, but return a proper error.
 
 #### Other changes
-- Added more tests for basic `Atom` get, set, reset, and with functions.
+- Added more tests for basic `Atom` `get_*`, `set_*`, `reset_*`, and `with_*` functions.
 - Documentation examples now no longer repeat that you have to use `groan_rs::prelude::*`.
 
 ***

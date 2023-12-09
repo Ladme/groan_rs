@@ -8,6 +8,8 @@ use std::collections::HashSet;
 use std::path::Path;
 use thiserror::Error;
 
+use crate::system::guess::{BondsGuessInfo, ElementGuessInfo, PropertiesGuessInfo};
+
 fn path_to_yellow(path: &Path) -> ColoredString {
     path.to_str().unwrap().yellow()
 }
@@ -303,6 +305,10 @@ pub enum SelectError {
     /// Used when the quotes are incorrectly used in the groan selection language query.
     #[error("{} unmatching number of quotes in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
     InvalidQuotes(String),
+    /// Used when a `()` expression is not followed by a binary operator.
+    /// (e.g. things like `(name CA CB) Protein`)
+    #[error("{} invalid token following parentheses in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
+    InvalidTokenAfterParentheses(String),
     /// Used when any error occurs while parsing atom/residue numbers or ranges in the groan selection language query.
     #[error("{} could not understand the residue/atom numbers in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
     InvalidNumber(String),
@@ -344,5 +350,28 @@ pub enum ParseElementError {
 /// Errors that can occur when working with elements.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum ElementError {
-    
+    /// Used in `System::guess_elements`.
+    /// Used when a select tree associated with the given element is invalid.
+    /// This should only happen when the query uses group names.
+    #[error("{} (this error occured when guessing elements)", .0)]
+    InvalidQuery(SelectError),
+
+    /// Used in `System::guess_elements`.
+    /// Used when there is at least one atom which was not assigned an element
+    /// or when there is at least one atom which matches multiple elements.
+    /// This is a warning and does not indicate failure of the function.
+    #[error("{} when guessing elements, following concerns have been raised:\n{}", "warning:".yellow().bold(), .0.to_string())]
+    ElementGuessWarning(ElementGuessInfo),
+
+    /// Used in `System::guess_properties`.
+    /// Used when there is at least one atom which was not assigned all the properties.
+    /// This is a warning and does not indicate failure of the function.
+    #[error("{} when guessing properties, following concerns have been raised:\n{}", "warning:".yellow().bold(), .0.to_string())]
+    PropertiesGuessWarning(PropertiesGuessInfo),
+
+    /// Used in `System::guess_bonds`.
+    /// Used when there is at least one atom with suspicious number of bonds.
+    /// This is a warning and does not indicate failure of the function.
+    #[error("{} when guessing bonds, following concerns have been raised:\n{}", "warning:".yellow().bold(), .0.to_string())]
+    BondsGuessWarning(BondsGuessInfo),
 }

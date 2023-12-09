@@ -554,10 +554,12 @@ pub mod system {
     mod analysis;
     pub mod general;
     mod groups;
+    pub mod guess;
     mod iterating;
     mod modifying;
     mod utility;
 }
+mod test_utilities;
 
 /// Reexported basic `groan_rs` structures and traits.
 pub mod prelude {
@@ -571,7 +573,7 @@ pub mod prelude {
     pub use crate::progress::ProgressPrinter;
     pub use crate::structures::atom::Atom;
     pub use crate::structures::dimension::Dimension;
-    pub use crate::structures::element::SupportedElements;
+    pub use crate::structures::element::Elements;
     pub use crate::structures::shape::{Cylinder, Rectangular, Shape, Sphere};
     pub use crate::structures::simbox::SimBox;
     pub use crate::structures::vector3d::Vector3D;
