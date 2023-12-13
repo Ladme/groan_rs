@@ -3,7 +3,7 @@
 
 //! Implementation of the SimBox structure and its methods.
 
-use crate::structures::vector3d::Vector3D;
+use crate::{structures::vector3d::Vector3D, errors::SimBoxError};
 use std::ops::Deref;
 
 /// Structure defining simulation box shape and dimensions.
@@ -189,19 +189,14 @@ impl SimBox {
     /// ## Returns
     /// `true` if only the first three dimensions of the `SimBox` are non-zero. Otherwise, returns `false`.
     pub fn is_orthogonal(&self) -> bool {
-        self.v1y == 0.0
-            && self.v1z == 0.0
-            && self.v2x == 0.0
-            && self.v2z == 0.0
-            && self.v3x == 0.0
-            && self.v3y == 0.0
+        // we do not need to check v1y, v1z, and v2z as these must be zero
+        self.v2x == 0.0 && self.v3x == 0.0 && self.v3y == 0.0
     }
 
-    /// Check that the box is a valid simulation box, i.e. at least the first 3 dimensions of the box are positive.
-    /// ## Returns
-    /// `true` if the box is a valid simulation box. Otherwise, returns `false`.
-    pub fn is_valid(&self) -> bool {
-        self.x > 0.0 && self.y > 0.0 && self.z > 0.0
+    /// Check whether all dimensions of the simulation box are zero.
+    pub fn is_zero(&self) -> bool {
+        // we do not need to check v1y, v1z, and v2z as these must be zero
+        self.x == 0.0 && self.y == 0.0 && self.z == 0.0 && self.is_orthogonal()
     }
 }
 
@@ -234,6 +229,15 @@ impl Deref for SimBox {
 
     fn deref(&self) -> &Self::Target {
         unsafe { &*(self as *const SimBox as *const SimBoxDimensions) }
+    }
+}
+
+/// Checks whether the simulation box exists and whether it is orthogonal.
+pub(crate) fn simbox_check(simbox: Option<&SimBox>) -> Result<&SimBox, SimBoxError> {
+    match simbox {
+        Some(x) if x.is_orthogonal() => Ok(x),
+        Some(_) => return Err(SimBoxError::NotOrthogonal),
+        None => return Err(SimBoxError::DoesNotExist),
     }
 }
 

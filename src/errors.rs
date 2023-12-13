@@ -170,6 +170,12 @@ pub enum GroupError {
     /// Encapsulates the `SelectError` providing more information about the type of error.
     #[error("{}", .0)]
     InvalidQuery(SelectError),
+    /// Used when there is an issue with simulation box of the system.
+    #[error("{}", .0)]
+    InvalidSimBox(SimBoxError),
+    /// Used when there is an issue with positions of atoms in the system.
+    #[error("{}", .0)]
+    InvalidPosition(PositionError)
 }
 
 /// Errors that can occur when working with atoms in a system.
@@ -181,6 +187,12 @@ pub enum AtomError {
     /// Used when attempting to create a bond that is invalid.
     #[error("{} bond could not be created between atoms {} and {}", "error:".red().bold(), .0.to_string().yellow(), .1.to_string().yellow())]
     InvalidBond(usize, usize),
+    /// Used when there is an issue with simulation box of the system.
+    #[error("{}", .0)]
+    InvalidSimBox(SimBoxError),
+    /// Used when there is an issue with position of an atom.
+    #[error("{}", .0)]
+    InvalidPosition(PositionError)
 }
 
 /// Errors that can occur when reading and parsing ndx file.
@@ -374,4 +386,23 @@ pub enum ElementError {
     /// This is a warning and does not indicate failure of the function.
     #[error("{} when guessing bonds, following concerns have been raised:\n{}", "warning:".yellow().bold(), .0.to_string())]
     BondsGuessWarning(BondsGuessInfo),
+}
+
+/// Errors that can occur when working with simulation box.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum SimBoxError {
+    /// Used when the system has no defined simulation box.
+    #[error("{} system has no simulation box", "error:".red().bold())]
+    DoesNotExist,
+    /// Used when the simulation box is not orthogonal but is required to be.
+    #[error("{} simulation box is not orthogonal but is required to be", "error:".red().bold())]
+    NotOrthogonal,
+}
+
+/// Errors that can occur when working with positions of atoms.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum PositionError {
+    /// Used when the atom has no position but it is required.
+    #[error("{} atom with atom number '{}' has no position", "error:".red().bold(), .0.to_string().yellow())]
+    NoPosition(usize),
 }

@@ -65,7 +65,7 @@ impl System {
     /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.group_create("Protein", "resid 1 to 29").unwrap();
-    /// let simulation_box = system.get_box_copy();
+    /// let simulation_box = system.get_box_copy().unwrap();
     ///
     /// match system.group_iter_mut("Protein") {
     ///     Ok(iterator) => {
@@ -77,18 +77,19 @@ impl System {
     /// };
     /// ```
     pub fn group_iter_mut(&mut self, name: &str) -> Result<MutAtomIterator, GroupError> {
+        let simbox = self.get_box_as_ref().map(|x| x as *const SimBox);
+
+        let group = unsafe {
+            self.get_groups_as_ref_mut()
+                .get_mut(name)
+                .ok_or(GroupError::NotFound(name.to_string()))? as *mut Group
+        };
+
         unsafe {
-            let simbox = self.get_box_as_ref() as *const SimBox;
-
-            let group =
-                self.get_groups_as_ref_mut()
-                    .get_mut(name)
-                    .ok_or(GroupError::NotFound(name.to_string()))? as *mut Group;
-
             Ok(MutAtomIterator::new(
                 self.get_atoms_as_ref_mut(),
                 (*group).get_atoms(),
-                simbox.as_ref().unwrap(),
+                simbox.map(|x| &*x),
             ))
         }
     }
@@ -123,7 +124,7 @@ impl System {
     /// # use groan_rs::prelude::*;
     /// #
     /// let mut system = System::from_file("system.gro").unwrap();
-    /// let simulation_box = system.get_box_copy();
+    /// let simulation_box = system.get_box_copy().unwrap();
     ///
     /// for atom in system.atoms_iter_mut() {
     ///     atom.translate(&[1.0, -1.0, 2.5].into(), &simulation_box);
@@ -163,7 +164,7 @@ impl System {
     /// match system.bonded_atoms_iter(15) {
     ///     Ok(iterator) => {
     ///         for bonded_atom in iterator {
-    ///             distances.push(target_atom.distance(bonded_atom, Dimension::XYZ, system.get_box_as_ref()));
+    ///             distances.push(target_atom.distance(bonded_atom, Dimension::XYZ, system.get_box_as_ref().unwrap()));
     ///         }
     ///         println!("{:?}", distances);
     ///     }
@@ -205,15 +206,15 @@ impl System {
     /// }
     /// ```
     pub fn bonded_atoms_iter_mut(&mut self, index: usize) -> Result<MutAtomIterator, AtomError> {
-        unsafe {
-            let simbox = self.get_box_as_ref() as *const SimBox;
+        let simbox = self.get_box_as_ref().map(|x| x as *const SimBox);
 
+        unsafe {
             let atom = self.get_atom_as_ref_mut(index)? as *mut Atom;
 
             Ok(MutAtomIterator::new(
                 self.get_atoms_as_ref_mut(),
                 (*atom).get_bonded(),
-                simbox.as_ref().unwrap(),
+                simbox.map(|x| &*x),
             ))
         }
     }
@@ -269,15 +270,13 @@ impl System {
     /// - I.e. atoms closer to the starting atom will be visited before atoms that are further way.
     pub fn molecule_iter_mut(&mut self, index: usize) -> Result<MutMoleculeIterator, AtomError> {
         let indices = get_molecule_indices(self, index)?;
-        let simbox = self.get_box_as_ref() as *const SimBox;
+        let simbox = self.get_box_as_ref().map(|x| x as *const SimBox);
 
         unsafe {
             Ok(MutMoleculeIterator::new(
                 self.get_atoms_as_ref_mut(),
                 indices,
-                simbox
-                    .as_ref()
-                    .expect("FATAL GROAN ERROR | System::molecule_iter_mut | SimBox is NULL which should not happen.")
+                simbox.map(|x| &*x),
                 )
             )
         }
@@ -406,7 +405,7 @@ mod tests {
         {
             assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
 
-            group_atom.translate_nopbc(&Vector3D::from([0.5, -1.1, 2.4]));
+            group_atom.translate_nopbc(&Vector3D::from([0.5, -1.1, 2.4])).unwrap();
             assert_approx_eq!(
                 f32,
                 group_atom.get_position().unwrap().x,
@@ -434,7 +433,7 @@ mod tests {
         for (group_atom, system_atom) in system.atoms_iter_mut().zip(extracted.iter()) {
             assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
 
-            group_atom.translate_nopbc(&Vector3D::from([0.5, -1.1, 2.4]));
+            group_atom.translate_nopbc(&Vector3D::from([0.5, -1.1, 2.4])).unwrap();
             assert_approx_eq!(
                 f32,
                 group_atom.get_position().unwrap().x,
@@ -466,7 +465,7 @@ mod tests {
                 atom.get_position().unwrap().distance(
                     &sphere_pos,
                     Dimension::XYZ,
-                    system.get_box_as_ref()
+                    system.get_box_as_ref().unwrap()
                 ) < 5.0
             );
         }
@@ -483,14 +482,14 @@ mod tests {
                 atom.get_position().unwrap().distance(
                     &sphere_pos,
                     Dimension::XYZ,
-                    system.get_box_as_ref()
+                    system.get_box_as_ref().unwrap()
                 ) < 5.0
             );
             assert!(
                 atom.get_position().unwrap().distance(
                     &sphere_pos2,
                     Dimension::XYZ,
-                    system.get_box_as_ref()
+                    system.get_box_as_ref().unwrap()
                 ) < 4.0
             );
         }
@@ -517,8 +516,8 @@ mod tests {
         }
 
         for (i, atom) in system.atoms_iter().enumerate() {
-            if sphere.inside(atom.get_position().unwrap(), &sbox)
-                && sphere2.inside(atom.get_position().unwrap(), &sbox)
+            if sphere.inside(atom.get_position().unwrap(), sbox.as_ref().unwrap())
+                && sphere2.inside(atom.get_position().unwrap(), sbox.as_ref().unwrap())
             {
                 assert_eq!(atom.get_atom_name(), "XYZ");
             } else {

@@ -3,7 +3,7 @@
 
 //! Implementation of some higher level functions for `groan_rs` programs.
 
-use crate::errors::{GroupError, ParseNdxError};
+use crate::errors::{GroupError, ParseNdxError, AtomError};
 use crate::structures::{dimension::Dimension, vector3d::Vector3D};
 use crate::system::general::System;
 
@@ -79,14 +79,13 @@ impl System {
     /// - `dimension` - Dimension enum for specifying centering dimensions.
     ///
     /// ## Returns
-    /// `Ok` if centering was successful. `GroupError` if the group does not exist.
-    ///
-    /// ## Warning
-    /// - This function currently only supports orthogonal simulation boxes.
-    ///
-    /// ## Panics
-    /// Panics if any of the atoms has no position.
-    ///
+    /// - `Ok` if centering was successful. 
+    /// - `GroupError::NotFound` if the group does not exist.
+    /// - `GroupError::InvalidSimBox` if the system has no simulation box
+    /// or the simulation box is not orthogonal.
+    /// - `GroupError::InvalidPosition` if any of the atoms in the system
+    /// has an undefined position.
+    /// 
     /// ## Example
     /// Center the group `Protein` in the xy-plane.
     /// The positions of the atoms along the z-dimension will be unchanged.
@@ -109,7 +108,7 @@ impl System {
     ) -> Result<(), GroupError> {
         let reference_center = self.group_get_center(reference)?;
 
-        let box_center = self.get_box_center();
+        let box_center = self.get_box_center().map_err(|x| GroupError::InvalidSimBox(x))?;
         let mut shift: Vector3D = [
             box_center.x - reference_center.x,
             box_center.y - reference_center.y,
@@ -118,8 +117,12 @@ impl System {
         .into();
 
         shift.filter(dimension);
-        self.atoms_translate(&shift);
-        Ok(())
+        match self.atoms_translate(&shift) {
+            Ok(_) => Ok(()),
+            Err(AtomError::InvalidSimBox(e)) => Err(GroupError::InvalidSimBox(e)),
+            Err(AtomError::InvalidPosition(e)) => Err(GroupError::InvalidPosition(e)),
+            _ => panic!("FATAL GROAN ERROR | System::atoms_center | Invalid error type returned from `System::atoms_translate.`"),
+        }
     }
 }
 
@@ -296,7 +299,7 @@ mod tests {
         assert_approx_eq!(
             f32,
             system.group_get_center("Protein").unwrap().x,
-            system.get_box_center().x
+            system.get_box_center().unwrap().x
         );
 
         let atom1 = system.atoms_iter().next().unwrap().get_position();
@@ -321,7 +324,7 @@ mod tests {
         assert_approx_eq!(
             f32,
             system.group_get_center("Protein").unwrap().y,
-            system.get_box_center().y
+            system.get_box_center().unwrap().y
         );
 
         let atom1 = system.atoms_iter().next().unwrap().get_position();
@@ -346,7 +349,7 @@ mod tests {
         assert_approx_eq!(
             f32,
             system.group_get_center("Protein").unwrap().z,
-            system.get_box_center().z
+            system.get_box_center().unwrap().z
         );
 
         let atom1 = system.atoms_iter().next().unwrap().get_position();
@@ -369,8 +372,8 @@ mod tests {
         system.atoms_center("Protein", Dimension::XY).unwrap();
 
         let group_center = system.group_get_center("Protein").unwrap();
-        assert_approx_eq!(f32, group_center.x, system.get_box_center().x);
-        assert_approx_eq!(f32, group_center.y, system.get_box_center().y);
+        assert_approx_eq!(f32, group_center.x, system.get_box_center().unwrap().x);
+        assert_approx_eq!(f32, group_center.y, system.get_box_center().unwrap().y);
 
         let atom1 = system.atoms_iter().next().unwrap().get_position();
         let atom2 = system.atoms_iter().last().unwrap().get_position();
@@ -392,8 +395,8 @@ mod tests {
         system.atoms_center("Protein", Dimension::XZ).unwrap();
 
         let group_center = system.group_get_center("Protein").unwrap();
-        assert_approx_eq!(f32, group_center.x, system.get_box_center().x);
-        assert_approx_eq!(f32, group_center.z, system.get_box_center().z);
+        assert_approx_eq!(f32, group_center.x, system.get_box_center().unwrap().x);
+        assert_approx_eq!(f32, group_center.z, system.get_box_center().unwrap().z);
 
         let atom1 = system.atoms_iter().next().unwrap().get_position();
         let atom2 = system.atoms_iter().last().unwrap().get_position();
@@ -415,8 +418,8 @@ mod tests {
         system.atoms_center("Protein", Dimension::YZ).unwrap();
 
         let group_center = system.group_get_center("Protein").unwrap();
-        assert_approx_eq!(f32, group_center.y, system.get_box_center().y);
-        assert_approx_eq!(f32, group_center.z, system.get_box_center().z);
+        assert_approx_eq!(f32, group_center.y, system.get_box_center().unwrap().y);
+        assert_approx_eq!(f32, group_center.z, system.get_box_center().unwrap().z);
 
         let atom1 = system.atoms_iter().next().unwrap().get_position();
         let atom2 = system.atoms_iter().last().unwrap().get_position();
@@ -438,9 +441,9 @@ mod tests {
         system.atoms_center("Protein", Dimension::XYZ).unwrap();
 
         let group_center = system.group_get_center("Protein").unwrap();
-        assert_approx_eq!(f32, group_center.x, system.get_box_center().x);
-        assert_approx_eq!(f32, group_center.y, system.get_box_center().y);
-        assert_approx_eq!(f32, group_center.z, system.get_box_center().z);
+        assert_approx_eq!(f32, group_center.x, system.get_box_center().unwrap().x);
+        assert_approx_eq!(f32, group_center.y, system.get_box_center().unwrap().y);
+        assert_approx_eq!(f32, group_center.z, system.get_box_center().unwrap().z);
 
         let atom1 = system.atoms_iter().next().unwrap().get_position();
         let atom2 = system.atoms_iter().last().unwrap().get_position();

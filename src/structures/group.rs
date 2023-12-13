@@ -110,6 +110,9 @@ impl Group {
 
     /// Consumes self returning a new `Group` which only contains atoms fullfilling the geometry condition.
     /// Atoms that have no positions are never inside any geometric shape.
+    ///
+    /// ## Panics
+    /// Panics if the system has no simulation box.
     fn apply_geometry(self, geometry: impl Shape, system: &System) -> Self {
         let mut indices = Vec::new();
 
@@ -123,7 +126,7 @@ impl Group {
 
             // atoms that have no positions are not inside the shape
             if let Some(pos) = atom.get_position() {
-                if geometry.inside(pos, simbox) {
+                if geometry.inside(pos, simbox.expect("FATAL GROAN ERROR | Group::apply_geometry | System does not have a simulation box.")) {
                     indices.push(index);
                 }
             }
@@ -137,6 +140,9 @@ impl Group {
 
     /// Consumes self returning a new `Group` which only contains atoms fulfilling the specified geometry conditions.
     /// Atoms that have no positions are never inside any geometric shape.
+    ///
+    /// ## Panics
+    /// Panics if the system has no simulation box.
     fn apply_geometries(self, geometries: Vec<Box<dyn Shape>>, system: &System) -> Self {
         let mut indices = Vec::new();
 
@@ -151,7 +157,7 @@ impl Group {
 
             for geom in &geometries {
                 if let Some(pos) = atom.get_position() {
-                    if !geom.inside(pos, simbox) {
+                    if !geom.inside(pos, simbox.expect("FATAL GROAN ERROR | Group::apply_geometries | System does not have a simulation box.")) {
                         inside = false;
                         break;
                     }

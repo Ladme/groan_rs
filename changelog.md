@@ -3,6 +3,14 @@
 
 ### Version 0.6.0
 
+#### Simulation box is now optional property of the system
+- **Breaking change:** Simulation box is now an optional property of the system.
+  - This causes changes in the return type of various functions accessing the simulation box.
+  - High-level methods of the `System` structure return errors when they require a simulation box but it is not present.
+
+#### Undefined atom positions no longer cause panic
+- **Breaking change:** Higher-level `System` and `Atom` methods now do not panic when encountering an atom with undefined position and instead return a recoverable error.
+
 #### Assigning and guessing elements
 - Added `Elements` structure which defines properties of the supported elements.
 - `Elements` structure can be constructed from a YAML file containing the element definitions by calling `Elements::from_file`.
@@ -23,8 +31,10 @@
 - Bug fix: Invalid queries containing a command in parentheses followed by anything other than a binary operator (e.g. `(name CA CB) resname LYS`) no longer cause a panic, but return a proper error.
 
 #### Other changes
+- **Breaking change:** `System::set_mol_references` method is no longer public.
 - Added more tests for basic `Atom` `get_*`, `set_*`, `reset_*`, and `with_*` functions.
-- Documentation examples now no longer repeat that you have to use `groan_rs::prelude::*`.
+- Documentation examples no longer repeat that you have to use `groan_rs::prelude::*`.
+- Bug fix: `Vector3D::wrap_coordinate` and `Vector3D::min_image` now panic if `box_len` is 0 instead of looping indefinitely.
 
 ***
 

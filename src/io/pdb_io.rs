@@ -40,7 +40,7 @@ pub fn read_pdb(filename: impl AsRef<Path>) -> Result<System, ParsePdbError> {
 
     let mut atoms: Vec<Atom> = Vec::new();
     let mut title = "Unknown".to_string();
-    let mut simbox = SimBox::from([0.0, 0.0, 0.0]);
+    let mut simbox = None;
 
     for raw_line in reader.lines() {
         let line = match raw_line {
@@ -60,7 +60,7 @@ pub fn read_pdb(filename: impl AsRef<Path>) -> Result<System, ParsePdbError> {
         }
         // parse CRYST1 line
         else if line.len() >= 6 && line[0..6] == *"CRYST1" {
-            simbox = line_as_box(&line)?;
+            simbox = Some(line_as_box(&line)?);
         }
         // END or ENDMDL is reached => stop reading
         else if line.len() >= 3 && line[0..3] == *"END" {
@@ -230,6 +230,7 @@ impl System {
     /// - Even though `groan_rs` library can read `CONECT` lines of any length,
     /// this function prints at most 4 bonds on a single `CONECT` line as is traditionally requested.
     /// If the atom is bonded to more atoms, multiple `CONECT` lines will be written for it.
+    /// - If simulation box is undefined, it is not written out.
     pub fn write_pdb(
         &self,
         filename: impl AsRef<Path>,
@@ -274,6 +275,7 @@ impl System {
     /// - Even though `groan_rs` library can read `CONECT` lines of any length,
     /// this function prints at most 4 bonds on a single `CONECT` line as is traditionally requested.
     /// If the atom is bonded to more atoms, multiple `CONECT` lines will be written for it.
+    /// - If the simulation box is undefined, it is not written out.
     pub fn group_write_pdb(
         &self,
         group_name: &str,
@@ -516,28 +518,31 @@ fn write<W: Write>(writer: &mut W, string: &str) -> Result<(), WritePdbError> {
 }
 
 /// Write a header for a PDB file.
+/// If `simbox` is `None`, CRYST line is not written.
 fn write_header(
     writer: &mut BufWriter<File>,
     title: &str,
-    simbox: &SimBox,
+    simbox: Option<&SimBox>,
 ) -> Result<(), WritePdbError> {
     write_line(writer, &format!("TITLE     {}", title))?;
 
     write_line(writer, "REMARK    THIS IS A SIMULATION BOX")?;
 
-    let (lengths, angles) = simbox.to_lengths_angles();
-    write_line(
-        writer,
-        &format!(
-            "CRYST1{:>9.3}{:>9.3}{:>9.3}{:>7.2}{:>7.2}{:>7.2} P 1           1",
-            lengths.x * 10.0,
-            lengths.y * 10.0,
-            lengths.z * 10.0,
-            angles.x,
-            angles.y,
-            angles.z,
-        ),
-    )?;
+    if let Some(simbox) = simbox {
+        let (lengths, angles) = simbox.to_lengths_angles();
+        write_line(
+            writer,
+            &format!(
+                "CRYST1{:>9.3}{:>9.3}{:>9.3}{:>7.2}{:>7.2}{:>7.2} P 1           1",
+                lengths.x * 10.0,
+                lengths.y * 10.0,
+                lengths.z * 10.0,
+                angles.x,
+                angles.y,
+                angles.z,
+            ),
+        )?;
+    }
 
     write_line(writer, "MODEL        1")?;
 
@@ -624,7 +629,7 @@ mod tests_read {
         assert_eq!(system.get_n_atoms(), 50);
 
         // check box size
-        let simbox = system.get_box_as_ref();
+        let simbox = system.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.x, 6.0861);
         assert_approx_eq!(f32, simbox.y, 6.0861);
         assert_approx_eq!(f32, simbox.z, 6.0861);
@@ -711,16 +716,16 @@ mod tests_read {
 
         assert_eq!(system_chain.get_name(), system_nochain.get_name());
         assert_eq!(
-            system_chain.get_box_as_ref().x,
-            system_nochain.get_box_as_ref().x
+            system_chain.get_box_as_ref().unwrap().x,
+            system_nochain.get_box_as_ref().unwrap().x
         );
         assert_eq!(
-            system_chain.get_box_as_ref().y,
-            system_nochain.get_box_as_ref().y
+            system_chain.get_box_as_ref().unwrap().y,
+            system_nochain.get_box_as_ref().unwrap().y
         );
         assert_eq!(
-            system_chain.get_box_as_ref().z,
-            system_nochain.get_box_as_ref().z
+            system_chain.get_box_as_ref().unwrap().z,
+            system_nochain.get_box_as_ref().unwrap().z
         );
 
         for (ac, anc) in system_chain.atoms_iter().zip(system_nochain.atoms_iter()) {
@@ -747,7 +752,7 @@ mod tests_read {
         assert_eq!(system.get_n_atoms(), 50);
 
         // check box size
-        let simbox = system.get_box_as_ref();
+        let simbox = system.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.x, 6.0861);
         assert_approx_eq!(f32, simbox.y, 6.0861);
         assert_approx_eq!(f32, simbox.z, 6.0861);
@@ -814,7 +819,7 @@ mod tests_read {
         assert_eq!(system.get_n_atoms(), 50);
 
         // check box size
-        let simbox = system.get_box_as_ref();
+        let simbox = system.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.x, 6.0861);
         assert_approx_eq!(f32, simbox.y, 6.0861);
         assert_approx_eq!(f32, simbox.z, 6.0861);
@@ -828,7 +833,7 @@ mod tests_read {
         assert_eq!(system.get_n_atoms(), 50);
 
         // check box size
-        let simbox = system.get_box_as_ref();
+        let simbox = system.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.x, 6.0861);
         assert_approx_eq!(f32, simbox.y, 6.0861);
         assert_approx_eq!(f32, simbox.z, 6.0861);
@@ -841,11 +846,8 @@ mod tests_read {
         assert_eq!(system.get_name(), "Buforin II peptide P11L");
         assert_eq!(system.get_n_atoms(), 50);
 
-        // check box size
-        let simbox = system.get_box_as_ref();
-        assert_approx_eq!(f32, simbox.x, 0.0);
-        assert_approx_eq!(f32, simbox.y, 0.0);
-        assert_approx_eq!(f32, simbox.z, 0.0);
+        // check that the box does not exist
+        assert!(!system.has_box());
     }
 
     #[test]
@@ -856,7 +858,7 @@ mod tests_read {
         assert_eq!(system.get_n_atoms(), 50);
 
         // check box size
-        let simbox = system.get_box_as_ref();
+        let simbox = system.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.x, 6.0861);
         assert_approx_eq!(f32, simbox.y, 6.0861);
         assert_approx_eq!(f32, simbox.z, 6.0861);
@@ -870,7 +872,7 @@ mod tests_read {
         assert_eq!(system.get_n_atoms(), 50);
 
         // check box size
-        let simbox = system.get_box_as_ref();
+        let simbox = system.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.x, 5.0861);
         assert_approx_eq!(f32, simbox.y, 5.0861);
         assert_approx_eq!(f32, simbox.z, 5.0861);
@@ -969,7 +971,7 @@ mod tests_read {
         let mut system = read_pdb("test_files/conect.pdb").unwrap();
         system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
 
-        system.make_molecules_whole();
+        system.make_molecules_whole().unwrap();
 
         assert!(system.get_mol_references().is_some());
 
@@ -1189,8 +1191,8 @@ mod tests_read {
         let system_pdb = read_pdb("test_files/triclinic.pdb").unwrap();
         let system_gro = read_gro("test_files/triclinic.gro").unwrap();
 
-        let box_pdb = system_pdb.get_box_as_ref();
-        let box_gro = system_gro.get_box_as_ref();
+        let box_pdb = system_pdb.get_box_as_ref().unwrap();
+        let box_gro = system_gro.get_box_as_ref().unwrap();
 
         assert_approx_eq!(f32, box_pdb.v1x, box_gro.v1x, epsilon = 0.001);
         assert_approx_eq!(f32, box_pdb.v1y, box_gro.v1y, epsilon = 0.001);
@@ -1212,8 +1214,8 @@ mod tests_read {
         let system_pdb = read_pdb("test_files/dodecahedron.pdb").unwrap();
         let system_gro = read_gro("test_files/dodecahedron.gro").unwrap();
 
-        let box_pdb = system_pdb.get_box_as_ref();
-        let box_gro = system_gro.get_box_as_ref();
+        let box_pdb = system_pdb.get_box_as_ref().unwrap();
+        let box_gro = system_gro.get_box_as_ref().unwrap();
 
         assert_approx_eq!(f32, box_pdb.v1x, box_gro.v1x, epsilon = 0.001);
         assert_approx_eq!(f32, box_pdb.v1y, box_gro.v1y, epsilon = 0.001);
@@ -1235,8 +1237,8 @@ mod tests_read {
         let system_pdb = read_pdb("test_files/octahedron.pdb").unwrap();
         let system_gro = read_gro("test_files/octahedron.gro").unwrap();
 
-        let box_pdb = system_pdb.get_box_as_ref();
-        let box_gro = system_gro.get_box_as_ref();
+        let box_pdb = system_pdb.get_box_as_ref().unwrap();
+        let box_gro = system_gro.get_box_as_ref().unwrap();
 
         assert_approx_eq!(f32, box_pdb.v1x, box_gro.v1x, epsilon = 0.001);
         assert_approx_eq!(f32, box_pdb.v1y, box_gro.v1y, epsilon = 0.001);
@@ -1322,7 +1324,7 @@ mod tests_write {
         let atoms = vec![atom1, atom2, atom3, atom4, atom5];
         let simbox = SimBox::from([1.0, 1.0, 1.0]);
 
-        let system = System::new("Expected atom and residue wrapping", atoms, simbox);
+        let system = System::new("Expected atom and residue wrapping", atoms, Some(simbox));
 
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();
@@ -1434,7 +1436,7 @@ mod tests_write {
             atoms.push(atom.clone());
         }
 
-        let system = System::new("Test system", atoms, [10.0, 10.0, 10.0].into());
+        let system = System::new("Test system", atoms, Some([10.0, 10.0, 10.0].into()));
 
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();

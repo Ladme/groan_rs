@@ -1,0 +1,6 @@
+---
+hydrogen:
+  vdw: 0.13
+carbon:
+  expected_min_bonds: 4
+...

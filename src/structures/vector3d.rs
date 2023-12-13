@@ -232,6 +232,9 @@ impl Vector3D {
 
     /// Wrap a single coordinate into a simulation box.
     ///
+    /// ## Panics
+    /// Panics if `box_len` is exactly equal to 0.
+    ///
     /// ## Note on performance
     /// You may think that the body of this function should look rather like this:
     /// ```ignore
@@ -247,6 +250,10 @@ impl Vector3D {
     /// function is usually much faster.
     /// This does not hold true, if the coordinate is VERY far away from the bounding box but that almost never happens.
     fn wrap_coordinate(coor: f32, box_len: f32) -> f32 {
+        if box_len == 0.0 {
+            panic!("FATAL GROAN ERROR | Vector3D::wrap_coordinate | Box len should not be zero.")
+        }
+
         let mut wrapped = coor;
 
         while wrapped > box_len {
@@ -428,7 +435,14 @@ impl Vector3D {
     }
 
     /// Takes the distance and returns a new distance that is modified according to the minimum image convention.
+    ///
+    /// ## Panics
+    /// Panics if `box_len` is exactly equal to zero.
     fn min_image(dx: f32, box_len: f32) -> f32 {
+        if box_len == 0.0 {
+            panic!("FATAL GROAN ERROR | Vector3D::min_image | Box len should not be zero.")
+        }
+
         let half_box = box_len / 2.0;
         let mut new_dx = dx;
 

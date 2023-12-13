@@ -34,6 +34,7 @@ impl System {
     /// - The function will write all 9 box coordinates only if necessary
     /// (any of the last 6 coordinates is non-zero). Otherwise, it assumes the box is
     /// orthogonal and writes out only 3 dimensions of the box.
+    /// - If simulation box is undefined, it is written as a sequence of zeros.
     pub fn write_gro(
         &self,
         filename: impl AsRef<Path>,
@@ -74,6 +75,7 @@ impl System {
     /// - The function will write all 9 box coordinates only if necessary
     /// (any of the last 6 coordinates is non-zero). Otherwise, it assumes the box is
     /// orthogonal and writes out only 3 dimensions of the box.
+    /// - If the simulation box is undefined, it is written as a sequence of zeros.
     pub fn group_write_gro(
         &self,
         group_name: &str,
@@ -116,37 +118,46 @@ impl System {
 
     /// Write box dimensions into an open gro file.
     fn write_box(&self, writer: &mut BufWriter<File>) -> Result<(), WriteGroError> {
-        let simbox = self.get_box_as_ref();
-        if simbox.is_orthogonal() {
-            writeln!(
-                writer,
-                " {:9.5} {:9.5} {:9.5}",
-                simbox.x, simbox.y, simbox.z
-            )
-            .map_err(|_| WriteGroError::CouldNotWrite)?;
-        } else {
-            writeln!(
-                writer,
-                " {:9.5} {:9.5} {:9.5} {:9.5} {:9.5} {:9.5} {:9.5} {:9.5} {:9.5}",
-                simbox.x,
-                simbox.y,
-                simbox.z,
-                simbox.v1y,
-                simbox.v1z,
-                simbox.v2x,
-                simbox.v2z,
-                simbox.v3x,
-                simbox.v3y
-            )
-            .map_err(|_| WriteGroError::CouldNotWrite)?;
+        match self.get_box_as_ref() {
+            Some(simbox) if simbox.is_orthogonal() => {
+                writeln!(
+                    writer,
+                    " {:9.5} {:9.5} {:9.5}",
+                    simbox.x, simbox.y, simbox.z
+                )
+                .map_err(|_| WriteGroError::CouldNotWrite)?;
+            }
+            Some(simbox) => {
+                writeln!(
+                    writer,
+                    " {:9.5} {:9.5} {:9.5} {:9.5} {:9.5} {:9.5} {:9.5} {:9.5} {:9.5}",
+                    simbox.x,
+                    simbox.y,
+                    simbox.z,
+                    simbox.v1y,
+                    simbox.v1z,
+                    simbox.v2x,
+                    simbox.v2z,
+                    simbox.v3x,
+                    simbox.v3y
+                )
+                .map_err(|_| WriteGroError::CouldNotWrite)?;
+            }
+            None => {
+                let x = 0.0;
+                writeln!(
+                    writer,
+                    " {x:9.5} {x:9.5} {x:9.5}",
+                )
+                .map_err(|_| WriteGroError::CouldNotWrite)?;
+            }
         }
-
         Ok(())
     }
 }
 
 /// Read a gro file and construct a System structure.
-pub fn read_gro(filename: impl AsRef<Path>) -> Result<System, ParseGroError> {
+pub(crate) fn read_gro(filename: impl AsRef<Path>) -> Result<System, ParseGroError> {
     let file = match File::open(filename.as_ref()) {
         Ok(x) => x,
         Err(_) => return Err(ParseGroError::FileNotFound(Box::from(filename.as_ref()))),
@@ -157,7 +168,7 @@ pub fn read_gro(filename: impl AsRef<Path>) -> Result<System, ParseGroError> {
     // get title and number of atoms
     let title = get_title(&mut buffer, filename.as_ref())?;
     let n_atoms = get_natoms(&mut buffer, filename.as_ref())?;
-    let mut simulation_box = [0.0f32; 9].into();
+    let mut simulation_box = None;
 
     let mut atoms: Vec<Atom> = Vec::with_capacity(n_atoms);
 
@@ -169,7 +180,10 @@ pub fn read_gro(filename: impl AsRef<Path>) -> Result<System, ParseGroError> {
         };
 
         if gmx_index == n_atoms {
-            simulation_box = line_as_box(&line)?;
+            simulation_box = Some(line_as_box(&line)?);
+            if simulation_box.as_ref().unwrap().is_zero() {
+                simulation_box = None;
+            }
         } else {
             let atom = line_as_atom(&line)?;
             atoms.push(atom);
@@ -325,7 +339,7 @@ mod tests_read {
         assert_eq!(system.get_n_atoms(), 16844);
 
         // check box size
-        let simbox = system.get_box_as_ref();
+        let simbox = system.get_box_as_ref().unwrap();
         assert!(approx_eq!(f32, simbox.x, 13.01331));
         assert!(approx_eq!(f32, simbox.y, 13.01331));
         assert!(approx_eq!(f32, simbox.z, 11.25347));
@@ -404,7 +418,7 @@ mod tests_read {
         assert_eq!(system.get_n_atoms(), 50);
 
         // check box size
-        let simbox = system.get_box_as_ref();
+        let simbox = system.get_box_as_ref().unwrap();
         assert!(approx_eq!(f32, simbox.x, 6.08608));
         assert!(approx_eq!(f32, simbox.y, 6.08608));
         assert!(approx_eq!(f32, simbox.z, 6.08608));
@@ -463,7 +477,7 @@ mod tests_read {
     fn read_box9() {
         let system = read_gro("test_files/example_box9.gro").unwrap();
 
-        let simbox = system.get_box_as_ref();
+        let simbox = system.get_box_as_ref().unwrap();
         assert!(approx_eq!(f32, simbox.x, 6.08608));
         assert!(approx_eq!(f32, simbox.y, 6.08608));
         assert!(approx_eq!(f32, simbox.z, 6.08608));
@@ -475,6 +489,12 @@ mod tests_read {
         assert!(approx_eq!(f32, simbox.v2z, 0.0));
         assert!(approx_eq!(f32, simbox.v3x, 1.4));
         assert!(approx_eq!(f32, simbox.v3y, 3.856));
+    }
+
+    #[test]
+    fn read_box_zero() {
+        let system = read_gro("test_files/example_box_zero.gro").unwrap();
+        assert!(!system.has_box());
     }
 
     #[test]
@@ -710,7 +730,7 @@ mod tests_write {
         let atoms = vec![atom1, atom2, atom3, atom4, atom5];
         let simbox = SimBox::from([1.0, 1.0, 1.0]);
 
-        let system = System::new("Expected atom and residue wrapping", atoms, simbox);
+        let system = System::new("Expected atom and residue wrapping", atoms, Some(simbox));
 
         let gro_output = NamedTempFile::new().unwrap();
         let path_to_output = gro_output.path();

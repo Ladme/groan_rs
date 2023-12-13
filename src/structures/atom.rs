@@ -5,7 +5,7 @@
 
 use std::io::Write;
 
-use crate::errors::{WriteGroError, WritePdbError};
+use crate::errors::{WriteGroError, WritePdbError, PositionError, AtomError};
 use crate::structures::{
     container::AtomContainer, dimension::Dimension, simbox::SimBox, vector3d::Vector3D,
 };
@@ -50,7 +50,8 @@ impl Atom {
     /// Create new Atom structure with the specified properties.
     ///
     /// ## Notes
-    /// - By default, atom is constructed with `position`, `velocity`, `force`, `chain`, and `charge`
+    /// - By default, atom is constructed with `position`, `velocity`, `force`, `chain`, `charge`,
+    /// `mass`, `vdw`, `expected_max_bonds`, `expected_min_bonds`, `element_name`, and `element_symbol`
     /// set to `None`. You can provide this information using the `Atom::with_*` methods.
     pub fn new(
         residue_number: usize,
@@ -444,44 +445,49 @@ impl Atom {
 
     /// Translates the position of the atom by the provided Vector3D.
     /// Wraps the atom to the simulation box.
-    ///
-    /// ## Panics
-    /// Panics if atom has no position.
-    pub fn translate(&mut self, translate: &Vector3D, sbox: &SimBox) {
+    /// 
+    /// ## Returns
+    /// `Ok` or `AtomError::InvalidPosition` if the atom has an undefined position.
+    pub fn translate(&mut self, translate: &Vector3D, sbox: &SimBox) -> Result<(), AtomError> {
         if let Some(ref mut pos) = self.position {
             pos.x += translate.x;
             pos.y += translate.y;
             pos.z += translate.z;
 
             pos.wrap(sbox);
+            Ok(())
         } else {
-            panic!("FATAL GROAN ERROR | Atom::translate | Atom has no position.");
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(self.get_atom_number())))
         }
     }
 
     /// Translates the position of the atom by the provided Vector3D.
     /// Does **not** wrap the atom to the simulation box.
     ///
-    /// ## Panics
-    /// Panics if atom has no position.
-    pub fn translate_nopbc(&mut self, translate: &Vector3D) {
+    /// ## Returns
+    /// `Ok` of `AtomError::InvalidPosition` if the atom has an undefined position.
+    pub fn translate_nopbc(&mut self, translate: &Vector3D) -> Result<(), AtomError> {
         if let Some(ref mut pos) = self.position {
             pos.x += translate.x;
             pos.y += translate.y;
             pos.z += translate.z;
+            Ok(())
         } else {
-            panic!("FATAL GROAN ERROR | Atom::translate_nopbc | Atom has no position.");
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(self.get_atom_number())))
         }
     }
 
     /// Wrap the atom into the simulation box.
     ///
-    /// ## Panics
-    /// Panics if atom has no position.
-    pub fn wrap(&mut self, sbox: &SimBox) {
+    /// ## Returns
+    /// `Ok` of `AtomError::InvalidPosition` if the atom has an undefined position.
+    pub fn wrap(&mut self, sbox: &SimBox) -> Result<(), AtomError> {
         match self.position {
-            None => panic!("FATAL GROAN ERROR | Atom::wrap | Atom has no position."),
-            Some(ref mut pos) => pos.wrap(sbox),
+            None => Err(AtomError::InvalidPosition(PositionError::NoPosition(self.get_atom_number()))),
+            Some(ref mut pos) => {
+                pos.wrap(sbox);
+                Ok(())
+            }
         }
     }
 
@@ -604,11 +610,12 @@ impl Atom {
     /// Takes periodic boundary conditions into consideration.
     /// Returns oriented distance for 1D problems.
     ///
+    /// ## Returns
+    /// - `f32` if successful.
+    /// - `AtomError::InvalidPosition` if any of the atoms has undefined position.
+    /// 
     /// ## Warning
     /// - Currently only works with orthogonal simulation boxes.
-    ///
-    /// ## Panics
-    /// Panics if any of the atoms has no position.
     ///
     /// ## Example
     /// Calculate distance between two atoms in the xy-plane.
@@ -621,15 +628,14 @@ impl Atom {
     ///
     /// let simbox = SimBox::from([4.0, 4.0, 4.0]);
     ///
-    /// let distance = atom1.distance(&atom2, Dimension::XY, &simbox);
+    /// let distance = atom1.distance(&atom2, Dimension::XY, &simbox).unwrap();
     /// assert_approx_eq!(f32, distance, 1.802776);
     /// ```
-    pub fn distance(&self, atom: &Atom, dim: Dimension, sbox: &SimBox) -> f32 {
+    pub fn distance(&self, atom: &Atom, dim: Dimension, sbox: &SimBox) -> Result<f32, AtomError> {
         match (&self.position, &atom.position) {
-            (None | Some(_), None) | (None, Some(_)) => {
-                panic!("FATAL GROAN ERROR | Atom::distance | Atom has no position.")
-            }
-            (Some(ref pos1), Some(ref pos2)) => pos1.distance(pos2, dim, sbox),
+            (None, Some(_) | None) => Err(AtomError::InvalidPosition(PositionError::NoPosition(self.get_atom_number()))),
+            (Some(_), None) => Err(AtomError::InvalidPosition(PositionError::NoPosition(atom.get_atom_number()))),
+            (Some(ref pos1), Some(ref pos2)) => Ok(pos1.distance(pos2, dim, sbox)),
         }
     }
 
@@ -637,6 +643,10 @@ impl Atom {
     /// Takes periodic boundary conditions into consideration.
     /// Returns oriented distance for 1D problems.
     ///
+    /// ## Returns
+    /// - `f32` if successful.
+    /// - `AtomError::InvalidPosition` if the atom has undefined position.
+    /// 
     /// ## Warning
     /// - Currently only works with orthogonal simulation boxes.
     ///
@@ -654,13 +664,13 @@ impl Atom {
     ///
     /// let simbox = SimBox::from([4.0, 4.0, 4.0]);
     ///
-    /// let distance = atom.distance_from_point(&point, Dimension::XY, &simbox);
+    /// let distance = atom.distance_from_point(&point, Dimension::XY, &simbox).unwrap();
     /// assert_approx_eq!(f32, distance, 1.802776);
     /// ```
-    pub fn distance_from_point(&self, point: &Vector3D, dim: Dimension, sbox: &SimBox) -> f32 {
+    pub fn distance_from_point(&self, point: &Vector3D, dim: Dimension, sbox: &SimBox) -> Result<f32, AtomError> {
         match self.position {
-            None => panic!("FATAL GROAN ERROR | Atom::distance_from_point | Atom has no position."),
-            Some(ref pos) => pos.distance(point, dim, sbox),
+            None => Err(AtomError::InvalidPosition(PositionError::NoPosition(self.get_atom_number()))),
+            Some(ref pos) => Ok(pos.distance(point, dim, sbox)),
         }
     }
 }
@@ -1008,7 +1018,7 @@ mod tests {
         let mut atom = make_default_atom();
 
         let shift = Vector3D::from([4.5, 2.3, -8.3]);
-        atom.translate_nopbc(&shift);
+        atom.translate_nopbc(&shift).unwrap();
 
         assert_approx_eq!(
             f32,
@@ -1037,7 +1047,7 @@ mod tests {
         let shift = Vector3D::from([4.5, 2.3, -10.2]);
         let simbox = SimBox::from([16.0, 16.0, 16.0]);
 
-        atom.translate(&shift, &simbox);
+        atom.translate(&shift, &simbox).unwrap();
 
         assert_approx_eq!(
             f32,
@@ -1066,7 +1076,7 @@ mod tests {
 
         let simbox = SimBox::from([15.0, 15.0, 15.0]);
 
-        atom.wrap(&simbox);
+        atom.wrap(&simbox).unwrap();
 
         assert_approx_eq!(
             f32,
@@ -1095,7 +1105,7 @@ mod tests {
 
         let simbox = SimBox::from([15.0, 15.0, 15.0]);
 
-        atom.wrap(&simbox);
+        atom.wrap(&simbox).unwrap();
 
         assert_approx_eq!(
             f32,
@@ -1127,13 +1137,13 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom1.distance(&atom2, Dimension::X, &simbox),
+            atom1.distance(&atom2, Dimension::X, &simbox).unwrap(),
             -0.7,
             epsilon = 0.00001
         );
         assert_approx_eq!(
             f32,
-            atom2.distance(&atom1, Dimension::X, &simbox),
+            atom2.distance(&atom1, Dimension::X, &simbox).unwrap(),
             0.7,
             epsilon = 0.00001
         );
@@ -1149,13 +1159,13 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom1.distance(&atom2, Dimension::Y, &simbox),
+            atom1.distance(&atom2, Dimension::Y, &simbox).unwrap(),
             1.0,
             epsilon = 0.00001
         );
         assert_approx_eq!(
             f32,
-            atom2.distance(&atom1, Dimension::Y, &simbox),
+            atom2.distance(&atom1, Dimension::Y, &simbox).unwrap(),
             -1.0,
             epsilon = 0.00001
         );
@@ -1171,13 +1181,13 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom1.distance(&atom2, Dimension::Z, &simbox),
+            atom1.distance(&atom2, Dimension::Z, &simbox).unwrap(),
             1.5,
             epsilon = 0.00001
         );
         assert_approx_eq!(
             f32,
-            atom2.distance(&atom1, Dimension::Z, &simbox),
+            atom2.distance(&atom1, Dimension::Z, &simbox).unwrap(),
             -1.5,
             epsilon = 0.00001
         );
@@ -1193,13 +1203,13 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom1.distance(&atom2, Dimension::XY, &simbox),
+            atom1.distance(&atom2, Dimension::XY, &simbox).unwrap(),
             1.2206556,
             epsilon = 0.00001
         );
         assert_approx_eq!(
             f32,
-            atom2.distance(&atom1, Dimension::XY, &simbox),
+            atom2.distance(&atom1, Dimension::XY, &simbox).unwrap(),
             1.2206556,
             epsilon = 0.00001
         );
@@ -1215,13 +1225,13 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom1.distance(&atom2, Dimension::XZ, &simbox),
+            atom1.distance(&atom2, Dimension::XZ, &simbox).unwrap(),
             1.6552945,
             epsilon = 0.00001
         );
         assert_approx_eq!(
             f32,
-            atom2.distance(&atom1, Dimension::XZ, &simbox),
+            atom2.distance(&atom1, Dimension::XZ, &simbox).unwrap(),
             1.6552945,
             epsilon = 0.00001
         );
@@ -1237,13 +1247,13 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom1.distance(&atom2, Dimension::YZ, &simbox),
+            atom1.distance(&atom2, Dimension::YZ, &simbox).unwrap(),
             1.8027756,
             epsilon = 0.00001
         );
         assert_approx_eq!(
             f32,
-            atom2.distance(&atom1, Dimension::YZ, &simbox),
+            atom2.distance(&atom1, Dimension::YZ, &simbox).unwrap(),
             1.8027756,
             epsilon = 0.00001
         );
@@ -1259,13 +1269,13 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom1.distance(&atom2, Dimension::XYZ, &simbox),
+            atom1.distance(&atom2, Dimension::XYZ, &simbox).unwrap(),
             1.933908,
             epsilon = 0.00001
         );
         assert_approx_eq!(
             f32,
-            atom2.distance(&atom1, Dimension::XYZ, &simbox),
+            atom2.distance(&atom1, Dimension::XYZ, &simbox).unwrap(),
             1.933908,
             epsilon = 0.00001
         );
@@ -1281,13 +1291,13 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom1.distance(&atom2, Dimension::None, &simbox),
+            atom1.distance(&atom2, Dimension::None, &simbox).unwrap(),
             0.0,
             epsilon = 0.00001
         );
         assert_approx_eq!(
             f32,
-            atom2.distance(&atom1, Dimension::None, &simbox),
+            atom2.distance(&atom1, Dimension::None, &simbox).unwrap(),
             0.0,
             epsilon = 0.00001
         );
@@ -1303,7 +1313,7 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::X, &simbox),
+            atom.distance_from_point(&point, Dimension::X, &simbox).unwrap(),
             1.0,
             epsilon = 0.00001
         );
@@ -1319,7 +1329,7 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::Y, &simbox),
+            atom.distance_from_point(&point, Dimension::Y, &simbox).unwrap(),
             -0.7,
             epsilon = 0.00001
         );
@@ -1335,7 +1345,7 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::Z, &simbox),
+            atom.distance_from_point(&point, Dimension::Z, &simbox).unwrap(),
             1.5,
             epsilon = 0.00001
         );
@@ -1351,7 +1361,7 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::XY, &simbox),
+            atom.distance_from_point(&point, Dimension::XY, &simbox).unwrap(),
             1.220656,
             epsilon = 0.00001
         );
@@ -1367,7 +1377,7 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::XZ, &simbox),
+            atom.distance_from_point(&point, Dimension::XZ, &simbox).unwrap(),
             1.802776,
             epsilon = 0.00001
         );
@@ -1383,7 +1393,7 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::YZ, &simbox),
+            atom.distance_from_point(&point, Dimension::YZ, &simbox).unwrap(),
             1.6552945,
             epsilon = 0.00001
         );
@@ -1399,7 +1409,7 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::XYZ, &simbox),
+            atom.distance_from_point(&point, Dimension::XYZ, &simbox).unwrap(),
             1.933908,
             epsilon = 0.00001
         );
@@ -1415,7 +1425,7 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::None, &simbox),
+            atom.distance_from_point(&point, Dimension::None, &simbox).unwrap(),
             0.0,
             epsilon = 0.00001
         );

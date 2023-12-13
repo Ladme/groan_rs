@@ -628,9 +628,10 @@ mod tests {
         assert_eq!(system.get_simulation_step(), 0);
         assert_eq!(system.get_precision(), 100);
         assert_approx_eq!(f32, system.get_simulation_time(), 0.0);
-        assert_approx_eq!(f32, system.get_box_as_ref().x, 13.034535);
-        assert_approx_eq!(f32, system.get_box_as_ref().y, 13.034535);
-        assert_approx_eq!(f32, system.get_box_as_ref().z, 11.228164);
+        let simbox = system.get_box_as_ref().unwrap();
+        assert_approx_eq!(f32, simbox.x, 13.034535);
+        assert_approx_eq!(f32, simbox.y, 13.034535);
+        assert_approx_eq!(f32, simbox.z, 11.228164);
 
         let atom1 = &system.get_atoms_as_ref()[0];
         let atom2 = &system.get_atoms_as_ref()[16843];
@@ -670,9 +671,10 @@ mod tests {
         assert_eq!(system.get_simulation_step(), 50000);
         assert_eq!(system.get_precision(), 100);
         assert_approx_eq!(f32, system.get_simulation_time(), 1000.0);
-        assert_approx_eq!(f32, system.get_box_as_ref().x, 13.02659);
-        assert_approx_eq!(f32, system.get_box_as_ref().y, 13.02659);
-        assert_approx_eq!(f32, system.get_box_as_ref().z, 11.250414);
+        let simbox = system.get_box_as_ref().unwrap();
+        assert_approx_eq!(f32, simbox.x, 13.02659);
+        assert_approx_eq!(f32, simbox.y, 13.02659);
+        assert_approx_eq!(f32, simbox.z, 11.250414);
 
         let atom1 = &system.get_atoms_as_ref()[0];
         let atom2 = &system.get_atoms_as_ref()[16843];
@@ -1060,7 +1062,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 5000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 100.0);
 
-        let simbox = frame.get_box_as_ref();
+        let simbox = frame.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 5.2868834);
         assert_approx_eq!(f32, simbox.v2y, 4.7799735);
         assert_approx_eq!(f32, simbox.v3z, 2.2256064);
@@ -1081,7 +1083,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 50000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 1000.0);
 
-        let simbox = frame.get_box_as_ref();
+        let simbox = frame.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 5.2712817);
         assert_approx_eq!(f32, simbox.v2y, 4.7658677);
         assert_approx_eq!(f32, simbox.v3z, 2.1743093);
@@ -1107,7 +1109,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 5000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 100.0);
 
-        let simbox = frame.get_box_as_ref();
+        let simbox = frame.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 6.2666030);
         assert_approx_eq!(f32, simbox.v2y, 5.9082110);
         assert_approx_eq!(f32, simbox.v3z, 5.1106043);
@@ -1128,7 +1130,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 50000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 1000.0);
 
-        let simbox = frame.get_box_as_ref();
+        let simbox = frame.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 6.2004085);
         assert_approx_eq!(f32, simbox.v2y, 5.8458023);
         assert_approx_eq!(f32, simbox.v3z, 5.0840497);
@@ -1154,7 +1156,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 5000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 100.0);
 
-        let simbox = frame.get_box_as_ref();
+        let simbox = frame.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 6.2607090);
         assert_approx_eq!(f32, simbox.v2y, 6.2607090);
         assert_approx_eq!(f32, simbox.v3z, 4.4316807);
@@ -1175,7 +1177,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 50000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 1000.0);
 
-        let simbox = frame.get_box_as_ref();
+        let simbox = frame.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 6.2197995);
         assert_approx_eq!(f32, simbox.v2y, 6.2197995);
         assert_approx_eq!(f32, simbox.v3z, 4.4066653);

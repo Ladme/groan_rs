@@ -194,10 +194,19 @@ pub fn matrix2simbox(matrix: [[c_float; 3usize]; 3usize]) -> Result<SimBox, Read
 }
 
 /// Convert SimBox to C box matrix for an xtc file.
-pub fn simbox2matrix(simbox: &SimBox) -> [[c_float; 3usize]; 3usize] {
-    [
-        [simbox.v1x, simbox.v1y, simbox.v1z],
-        [simbox.v2x, simbox.v2y, simbox.v2z],
-        [simbox.v3x, simbox.v3y, simbox.v3z],
-    ]
+/// If `simbox` is `None`, returns zeroed array.
+pub fn simbox2matrix(simbox: Option<&SimBox>) -> [[c_float; 3usize]; 3usize] {
+    match simbox {
+        Some(simbox) => {
+            [
+                [simbox.v1x, simbox.v1y, simbox.v1z],
+                [simbox.v2x, simbox.v2y, simbox.v2z],
+                [simbox.v3x, simbox.v3y, simbox.v3z],
+            ]
+        }
+        None => {
+            [[0.0; 3]; 3]
+        }
+    }
+    
 }

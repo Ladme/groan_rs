@@ -14,8 +14,8 @@ use crate::structures::dimension::Dimension;
 use crate::structures::element::Elements;
 use crate::system::general::System;
 
-/// Factor used to quess bonds between atoms.
-const RADIUS_FACTOR: f32 = 0.55;
+/// Default factor used to quess bonds between atoms.
+const DEFAULT_RADIUS_FACTOR: f32 = 0.55;
 
 /// ## Methods for guessing properties of the System.
 impl System {
@@ -266,7 +266,10 @@ impl System {
         }
     }
 
-    /// Assign bonds between atoms based on the distances between them and their van der Waals radii.
+    /// Assign bonds between atoms based on the distances between them, their van der Waals radii
+    /// and the provided `radius_factor`.
+    /// If the `radius_factor` is not provided, the default value of 0.55 is used.
+    ///
     ///
     /// ## Returns
     /// - `Ok` if the bonds were guessed, all atoms have vdw information and no atom has suspicious number of bonds.
@@ -286,7 +289,7 @@ impl System {
     /// # use groan_rs::errors::ElementError;
     /// #
     /// let mut system = System::from_file("system.gro").unwrap();
-    /// 
+    ///
     /// match system.guess_elements(Elements::default()) {
     ///     Ok(_) | Err(ElementError::ElementGuessWarning(_)) => (),
     ///     Err(e) => {
@@ -294,8 +297,8 @@ impl System {
     ///         return;    
     ///     }
     /// }
-    /// 
-    /// match system.guess_bonds() {
+    ///
+    /// match system.guess_bonds(None) {
     ///     Ok(_) => (),
     ///     Err(ElementError::BondsGuessWarning(e)) => eprintln!("{}", e),
     ///     Err(e) => {
@@ -304,26 +307,32 @@ impl System {
     ///     }
     /// }
     /// ```
-    /// 
+    ///
     /// ## How does it work?
     /// A distance between each pair of atoms is calculated. If the distance is
-    /// lower than the sum of vdw radii of the atoms multiplied by `RADIUS_FACTOR` (default: 0.55),
-    /// a bond between the atoms is formed.
+    /// lower than the sum of vdw radii of the atoms multiplied by the provided
+    /// `radius_factor`, a bond between the atoms is formed.
+    ///
+    /// If the `radius_factor` is `None`, the value defined in `DEFAULT_RADIUS_FACTOR`
+    /// is used instead (default value is 0.55).
     ///
     /// The function then checks the number of bonds for each atom. If the number of bonds
     /// for any atom is lower than the expected minimal number of bonds, a warning is raised.
     /// Warning is also raised if the number of bonds for any atom is higher than the expected
-    /// maximal number of bonds.
+    /// maximal number of bonds. Warning is also raised if any of the atoms in the system
+    /// does not have a van der Waals radius assigned.
     ///
     /// ## Notes
     /// - Atoms which have no assigned van der Waals radius are not assigned any bonds.
     /// - Asymptotic time complexity of this function is O(n^2) where n is the number of atoms in the system.
-    pub fn guess_bonds(&mut self) -> Result<(), ElementError> {
+    pub fn guess_bonds(&mut self, radius_factor: Option<f32>) -> Result<(), ElementError> {
         let mut info = BondsGuessInfo {
             no_vdw: Vec::new(),
             too_many_bonds: IndexMap::new(),
             too_few_bonds: IndexMap::new(),
         };
+
+        let unpacked_factor = radius_factor.unwrap_or(DEFAULT_RADIUS_FACTOR);
 
         for a in 0..self.get_n_atoms() {
             let atom1 = self
@@ -353,7 +362,7 @@ impl System {
                 let distance = self
                     .atoms_distance(a, b, Dimension::XYZ)
                     .expect("FATAL GROAN ERROR | System::guess_bonds | Atoms should exist.");
-                let limit = (vdw1 + vdw2) * RADIUS_FACTOR;
+                let limit = (vdw1 + vdw2) * unpacked_factor;
 
                 if distance < limit {
                     // safety: both atom indices are valid and unique, we use `add_bonded` with both atoms,
@@ -1349,4 +1358,25 @@ mod tests {
         assert_eq!(atom.get_expected_max_bonds(), None);
         assert_eq!(atom.get_expected_min_bonds(), None);
     }
+
+    /*#[test]
+    fn guess_bonds_warnings() {
+        let mut system = System::from_file("test_files/aa_peptide.pdb").unwrap();
+
+        system.guess_elements(Elements::default()).unwrap();
+
+        let mut elements_for_bonds = Elements::default();
+        elements_for_bonds.update(
+            Elements::from_file("test_files/elements_update_guess_bonds_warning.yaml").unwrap(),
+        );
+
+        match system.guess_properties(elements_for_bonds) {
+            Ok(_) | Err(_) => (),
+        }
+
+        match system.guess_bonds(None) {
+            Ok(_) => (),
+            Err(e) => println!("{}", e),
+        }
+    }*/
 }

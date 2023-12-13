@@ -7,7 +7,7 @@ use std::collections::HashSet;
 
 use indexmap::IndexMap;
 
-use crate::errors::GroupError;
+use crate::errors::{GroupError, SimBoxError};
 use crate::structures::group::Group;
 use crate::structures::shape::Shape;
 use crate::system::general::System;
@@ -64,6 +64,8 @@ impl System {
     /// - `GroupError::AlreadyExistsWarning` if the new group has overwritten a previous group.
     /// - `GroupError::InvalidName` if the name of the group is invalid (no group created).
     /// - `GroupError::InvalidQuery` if the query could not be parsed.
+    /// - `GroupError::InvalidSimBox` if the system has no simulation box or if the
+    /// simulation box is not orthogonal.
     ///
     /// ## Example
     /// Select phosphori atoms which are inside a z-axis oriented cylinder
@@ -86,6 +88,7 @@ impl System {
     /// the same atoms as initially. In other words, the group is NOT dynamically updated.
     /// - If you want to choose atoms dynamically, it is better to use `AtomIterator` and `filter_geometry` function
     /// while iterating through the trajectory.
+    /// - Atoms that have undefiend positions will never be selected.
     ///
     /// ## Notes
     /// - In case a group with the given name already exists, it is replaced with the new group.
@@ -99,6 +102,14 @@ impl System {
     ) -> Result<(), GroupError> {
         if !Group::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
+        }
+
+        if !self.has_box() {
+            return Err(GroupError::InvalidSimBox(SimBoxError::DoesNotExist));
+        }
+
+        if !self.get_box_as_ref().unwrap().is_orthogonal() {
+            return Err(GroupError::InvalidSimBox(SimBoxError::NotOrthogonal));
         }
 
         let group = match Group::from_query_and_geometry(query, geometry, self) {
@@ -122,6 +133,8 @@ impl System {
     /// - `GroupError::AlreadyExistsWarning` if the new group has overwritten a previous group.
     /// - `GroupError::InvalidName` if the name of the group is invalid (no group created).
     /// - `GroupError::InvalidQuery` if the query could not be parsed.
+    /// - `GroupError::InvalidSimBox` if the system has no simulation box or if the
+    /// simulation box is not orthogonal.
     ///
     /// ## Example
     /// Select phosphori atoms which are inside a z-axis oriented cylinder
@@ -150,6 +163,7 @@ impl System {
     /// the same atoms as initially. In other words, the group is NOT dynamically updated.
     /// - If you want to choose atoms dynamically, it is better to use `AtomIterator` and `filter_geometry` function
     /// while iterating through the trajectory.
+    /// - Atoms that have undefiend positions will never be selected.
     ///
     /// ## Notes
     /// - In case a group with the given name already exists, it is replaced with the new group.
@@ -163,6 +177,14 @@ impl System {
     ) -> Result<(), GroupError> {
         if !Group::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
+        }
+
+        if !self.has_box() {
+            return Err(GroupError::InvalidSimBox(SimBoxError::DoesNotExist));
+        }
+
+        if !self.get_box_as_ref().unwrap().is_orthogonal() {
+            return Err(GroupError::InvalidSimBox(SimBoxError::NotOrthogonal));
         }
 
         let group = match Group::from_query_and_geometries(query, geometries, self) {
@@ -1055,7 +1077,7 @@ mod tests {
 
         for atom in system.group_iter("Selected Membrane").unwrap() {
             assert_eq!(atom.get_residue_name(), "POPC");
-            assert!(cylinder.inside(atom.get_position().unwrap(), system.get_box_as_ref()));
+            assert!(cylinder.inside(atom.get_position().unwrap(), system.get_box_as_ref().unwrap()));
         }
     }
 
@@ -1075,7 +1097,7 @@ mod tests {
 
         for atom in system.group_iter("Selected Water").unwrap() {
             assert_eq!(atom.get_residue_name(), "W");
-            assert!(sphere.inside(atom.get_position().unwrap(), system.get_box_as_ref()));
+            assert!(sphere.inside(atom.get_position().unwrap(), system.get_box_as_ref().unwrap()));
         }
     }
 
@@ -1102,7 +1124,7 @@ mod tests {
                     || resname == "LYS"
                     || resname == "CYS"
             );
-            assert!(rectangular.inside(atom.get_position().unwrap(), system.get_box_as_ref()));
+            assert!(rectangular.inside(atom.get_position().unwrap(), system.get_box_as_ref().unwrap()));
         }
     }
 
@@ -1249,9 +1271,9 @@ mod tests {
         for (i, atom) in system.group_iter("Selected Membrane").unwrap().enumerate() {
             assert_eq!(atom.get_atom_number(), expected_numbers[i]);
 
-            assert!(rectangular.inside(atom.get_position().unwrap(), system.get_box_as_ref()));
-            assert!(sphere.inside(atom.get_position().unwrap(), system.get_box_as_ref()));
-            assert!(cylinder.inside(atom.get_position().unwrap(), system.get_box_as_ref()));
+            assert!(rectangular.inside(atom.get_position().unwrap(), system.get_box_as_ref().unwrap()));
+            assert!(sphere.inside(atom.get_position().unwrap(), system.get_box_as_ref().unwrap()));
+            assert!(cylinder.inside(atom.get_position().unwrap(), system.get_box_as_ref().unwrap()));
         }
     }
 

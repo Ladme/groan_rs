@@ -3,7 +3,8 @@
 
 //! Implementation of various methods for analysis of `System`.
 
-use crate::errors::{AtomError, GroupError};
+use crate::errors::{AtomError, GroupError, PositionError};
+use crate::structures::simbox::simbox_check;
 use crate::structures::{dimension::Dimension, vector3d::Vector3D};
 use crate::system::general::System;
 
@@ -18,14 +19,11 @@ impl System {
     /// Takes periodic boundary conditions into consideration.
     ///
     /// ## Returns
-    /// `Vector3D` corresponding to the geometric center of the group.
-    /// `GroupError::NotFound` if the group does not exist.
-    ///
-    /// ## Warning
-    /// - This method currently only works for systems with orthogonal simulation boxes!
-    ///
-    /// ## Panics
-    /// Panics if any of the atoms in the group has no position.
+    /// - `Vector3D` corresponding to the geometric center of the group.
+    /// - `GroupError::NotFound` if the group does not exist.
+    /// - `GroupError::InvalidSimBox` if the system has no simulation box
+    /// or the simulation box is not orthogonal.
+    /// - `GroupError::InvalidPosition` if any of the atoms in the group has no position.
     ///
     /// ## Notes
     /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
@@ -49,7 +47,9 @@ impl System {
     /// };
     /// ```
     pub fn group_get_center(&self, name: &str) -> Result<Vector3D, GroupError> {
-        let simbox = self.get_box_as_ref();
+        let simbox =
+            simbox_check(self.get_box_as_ref()).map_err(|x| GroupError::InvalidSimBox(x))?;
+
         let reciprocal_box =
             Vector3D::from([1.0f32 / simbox.x, 1.0f32 / simbox.y, 1.0f32 / simbox.z]);
 
@@ -58,10 +58,10 @@ impl System {
 
         for atom in self.group_iter(name)? {
             // make sure that each coordinate is inside the box
-            let mut coordinates = atom
-                .get_position()
-                .expect("FATAL GROAN ERROR | System::group_get_center | Atom has no position.")
-                .clone();
+            let mut coordinates = match atom.get_position() {
+                Some(x) => x.clone(),
+                None => return Err(GroupError::InvalidPosition(PositionError::NoPosition(atom.get_atom_number())))
+            };
             coordinates.wrap(simbox);
 
             // calculate magic angles
@@ -100,11 +100,11 @@ impl System {
     /// Oriented distance is used for 1D problems.
     ///
     /// ## Returns
-    /// `f32` corresponding to the distance between the groups.
-    /// `GroupError` if any of the groups does not exist.
-    ///
-    /// ## Warning
-    /// - This method currently only works for systems with orthogonal simulation boxes!
+    /// - `f32` corresponding to the distance between the groups.
+    /// - `GroupError::NotFound` if any of the groups does not exist.
+    /// - `GroupError::InvalidSimBox` if the system has no simulation box
+    /// or the simulation box is not orthogonal.
+    /// - `GroupError::InvalidPosition` if any of the atoms in the groups has no position.
     ///
     /// ## Example
     /// Calculating the distance between the group 'Protein' and 'Membrane' along the z-dimension.
@@ -131,17 +131,21 @@ impl System {
         let group1_center = self.group_get_center(group1)?;
         let group2_center = self.group_get_center(group2)?;
 
-        Ok(group1_center.distance(&group2_center, dim, self.get_box_as_ref()))
+        let simbox =
+            simbox_check(self.get_box_as_ref()).map_err(|x| GroupError::InvalidSimBox(x))?;
+
+        Ok(group1_center.distance(&group2_center, dim, simbox))
     }
 
     /// Calculate distances between each pair of atoms of the specified groups.
     /// Oriented distances are used for 1D problems.
     ///
     /// ## Returns
-    /// Two dimensional vector of distances or `GroupError` if any of the groups does not exist.
-    ///
-    /// ## Warning
-    /// - This method currently only works for systems with orthogonal simulation boxes!
+    /// - Two dimensional vector of distances.
+    /// - `GroupError::NotFound` if any of the groups does not exist.
+    /// - `GroupError::InvalidSimBox` if the system has no simulation box
+    /// or the simulation box is not orthogonal.
+    /// - `GroupError::InvalidPosition` if any of the atoms in the groups has no position.
     ///
     /// ## Example
     /// Calculate distances between atoms of group 'Protein' and 'Membrane'.
@@ -180,12 +184,21 @@ impl System {
         let n_atoms_group1 = self.group_get_n_atoms(group1)?;
         let n_atoms_group2 = self.group_get_n_atoms(group2)?;
 
+        let simbox =
+            simbox_check(self.get_box_as_ref()).map_err(|x| GroupError::InvalidSimBox(x))?;
+
         let mut distances = Vec::with_capacity(n_atoms_group1);
 
         for (i, atom1) in self.group_iter(group1)?.enumerate() {
             distances.push(Vec::with_capacity(n_atoms_group2));
             for atom2 in self.group_iter(group2)? {
-                distances[i].push(atom1.distance(atom2, dim, self.get_box_as_ref()));
+                let dist = match atom1.distance(atom2, dim, simbox) {
+                    Ok(x) => x,
+                    Err(AtomError::InvalidPosition(e)) => return Err(GroupError::InvalidPosition(e)),
+                    _ => panic!("FATAL GROAN ERROR | System::group_all_distances | Invalid error type returned by Atom::distance."),
+                };
+
+                distances[i].push(dist);
             }
         }
 
@@ -198,11 +211,11 @@ impl System {
     /// Oriented distance is used for 1D problems.
     ///
     /// ## Returns
-    /// `f32` corresponding to the distance between the atoms.
-    /// `AtomError` if any of the atom indices is out of range.
-    ///
-    /// ## Warning
-    /// - This method currently only works for systems with orthogonal simulation boxes!
+    /// - `f32` corresponding to the distance between the atoms.
+    /// - `AtomError::OutOfRange` if any of the atom indices is out of range.
+    /// - `AtomError::InvalidSimBox` if the system has no simulation box
+    /// or the simulation box is not orthogonal.
+    /// - `AtomError::InvalidPosition` if any of the atoms has no position.
     ///
     /// ## Example
     /// Calculate distance between atoms with index 3 and 17 in the xy plane.
@@ -231,7 +244,10 @@ impl System {
         let atom1 = self.get_atom_as_ref(index1)?;
         let atom2 = self.get_atom_as_ref(index2)?;
 
-        Ok(atom1.distance(atom2, dim, self.get_box_as_ref()))
+        let simbox =
+            simbox_check(self.get_box_as_ref()).map_err(|x| AtomError::InvalidSimBox(x))?;
+
+        atom1.distance(atom2, dim, simbox)
     }
 }
 
@@ -251,7 +267,7 @@ mod tests {
         let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([4.5, 3.2, 1.7].into());
 
         let atoms = vec![atom1];
-        let system = System::new("Artificial system.", atoms, [10.0, 10.0, 10.0].into());
+        let system = System::new("Artificial system.", atoms, Some([10.0, 10.0, 10.0].into()));
 
         let center = system.group_get_center("all").unwrap();
 
@@ -267,7 +283,7 @@ mod tests {
         let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([4.0, 2.8, 3.0].into());
 
         let atoms = vec![atom1, atom2];
-        let system = System::new("Artificial system.", atoms, [10.0, 10.0, 10.0].into());
+        let system = System::new("Artificial system.", atoms, Some([10.0, 10.0, 10.0].into()));
 
         let center = system.group_get_center("all").unwrap();
 
@@ -283,7 +299,7 @@ mod tests {
         let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([9.8, 9.5, 3.0].into());
 
         let atoms = vec![atom1, atom2];
-        let system = System::new("Artificial system.", atoms, [10.0, 10.0, 10.0].into());
+        let system = System::new("Artificial system.", atoms, Some([10.0, 10.0, 10.0].into()));
 
         let center = system.group_get_center("all").unwrap();
 
@@ -308,7 +324,7 @@ mod tests {
             atoms.push(atom);
         }
 
-        let system = System::new("Artificial system.", atoms, [10.0, 10.0, 10.0].into());
+        let system = System::new("Artificial system.", atoms, Some([10.0, 10.0, 10.0].into()));
 
         let center = system.group_get_center("all").unwrap();
 
@@ -333,7 +349,7 @@ mod tests {
             atoms.push(atom);
         }
 
-        let system = System::new("Artificial system.", atoms, [10.0, 10.0, 10.0].into());
+        let system = System::new("Artificial system.", atoms, Some([10.0, 10.0, 10.0].into()));
 
         let center = system.group_get_center("all").unwrap();
 
