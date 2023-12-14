@@ -3,7 +3,7 @@
 
 //! Implementation of some higher level functions for `groan_rs` programs.
 
-use crate::errors::{GroupError, ParseNdxError, AtomError};
+use crate::errors::{AtomError, GroupError, ParseNdxError};
 use crate::structures::{dimension::Dimension, vector3d::Vector3D};
 use crate::system::general::System;
 
@@ -79,13 +79,13 @@ impl System {
     /// - `dimension` - Dimension enum for specifying centering dimensions.
     ///
     /// ## Returns
-    /// - `Ok` if centering was successful. 
+    /// - `Ok` if centering was successful.
     /// - `GroupError::NotFound` if the group does not exist.
     /// - `GroupError::InvalidSimBox` if the system has no simulation box
     /// or the simulation box is not orthogonal.
     /// - `GroupError::InvalidPosition` if any of the atoms in the system
     /// has an undefined position.
-    /// 
+    ///
     /// ## Example
     /// Center the group `Protein` in the xy-plane.
     /// The positions of the atoms along the z-dimension will be unchanged.
@@ -108,7 +108,9 @@ impl System {
     ) -> Result<(), GroupError> {
         let reference_center = self.group_get_center(reference)?;
 
-        let box_center = self.get_box_center().map_err(|x| GroupError::InvalidSimBox(x))?;
+        let box_center = self
+            .get_box_center()
+            .map_err(GroupError::InvalidSimBox)?;
         let mut shift: Vector3D = [
             box_center.x - reference_center.x,
             box_center.y - reference_center.y,
@@ -129,6 +131,7 @@ impl System {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::{PositionError, SimBoxError};
     use float_cmp::assert_approx_eq;
     use std::path::Path;
 
@@ -455,5 +458,52 @@ mod tests {
         assert_approx_eq!(f32, atom2.unwrap().x, 5.478555);
         assert_approx_eq!(f32, atom2.unwrap().y, 2.2167444);
         assert_approx_eq!(f32, atom2.unwrap().z, 2.2404397);
+    }
+
+    #[test]
+    fn atoms_center_fail_group() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.atoms_center("Nonexistent", Dimension::XYZ) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(GroupError::NotFound(x)) => assert_eq!(x, "Nonexistent"),
+            Err(e) => panic!(
+                "Function failed successfully, but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn atoms_center_fail_simbox() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+        system.reset_box();
+
+        match system.atoms_center("Protein", Dimension::XYZ) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(GroupError::InvalidSimBox(SimBoxError::DoesNotExist)) => (),
+            Err(e) => panic!(
+                "Function failed successfully, but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn atoms_center_fail_position() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+
+        match system.atoms_center("Protein", Dimension::XYZ) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Err(e) => panic!(
+                "Function failed successfully, but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
     }
 }

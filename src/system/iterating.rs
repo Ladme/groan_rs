@@ -277,8 +277,7 @@ impl System {
                 self.get_atoms_as_ref_mut(),
                 indices,
                 simbox.map(|x| &*x),
-                )
-            )
+            ))
         }
     }
 }
@@ -405,7 +404,9 @@ mod tests {
         {
             assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
 
-            group_atom.translate_nopbc(&Vector3D::from([0.5, -1.1, 2.4])).unwrap();
+            group_atom
+                .translate_nopbc(&Vector3D::from([0.5, -1.1, 2.4]))
+                .unwrap();
             assert_approx_eq!(
                 f32,
                 group_atom.get_position().unwrap().x,
@@ -433,7 +434,9 @@ mod tests {
         for (group_atom, system_atom) in system.atoms_iter_mut().zip(extracted.iter()) {
             assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
 
-            group_atom.translate_nopbc(&Vector3D::from([0.5, -1.1, 2.4])).unwrap();
+            group_atom
+                .translate_nopbc(&Vector3D::from([0.5, -1.1, 2.4]))
+                .unwrap();
             assert_approx_eq!(
                 f32,
                 group_atom.get_position().unwrap().x,

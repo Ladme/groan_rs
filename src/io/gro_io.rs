@@ -145,11 +145,8 @@ impl System {
             }
             None => {
                 let x = 0.0;
-                writeln!(
-                    writer,
-                    " {x:9.5} {x:9.5} {x:9.5}",
-                )
-                .map_err(|_| WriteGroError::CouldNotWrite)?;
+                writeln!(writer, " {x:9.5} {x:9.5} {x:9.5}",)
+                    .map_err(|_| WriteGroError::CouldNotWrite)?;
             }
         }
         Ok(())

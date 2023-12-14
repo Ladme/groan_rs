@@ -152,10 +152,10 @@ impl System {
         }
 
         if !no_elements.is_empty() || !multiple_elements.is_empty() {
-            Err(ElementError::ElementGuessWarning(ElementGuessInfo {
+            Err(ElementError::ElementGuessWarning(Box::new(ElementGuessInfo {
                 no_elements,
                 multiple_elements,
-            }))
+            })))
         } else {
             Ok(())
         }
@@ -262,7 +262,7 @@ impl System {
         if info.is_empty() {
             Ok(())
         } else {
-            Err(ElementError::PropertiesGuessWarning(info))
+            Err(ElementError::PropertiesGuessWarning(Box::new(info)))
         }
     }
 
@@ -379,27 +379,21 @@ impl System {
         for (a, atom) in self.atoms_iter().enumerate() {
             // check limit for maximal number of bonds
             if let Some(limit) = atom.get_expected_max_bonds() {
-                if atom.get_n_bonded() > limit as usize {
-                    if info
-                        .too_many_bonds
-                        .insert(a + 1, (atom.get_n_bonded(), limit))
-                        .is_some()
-                    {
+                if atom.get_n_bonded() > limit as usize && info
+                    .too_many_bonds
+                    .insert(a + 1, (atom.get_n_bonded(), limit))
+                    .is_some() {
                         panic!("FATAL GROAN ERROR | System::guess_bonds | Atom should not be in the `too_many_bonds` map.")
-                    }
                 }
             }
 
             // check limit for minimal number of bonds
             if let Some(limit) = atom.get_expected_min_bonds() {
-                if atom.get_n_bonded() < limit as usize {
-                    if info
-                        .too_few_bonds
-                        .insert(a + 1, (atom.get_n_bonded(), limit))
-                        .is_some()
-                    {
+                if atom.get_n_bonded() < limit as usize && info 
+                    .too_few_bonds
+                    .insert(a + 1, (atom.get_n_bonded(), limit))
+                    .is_some() {
                         panic!("FATAL GROAN ERROR | System::guess_bonds | Atom should not be in the `too_few_bonds` map.")
-                    }
                 }
             }
         }
@@ -409,7 +403,7 @@ impl System {
         if info.is_empty() {
             Ok(())
         } else {
-            Err(ElementError::BondsGuessWarning(info))
+            Err(ElementError::BondsGuessWarning(Box::new(info)))
         }
     }
 

@@ -197,16 +197,11 @@ pub fn matrix2simbox(matrix: [[c_float; 3usize]; 3usize]) -> Result<SimBox, Read
 /// If `simbox` is `None`, returns zeroed array.
 pub fn simbox2matrix(simbox: Option<&SimBox>) -> [[c_float; 3usize]; 3usize] {
     match simbox {
-        Some(simbox) => {
-            [
-                [simbox.v1x, simbox.v1y, simbox.v1z],
-                [simbox.v2x, simbox.v2y, simbox.v2z],
-                [simbox.v3x, simbox.v3y, simbox.v3z],
-            ]
-        }
-        None => {
-            [[0.0; 3]; 3]
-        }
+        Some(simbox) => [
+            [simbox.v1x, simbox.v1y, simbox.v1z],
+            [simbox.v2x, simbox.v2y, simbox.v2z],
+            [simbox.v3x, simbox.v3y, simbox.v3z],
+        ],
+        None => [[0.0; 3]; 3],
     }
-    
 }

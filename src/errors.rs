@@ -175,7 +175,7 @@ pub enum GroupError {
     InvalidSimBox(SimBoxError),
     /// Used when there is an issue with positions of atoms in the system.
     #[error("{}", .0)]
-    InvalidPosition(PositionError)
+    InvalidPosition(PositionError),
 }
 
 /// Errors that can occur when working with atoms in a system.
@@ -192,7 +192,7 @@ pub enum AtomError {
     InvalidSimBox(SimBoxError),
     /// Used when there is an issue with position of an atom.
     #[error("{}", .0)]
-    InvalidPosition(PositionError)
+    InvalidPosition(PositionError),
 }
 
 /// Errors that can occur when reading and parsing ndx file.
@@ -373,19 +373,19 @@ pub enum ElementError {
     /// or when there is at least one atom which matches multiple elements.
     /// This is a warning and does not indicate failure of the function.
     #[error("{} when guessing elements, following concerns have been raised:\n{}", "warning:".yellow().bold(), .0.to_string())]
-    ElementGuessWarning(ElementGuessInfo),
+    ElementGuessWarning(Box<ElementGuessInfo>),
 
     /// Used in `System::guess_properties`.
     /// Used when there is at least one atom which was not assigned all the properties.
     /// This is a warning and does not indicate failure of the function.
     #[error("{} when guessing properties, following concerns have been raised:\n{}", "warning:".yellow().bold(), .0.to_string())]
-    PropertiesGuessWarning(PropertiesGuessInfo),
+    PropertiesGuessWarning(Box<PropertiesGuessInfo>),
 
     /// Used in `System::guess_bonds`.
     /// Used when there is at least one atom with suspicious number of bonds.
     /// This is a warning and does not indicate failure of the function.
     #[error("{} when guessing bonds, following concerns have been raised:\n{}", "warning:".yellow().bold(), .0.to_string())]
-    BondsGuessWarning(BondsGuessInfo),
+    BondsGuessWarning(Box<BondsGuessInfo>),
 }
 
 /// Errors that can occur when working with simulation box.
@@ -403,6 +403,6 @@ pub enum SimBoxError {
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum PositionError {
     /// Used when the atom has no position but it is required.
-    #[error("{} atom with atom number '{}' has no position", "error:".red().bold(), .0.to_string().yellow())]
+    #[error("{} atom with atom number '{}' has undefined position", "error:".red().bold(), .0.to_string().yellow())]
     NoPosition(usize),
 }

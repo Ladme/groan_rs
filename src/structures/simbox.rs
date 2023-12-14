@@ -3,7 +3,7 @@
 
 //! Implementation of the SimBox structure and its methods.
 
-use crate::{structures::vector3d::Vector3D, errors::SimBoxError};
+use crate::{errors::SimBoxError, structures::vector3d::Vector3D};
 use std::ops::Deref;
 
 /// Structure defining simulation box shape and dimensions.
@@ -236,8 +236,8 @@ impl Deref for SimBox {
 pub(crate) fn simbox_check(simbox: Option<&SimBox>) -> Result<&SimBox, SimBoxError> {
     match simbox {
         Some(x) if x.is_orthogonal() => Ok(x),
-        Some(_) => return Err(SimBoxError::NotOrthogonal),
-        None => return Err(SimBoxError::DoesNotExist),
+        Some(_) => Err(SimBoxError::NotOrthogonal),
+        None => Err(SimBoxError::DoesNotExist),
     }
 }
 

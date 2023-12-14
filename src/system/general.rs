@@ -240,10 +240,10 @@ impl System {
     }
 
     /// Get center of the simulation box.
-    /// 
+    ///
     /// ## Returns
     /// - `Vector3D` if successful.
-    /// - `SimBoxError` if the system has no simulation box 
+    /// - `SimBoxError` if the system has no simulation box
     /// or if the simulation box is not orthogonal.
     pub fn get_box_center(&self) -> Result<Vector3D, SimBoxError> {
         match &self.simulation_box {
@@ -264,10 +264,7 @@ impl System {
 
     /// Get copy of the simulation box.
     pub fn get_box_copy(&self) -> Option<SimBox> {
-        match &self.simulation_box {
-            None => None,
-            Some(x) => Some(x.clone()),
-        }
+        self.simulation_box.as_ref().cloned()
     }
 
     /// Get the number of atoms in the system.
@@ -631,6 +628,14 @@ mod tests {
     }
 
     #[test]
+    fn reset_box() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        assert!(system.simulation_box.is_some());
+        system.reset_box();
+        assert!(system.simulation_box.is_none());
+    }
+
+    #[test]
     fn get_box_copy() {
         let system = System::from_file("test_files/example_box9.gro").unwrap();
 
@@ -862,5 +867,44 @@ mod tests {
 
         let atom = system.get_atom_copy(16843).unwrap();
         assert_eq!(atom.get_atom_number(), 16844);
+    }
+
+    #[test]
+    fn get_box_center() {
+        let system = System::from_file("test_files/example.gro").unwrap();
+        let center = system.get_box_center().unwrap();
+
+        assert_approx_eq!(f32, center.x, 6.506655);
+        assert_approx_eq!(f32, center.y, 6.506655);
+        assert_approx_eq!(f32, center.z, 5.626735);
+    }
+
+    #[test]
+    fn get_box_center_nosimbox() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.reset_box();
+
+        match system.get_box_center() {
+            Ok(_) => panic!("Function should have failed."),
+            Err(SimBoxError::DoesNotExist) => (),
+            Err(e) => panic!(
+                "Function failed successfully but incorrect error type `{}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn get_box_center_notorthogonal() {
+        let system = System::from_file("test_files/octahedron.gro").unwrap();
+
+        match system.get_box_center() {
+            Ok(_) => panic!("Function should have failed."),
+            Err(SimBoxError::NotOrthogonal) => (),
+            Err(e) => panic!(
+                "Function failed successfully but incorrect error type `{}` was returned.",
+                e
+            ),
+        }
     }
 }

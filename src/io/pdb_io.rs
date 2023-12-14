@@ -25,8 +25,7 @@ use crate::system::general::System;
 /// name of the system. If no TITLE line is provided, "Unknown" is used as the name.
 ///
 /// - In case multiple CRYST1 lines are provided, information from the **last one** is used.
-/// If no CRYST1 line is provided, the simulation box size is set to 0 in all dimensions.
-/// Note again that only orthogonal simulation boxes are supported.
+/// If no CRYST1 line is provided, the simulation box is undefined.
 ///
 /// - If you want to load connectivity from the PDB file,
 /// use `System::add_bonds_from_pdb` after constructing the `System` structure.

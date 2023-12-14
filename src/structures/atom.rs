@@ -5,7 +5,7 @@
 
 use std::io::Write;
 
-use crate::errors::{WriteGroError, WritePdbError, PositionError, AtomError};
+use crate::errors::{AtomError, PositionError, WriteGroError, WritePdbError};
 use crate::structures::{
     container::AtomContainer, dimension::Dimension, simbox::SimBox, vector3d::Vector3D,
 };
@@ -445,7 +445,7 @@ impl Atom {
 
     /// Translates the position of the atom by the provided Vector3D.
     /// Wraps the atom to the simulation box.
-    /// 
+    ///
     /// ## Returns
     /// `Ok` or `AtomError::InvalidPosition` if the atom has an undefined position.
     pub fn translate(&mut self, translate: &Vector3D, sbox: &SimBox) -> Result<(), AtomError> {
@@ -457,7 +457,9 @@ impl Atom {
             pos.wrap(sbox);
             Ok(())
         } else {
-            Err(AtomError::InvalidPosition(PositionError::NoPosition(self.get_atom_number())))
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(
+                self.get_atom_number(),
+            )))
         }
     }
 
@@ -473,7 +475,9 @@ impl Atom {
             pos.z += translate.z;
             Ok(())
         } else {
-            Err(AtomError::InvalidPosition(PositionError::NoPosition(self.get_atom_number())))
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(
+                self.get_atom_number(),
+            )))
         }
     }
 
@@ -483,7 +487,9 @@ impl Atom {
     /// `Ok` of `AtomError::InvalidPosition` if the atom has an undefined position.
     pub fn wrap(&mut self, sbox: &SimBox) -> Result<(), AtomError> {
         match self.position {
-            None => Err(AtomError::InvalidPosition(PositionError::NoPosition(self.get_atom_number()))),
+            None => Err(AtomError::InvalidPosition(PositionError::NoPosition(
+                self.get_atom_number(),
+            ))),
             Some(ref mut pos) => {
                 pos.wrap(sbox);
                 Ok(())
@@ -613,7 +619,7 @@ impl Atom {
     /// ## Returns
     /// - `f32` if successful.
     /// - `AtomError::InvalidPosition` if any of the atoms has undefined position.
-    /// 
+    ///
     /// ## Warning
     /// - Currently only works with orthogonal simulation boxes.
     ///
@@ -633,8 +639,12 @@ impl Atom {
     /// ```
     pub fn distance(&self, atom: &Atom, dim: Dimension, sbox: &SimBox) -> Result<f32, AtomError> {
         match (&self.position, &atom.position) {
-            (None, Some(_) | None) => Err(AtomError::InvalidPosition(PositionError::NoPosition(self.get_atom_number()))),
-            (Some(_), None) => Err(AtomError::InvalidPosition(PositionError::NoPosition(atom.get_atom_number()))),
+            (None, Some(_) | None) => Err(AtomError::InvalidPosition(PositionError::NoPosition(
+                self.get_atom_number(),
+            ))),
+            (Some(_), None) => Err(AtomError::InvalidPosition(PositionError::NoPosition(
+                atom.get_atom_number(),
+            ))),
             (Some(ref pos1), Some(ref pos2)) => Ok(pos1.distance(pos2, dim, sbox)),
         }
     }
@@ -646,7 +656,7 @@ impl Atom {
     /// ## Returns
     /// - `f32` if successful.
     /// - `AtomError::InvalidPosition` if the atom has undefined position.
-    /// 
+    ///
     /// ## Warning
     /// - Currently only works with orthogonal simulation boxes.
     ///
@@ -667,9 +677,16 @@ impl Atom {
     /// let distance = atom.distance_from_point(&point, Dimension::XY, &simbox).unwrap();
     /// assert_approx_eq!(f32, distance, 1.802776);
     /// ```
-    pub fn distance_from_point(&self, point: &Vector3D, dim: Dimension, sbox: &SimBox) -> Result<f32, AtomError> {
+    pub fn distance_from_point(
+        &self,
+        point: &Vector3D,
+        dim: Dimension,
+        sbox: &SimBox,
+    ) -> Result<f32, AtomError> {
         match self.position {
-            None => Err(AtomError::InvalidPosition(PositionError::NoPosition(self.get_atom_number()))),
+            None => Err(AtomError::InvalidPosition(PositionError::NoPosition(
+                self.get_atom_number(),
+            ))),
             Some(ref pos) => Ok(pos.distance(point, dim, sbox)),
         }
     }
@@ -1041,6 +1058,23 @@ mod tests {
     }
 
     #[test]
+    fn translate_nopbc_fail() {
+        let mut atom = make_default_atom();
+        atom.reset_position();
+
+        let shift = Vector3D::from([4.5, 2.3, -8.3]);
+        match atom.translate_nopbc(&shift) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
+                assert_eq!(x, atom.get_atom_number())
+            }
+            Err(e) => {
+                panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
+            }
+        }
+    }
+
+    #[test]
     fn translate() {
         let mut atom = make_default_atom();
 
@@ -1067,6 +1101,24 @@ mod tests {
             15.634,
             epsilon = 0.00001
         );
+    }
+
+    #[test]
+    fn translate_fail() {
+        let mut atom = make_default_atom();
+        atom.reset_position();
+
+        let shift = Vector3D::from([4.5, 2.3, -8.3]);
+        let simbox = SimBox::from([16.0, 16.0, 16.0]);
+        match atom.translate(&shift, &simbox) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
+                assert_eq!(x, atom.get_atom_number())
+            }
+            Err(e) => {
+                panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
+            }
+        }
     }
 
     #[test]
@@ -1125,6 +1177,23 @@ mod tests {
             13.257,
             epsilon = 0.00001
         );
+    }
+
+    #[test]
+    fn wrap_fail() {
+        let mut atom = make_default_atom();
+        atom.reset_position();
+
+        let simbox = SimBox::from([15.0, 15.0, 15.0]);
+        match atom.wrap(&simbox) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
+                assert_eq!(x, atom.get_atom_number())
+            }
+            Err(e) => {
+                panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
+            }
+        }
     }
 
     #[test]
@@ -1304,6 +1373,48 @@ mod tests {
     }
 
     #[test]
+    fn distance_fail() {
+        let mut atom1 = Atom::new(1, "LYS", 1, "BB");
+        let mut atom2 = Atom::new(1, "LYS", 2, "SC1");
+        let simbox = SimBox::from([4.0, 4.0, 4.0]);
+
+        match atom1.distance(&atom2, Dimension::XYZ, &simbox) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
+                assert_eq!(x, atom1.get_atom_number())
+            }
+            Err(e) => {
+                panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
+            }
+        }
+
+        atom2.set_position([1.0, 2.0, 3.0].into());
+
+        match atom1.distance(&atom2, Dimension::XYZ, &simbox) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
+                assert_eq!(x, atom1.get_atom_number())
+            }
+            Err(e) => {
+                panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
+            }
+        }
+
+        atom2.reset_position();
+        atom1.set_position([1.0, 2.0, 3.0].into());
+
+        match atom1.distance(&atom2, Dimension::XYZ, &simbox) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
+                assert_eq!(x, atom2.get_atom_number())
+            }
+            Err(e) => {
+                panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
+            }
+        }
+    }
+
+    #[test]
     fn distance_from_point_x() {
         let atom = Atom::new(1, "LYS", 1, "BB").with_position([2.0, 3.8, 3.5].into());
 
@@ -1313,7 +1424,8 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::X, &simbox).unwrap(),
+            atom.distance_from_point(&point, Dimension::X, &simbox)
+                .unwrap(),
             1.0,
             epsilon = 0.00001
         );
@@ -1329,7 +1441,8 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::Y, &simbox).unwrap(),
+            atom.distance_from_point(&point, Dimension::Y, &simbox)
+                .unwrap(),
             -0.7,
             epsilon = 0.00001
         );
@@ -1345,7 +1458,8 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::Z, &simbox).unwrap(),
+            atom.distance_from_point(&point, Dimension::Z, &simbox)
+                .unwrap(),
             1.5,
             epsilon = 0.00001
         );
@@ -1361,7 +1475,8 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::XY, &simbox).unwrap(),
+            atom.distance_from_point(&point, Dimension::XY, &simbox)
+                .unwrap(),
             1.220656,
             epsilon = 0.00001
         );
@@ -1377,7 +1492,8 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::XZ, &simbox).unwrap(),
+            atom.distance_from_point(&point, Dimension::XZ, &simbox)
+                .unwrap(),
             1.802776,
             epsilon = 0.00001
         );
@@ -1393,7 +1509,8 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::YZ, &simbox).unwrap(),
+            atom.distance_from_point(&point, Dimension::YZ, &simbox)
+                .unwrap(),
             1.6552945,
             epsilon = 0.00001
         );
@@ -1409,7 +1526,8 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::XYZ, &simbox).unwrap(),
+            atom.distance_from_point(&point, Dimension::XYZ, &simbox)
+                .unwrap(),
             1.933908,
             epsilon = 0.00001
         );
@@ -1425,9 +1543,27 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::None, &simbox).unwrap(),
+            atom.distance_from_point(&point, Dimension::None, &simbox)
+                .unwrap(),
             0.0,
             epsilon = 0.00001
         );
+    }
+
+    #[test]
+    fn distance_from_point_fail() {
+        let atom = Atom::new(1, "LYS", 1, "BB");
+        let point = Vector3D::from([1.0, 0.5, 2.0]);
+        let simbox = SimBox::from([4.0, 4.0, 4.0]);
+
+        match atom.distance_from_point(&point, Dimension::XYZ, &simbox) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
+                assert_eq!(x, atom.get_atom_number())
+            }
+            Err(e) => {
+                panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
+            }
+        }
     }
 }

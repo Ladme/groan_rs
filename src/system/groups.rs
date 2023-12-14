@@ -1077,7 +1077,10 @@ mod tests {
 
         for atom in system.group_iter("Selected Membrane").unwrap() {
             assert_eq!(atom.get_residue_name(), "POPC");
-            assert!(cylinder.inside(atom.get_position().unwrap(), system.get_box_as_ref().unwrap()));
+            assert!(cylinder.inside(
+                atom.get_position().unwrap(),
+                system.get_box_as_ref().unwrap()
+            ));
         }
     }
 
@@ -1097,7 +1100,10 @@ mod tests {
 
         for atom in system.group_iter("Selected Water").unwrap() {
             assert_eq!(atom.get_residue_name(), "W");
-            assert!(sphere.inside(atom.get_position().unwrap(), system.get_box_as_ref().unwrap()));
+            assert!(sphere.inside(
+                atom.get_position().unwrap(),
+                system.get_box_as_ref().unwrap()
+            ));
         }
     }
 
@@ -1124,7 +1130,10 @@ mod tests {
                     || resname == "LYS"
                     || resname == "CYS"
             );
-            assert!(rectangular.inside(atom.get_position().unwrap(), system.get_box_as_ref().unwrap()));
+            assert!(rectangular.inside(
+                atom.get_position().unwrap(),
+                system.get_box_as_ref().unwrap()
+            ));
         }
     }
 
@@ -1137,7 +1146,10 @@ mod tests {
         match system.group_create_from_geometry("Selected Me>brane", "Membrane", cylinder.clone()) {
             Ok(()) => panic!("Function should have failed."),
             Err(GroupError::InvalidName(name)) => assert_eq!(name, "Selected Me>brane"),
-            Err(_) => panic!("Function failed but incorrect error type has been returned."),
+            Err(e) => panic!(
+                "Function failed but incorrect error type `{}` has been returned.",
+                e
+            ),
         }
 
         match system.group_create_from_geometry("Selected Membrane", "brane", cylinder.clone()) {
@@ -1145,7 +1157,21 @@ mod tests {
             Err(GroupError::InvalidQuery(SelectError::GroupNotFound(group))) => {
                 assert_eq!(group, "brane")
             }
-            Err(_) => panic!("Function failed but incorrect error type has been returned."),
+            Err(e) => panic!(
+                "Function failed but incorrect error type `{}` has been returned.",
+                e
+            ),
+        }
+
+        system.reset_box();
+
+        match system.group_create_from_geometry("Selection", "serial 1 to 5", cylinder.clone()) {
+            Ok(()) => panic!("Function should have failed."),
+            Err(GroupError::InvalidSimBox(SimBoxError::DoesNotExist)) => (),
+            Err(e) => panic!(
+                "Function failed but incorrect error type `{}` has been returned.",
+                e
+            ),
         }
     }
 
@@ -1271,9 +1297,18 @@ mod tests {
         for (i, atom) in system.group_iter("Selected Membrane").unwrap().enumerate() {
             assert_eq!(atom.get_atom_number(), expected_numbers[i]);
 
-            assert!(rectangular.inside(atom.get_position().unwrap(), system.get_box_as_ref().unwrap()));
-            assert!(sphere.inside(atom.get_position().unwrap(), system.get_box_as_ref().unwrap()));
-            assert!(cylinder.inside(atom.get_position().unwrap(), system.get_box_as_ref().unwrap()));
+            assert!(rectangular.inside(
+                atom.get_position().unwrap(),
+                system.get_box_as_ref().unwrap()
+            ));
+            assert!(sphere.inside(
+                atom.get_position().unwrap(),
+                system.get_box_as_ref().unwrap()
+            ));
+            assert!(cylinder.inside(
+                atom.get_position().unwrap(),
+                system.get_box_as_ref().unwrap()
+            ));
         }
     }
 
@@ -1296,7 +1331,10 @@ mod tests {
         ) {
             Ok(()) => panic!("Function should have failed."),
             Err(GroupError::InvalidName(name)) => assert_eq!(name, "Selected Me>brane"),
-            Err(_) => panic!("Function failed but incorrect error type has been returned."),
+            Err(e) => panic!(
+                "Function failed but incorrect error type `{}` has been returned.",
+                e
+            ),
         }
 
         match system.group_create_from_geometries(
@@ -1312,7 +1350,29 @@ mod tests {
             Err(GroupError::InvalidQuery(SelectError::GroupNotFound(group))) => {
                 assert_eq!(group, "brane")
             }
-            Err(_) => panic!("Function failed but incorrect error type has been returned."),
+            Err(e) => panic!(
+                "Function failed but incorrect error type `{}` has been returned.",
+                e
+            ),
+        }
+
+        system.reset_box();
+
+        match system.group_create_from_geometries(
+            "Selected",
+            "serial 1 to 5",
+            vec![
+                Box::from(rectangular.clone()),
+                Box::from(sphere.clone()),
+                Box::from(cylinder.clone()),
+            ],
+        ) {
+            Ok(()) => panic!("Function should have failed."),
+            Err(GroupError::InvalidSimBox(SimBoxError::DoesNotExist)) => (),
+            Err(e) => panic!(
+                "Function failed but incorrect error type `{}` has been returned.",
+                e
+            ),
         }
     }
 

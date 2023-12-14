@@ -48,7 +48,7 @@ impl System {
     /// ```
     pub fn group_get_center(&self, name: &str) -> Result<Vector3D, GroupError> {
         let simbox =
-            simbox_check(self.get_box_as_ref()).map_err(|x| GroupError::InvalidSimBox(x))?;
+            simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?;
 
         let reciprocal_box =
             Vector3D::from([1.0f32 / simbox.x, 1.0f32 / simbox.y, 1.0f32 / simbox.z]);
@@ -60,7 +60,11 @@ impl System {
             // make sure that each coordinate is inside the box
             let mut coordinates = match atom.get_position() {
                 Some(x) => x.clone(),
-                None => return Err(GroupError::InvalidPosition(PositionError::NoPosition(atom.get_atom_number())))
+                None => {
+                    return Err(GroupError::InvalidPosition(PositionError::NoPosition(
+                        atom.get_atom_number(),
+                    )))
+                }
             };
             coordinates.wrap(simbox);
 
@@ -132,7 +136,7 @@ impl System {
         let group2_center = self.group_get_center(group2)?;
 
         let simbox =
-            simbox_check(self.get_box_as_ref()).map_err(|x| GroupError::InvalidSimBox(x))?;
+            simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?;
 
         Ok(group1_center.distance(&group2_center, dim, simbox))
     }
@@ -185,7 +189,7 @@ impl System {
         let n_atoms_group2 = self.group_get_n_atoms(group2)?;
 
         let simbox =
-            simbox_check(self.get_box_as_ref()).map_err(|x| GroupError::InvalidSimBox(x))?;
+            simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?;
 
         let mut distances = Vec::with_capacity(n_atoms_group1);
 
@@ -245,7 +249,7 @@ impl System {
         let atom2 = self.get_atom_as_ref(index2)?;
 
         let simbox =
-            simbox_check(self.get_box_as_ref()).map_err(|x| AtomError::InvalidSimBox(x))?;
+            simbox_check(self.get_box_as_ref()).map_err(AtomError::InvalidSimBox)?;
 
         atom1.distance(atom2, dim, simbox)
     }
@@ -260,6 +264,7 @@ mod tests {
     use super::*;
     use float_cmp::assert_approx_eq;
 
+    use crate::errors::SimBoxError;
     use crate::structures::atom::Atom;
 
     #[test]
@@ -376,12 +381,45 @@ mod tests {
     }
 
     #[test]
-    fn center_real_system_fail() {
+    fn center_real_system_fail_invalid_group() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
         match system.group_get_center("Nonexistent") {
             Err(GroupError::NotFound(e)) => assert_eq!(e, "Nonexistent"),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn center_real_system_fail_invalid_simbox() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+        system.reset_box();
+
+        match system.group_get_center("Protein") {
+            Err(GroupError::InvalidSimBox(SimBoxError::DoesNotExist)) => (),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn center_real_system_fail_invalid_position() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+
+        match system.group_get_center("Protein") {
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
             Ok(_) => panic!("Calculating center should have failed, but it was successful."),
             Err(e) => panic!(
                 "Failed successfully but incorrect error type `{:?}` was returned.",
@@ -483,11 +521,13 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        if system
-            .group_distance("PRotein", "Membrane", Dimension::XYZ)
-            .is_ok()
-        {
-            panic!("`group_distance` should have failed but it was successful.");
+        match system.group_distance("PRotein", "Membrane", Dimension::XYZ) {
+            Err(GroupError::NotFound(x)) => assert_eq!(x, "PRotein"),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
         }
     }
 
@@ -496,11 +536,46 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        if system
-            .group_distance("Protein", "Nonexistent", Dimension::XYZ)
-            .is_ok()
-        {
-            panic!("`group_distance` should have failed but it was successful.");
+        match system.group_distance("Protein", "Nonexistent", Dimension::XYZ) {
+            Err(GroupError::NotFound(x)) => assert_eq!(x, "Nonexistent"),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn group_distance_fail_simbox() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+        system.reset_box();
+
+        match system.group_distance("Protein", "Membrane", Dimension::XYZ) {
+            Err(GroupError::InvalidSimBox(SimBoxError::DoesNotExist)) => (),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn group_distance_fail_position() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+
+        match system.group_distance("Protein", "Membrane", Dimension::XYZ) {
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
         }
     }
 
@@ -621,6 +696,68 @@ mod tests {
     }
 
     #[test]
+    fn group_all_distances_fail_1() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.group_all_distances("Nonexistent", "Protein", Dimension::XYZ) {
+            Err(GroupError::NotFound(x)) => assert_eq!(x, "Nonexistent"),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn group_all_distances_fail_2() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.group_all_distances("Membrane", "Nonexistent", Dimension::XYZ) {
+            Err(GroupError::NotFound(x)) => assert_eq!(x, "Nonexistent"),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn group_all_distances_fail_simbox() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+        system.reset_box();
+
+        match system.group_all_distances("Membrane", "Protein", Dimension::XYZ) {
+            Err(GroupError::InvalidSimBox(SimBoxError::DoesNotExist)) => (),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn group_all_distances_fail_position() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+
+        match system.group_all_distances("Membrane", "Protein", Dimension::XYZ) {
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
     fn atoms_distance_xyz() {
         let system = System::from_file("test_files/example.gro").unwrap();
 
@@ -648,7 +785,7 @@ mod tests {
     }
 
     #[test]
-    fn atoms_distance_fail() {
+    fn atoms_distance_fail_1() {
         let system = System::from_file("test_files/example.gro").unwrap();
 
         match system.atoms_distance(12, 16844, Dimension::XY) {
@@ -671,28 +808,33 @@ mod tests {
     }
 
     #[test]
-    fn group_all_distances_fail_1() {
+    fn atoms_distance_fail_simbox() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
+        system.reset_box();
 
-        if system
-            .group_all_distances("Nonexistent", "Protein", Dimension::XYZ)
-            .is_ok()
-        {
-            panic!("`group_all_distances` should have failed but it was successful.");
+        match system.atoms_distance(12, 15, Dimension::XYZ) {
+            Ok(_) => panic!("Function should have failed but it succeeded."),
+            Err(AtomError::InvalidSimBox(SimBoxError::DoesNotExist)) => (),
+            Err(e) => panic!(
+                "Function failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
         }
     }
 
     #[test]
-    fn group_all_distances_fail_2() {
+    fn atoms_distance_fail_position() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.read_ndx("test_files/index.ndx").unwrap();
 
-        if system
-            .group_all_distances("Membrane", "Nonexistent", Dimension::XYZ)
-            .is_ok()
-        {
-            panic!("`group_all_distances` should have failed but it was successful.");
+        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+
+        match system.atoms_distance(12, 15, Dimension::XYZ) {
+            Ok(_) => panic!("Function should have failed but it succeeded."),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Err(e) => panic!(
+                "Function failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
         }
     }
 }
