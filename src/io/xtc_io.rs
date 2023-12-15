@@ -489,13 +489,11 @@ impl TrajGroupWrite for XtcGroupWriter {
         };
 
         // create the xtc file and save a handle to it
-        let xtc = match XdrFile::open_xdr(filename.as_ref(), OpenMode::Write) {
-            Ok(x) => x,
-            Err(TrajError::FileNotFound(x)) => return Err(WriteTrajError::CouldNotCreate(x)),
-            Err(TrajError::InvalidPath(x)) => return Err(WriteTrajError::InvalidPath(x)),
-        };
-
-        Ok(XtcGroupWriter { system, xtc, group })
+        match XdrFile::open_xdr(filename.as_ref(), OpenMode::Write) {
+            Ok(xtc) => Ok(XtcGroupWriter { system, xtc, group }),
+            Err(TrajError::FileNotFound(x)) => Err(WriteTrajError::CouldNotCreate(x)),
+            Err(TrajError::InvalidPath(x)) => Err(WriteTrajError::InvalidPath(x)),
+        }
     }
 
     /// Write the current state of the group into an open xtc file.

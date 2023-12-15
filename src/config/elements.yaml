@@ -4,7 +4,7 @@
 # All fields are optional.
 # When using `System::quess_elements` function, the elements are assigned to atoms based on the herein provided Groan Selection Language query.
 # Higher placed elements have priority over the lower placed ones.
-# Unknown fields and invalid queries, masses, van der Waals radii, and max bonds will raise a parsing error.
+# Unknown fields and invalid queries, masses, van der Waals radii, min_bonds and max bonds will raise a parsing error.
 # If you define multiple elements with the same name, only the last element with this name will be used!
 
 dummy:
