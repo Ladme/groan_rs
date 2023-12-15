@@ -774,4 +774,20 @@ mod tests_write {
             Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
         }
     }
+
+    #[test]
+    fn write_no_box() {
+        let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
+        system.reset_box();
+
+        let gro_output = NamedTempFile::new().unwrap();
+        let path_to_output = gro_output.path();
+
+        system.write_gro(path_to_output, false).unwrap();
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/example_box_zero.gro").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
 }

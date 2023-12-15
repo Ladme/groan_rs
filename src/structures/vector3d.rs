@@ -365,6 +365,9 @@ impl Vector3D {
     /// let distance2 = point2.distance_naive(&point1, Dimension::X);
     /// assert_approx_eq!(f32, distance2, 2.5);
     /// ```
+    /// 
+    /// ## Notes
+    /// - If dimension is `Dimension::None`, returns 0.
     pub fn distance_naive(&self, point: &Vector3D, dim: Dimension) -> f32 {
         match dim {
             Dimension::None => 0.0,

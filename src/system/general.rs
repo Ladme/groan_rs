@@ -20,7 +20,7 @@ pub struct System {
     name: String,
     /// Vector of atoms in the system.
     atoms: Vec<Atom>,
-    /// Size of the simulation box.
+    /// Size of the simulation box. (Optional.)
     simulation_box: Option<SimBox>,
     /// Groups of atoms associated with the system.
     groups: IndexMap<String, Group>,

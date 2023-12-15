@@ -234,7 +234,7 @@ impl System {
         &self,
         filename: impl AsRef<Path>,
         write_connectivity: bool,
-    ) -> Result<(), WritePdbError> {
+        ) -> Result<(), WritePdbError> {
         match self.group_write_pdb("all", filename, write_connectivity) {
             Ok(_) => Ok(()),
             Err(WritePdbError::GroupNotFound(_)) => {
@@ -1534,6 +1534,22 @@ mod tests_write {
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected = File::open("test_files/octahedron.pdb").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_pdb_nobox() {
+        let mut system = System::from_file("test_files/example.pdb").unwrap();
+        system.reset_box();
+
+        let pdb_output = NamedTempFile::new().unwrap();
+        let path_to_output = pdb_output.path();
+
+        system.write_pdb(path_to_output, false).unwrap();
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/example_nobox.pdb").unwrap();
 
         assert!(file_diff::diff_files(&mut result, &mut expected));
     }

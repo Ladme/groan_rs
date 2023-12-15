@@ -637,6 +637,9 @@ impl Atom {
     /// let distance = atom1.distance(&atom2, Dimension::XY, &simbox).unwrap();
     /// assert_approx_eq!(f32, distance, 1.802776);
     /// ```
+    /// 
+    /// ## Notes
+    /// - If dimension is `Dimension::None` returns 0.
     pub fn distance(&self, atom: &Atom, dim: Dimension, sbox: &SimBox) -> Result<f32, AtomError> {
         match (&self.position, &atom.position) {
             (None, Some(_) | None) => Err(AtomError::InvalidPosition(PositionError::NoPosition(
@@ -646,6 +649,41 @@ impl Atom {
                 atom.get_atom_number(),
             ))),
             (Some(ref pos1), Some(ref pos2)) => Ok(pos1.distance(pos2, dim, sbox)),
+        }
+    }
+
+    /// Calculate distance between two atoms.
+    /// **Ignores PBC.**
+    /// Returns oriented distance for 1D problems.
+    ///
+    /// ## Returns
+    /// - `f32` if successful.
+    /// - `AtomError::InvalidPosition` if any of the atoms has undefined position.
+    ///
+    /// ## Example
+    /// Calculate naive distance between two atoms in the xy-plane.
+    /// ```
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
+    /// let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([1.0, 2.0, 3.0].into());
+    /// let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([3.5, 1.0, 2.0].into());
+    ///
+    /// let distance = atom1.distance_naive(&atom2, Dimension::XY).unwrap();
+    /// assert_approx_eq!(f32, distance, 2.692582);
+    /// ```
+    /// 
+    /// ## Notes
+    /// - If dimension is `Dimension::None` returns 0.
+    pub fn distance_naive(&self, atom: &Atom, dim: Dimension) -> Result<f32, AtomError> {
+        match (&self.position, &atom.position) {
+            (None, Some(_) | None) => Err(AtomError::InvalidPosition(PositionError::NoPosition(
+                self.get_atom_number(),
+            ))),
+            (Some(_), None) => Err(AtomError::InvalidPosition(PositionError::NoPosition(
+                atom.get_atom_number(),
+            ))),
+            (Some(ref pos1), Some(ref pos2)) => Ok(pos1.distance_naive(pos2, dim)),
         }
     }
 
@@ -1199,9 +1237,7 @@ mod tests {
     #[test]
     fn distance_x() {
         let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
-
         let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
-
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert_approx_eq!(
@@ -1219,11 +1255,28 @@ mod tests {
     }
 
     #[test]
-    fn distance_y() {
+    fn distance_naive_x() {
         let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
-
         let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
 
+        assert_approx_eq!(
+            f32,
+            atom1.distance_naive(&atom2, Dimension::X).unwrap(),
+            3.3,
+            epsilon = 0.00001
+        );
+        assert_approx_eq!(
+            f32,
+            atom2.distance_naive(&atom1, Dimension::X).unwrap(),
+            -3.3,
+            epsilon = 0.00001
+        );
+    }
+
+    #[test]
+    fn distance_y() {
+        let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
+        let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert_approx_eq!(
@@ -1241,11 +1294,28 @@ mod tests {
     }
 
     #[test]
+    fn distance_naive_y() {
+        let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
+        let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
+
+        assert_approx_eq!(
+            f32,
+            atom1.distance_naive(&atom2, Dimension::Y).unwrap(),
+            1.0,
+            epsilon = 0.00001
+        );
+        assert_approx_eq!(
+            f32,
+            atom2.distance_naive(&atom1, Dimension::Y).unwrap(),
+            -1.0,
+            epsilon = 0.00001
+        );
+    }
+
+    #[test]
     fn distance_z() {
         let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 1.0].into());
-
         let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 3.5].into());
-
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert_approx_eq!(
@@ -1263,11 +1333,28 @@ mod tests {
     }
 
     #[test]
-    fn distance_xy() {
+    fn distance_naive_z() {
         let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
-
         let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
 
+        assert_approx_eq!(
+            f32,
+            atom1.distance_naive(&atom2, Dimension::Z).unwrap(),
+            2.5,
+            epsilon = 0.00001
+        );
+        assert_approx_eq!(
+            f32,
+            atom2.distance_naive(&atom1, Dimension::Z).unwrap(),
+            -2.5,
+            epsilon = 0.00001
+        );
+    }
+
+    #[test]
+    fn distance_xy() {
+        let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
+        let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert_approx_eq!(
@@ -1285,11 +1372,29 @@ mod tests {
     }
 
     #[test]
-    fn distance_xz() {
+    fn distance_naive_xy() {
         let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
-
         let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
 
+        assert_approx_eq!(
+            f32,
+            atom1.distance_naive(&atom2, Dimension::XY).unwrap(),
+            3.448188,
+            epsilon = 0.00001
+        );
+        assert_approx_eq!(
+            f32,
+            atom2.distance_naive(&atom1, Dimension::XY).unwrap(),
+            3.448188,
+            epsilon = 0.00001
+        );
+    }
+    
+
+    #[test]
+    fn distance_xz() {
+        let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
+        let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert_approx_eq!(
@@ -1307,11 +1412,28 @@ mod tests {
     }
 
     #[test]
-    fn distance_yz() {
+    fn distance_naive_xz() {
         let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
-
         let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
 
+        assert_approx_eq!(
+            f32,
+            atom1.distance_naive(&atom2, Dimension::XZ).unwrap(),
+            4.140048,
+            epsilon = 0.00001
+        );
+        assert_approx_eq!(
+            f32,
+            atom2.distance_naive(&atom1, Dimension::XZ).unwrap(),
+            4.140048,
+            epsilon = 0.00001
+        );
+    }
+
+    #[test]
+    fn distance_yz() {
+        let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
+        let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert_approx_eq!(
@@ -1329,11 +1451,28 @@ mod tests {
     }
 
     #[test]
-    fn distance_xyz() {
+    fn distance_naive_yz() {
         let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
-
         let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
 
+        assert_approx_eq!(
+            f32,
+            atom1.distance_naive(&atom2, Dimension::YZ).unwrap(),
+            2.692582,
+            epsilon = 0.00001
+        );
+        assert_approx_eq!(
+            f32,
+            atom2.distance_naive(&atom1, Dimension::YZ).unwrap(),
+            2.692582,
+            epsilon = 0.00001
+        );
+    }
+
+    #[test]
+    fn distance_xyz() {
+        let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
+        let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert_approx_eq!(
@@ -1351,11 +1490,28 @@ mod tests {
     }
 
     #[test]
-    fn distance_none() {
+    fn distance_naive_xyz() {
         let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
-
         let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
 
+        assert_approx_eq!(
+            f32,
+            atom1.distance_naive(&atom2, Dimension::XYZ).unwrap(),
+            4.259108,
+            epsilon = 0.00001
+        );
+        assert_approx_eq!(
+            f32,
+            atom2.distance_naive(&atom1, Dimension::XYZ).unwrap(),
+            4.259108,
+            epsilon = 0.00001
+        );
+    }
+
+    #[test]
+    fn distance_none() {
+        let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
+        let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert_approx_eq!(
@@ -1367,6 +1523,25 @@ mod tests {
         assert_approx_eq!(
             f32,
             atom2.distance(&atom1, Dimension::None, &simbox).unwrap(),
+            0.0,
+            epsilon = 0.00001
+        );
+    }
+
+    #[test]
+    fn distance_naive_none() {
+        let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
+        let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
+
+        assert_approx_eq!(
+            f32,
+            atom1.distance_naive(&atom2, Dimension::None).unwrap(),
+            0.0,
+            epsilon = 0.00001
+        );
+        assert_approx_eq!(
+            f32,
+            atom2.distance_naive(&atom1, Dimension::None).unwrap(),
             0.0,
             epsilon = 0.00001
         );
@@ -1404,6 +1579,47 @@ mod tests {
         atom1.set_position([1.0, 2.0, 3.0].into());
 
         match atom1.distance(&atom2, Dimension::XYZ, &simbox) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
+                assert_eq!(x, atom2.get_atom_number())
+            }
+            Err(e) => {
+                panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
+            }
+        }
+    }
+
+    #[test]
+    fn distance_naive_fail() {
+        let mut atom1 = Atom::new(1, "LYS", 1, "BB");
+        let mut atom2 = Atom::new(1, "LYS", 2, "SC1");
+
+        match atom1.distance_naive(&atom2, Dimension::XYZ) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
+                assert_eq!(x, atom1.get_atom_number())
+            }
+            Err(e) => {
+                panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
+            }
+        }
+
+        atom2.set_position([1.0, 2.0, 3.0].into());
+
+        match atom1.distance_naive(&atom2, Dimension::XYZ) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
+                assert_eq!(x, atom1.get_atom_number())
+            }
+            Err(e) => {
+                panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
+            }
+        }
+
+        atom2.reset_position();
+        atom1.set_position([1.0, 2.0, 3.0].into());
+
+        match atom1.distance_naive(&atom2, Dimension::XYZ) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
                 assert_eq!(x, atom2.get_atom_number())
