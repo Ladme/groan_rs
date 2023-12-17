@@ -287,7 +287,7 @@ impl System {
 /// ## Returns
 /// Vector of indices of atoms of the molecule.
 /// `AtomError` in case the index is out of range.
-pub fn get_molecule_indices(system: &System, index: usize) -> Result<Vec<usize>, AtomError> {
+pub(crate) fn get_molecule_indices(system: &System, index: usize) -> Result<Vec<usize>, AtomError> {
     if index >= system.get_n_atoms() {
         return Err(AtomError::OutOfRange(index));
     }

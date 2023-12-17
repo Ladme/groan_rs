@@ -317,10 +317,10 @@ pub enum SelectError {
     /// Used when the quotes are incorrectly used in the groan selection language query.
     #[error("{} unmatching number of quotes in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
     InvalidQuotes(String),
-    /// Used when a `()` expression is not followed by a binary operator.
-    /// (e.g. things like `(name CA CB) Protein`)
-    #[error("{} invalid token following parentheses in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
-    InvalidTokenAfterParentheses(String),
+    /// Used when a `()` expression is not followed or preceeded by a binary operator.
+    /// (e.g. things like `(name CA CB) Protein` or `element (name CA)`)
+    #[error("{} invalid token following or preceeding parentheses in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
+    InvalidTokenParentheses(String),
     /// Used when any error occurs while parsing atom/residue numbers or ranges in the groan selection language query.
     #[error("{} could not understand the residue/atom numbers in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
     InvalidNumber(String),

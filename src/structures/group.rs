@@ -8,6 +8,7 @@ use std::io::Write;
 use crate::errors::{SelectError, WriteNdxError};
 use crate::selections::select::{self, Select};
 use crate::structures::container::AtomContainer;
+use crate::system::iterating::get_molecule_indices;
 use crate::structures::shape::Shape;
 use crate::system::general::System;
 
@@ -227,6 +228,37 @@ impl Group {
                         Ok(true) => return Ok(true),
                         Ok(false) => (),
                         Err(e) => return Err(e),
+                    }
+                }
+
+                Ok(false)
+            }
+
+            Select::ElementName(names) => {
+                let elname = match system.get_atoms_as_ref()[atom_index].get_element_name() {
+                    None => return Ok(false),
+                    Some(x) => x,
+                };
+
+                Ok(names.iter().any(|target| target == elname))
+            }
+
+            Select::ElementSymbol(symbols) => {
+                let elsymbol = match system.get_atoms_as_ref()[atom_index].get_element_symbol() {
+                    None => return Ok(false),
+                    Some(x) => x,
+                };
+
+                Ok(symbols.iter().any(|target| target == elsymbol))
+            }
+
+            Select::Molecule(operand) => {
+                let molecule_indices = get_molecule_indices(system, atom_index)
+                    .expect("FATAL GROAN ERROR | Group::matches_select | Atom index should exist.");
+
+                for index in molecule_indices {
+                    if Group::matches_select(index, operand, system)? {
+                        return Ok(true)
                     }
                 }
 

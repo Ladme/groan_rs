@@ -18,9 +18,12 @@ pub enum Select {
     AtomNumber(Vec<(usize, usize)>),
     Chain(Vec<char>),
     GroupName(Vec<Name>),
+    ElementName(Vec<Name>),
+    ElementSymbol(Vec<Name>),
     And(Box<Select>, Box<Select>),
     Or(Box<Select>, Box<Select>),
     Not(Box<Select>),
+    Molecule(Box<Select>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -28,6 +31,7 @@ enum Operator {
     And,
     Or,
     Not,
+    Molecule,
 }
 
 impl Select {
@@ -82,6 +86,8 @@ impl Select {
 
             Select::Not(op) => Ok(Select::Not(Box::from(op.expand_regex_group(system)?))),
 
+            Select::Molecule(op) => Ok(Select::Molecule(Box::from(op.expand_regex_group(system)?))),
+
             other => Ok(other),
         }
     }
@@ -106,7 +112,7 @@ impl Select {
                 right.validate_groups(system)?;
             }
 
-            Select::Not(operand) => operand.validate_groups(system)?,
+            Select::Not(operand) | Select::Molecule(operand) => operand.validate_groups(system)?,
 
             _ => (),
         }
@@ -138,6 +144,10 @@ pub fn parse_query(query: &str) -> Result<Box<Select>, SelectError> {
         expand_macros(&mut expression, macros);
     }
 
+    // replace `mol with` and `molecule with` with `@@`
+    expression = expression.replace("mol with", "@@");
+    expression = expression.replace("molecule with", "@@");
+
     // replace word operators with their symbolic equivalents
     expression = replace_keywords(&expression);
 
@@ -156,8 +166,8 @@ pub fn parse_query(query: &str) -> Result<Box<Select>, SelectError> {
         Err(SelectError::InvalidNumber(_)) => Err(SelectError::InvalidNumber(query.to_string())),
         Err(SelectError::InvalidChainId(_)) => Err(SelectError::InvalidChainId(query.to_string())),
         Err(SelectError::InvalidRegex(e)) => Err(SelectError::InvalidRegex(e)),
-        Err(SelectError::InvalidTokenAfterParentheses(_)) => {
-            Err(SelectError::InvalidTokenAfterParentheses(query.to_string()))
+        Err(SelectError::InvalidTokenParentheses(_)) => {
+            Err(SelectError::InvalidTokenParentheses(query.to_string()))
         }
         Err(_) => Err(SelectError::UnknownError(query.to_string())),
     }
@@ -197,9 +207,9 @@ fn parse_subquery(expression: &str, start: usize, end: usize) -> Result<Box<Sele
             // binary operators
             '&' | '|' => {
                 let operator = find_operator(expression, c, i);
-                // unknown operator
-                if operator.is_none() {
-                    return Err(SelectError::InvalidOperator("".to_string()));
+                match operator {
+                    Some(Operator::Or) | Some(Operator::And) => (),
+                    _ => return Err(SelectError::InvalidOperator("".to_string())),
                 }
 
                 if !token.trim().is_empty() {
@@ -218,6 +228,18 @@ fn parse_subquery(expression: &str, start: usize, end: usize) -> Result<Box<Sele
             '!' => {
                 unary_operators.push(Operator::Not);
                 i += 1;
+            }
+
+            // `molecule` operator (represented as `@@`)
+            '@' => {
+                let operator = find_operator(expression, c, i);
+                match operator {
+                    Some(Operator::Molecule) => (),
+                    _ => return Err(SelectError::InvalidOperator("".to_string())),
+                }
+
+                unary_operators.push(Operator::Molecule);
+                i += 2;
             }
 
             _ => {
@@ -248,8 +270,17 @@ fn process_operation(
     binary: &Option<Operator>,
 ) -> Result<Option<Box<Select>>, SelectError> {
     // modify the parsed token using unary operators
-    for _ in unary.iter() {
-        parsed = Box::from(Select::Not(parsed));
+    for operator in unary.iter() {
+        parsed = match operator {
+            Operator::Not => Box::from(Select::Not(parsed)),
+            Operator::Molecule => Box::from(Select::Molecule(parsed)),
+            Operator::And => panic!(
+                "FATAL GROAN ERROR | select::process_operation | AND operator is being treated as an unary operator."
+            ),
+            Operator::Or => panic!(
+                "FATAL GROAN ERROR | select::process_operation | OR operator is being treated as an unary operator."
+            ),
+        };
     }
     unary.clear();
 
@@ -259,6 +290,9 @@ fn process_operation(
             match op {
                 Operator::And => Ok(Some(Box::from(Select::And(t, parsed)))),
                 Operator::Or => Ok(Some(Box::from(Select::Or(t, parsed)))),
+                Operator::Molecule => panic!(
+                    "FATAL GROAN ERROR | select::process_operation | Molecule operator is being treated as a binary operator."
+                ),
                 Operator::Not => panic!(
                     "FATAL GROAN ERROR | select::process_operation | NOT operator is being treated as a binary operator."
                 ),
@@ -269,7 +303,7 @@ fn process_operation(
     // or create a new tree
     } else {
         if tree.is_some() {
-            return Err(SelectError::InvalidTokenAfterParentheses("".to_string()));
+            return Err(SelectError::InvalidTokenParentheses("".to_string()));
         }
         Ok(Some(parsed))
     }
@@ -280,6 +314,7 @@ fn find_operator(string: &str, op_symbol: char, start: usize) -> Option<Operator
         match op_symbol {
             '&' => Some(Operator::And),
             '|' => Some(Operator::Or),
+            '@' => Some(Operator::Molecule),
             _ => None,
         }
     } else {
@@ -551,6 +586,46 @@ fn parse_token(string: &str) -> Result<Select, SelectError> {
 
             Ok(Select::GroupName(collect_words(&token[1..])?))
         }
+
+        "element" if token.len() >= 2 && token[1] == "name" => {
+            if token.len() <= 2 {
+                return Err(SelectError::EmptyArgument("".to_string()));
+            }
+
+            Ok(Select::ElementName(collect_words(&token[2..])?))
+        }
+
+        "elname" => {
+            if token.len() <= 1 {
+                return Err(SelectError::EmptyArgument("".to_string()));
+            }
+
+            Ok(Select::ElementName(collect_words(&token[1..])?))
+        }
+
+        "element" if token.len() >= 2 && token[1] == "symbol" => {
+            if token.len() <= 2 {
+                return Err(SelectError::EmptyArgument("".to_string()));
+            }
+
+            Ok(Select::ElementSymbol(collect_words(&token[2..])?))
+        }
+
+        "elsymbol" => {
+            if token.len() <= 1 {
+                return Err(SelectError::EmptyArgument("".to_string()));
+            }
+
+            Ok(Select::ElementSymbol(collect_words(&token[1..])?))
+        }
+
+        /*"mol" | "molecule" if token.len() >= 2 && token[1] == "with" => {
+            if token.len() == 2 {
+                return Err(SelectError::EmptyArgument("".to_string()));
+            }
+
+            Ok(Select::Molecule(parse_token(token[2..].join(" "))))
+        }*/
         // it is not necessary to provide group identifier for groups
         _ => Ok(Select::GroupName(collect_words(&token)?)),
     }
@@ -1171,6 +1246,133 @@ mod pass_tests {
             Name::new(" ION with  Water").unwrap()
         ])
     );
+    parsing_success!(
+        element_symbol_1,
+        "element symbol C",
+        Select::ElementSymbol(vec![Name::new("C").unwrap()])
+    );
+    parsing_success!(
+        element_symbol_2,
+        "elsymbol C",
+        Select::ElementSymbol(vec![Name::new("C").unwrap()])
+    );
+    parsing_success!(
+        element_symbol_3,
+        "element symbol C Na K Br",
+        Select::ElementSymbol(vec![Name::new("C").unwrap(), Name::new("Na").unwrap(), Name::new("K").unwrap(), Name::new("Br").unwrap()])
+    );
+    parsing_success!(
+        element_symbol_4,
+        "elsymbol C Na K Br",
+        Select::ElementSymbol(vec![Name::new("C").unwrap(), Name::new("Na").unwrap(), Name::new("K").unwrap(), Name::new("Br").unwrap()])
+    );
+    parsing_success!(
+        element_symbol_regex,
+        "elsymbol r'^N' C K",
+        Select::ElementSymbol(vec![Name::new("r'^N'").unwrap(), Name::new("C").unwrap(), Name::new("K").unwrap()])
+    );
+    parsing_success!(
+        element_symbol_complex_1,
+        "element symbol C K and serial 4 to 8",
+        Select::And(
+            Box::new(Select::ElementSymbol(vec![Name::new("C").unwrap(), Name::new("K").unwrap()])),
+            Box::new(Select::GmxAtomNumber(vec![(4, 8)])),
+        )
+    );
+    parsing_success!(
+        element_symbol_complex_2,
+        "resname LYS SER || elsymbol C K",
+        Select::Or(
+            Box::new(Select::ResidueName(vec![Name::new("LYS").unwrap(), Name::new("SER").unwrap()])),
+            Box::new(Select::ElementSymbol(vec![Name::new("C").unwrap(), Name::new("K").unwrap()])),
+            
+        )
+    );
+    parsing_success!(
+        element_name_1,
+        "element name carbon",
+        Select::ElementName(vec![Name::new("carbon").unwrap()])
+    );
+    parsing_success!(
+        element_name_2,
+        "elname carbon",
+        Select::ElementName(vec![Name::new("carbon").unwrap()])
+    );
+    parsing_success!(
+        element_name_3,
+        "element name carbon sodium potassium bromine",
+        Select::ElementName(vec![Name::new("carbon").unwrap(), Name::new("sodium").unwrap(), Name::new("potassium").unwrap(), Name::new("bromine").unwrap()])
+    );
+    parsing_success!(
+        element_name_4,
+        "elname carbon sodium potassium bromine",
+        Select::ElementName(vec![Name::new("carbon").unwrap(), Name::new("sodium").unwrap(), Name::new("potassium").unwrap(), Name::new("bromine").unwrap()])
+    );
+    parsing_success!(
+        element_name_regex,
+        "elname r'^ni' carbon potassium",
+        Select::ElementName(vec![Name::new("r'^ni'").unwrap(), Name::new("carbon").unwrap(), Name::new("potassium").unwrap()])
+    );
+    parsing_success!(
+        element_name_complex_1,
+        "element name carbon potassium and serial 4 to 8",
+        Select::And(
+            Box::new(Select::ElementName(vec![Name::new("carbon").unwrap(), Name::new("potassium").unwrap()])),
+            Box::new(Select::GmxAtomNumber(vec![(4, 8)])),
+        )
+    );
+    parsing_success!(
+        element_name_complex_2,
+        "resname LYS SER || elname carbon potassium",
+        Select::Or(
+            Box::new(Select::ResidueName(vec![Name::new("LYS").unwrap(), Name::new("SER").unwrap()])),
+            Box::new(Select::ElementName(vec![Name::new("carbon").unwrap(), Name::new("potassium").unwrap()])),
+            
+        )
+    );
+    parsing_success!(
+        not_element,
+        "element C",
+        Select::GroupName(vec![Name::new("element").unwrap(), Name::new("C").unwrap()])
+    );
+    
+    parsing_success!(
+        molwith_1,
+        "molecule with serial 1 to 12 17",
+        Select::Molecule(Box::new(Select::GmxAtomNumber(vec![(1, 12), (17, 17)])))
+    );
+    parsing_success!(
+        molwith_2,
+        "mol with serial 1 to 12 17",
+        Select::Molecule(Box::new(Select::GmxAtomNumber(vec![(1, 12), (17, 17)])))
+    );
+    parsing_success!(
+        molwith_3,
+        "molecule with resname LYS && resid 1 to 3",
+        Select::And(
+            Box::new(Select::Molecule(Box::new(Select::ResidueName(vec![Name::new("LYS").unwrap()])))),
+            Box::new(Select::ResidueNumber(vec![(1, 3)])),
+        )
+    );
+    parsing_success!(
+        molwith_4,
+        "molecule with (resname LYS && resid 1 to 3)",
+        Select::Molecule(Box::new(Select::And(
+            Box::new(Select::ResidueName(vec![Name::new("LYS").unwrap()])),
+            Box::new(Select::ResidueNumber(vec![(1, 3)])),
+        )))
+    );
+    parsing_success!(
+        molwith_5,
+        "molecule with (mol with name P and resid 50 to 76)",
+        Select::Molecule(Box::new(Select::And(
+            Box::new(Select::Molecule(
+                Box::new(Select::AtomName(vec![Name::new("P").unwrap()]))
+            )),
+            Box::new(Select::ResidueNumber(vec![(50, 76)])),
+        )))
+    );
+
     parsing_success!(
         hyphen_group,
         "Protein-No1",
@@ -2081,19 +2283,39 @@ mod fail_tests {
         SelectError::InvalidOperator
     );
     parsing_fails!(
+        invalid_operator_4,
+        "resname LYS &@ name SC1",
+        SelectError::InvalidOperator
+    );
+    parsing_fails!(
+        invalid_operator_5,
+        "resname LYS @& name SC1",
+        SelectError::InvalidOperator
+    );
+    parsing_fails!(
         invalid_token_after_parentheses_1,
         "(name CA CB) resname LYS",
-        SelectError::InvalidTokenAfterParentheses
+        SelectError::InvalidTokenParentheses
     );
     parsing_fails!(
         invalid_token_after_parentheses_2,
-        "(namne BB or group Protein) (resid 1 to 54)",
-        SelectError::InvalidTokenAfterParentheses
+        "(name BB or group Protein) (resid 1 to 54)",
+        SelectError::InvalidTokenParentheses
     );
     parsing_fails!(
         invalid_token_after_parentheses_3,
-        "(namne BB or group Protein)!serial 7",
-        SelectError::InvalidTokenAfterParentheses
+        "(name BB or group Protein)!serial 7",
+        SelectError::InvalidTokenParentheses
+    );
+    parsing_fails!(
+        invalid_token_before_parentheses_1,
+        "element (name CA)",
+        SelectError::InvalidTokenParentheses
+    );
+    parsing_fails!(
+        invalid_token_before_parentheses_2,
+        "Membrane (serial 1 to 3)",
+        SelectError::InvalidTokenParentheses
     );
 
     #[test]

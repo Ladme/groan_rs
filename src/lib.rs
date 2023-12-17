@@ -555,7 +555,7 @@ pub mod system {
     pub mod general;
     mod groups;
     pub mod guess;
-    mod iterating;
+    pub(crate) mod iterating;
     mod modifying;
     mod utility;
 }
