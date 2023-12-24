@@ -1615,6 +1615,8 @@ mod tests {
         assert!(!system.group_exists("Regex5"));
     }
 
+    /*
+    // deprecated since v0.6.0
     #[test]
     fn group_create_macro_hydrogen() {
         let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
@@ -1626,7 +1628,7 @@ mod tests {
 
         assert!(system.group_isin("Hydrogens", 32787).unwrap());
         assert!(system.group_isin("Hydrogens", 1).unwrap());
-    }
+    }*/
 
     #[test]
     fn group_create_invalid_names() {
