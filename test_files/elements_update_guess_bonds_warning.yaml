@@ -1,6 +1,6 @@
 ---
-hydrogen:
-  vdw: 0.13
+nitrogen:
+  expected_max_bonds: 1
 carbon:
   expected_min_bonds: 4
 ...
