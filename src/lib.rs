@@ -12,13 +12,13 @@
 //! - Select atoms using a selection language similar to VMD.
 //! - Calculate distances between atoms respecting periodic boundary conditions.
 //! - Select atoms based on geometric conditions.
+//! - Assign elements to atoms and guess connectivity between the atoms.
 //! - Calculate center of geometry for *any* group of atoms.
 //! - Center a group of atoms in a simulation box.
 //! - And some other, less relevant stuff.
 //!
 //! ## What it CAN'T do (at the moment)
 //! - Read tpr files.
-//! - Work with atom masses.
 //! - Work with non-orthogonal periodic boundary conditions.
 //! - Perform advanced analyses of structure and dynamics out of the box.
 //! (But `groan_rs` library tries to make it simple to implement your own!)
@@ -410,7 +410,9 @@
 //! - Their **real atom numbers** using `serial XYZ`. For instance, `serial 256` will select the atom with the number 256 (this is guaranteed to be a single atom). Note that in this case, the atoms are selected based on their "real" atom numbers, as understood by gromacs, **not** by the atom numbers specified in the `gro` or `pdb` file the system originates from.
 //! - Their **gro atom numbers** using `atomid XYZ` or `atomnum XYZ`. For instance, `atomid 124` will select all atoms which have the atom number 124 in the `gro` or `pdb` file the system originates from. This can be multiple atoms.
 //! - Their **chain identifiers** using `chain X`. For instance `chain A` will select all atoms belonging to the chain 'A'. The information about chains is usually present in pdb files. Note that if no chain information is present, using this keyword will select no atoms.
-//!
+//! - Their **element names** using `element name XYZ` or `elname XYZ`. For instance, `element name carbon` will select all carbon atoms. Note that atoms must be assigned elements to be selected, read below.
+//! - Their **element symbols** using `element symbol X` or `elsymbol X`. For instance, `element symbol C` will select all carbon atoms. Note that atoms must be assigned elements to be selected, read below.
+//! 
 //! **Multiple identifiers**
 //!
 //! You can specify multiple identifiers in the query. For instance, by using `resname POPE POPG`, you will select all atoms of the system corresponding to residues named POPE as well as atoms corresponding to residues named POPG. See examples of similar queries below:
@@ -419,6 +421,8 @@
 //! - `name P CA HA` will select all atoms with atom names P, CA, or HA.
 //! - `serial 245 267 269 271` will select atoms numbered 245, 267, 269, or 271.
 //! - `chain A B C` will select atoms belonging to the chains 'A', 'B', or 'C'.
+//! - `elname carbon hydrogen` will select all carbon and hydrogen atoms.
+//! - `elsymbol C H` will select all carbon and hydrogen atoms.
 //!
 //! **Selecting atoms using groups**
 //!
@@ -430,14 +434,13 @@
 //!
 //! **Selecting atoms by autodetection**
 //!
-//! You can select atoms using internally defined macros. Currently, `groan_rs` library provides seven of such macros:
+//! You can select atoms using internally defined macros. Currently, `groan_rs` library provides six of such macros:
 //! - `@protein` will select all atoms corresponding to amino acids (supports some 140 different amino acids).
 //! - `@water` will select all atoms of water.
 //! - `@ion` will select all atoms of ions.
 //! - `@membrane` will select all atoms corresponding to membrane lipids (supports over 200 membrane lipid types).
 //! - `@dna` will select all atoms belonging to a DNA molecule.
 //! - `@rna` will select all atoms belonging to an RNA molecule.
-//! - `@hydrogen` will select all hydrogen atoms.
 //!
 //! Please be aware that while groan macros are generally dependable, there is no absolute guarantee that they will unfailingly identify all atoms correctly. Be careful when using them.
 //!
@@ -483,15 +486,32 @@
 //!
 //! You can also place `not` (`!`) operator in front of a parenthetical expression. For example, `!(serial 1 to 6 && name P)` will select all atoms that do **not** have atom number between 1 and 6 while also having the atom name P.
 //!
+//! **Selecting molecules**
+//! 
+//! You can select all atoms that are part of a specific molecule using the `molecule with` (or `mol with`) operator. For instance, `molecule with serial 15` will select all atoms that are part of the same molecule as the atom with atom number 15 (including the atom 15).
+//! Similarly, `molecule with resid 4 17 29` will select all atoms of all molecules which contain _any_ of the atoms of the residues 4, 17, or 29.
+//! `molecule with name P` will then select all atoms of all molecules that contain an atom with name `P`. Note that a) by molecule we mean a collection of atoms connected by bonds and b) molecule is not a residue.
+//! 
+//! The `molecule with` operator relates only to the first sub-query to its right. For instance, `molecule with serial 15 or name BB` will select all atoms that are either part of the same molecule as atom 15 or have name `BB`.
+//! Meanwhile, `molecule with (serial 15 or name BB)` will select all molecules containing either the atom 15 or any atom with name `BB` (i.e., if a molecule contains an atom named BB, all its atoms will be selected). 
+//! 
+//! Note that to be able to select molecules, the system must contain topology information. Otherwise, no atoms are selected.
+//! 
 //! **Regular expressions**
 //!
-//! Atom, residue, and group names can be specified using regular expressions. For instance all hydrogens atoms in the system can be selected using `name r'^[1-9]?H.*'` (or using the `@hydrogen` macro which expands to the same regular expression). Similarly, all phosphatidylcholine lipids can be selected using `resname r'^.*PC'`. Query `group r'^P'` or just `r'^P'` will then select atoms of all groups which name starts with 'P' (case sensitive).
+//! Atom, residue, and group names, as well as element names and element symbols can be specified using regular expressions. For instance all hydrogens atoms in the system can be selected using `name r'^[1-9]?H.*'` (or using `elname hydrogen`).                                 Similarly, all phosphatidylcholine lipids can be selected using `resname r'^.*PC'`. Query `group r'^P'` or just `r'^P'` will then select atoms of all groups which name starts with 'P' (case sensitive).
 //!
 //! Note that the regular expression must be enclosed inside "regular expression block" starting with `r'` and ending with `'`. You can specify multiple regular expressions in a single query and use them alongside normal strings.
 //!
 //! Regular expressions are evaluated using the `regex crate`. For more information about the supported regular expressions, visit <https://docs.rs/regex/latest/regex/>.
 //!
-//! **Note about whitespace**
+//! **Note on selecting elements**
+//! 
+//! Note that the atoms of the system are not implicitly assigned elements by the `groan_rs` library. When using `element name` or `element symbol` keywords, the atoms will only be selected if they have been assigned an element.
+//! Inside the `groan_rs` library, you can achieve this by calling the `System::guess_elements` function.
+//! If you are a user of a program employing the groan selection language, make sure that the program assigns elements to the atoms before relying on the `element` keyword.
+//! 
+//! **Note on whitespace**
 //!
 //! Operators and parentheses do not have to be separated by whitespace from the rest of the query, unless the meaning of the query would become unclear. For instance, `not(name CA)or(serial 1to45||Protein)` is a valid query, while `not(name CA)or(serial 1to45orProtein)` is **not** valid, as `orProtein` becomes uninterpretable. However, enclosing the `Protein` in parentheses, i.e. `not(name CA)or(serial 1to45or(Protein))`, turns the query into a valid one again.
 //!

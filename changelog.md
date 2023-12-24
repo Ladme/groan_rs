@@ -11,11 +11,12 @@
 #### Undefined atom positions no longer cause panic
 - **Breaking change:** Higher-level `System` and `Atom` methods now do not panic when encountering an atom with undefined position and instead return a recoverable error.
 
-#### Assigning and guessing elements
+#### Assigning and guessing elements and bonds
 - Added `Elements` structure which defines properties of the supported elements.
 - `Elements` structure can be constructed from a YAML file containing the element definitions by calling `Elements::from_file`.
 - Default properties of the elements supported by `groan_rs` are stored in `src/config/elements.yaml`. Default `Elements` structure, containing elements and their properties from this YAML file, can be constructed using `Elements::default`.
 - `Elements` structure can be updated using `Elements::update`. In such case, another `Elements` structure must be provided which specifies changes to be made in the original `Elements` structure.
+- Bonds can be now guessed for the system using `System::guess_bonds`. This requires van der Waals radii to be assigned to the individual atoms. Van der Waals radii can be guessed from the elements.
 
 #### Changes to the `Atom` structure
 - New optional fields `mass`, `element_name`, `element_symbol`, `vdw`, and `expected_max_bonds` added:
@@ -28,7 +29,10 @@
 - Methods were added to use and access the new fields.
 
 #### Groan Selection Language
+- **Breaking change:** Macro `@hydrogen` is no longer supported. Instead, use `element name hydrogen`.
 - Bug fix: Invalid queries containing a command in parentheses followed by anything other than a binary operator (e.g. `(name CA CB) resname LYS`) no longer cause a panic, but return a proper error.
+- Atoms can be now selected based on their element name or element symbol (`element name carbon` or `element symbol C`). This requires atoms to be assigned elements.
+- Atoms that are part of the same molecule can be now selected using the `molecule with` operator. For instance, `molecule with serial 13` will select all atoms that are part of the same molecule as atom with number 13. This requires the system to have topology information.
 
 #### Other changes
 - **Breaking change:** `System::set_mol_references` method is no longer public.

@@ -370,7 +370,8 @@ fn get_macros() -> HashMap<&'static str, &'static str> {
         "@rna",
         "(resname A U C G RA RU RC RG RA5 RT5 RU5 RC5 RG5 RA3 RT3 RU3 RC3 RG3 RAN RTN RUN RCN RGN)",
     );
-    macros.insert("@hydrogen", "(name r'^[1-9]?[Hh].*')");
+    // deprecated since v0.6.0
+    //macros.insert("@hydrogen", "(name r'^[1-9]?[Hh].*')");
 
     macros
 }
@@ -619,13 +620,6 @@ fn parse_token(string: &str) -> Result<Select, SelectError> {
             Ok(Select::ElementSymbol(collect_words(&token[1..])?))
         }
 
-        /*"mol" | "molecule" if token.len() >= 2 && token[1] == "with" => {
-            if token.len() == 2 {
-                return Err(SelectError::EmptyArgument("".to_string()));
-            }
-
-            Ok(Select::Molecule(parse_token(token[2..].join(" "))))
-        }*/
         // it is not necessary to provide group identifier for groups
         _ => Ok(Select::GroupName(collect_words(&token)?)),
     }
@@ -2076,11 +2070,13 @@ mod pass_tests {
         ])
     );
 
+    /*
+    // deprecated since v0.6.0
     parsing_success!(
         hydrogen_macro,
         "@hydrogen",
         Select::AtomName(vec![Name::new("r'^[1-9]?[Hh].*'").unwrap()])
-    );
+    );*/
 }
 
 #[cfg(test)]
