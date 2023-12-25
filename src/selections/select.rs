@@ -4,6 +4,7 @@
 //! Implementation of the Groan selection language.
 
 use std::collections::HashMap;
+use fancy_regex::Regex;
 
 use crate::errors::SelectError;
 use crate::selections::{name::Name, numbers};
@@ -145,8 +146,11 @@ pub fn parse_query(query: &str) -> Result<Box<Select>, SelectError> {
     }
 
     // replace `mol with` and `molecule with` with `@@`
-    expression = expression.replace("mol with", "@@");
-    expression = expression.replace("molecule with", "@@");
+    let molwith_pattern = Regex::new(r"(molecule\s*with|mol\s*with)(?=(?:[^']*'[^']*')*[^']*$)")
+        .expect("FATAL GROAN ERROR | select::parse_query | Could not construct regex pattern.");
+    expression = molwith_pattern.replace_all(&expression, "@@").to_string();
+
+    println!("{}", expression);
 
     // replace word operators with their symbolic equivalents
     expression = replace_keywords(&expression);
@@ -1365,6 +1369,36 @@ mod pass_tests {
             )),
             Box::new(Select::ResidueNumber(vec![(50, 76)])),
         )))
+    );
+    parsing_success!(
+        molwith_6,
+        "molecule      with    serial 1 to 12 17",
+        Select::Molecule(Box::new(Select::GmxAtomNumber(vec![(1, 12), (17, 17)])))
+    );
+    parsing_success!(
+        molwith_7,
+        "moleculewith serial 1 to 12 17",
+        Select::Molecule(Box::new(Select::GmxAtomNumber(vec![(1, 12), (17, 17)])))
+    );
+    parsing_success!(
+        molwith_8,
+        "mol          with serial 1 to 12 17",
+        Select::Molecule(Box::new(Select::GmxAtomNumber(vec![(1, 12), (17, 17)])))
+    );
+    parsing_success!(
+        molwith_9,
+        "molwith serial 1 to 12 17",
+        Select::Molecule(Box::new(Select::GmxAtomNumber(vec![(1, 12), (17, 17)])))
+    );
+    parsing_success!(
+        molwith_10,
+        "molecule with 'molecule with Group' Membrane",
+        Select::Molecule(Box::new(Select::GroupName(vec![Name::new("molecule with Group").unwrap(), Name::new("Membrane").unwrap()])))
+    );
+    parsing_success!(
+        not_molwith,
+        "'molecule with serial 17' Membrane",
+        Select::GroupName(vec![Name::new("molecule with serial 17").unwrap(), Name::new("Membrane").unwrap()])
     );
 
     parsing_success!(
