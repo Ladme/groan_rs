@@ -176,6 +176,12 @@ pub enum GroupError {
     /// Used when there is an issue with positions of atoms in the system.
     #[error("{}", .0)]
     InvalidPosition(PositionError),
+    /// Used when there is an issue with masses of atoms in the system.
+    #[error("{}", .0)]
+    InvalidMass(MassError),
+    /// Used when the group is empty and is expected not to be.
+    #[error("{} group '{}' contains no atoms", "error:".red().bold(), .0.yellow())]
+    EmptyGroup(String),
 }
 
 /// Errors that can occur when working with atoms in a system.
@@ -405,4 +411,12 @@ pub enum PositionError {
     /// Used when the atom has no position but it is required.
     #[error("{} atom with atom number '{}' has undefined position", "error:".red().bold(), .0.to_string().yellow())]
     NoPosition(usize),
+}
+
+/// Errors that can occur when working with masses of atoms.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum MassError {
+    /// Used when the atom has no mass but it is required.
+    #[error("{} atom with atom number '{}' has undefined mass", "error:".red().bold(), .0.to_string().yellow())]
+    NoMass(usize),
 }

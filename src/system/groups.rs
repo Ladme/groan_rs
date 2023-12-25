@@ -768,6 +768,21 @@ impl System {
             })
             .collect()
     }
+
+    /// Check whether target group is empty.
+    /// Faster than `System::group_get_n_atoms` (O(1) time complexity).
+    ///
+    /// ## Returns
+    /// - `true` if the group contains no atoms. `false` if it contains at least one atom.
+    /// - `GroupError` if the group does not exist.
+    pub fn group_isempty(&self, name: &str) -> Result<bool, GroupError> {
+        let group = self
+            .get_groups_as_ref()
+            .get(name)
+            .ok_or(GroupError::NotFound(name.to_string()))?;
+
+        Ok(group.get_atoms().is_empty())
+    }
 }
 
 /******************************/
@@ -2456,6 +2471,27 @@ mod tests {
 
         for index in 0..61 {
             assert!(system.group_isin("Membrane", index).unwrap());
+        }
+    }
+
+    #[test]
+    fn group_isempty() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system
+            .group_create("Membrane", "@membrane and name PO4")
+            .unwrap();
+        system.group_create("Single", "serial 15").unwrap();
+        system.group_create("Empty", "resname NON").unwrap();
+
+        assert!(!system.group_isempty("Membrane").unwrap());
+        assert!(!system.group_isempty("Single").unwrap());
+        assert!(system.group_isempty("Empty").unwrap());
+
+        match system.group_isempty("Nonexistent") {
+            Ok(_) => panic!("Function should have failed."),
+            Err(GroupError::NotFound(x)) => assert_eq!(x, "Nonexistent"),
+            Err(e) => panic!("Incorrect error type returned: {:?}", e),
         }
     }
 }

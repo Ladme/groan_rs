@@ -3,8 +3,8 @@
 
 //! Implementation of various methods for analysis of `System`.
 
-use crate::errors::{AtomError, GroupError, PositionError};
-use crate::structures::simbox::simbox_check;
+use crate::errors::{AtomError, GroupError, MassError, PositionError};
+use crate::structures::simbox::{simbox_check, SimBox};
 use crate::structures::{dimension::Dimension, vector3d::Vector3D};
 use crate::system::general::System;
 
@@ -21,6 +21,7 @@ impl System {
     /// ## Returns
     /// - `Vector3D` corresponding to the geometric center of the group.
     /// - `GroupError::NotFound` if the group does not exist.
+    /// - `GroupError::EmptyGroup` if the group contains no atoms.
     /// - `GroupError::InvalidSimBox` if the system has no simulation box
     /// or the simulation box is not orthogonal.
     /// - `GroupError::InvalidPosition` if any of the atoms in the group has no position.
@@ -47,56 +48,117 @@ impl System {
     /// };
     /// ```
     pub fn group_get_center(&self, name: &str) -> Result<Vector3D, GroupError> {
+        // we can't work with a nonexistent or empty group
+        if self.group_isempty(name)? {
+            return Err(GroupError::EmptyGroup(name.to_string()));
+        }
+
         let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?;
 
-        let reciprocal_box =
-            Vector3D::from([1.0f32 / simbox.x, 1.0f32 / simbox.y, 1.0f32 / simbox.z]);
+        let scaling = Vector3D::from([PI_X2 / simbox.x, PI_X2 / simbox.y, PI_X2 / simbox.z]);
 
         let mut sum_xi = Vector3D::default();
         let mut sum_zeta = Vector3D::default();
 
-        for atom in self.group_iter(name)? {
-            // make sure that each coordinate is inside the box
-            let mut coordinates = match atom.get_position() {
-                Some(x) => x.clone(),
+        for atom in self.group_iter(name)
+            .expect("FATAL GROAN ERROR | System::group_get_center | Group not found but this should have already been checked.") 
+        {
+            match atom.get_position() {
+                Some(x) => center_atom_contribution(
+                    x.clone(),
+                    &scaling,
+                    simbox,
+                    1.0, // use 1 as mass since we are calculating center of geometry
+                    &mut sum_xi,
+                    &mut sum_zeta,
+                ),
                 None => {
                     return Err(GroupError::InvalidPosition(PositionError::NoPosition(
                         atom.get_atom_number(),
-                    )))
+                    )));
                 }
-            };
-            coordinates.wrap(simbox);
-
-            // calculate magic angles
-            let theta = Vector3D {
-                x: coordinates.x * reciprocal_box.x * PI_X2,
-                y: coordinates.y * reciprocal_box.y * PI_X2,
-                z: coordinates.z * reciprocal_box.z * PI_X2,
-            };
-
-            sum_xi.x += theta.x.cos();
-            sum_xi.y += theta.y.cos();
-            sum_xi.z += theta.z.cos();
-
-            sum_zeta.x += theta.x.sin();
-            sum_zeta.y += theta.y.sin();
-            sum_zeta.z += theta.z.sin();
+            }
         }
 
-        // transform magic angles into real coordinates
-        let final_theta = Vector3D {
-            x: (-sum_zeta.x).atan2(-sum_xi.x) + consts::PI,
-            y: (-sum_zeta.y).atan2(-sum_xi.y) + consts::PI,
-            z: (-sum_zeta.z).atan2(-sum_xi.z) + consts::PI,
-        };
+        // convert to real coordinates
+        Ok(from_circle_to_line(sum_zeta, sum_xi, &scaling))
+    }
 
-        let center = Vector3D {
-            x: simbox.x * (final_theta.x / PI_X2),
-            y: simbox.y * (final_theta.y / PI_X2),
-            z: simbox.z * (final_theta.z / PI_X2),
-        };
+    /// Calculate center of mass of a group in `System`.
+    /// Takes periodic boundary conditions into consideration.
+    ///
+    /// ## Returns
+    /// - `Vector3D` corresponding to the center of mass of the group.
+    /// - `GroupError::NotFound` if the group does not exist.
+    /// - `GroupError::EmptyGroup` if the group contains no atoms.
+    /// - `GroupError::InvalidSimBox` if the system has no simulation box
+    /// or the simulation box is not orthogonal.
+    /// - `GroupError::InvalidPosition` if any of the atoms in the group has no position.
+    /// - `GroupError::InvalidMass` if any of the atoms in the group has no mass.
+    ///
+    /// ## Notes
+    /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
+    /// - It is able to calculate correct center of mass for any distribution of atoms
+    /// that is not completely homogeneous.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.read_ndx("index.ndx").unwrap();
+    ///
+    /// // ... assign masses to atoms ...
+    ///
+    /// // calculate center of mass for group "Group"
+    /// let center = match system.group_get_com("Group") {
+    ///     Ok(x) => x,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;    
+    ///     }
+    /// };
+    /// ```
+    pub fn group_get_com(&self, name: &str) -> Result<Vector3D, GroupError> {
+        // we can't work with a nonexistent or empty group
+        if self.group_isempty(name)? {
+            return Err(GroupError::EmptyGroup(name.to_string()));
+        }
 
-        Ok(center)
+        let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?;
+
+        let scaling = Vector3D::from([PI_X2 / simbox.x, PI_X2 / simbox.y, PI_X2 / simbox.z]);
+
+        let mut sum_xi = Vector3D::default();
+        let mut sum_zeta = Vector3D::default();
+
+        for atom in self.group_iter(name)
+            .expect("FATAL GROAN ERROR | System::group_get_com | Group not found but this should have already been checked.") 
+        {
+            let mass = atom
+                .get_mass()
+                .ok_or(GroupError::InvalidMass(MassError::NoMass(
+                    atom.get_atom_number(),
+                )))?;
+
+            match atom.get_position() {
+                Some(x) => center_atom_contribution(
+                    x.clone(),
+                    &scaling,
+                    simbox,
+                    mass,
+                    &mut sum_xi,
+                    &mut sum_zeta,
+                ),
+                None => {
+                    return Err(GroupError::InvalidPosition(PositionError::NoPosition(
+                        atom.get_atom_number(),
+                    )));
+                }
+            }
+        }
+
+        Ok(from_circle_to_line(sum_zeta, sum_xi, &scaling))
     }
 
     /// Calculate distance between the centers of geometries of the specified groups.
@@ -251,6 +313,50 @@ impl System {
     }
 }
 
+/// Calculate contribution of an atom to the center of mass.
+#[inline(always)]
+fn center_atom_contribution(
+    mut position: Vector3D,
+    scaling: &Vector3D,
+    simbox: &SimBox,
+    mass: f32,
+    sum_xi: &mut Vector3D,
+    sum_zeta: &mut Vector3D,
+) {
+    // wrap position into the box
+    position.wrap(simbox);
+
+    let theta = Vector3D {
+        x: position.x * scaling.x,
+        y: position.y * scaling.y,
+        z: position.z * scaling.z,
+    };
+
+    sum_xi.x += mass * theta.x.cos();
+    sum_xi.y += mass * theta.y.cos();
+    sum_xi.z += mass * theta.z.cos();
+
+    sum_zeta.x += mass * theta.x.sin();
+    sum_zeta.y += mass * theta.y.sin();
+    sum_zeta.z += mass * theta.z.sin();
+}
+
+/// Convert coordinates from their representation on a circle to their representation on a line.
+#[inline(always)]
+fn from_circle_to_line(zeta: Vector3D, xi: Vector3D, scaling: &Vector3D) -> Vector3D {
+    let theta = Vector3D {
+        x: (-zeta.x).atan2(-xi.x) + consts::PI,
+        y: (-zeta.y).atan2(-xi.y) + consts::PI,
+        z: (-zeta.z).atan2(-xi.z) + consts::PI,
+    };
+
+    Vector3D {
+        x: theta.x / scaling.x,
+        y: theta.y / scaling.y,
+        z: theta.z / scaling.z,
+    }
+}
+
 /******************************/
 /*         UNIT TESTS         */
 /******************************/
@@ -262,6 +368,7 @@ mod tests {
 
     use crate::errors::SimBoxError;
     use crate::structures::atom::Atom;
+    use crate::structures::element::Elements;
 
     #[test]
     fn center_single_atom() {
@@ -329,9 +436,9 @@ mod tests {
 
         let center = system.group_get_center("all").unwrap();
 
-        assert_approx_eq!(f32, center.x, 2.634386);
-        assert_approx_eq!(f32, center.y, 9.775156);
-        assert_approx_eq!(f32, center.z, 1.174800);
+        assert_approx_eq!(f32, center.x, 2.634386, epsilon = 0.0001);
+        assert_approx_eq!(f32, center.y, 9.775156, epsilon = 0.0001);
+        assert_approx_eq!(f32, center.z, 1.174800, epsilon = 0.0001);
     }
 
     #[test]
@@ -354,9 +461,9 @@ mod tests {
 
         let center = system.group_get_center("all").unwrap();
 
-        assert_approx_eq!(f32, center.x, 2.634386);
-        assert_approx_eq!(f32, center.y, 9.775156);
-        assert_approx_eq!(f32, center.z, 1.174800);
+        assert_approx_eq!(f32, center.x, 2.634386, epsilon = 0.0001);
+        assert_approx_eq!(f32, center.y, 9.775156, epsilon = 0.0001);
+        assert_approx_eq!(f32, center.z, 1.174800, epsilon = 0.0001);
     }
 
     #[test]
@@ -367,13 +474,13 @@ mod tests {
         let center_mem = system.group_get_center("Membrane").unwrap();
         let center_prot = system.group_get_center("Protein").unwrap();
 
-        assert_approx_eq!(f32, center_mem.x, 3.575004);
-        assert_approx_eq!(f32, center_mem.y, 8.009330);
-        assert_approx_eq!(f32, center_mem.z, 5.779888);
+        assert_approx_eq!(f32, center_mem.x, 3.575004, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_mem.y, 8.009330, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_mem.z, 5.779888, epsilon = 0.0001);
 
-        assert_approx_eq!(f32, center_prot.x, 9.857101);
-        assert_approx_eq!(f32, center_prot.y, 2.462601);
-        assert_approx_eq!(f32, center_prot.z, 5.461296);
+        assert_approx_eq!(f32, center_prot.x, 9.857101, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_prot.y, 2.462601, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_prot.z, 5.461296, epsilon = 0.0001);
     }
 
     #[test]
@@ -425,6 +532,204 @@ mod tests {
     }
 
     #[test]
+    fn center_real_system_fail_empty_group() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("Empty", "resname NON").unwrap();
+
+        match system.group_get_center("Empty") {
+            Err(GroupError::EmptyGroup(x)) => assert_eq!(x, "Empty"),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn com_single_atom() {
+        let atom1 = Atom::new(1, "LYS", 1, "BB")
+            .with_position([4.5, 3.2, 1.7].into())
+            .with_mass(12.8);
+
+        let atoms = vec![atom1];
+        let system = System::new("Artificial system.", atoms, Some([10.0, 10.0, 10.0].into()));
+
+        let center = system.group_get_com("all").unwrap();
+
+        assert_approx_eq!(f32, center.x, 4.5);
+        assert_approx_eq!(f32, center.y, 3.2);
+        assert_approx_eq!(f32, center.z, 1.7);
+    }
+
+    #[test]
+    fn com_two_atoms() {
+        let atom1 = Atom::new(1, "LYS", 1, "BB")
+            .with_position([4.5, 3.2, 1.7].into())
+            .with_mass(12.8);
+
+        let atom2 = Atom::new(1, "LYS", 2, "SC1")
+            .with_position([4.0, 2.8, 3.0].into())
+            .with_mass(0.4);
+
+        let atoms = vec![atom1, atom2];
+        let system = System::new("Artificial system.", atoms, Some([10.0, 10.0, 10.0].into()));
+
+        let center = system.group_get_com("all").unwrap();
+
+        assert_approx_eq!(f32, center.x, 4.485, epsilon = 0.0001);
+        assert_approx_eq!(f32, center.y, 3.188, epsilon = 0.0001);
+        assert_approx_eq!(f32, center.z, 1.73549, epsilon = 0.0001);
+    }
+
+    /*#[test]
+    fn com_two_atoms_pbc() {
+        let atom1 = Atom::new(1, "LYS", 1, "BB")
+            .with_position([4.5, 3.2, 1.7].into())
+            .with_mass(11.0);
+
+        let atom2 = Atom::new(1, "LYS", 2, "SC1")
+            .with_position([9.8, 9.5, 3.0].into())
+            .with_mass(10.0);
+
+        let atoms = vec![atom1, atom2];
+        let system = System::new("Artificial system.", atoms, Some([10.0, 10.0, 10.0].into()));
+
+        let center = system.group_get_com("all").unwrap();
+
+        assert_approx_eq!(f32, center.x, 4.358, epsilon = 0.0001);
+        assert_approx_eq!(f32, center.y, 3.088, epsilon = 0.0001);
+        assert_approx_eq!(f32, center.z, 1.73549, epsilon = 0.0001);
+    }*/
+
+    #[test]
+    fn com_real_system_same_mass() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let center_mem = system.group_get_center("Membrane").unwrap();
+        let center_prot = system.group_get_center("Protein").unwrap();
+
+        for atom in system.atoms_iter_mut() {
+            atom.set_mass(12.3);
+        }
+
+        let com_mem = system.group_get_com("Membrane").unwrap();
+        let com_prot = system.group_get_com("Protein").unwrap();
+
+        assert_approx_eq!(f32, center_prot.x, com_prot.x, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_prot.y, com_prot.y, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_prot.z, com_prot.z, epsilon = 0.0001);
+
+        assert_approx_eq!(f32, center_mem.x, com_mem.x, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_mem.y, com_mem.y, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_mem.z, com_mem.z, epsilon = 0.0001);
+    }
+
+    #[test]
+    fn com_real_system() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+
+        system.group_create("Peptide", "@protein").unwrap();
+        system.group_create("Membrane", "@membrane").unwrap();
+
+        system.guess_elements(Elements::default()).unwrap();
+
+        let com_prot = system.group_get_com("Peptide").unwrap();
+        let com_mem = system.group_get_com("Membrane").unwrap();
+
+        assert_approx_eq!(f32, com_prot.x, 4.047723, epsilon = 0.0001);
+        assert_approx_eq!(f32, com_prot.y, 3.764632, epsilon = 0.0001);
+        assert_approx_eq!(f32, com_prot.z, 3.2633042, epsilon = 0.0001);
+
+        assert_approx_eq!(f32, com_mem.x, 1.44719, epsilon = 0.0001);
+        assert_approx_eq!(f32, com_mem.y, 0.45375, epsilon = 0.0001);
+        assert_approx_eq!(f32, com_mem.z, 3.74161, epsilon = 0.0001);
+    }
+
+    #[test]
+    fn com_real_system_fail_invalid_group() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.group_get_com("Nonexistent") {
+            Err(GroupError::NotFound(e)) => assert_eq!(e, "Nonexistent"),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn com_real_system_fail_invalid_simbox() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+        system.reset_box();
+
+        match system.group_get_com("Protein") {
+            Err(GroupError::InvalidSimBox(SimBoxError::DoesNotExist)) => (),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn com_real_system_fail_invalid_position() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        for atom in system.atoms_iter_mut() {
+            atom.set_mass(10.3);
+        }
+
+        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+
+        match system.group_get_com("Protein") {
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn com_real_system_fail_invalid_mass() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.group_get_com("Protein") {
+            Err(GroupError::InvalidMass(MassError::NoMass(x))) => assert_eq!(x, 1),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn com_real_system_fail_empty_group() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("Empty", "resname NON").unwrap();
+
+        match system.group_get_com("Empty") {
+            Err(GroupError::EmptyGroup(x)) => assert_eq!(x, "Empty"),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
     fn group_distance_x() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
@@ -432,7 +737,7 @@ mod tests {
         let dist = system
             .group_distance("Protein", "Membrane", Dimension::X)
             .unwrap();
-        assert_approx_eq!(f32, dist, 6.282097);
+        assert_approx_eq!(f32, dist, 6.282097, epsilon = 0.0001);
     }
 
     #[test]
@@ -443,7 +748,7 @@ mod tests {
         let dist = system
             .group_distance("Protein", "Membrane", Dimension::Y)
             .unwrap();
-        assert_approx_eq!(f32, dist, -5.546729);
+        assert_approx_eq!(f32, dist, -5.546729, epsilon = 0.0001);
     }
 
     #[test]
@@ -454,7 +759,7 @@ mod tests {
         let dist = system
             .group_distance("Protein", "Membrane", Dimension::Z)
             .unwrap();
-        assert_approx_eq!(f32, dist, -0.31859207);
+        assert_approx_eq!(f32, dist, -0.31859207, epsilon = 0.0001);
     }
 
     #[test]
@@ -465,7 +770,7 @@ mod tests {
         let dist = system
             .group_distance("Protein", "Membrane", Dimension::XY)
             .unwrap();
-        assert_approx_eq!(f32, dist, 8.38039);
+        assert_approx_eq!(f32, dist, 8.38039, epsilon = 0.0001);
     }
 
     #[test]
@@ -476,7 +781,7 @@ mod tests {
         let dist = system
             .group_distance("Protein", "Membrane", Dimension::XZ)
             .unwrap();
-        assert_approx_eq!(f32, dist, 6.29017);
+        assert_approx_eq!(f32, dist, 6.29017, epsilon = 0.0001);
     }
 
     #[test]
@@ -487,7 +792,7 @@ mod tests {
         let dist = system
             .group_distance("Protein", "Membrane", Dimension::YZ)
             .unwrap();
-        assert_approx_eq!(f32, dist, 5.555871);
+        assert_approx_eq!(f32, dist, 5.555871, epsilon = 0.0001);
     }
 
     #[test]
@@ -498,7 +803,7 @@ mod tests {
         let dist = system
             .group_distance("Protein", "Membrane", Dimension::XYZ)
             .unwrap();
-        assert_approx_eq!(f32, dist, 8.386444);
+        assert_approx_eq!(f32, dist, 8.386444, epsilon = 0.0001);
     }
 
     #[test]

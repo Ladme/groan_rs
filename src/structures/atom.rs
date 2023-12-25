@@ -310,6 +310,11 @@ impl Atom {
         self.position.as_ref()
     }
 
+    /// Get mutable reference to the coordinates of the atom.
+    pub fn get_position_mut(&mut self) -> Option<&mut Vector3D> {
+        self.position.as_mut()
+    }
+
     /// Set the coordinates of the atom.
     pub fn set_position(&mut self, pos: Vector3D) {
         self.position = Some(pos);
@@ -349,6 +354,11 @@ impl Atom {
         self.velocity.as_ref()
     }
 
+    /// Get mutable reference to the velocity vector of the atom.
+    pub fn get_velocity_mut(&mut self) -> Option<&mut Vector3D> {
+        self.velocity.as_mut()
+    }
+
     /// Set the velocity vector of the atom.
     pub fn set_velocity(&mut self, vel: Vector3D) {
         self.velocity = Some(vel);
@@ -362,6 +372,11 @@ impl Atom {
     /// Get the vector of the total force acting on the atom.
     pub fn get_force(&self) -> Option<&Vector3D> {
         self.force.as_ref()
+    }
+
+    /// Get mutable reference to the total force acting on the atom.
+    pub fn get_force_mut(&mut self) -> Option<&mut Vector3D> {
+        self.force.as_mut()
     }
 
     /// Set the vector of the total force acting on the atom.
@@ -934,6 +949,17 @@ mod tests {
     }
 
     #[test]
+    fn get_position_mut() {
+        let mut atom = make_default_atom();
+
+        atom.get_position_mut().unwrap().x += 3.4;
+        let pos = atom.get_position().unwrap();
+        assert_approx_eq!(f32, pos.x, 18.523);
+        assert_approx_eq!(f32, pos.y, 14.321);
+        assert_approx_eq!(f32, pos.z, 9.834);
+    }
+
+    #[test]
     fn set_position() {
         let mut atom = make_default_atom();
         let new_pos = Vector3D::from([1.764, 2.134, 19.129]);
@@ -982,6 +1008,17 @@ mod tests {
     }
 
     #[test]
+    fn get_velocity_mut() {
+        let mut atom = make_default_atom();
+
+        atom.get_velocity_mut().unwrap().y += 0.3;
+        let vel = atom.get_velocity().unwrap();
+        assert_approx_eq!(f32, vel.x, -3.432);
+        assert_approx_eq!(f32, vel.y, 0.484);
+        assert_approx_eq!(f32, vel.z, 1.234);
+    }
+
+    #[test]
     fn set_velocity() {
         let mut atom = make_default_atom();
         let new_vel = Vector3D::from([1.764, 2.134, 19.129]);
@@ -997,6 +1034,17 @@ mod tests {
             *atom.get_force().unwrap(),
             Vector3D::from([5.1235, 2.3451, -0.32145])
         );
+    }
+
+    #[test]
+    fn get_force_mut() {
+        let mut atom = make_default_atom();
+
+        atom.get_force_mut().unwrap().z -= 0.13;
+        let force = atom.get_force().unwrap();
+        assert_approx_eq!(f32, force.x, 5.1235);
+        assert_approx_eq!(f32, force.y, 2.3451);
+        assert_approx_eq!(f32, force.z, -0.45145);
     }
 
     #[test]

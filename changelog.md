@@ -40,6 +40,8 @@
 - Documentation examples no longer repeat that you have to use `groan_rs::prelude::*`.
 - Added `Atom::distance_naive` for calculating distance between atoms without taking periodic boundary conditions into consideration.
 - Bug fix: `Vector3D::wrap_coordinate` and `Vector3D::min_image` now panic if `box_len` is 0 instead of looping indefinitely.
+- `System::group_get_center` function has been refactored and may return a result that is not binary identical to previous versions.
+- Introduced `System::group_isempty` function for checking whether target group of atoms is empty.
 
 ***
 
