@@ -1317,6 +1317,14 @@ mod pass_tests {
         Select::ElementName(vec![Name::new("carbon").unwrap()])
     );
     parsing_success!(
+        element_name_multiword,
+        "element name 'carbon number 2' hydrogen",
+        Select::ElementName(vec![
+            Name::new("carbon number 2").unwrap(),
+            Name::new("hydrogen").unwrap()
+        ])
+    );
+    parsing_success!(
         element_name_3,
         "element name carbon sodium potassium bromine",
         Select::ElementName(vec![
