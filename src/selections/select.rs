@@ -3,8 +3,8 @@
 
 //! Implementation of the Groan selection language.
 
-use std::collections::HashMap;
 use fancy_regex::Regex;
+use std::collections::HashMap;
 
 use crate::errors::SelectError;
 use crate::selections::{name::Name, numbers};
@@ -149,8 +149,6 @@ pub fn parse_query(query: &str) -> Result<Box<Select>, SelectError> {
     let molwith_pattern = Regex::new(r"(molecule\s*with|mol\s*with)(?=(?:[^']*'[^']*')*[^']*$)")
         .expect("FATAL GROAN ERROR | select::parse_query | Could not construct regex pattern.");
     expression = molwith_pattern.replace_all(&expression, "@@").to_string();
-
-    println!("{}", expression);
 
     // replace word operators with their symbolic equivalents
     expression = replace_keywords(&expression);
@@ -1257,23 +1255,40 @@ mod pass_tests {
     parsing_success!(
         element_symbol_3,
         "element symbol C Na K Br",
-        Select::ElementSymbol(vec![Name::new("C").unwrap(), Name::new("Na").unwrap(), Name::new("K").unwrap(), Name::new("Br").unwrap()])
+        Select::ElementSymbol(vec![
+            Name::new("C").unwrap(),
+            Name::new("Na").unwrap(),
+            Name::new("K").unwrap(),
+            Name::new("Br").unwrap()
+        ])
     );
     parsing_success!(
         element_symbol_4,
         "elsymbol C Na K Br",
-        Select::ElementSymbol(vec![Name::new("C").unwrap(), Name::new("Na").unwrap(), Name::new("K").unwrap(), Name::new("Br").unwrap()])
+        Select::ElementSymbol(vec![
+            Name::new("C").unwrap(),
+            Name::new("Na").unwrap(),
+            Name::new("K").unwrap(),
+            Name::new("Br").unwrap()
+        ])
     );
     parsing_success!(
         element_symbol_regex,
         "elsymbol r'^N' C K",
-        Select::ElementSymbol(vec![Name::new("r'^N'").unwrap(), Name::new("C").unwrap(), Name::new("K").unwrap()])
+        Select::ElementSymbol(vec![
+            Name::new("r'^N'").unwrap(),
+            Name::new("C").unwrap(),
+            Name::new("K").unwrap()
+        ])
     );
     parsing_success!(
         element_symbol_complex_1,
         "element symbol C K and serial 4 to 8",
         Select::And(
-            Box::new(Select::ElementSymbol(vec![Name::new("C").unwrap(), Name::new("K").unwrap()])),
+            Box::new(Select::ElementSymbol(vec![
+                Name::new("C").unwrap(),
+                Name::new("K").unwrap()
+            ])),
             Box::new(Select::GmxAtomNumber(vec![(4, 8)])),
         )
     );
@@ -1281,9 +1296,14 @@ mod pass_tests {
         element_symbol_complex_2,
         "resname LYS SER || elsymbol C K",
         Select::Or(
-            Box::new(Select::ResidueName(vec![Name::new("LYS").unwrap(), Name::new("SER").unwrap()])),
-            Box::new(Select::ElementSymbol(vec![Name::new("C").unwrap(), Name::new("K").unwrap()])),
-            
+            Box::new(Select::ResidueName(vec![
+                Name::new("LYS").unwrap(),
+                Name::new("SER").unwrap()
+            ])),
+            Box::new(Select::ElementSymbol(vec![
+                Name::new("C").unwrap(),
+                Name::new("K").unwrap()
+            ])),
         )
     );
     parsing_success!(
@@ -1299,23 +1319,40 @@ mod pass_tests {
     parsing_success!(
         element_name_3,
         "element name carbon sodium potassium bromine",
-        Select::ElementName(vec![Name::new("carbon").unwrap(), Name::new("sodium").unwrap(), Name::new("potassium").unwrap(), Name::new("bromine").unwrap()])
+        Select::ElementName(vec![
+            Name::new("carbon").unwrap(),
+            Name::new("sodium").unwrap(),
+            Name::new("potassium").unwrap(),
+            Name::new("bromine").unwrap()
+        ])
     );
     parsing_success!(
         element_name_4,
         "elname carbon sodium potassium bromine",
-        Select::ElementName(vec![Name::new("carbon").unwrap(), Name::new("sodium").unwrap(), Name::new("potassium").unwrap(), Name::new("bromine").unwrap()])
+        Select::ElementName(vec![
+            Name::new("carbon").unwrap(),
+            Name::new("sodium").unwrap(),
+            Name::new("potassium").unwrap(),
+            Name::new("bromine").unwrap()
+        ])
     );
     parsing_success!(
         element_name_regex,
         "elname r'^ni' carbon potassium",
-        Select::ElementName(vec![Name::new("r'^ni'").unwrap(), Name::new("carbon").unwrap(), Name::new("potassium").unwrap()])
+        Select::ElementName(vec![
+            Name::new("r'^ni'").unwrap(),
+            Name::new("carbon").unwrap(),
+            Name::new("potassium").unwrap()
+        ])
     );
     parsing_success!(
         element_name_complex_1,
         "element name carbon potassium and serial 4 to 8",
         Select::And(
-            Box::new(Select::ElementName(vec![Name::new("carbon").unwrap(), Name::new("potassium").unwrap()])),
+            Box::new(Select::ElementName(vec![
+                Name::new("carbon").unwrap(),
+                Name::new("potassium").unwrap()
+            ])),
             Box::new(Select::GmxAtomNumber(vec![(4, 8)])),
         )
     );
@@ -1323,9 +1360,14 @@ mod pass_tests {
         element_name_complex_2,
         "resname LYS SER || elname carbon potassium",
         Select::Or(
-            Box::new(Select::ResidueName(vec![Name::new("LYS").unwrap(), Name::new("SER").unwrap()])),
-            Box::new(Select::ElementName(vec![Name::new("carbon").unwrap(), Name::new("potassium").unwrap()])),
-            
+            Box::new(Select::ResidueName(vec![
+                Name::new("LYS").unwrap(),
+                Name::new("SER").unwrap()
+            ])),
+            Box::new(Select::ElementName(vec![
+                Name::new("carbon").unwrap(),
+                Name::new("potassium").unwrap()
+            ])),
         )
     );
     parsing_success!(
@@ -1333,7 +1375,7 @@ mod pass_tests {
         "element C",
         Select::GroupName(vec![Name::new("element").unwrap(), Name::new("C").unwrap()])
     );
-    
+
     parsing_success!(
         molwith_1,
         "molecule with serial 1 to 12 17",
@@ -1348,7 +1390,9 @@ mod pass_tests {
         molwith_3,
         "molecule with resname LYS && resid 1 to 3",
         Select::And(
-            Box::new(Select::Molecule(Box::new(Select::ResidueName(vec![Name::new("LYS").unwrap()])))),
+            Box::new(Select::Molecule(Box::new(Select::ResidueName(vec![
+                Name::new("LYS").unwrap()
+            ])))),
             Box::new(Select::ResidueNumber(vec![(1, 3)])),
         )
     );
@@ -1364,9 +1408,9 @@ mod pass_tests {
         molwith_5,
         "molecule with (mol with name P and resid 50 to 76)",
         Select::Molecule(Box::new(Select::And(
-            Box::new(Select::Molecule(
-                Box::new(Select::AtomName(vec![Name::new("P").unwrap()]))
-            )),
+            Box::new(Select::Molecule(Box::new(Select::AtomName(vec![
+                Name::new("P").unwrap()
+            ])))),
             Box::new(Select::ResidueNumber(vec![(50, 76)])),
         )))
     );
@@ -1393,12 +1437,18 @@ mod pass_tests {
     parsing_success!(
         molwith_10,
         "molecule with 'molecule with Group' Membrane",
-        Select::Molecule(Box::new(Select::GroupName(vec![Name::new("molecule with Group").unwrap(), Name::new("Membrane").unwrap()])))
+        Select::Molecule(Box::new(Select::GroupName(vec![
+            Name::new("molecule with Group").unwrap(),
+            Name::new("Membrane").unwrap()
+        ])))
     );
     parsing_success!(
         not_molwith,
         "'molecule with serial 17' Membrane",
-        Select::GroupName(vec![Name::new("molecule with serial 17").unwrap(), Name::new("Membrane").unwrap()])
+        Select::GroupName(vec![
+            Name::new("molecule with serial 17").unwrap(),
+            Name::new("Membrane").unwrap()
+        ])
     );
 
     parsing_success!(

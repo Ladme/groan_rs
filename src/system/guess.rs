@@ -152,10 +152,12 @@ impl System {
         }
 
         if !no_elements.is_empty() || !multiple_elements.is_empty() {
-            Err(ElementError::ElementGuessWarning(Box::new(ElementGuessInfo {
-                no_elements,
-                multiple_elements,
-            })))
+            Err(ElementError::ElementGuessWarning(Box::new(
+                ElementGuessInfo {
+                    no_elements,
+                    multiple_elements,
+                },
+            )))
         } else {
             Ok(())
         }
@@ -379,21 +381,25 @@ impl System {
         for (a, atom) in self.atoms_iter().enumerate() {
             // check limit for maximal number of bonds
             if let Some(limit) = atom.get_expected_max_bonds() {
-                if atom.get_n_bonded() > limit as usize && info
-                    .too_many_bonds
-                    .insert(a + 1, (atom.get_n_bonded(), limit))
-                    .is_some() {
-                        panic!("FATAL GROAN ERROR | System::guess_bonds | Atom should not be in the `too_many_bonds` map.")
+                if atom.get_n_bonded() > limit as usize
+                    && info
+                        .too_many_bonds
+                        .insert(a + 1, (atom.get_n_bonded(), limit))
+                        .is_some()
+                {
+                    panic!("FATAL GROAN ERROR | System::guess_bonds | Atom should not be in the `too_many_bonds` map.")
                 }
             }
 
             // check limit for minimal number of bonds
             if let Some(limit) = atom.get_expected_min_bonds() {
-                if atom.get_n_bonded() < limit as usize && info 
-                    .too_few_bonds
-                    .insert(a + 1, (atom.get_n_bonded(), limit))
-                    .is_some() {
-                        panic!("FATAL GROAN ERROR | System::guess_bonds | Atom should not be in the `too_few_bonds` map.")
+                if atom.get_n_bonded() < limit as usize
+                    && info
+                        .too_few_bonds
+                        .insert(a + 1, (atom.get_n_bonded(), limit))
+                        .is_some()
+                {
+                    panic!("FATAL GROAN ERROR | System::guess_bonds | Atom should not be in the `too_few_bonds` map.")
                 }
             }
         }
@@ -1361,7 +1367,9 @@ mod tests {
         system.guess_bonds(None).unwrap();
 
         let mut system_from_pdb = System::from_file("test_files/aa_peptide.pdb").unwrap();
-        system_from_pdb.add_bonds_from_pdb("test_files/aa_peptide.pdb").unwrap();
+        system_from_pdb
+            .add_bonds_from_pdb("test_files/aa_peptide.pdb")
+            .unwrap();
 
         for (atom1, atom2) in system.atoms_iter().zip(system_from_pdb.atoms_iter()) {
             assert_eq!(atom1.get_bonded(), atom2.get_bonded());
@@ -1386,21 +1394,35 @@ mod tests {
         system.get_atom_as_ref_mut(1).unwrap().reset_vdw();
 
         let no_vdw = vec![2];
-        let too_few_bonds = vec![2, 12, 31, 50, 61, 72, 91, 110, 121, 132, 151, 170, 192, 211, 230, 241, 252, 271, 290, 301, 312, 331, 350, 361];
-        let too_many_bonds = vec![1, 14, 33, 52, 63, 74, 93, 112, 123, 134, 153, 172, 188, 194, 213, 232, 243, 254, 273, 292, 303, 314, 333, 352];
+        let too_few_bonds = vec![
+            2, 12, 31, 50, 61, 72, 91, 110, 121, 132, 151, 170, 192, 211, 230, 241, 252, 271, 290,
+            301, 312, 331, 350, 361,
+        ];
+        let too_many_bonds = vec![
+            1, 14, 33, 52, 63, 74, 93, 112, 123, 134, 153, 172, 188, 194, 213, 232, 243, 254, 273,
+            292, 303, 314, 333, 352,
+        ];
 
         match system.guess_bonds(None) {
             Ok(_) => panic!("Function should have returned a warning."),
             Err(ElementError::BondsGuessWarning(e)) => {
                 assert_eq!(e.no_vdw, no_vdw);
-                assert_eq!(e.too_few_bonds.keys().cloned().collect::<Vec<usize>>(), too_few_bonds);
-                assert_eq!(e.too_many_bonds.keys().cloned().collect::<Vec<usize>>(), too_many_bonds);
+                assert_eq!(
+                    e.too_few_bonds.keys().cloned().collect::<Vec<usize>>(),
+                    too_few_bonds
+                );
+                assert_eq!(
+                    e.too_many_bonds.keys().cloned().collect::<Vec<usize>>(),
+                    too_many_bonds
+                );
             }
             Err(e) => panic!("Incorrect warning type `{:?}` returned.", e),
         }
 
         let mut system_from_pdb = System::from_file("test_files/aa_peptide.pdb").unwrap();
-        system_from_pdb.add_bonds_from_pdb("test_files/aa_peptide.pdb").unwrap();
+        system_from_pdb
+            .add_bonds_from_pdb("test_files/aa_peptide.pdb")
+            .unwrap();
 
         for (atom1, atom2) in system.atoms_iter().zip(system_from_pdb.atoms_iter()) {
             if atom1.get_atom_number() <= 2 {

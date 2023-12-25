@@ -39,8 +39,8 @@ impl System {
     /// }
     /// ```
     pub fn group_translate(&mut self, name: &str, vector: &Vector3D) -> Result<(), GroupError> {
-        let simbox = simbox_check(self.get_box_as_ref())
-            .map_err(GroupError::InvalidSimBox)? as *const SimBox;
+        let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?
+            as *const SimBox;
 
         unsafe {
             for atom in self.group_iter_mut(name)? {
@@ -73,8 +73,8 @@ impl System {
     /// system.atoms_translate(&[1.0, 2.0, -1.0].into());
     /// ```
     pub fn atoms_translate(&mut self, vector: &Vector3D) -> Result<(), AtomError> {
-        let simbox = simbox_check(self.get_box_as_ref()).map_err(AtomError::InvalidSimBox)?
-            as *const SimBox;
+        let simbox =
+            simbox_check(self.get_box_as_ref()).map_err(AtomError::InvalidSimBox)? as *const SimBox;
 
         unsafe {
             for atom in self.get_atoms_as_ref_mut().iter_mut() {
@@ -230,8 +230,8 @@ impl System {
     /// - `GroupError::InvalidPosition` if any of the atoms of the group
     /// has an undefined position.
     pub fn group_wrap(&mut self, name: &str) -> Result<(), GroupError> {
-        let simbox = simbox_check(self.get_box_as_ref())
-            .map_err(GroupError::InvalidSimBox)? as *const SimBox;
+        let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?
+            as *const SimBox;
 
         unsafe {
             for atom in self.group_iter_mut(name)? {
@@ -372,8 +372,8 @@ impl System {
             .expect("FATAL GROAN ERROR | System::make_molecules_whole (1) | `mol_starts` should be `Some` but it is `None`.") 
             as *const Vec<usize>;
 
-        let simbox = simbox_check(self.get_box_as_ref()).map_err(AtomError::InvalidSimBox)?
-            as *const SimBox;
+        let simbox =
+            simbox_check(self.get_box_as_ref()).map_err(AtomError::InvalidSimBox)? as *const SimBox;
 
         unsafe {
             for index in (*starts).iter() {

@@ -637,7 +637,7 @@ impl Atom {
     /// let distance = atom1.distance(&atom2, Dimension::XY, &simbox).unwrap();
     /// assert_approx_eq!(f32, distance, 1.802776);
     /// ```
-    /// 
+    ///
     /// ## Notes
     /// - If dimension is `Dimension::None` returns 0.
     pub fn distance(&self, atom: &Atom, dim: Dimension, sbox: &SimBox) -> Result<f32, AtomError> {
@@ -672,7 +672,7 @@ impl Atom {
     /// let distance = atom1.distance_naive(&atom2, Dimension::XY).unwrap();
     /// assert_approx_eq!(f32, distance, 2.692582);
     /// ```
-    /// 
+    ///
     /// ## Notes
     /// - If dimension is `Dimension::None` returns 0.
     pub fn distance_naive(&self, atom: &Atom, dim: Dimension) -> Result<f32, AtomError> {
@@ -1389,7 +1389,6 @@ mod tests {
             epsilon = 0.00001
         );
     }
-    
 
     #[test]
     fn distance_xz() {

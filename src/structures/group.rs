@@ -8,9 +8,9 @@ use std::io::Write;
 use crate::errors::{SelectError, WriteNdxError};
 use crate::selections::select::{self, Select};
 use crate::structures::container::AtomContainer;
-use crate::system::iterating::get_molecule_indices;
 use crate::structures::shape::Shape;
 use crate::system::general::System;
+use crate::system::iterating::get_molecule_indices;
 
 /******************************/
 /*       GROUP STRUCTURE      */
@@ -258,7 +258,7 @@ impl Group {
 
                 for index in molecule_indices {
                     if Group::matches_select(index, operand, system)? {
-                        return Ok(true)
+                        return Ok(true);
                     }
                 }
 

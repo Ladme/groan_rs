@@ -108,9 +108,7 @@ impl System {
     ) -> Result<(), GroupError> {
         let reference_center = self.group_get_center(reference)?;
 
-        let box_center = self
-            .get_box_center()
-            .map_err(GroupError::InvalidSimBox)?;
+        let box_center = self.get_box_center().map_err(GroupError::InvalidSimBox)?;
         let mut shift: Vector3D = [
             box_center.x - reference_center.x,
             box_center.y - reference_center.y,

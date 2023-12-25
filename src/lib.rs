@@ -412,7 +412,7 @@
 //! - Their **chain identifiers** using `chain X`. For instance `chain A` will select all atoms belonging to the chain 'A'. The information about chains is usually present in pdb files. Note that if no chain information is present, using this keyword will select no atoms.
 //! - Their **element names** using `element name XYZ` or `elname XYZ`. For instance, `element name carbon` will select all carbon atoms. Note that atoms must be assigned elements to be selected, read below.
 //! - Their **element symbols** using `element symbol X` or `elsymbol X`. For instance, `element symbol C` will select all carbon atoms. Note that atoms must be assigned elements to be selected, read below.
-//! 
+//!
 //! **Multiple identifiers**
 //!
 //! You can specify multiple identifiers in the query. For instance, by using `resname POPE POPG`, you will select all atoms of the system corresponding to residues named POPE as well as atoms corresponding to residues named POPG. See examples of similar queries below:
@@ -487,16 +487,16 @@
 //! You can also place `not` (`!`) operator in front of a parenthetical expression. For example, `!(serial 1 to 6 && name P)` will select all atoms that do **not** have atom number between 1 and 6 while also having the atom name P.
 //!
 //! **Selecting molecules**
-//! 
+//!
 //! You can select all atoms that are part of a specific molecule using the `molecule with` (or `mol with`) operator. For instance, `molecule with serial 15` will select all atoms that are part of the same molecule as the atom with atom number 15 (including the atom 15).
 //! Similarly, `molecule with resid 4 17 29` will select all atoms of all molecules which contain _any_ of the atoms of the residues 4, 17, or 29.
 //! `molecule with name P` will then select all atoms of all molecules that contain an atom with name `P`. Note that a) by molecule we mean a collection of atoms connected by bonds and b) molecule is not a residue.
-//! 
+//!
 //! The `molecule with` operator relates only to the first sub-query to its right. For instance, `molecule with serial 15 or name BB` will select all atoms that are either part of the same molecule as atom 15 or have name `BB`.
-//! Meanwhile, `molecule with (serial 15 or name BB)` will select all molecules containing either the atom 15 or any atom with name `BB` (i.e., if a molecule contains an atom named BB, all its atoms will be selected). 
-//! 
+//! Meanwhile, `molecule with (serial 15 or name BB)` will select all molecules containing either the atom 15 or any atom with name `BB` (i.e., if a molecule contains an atom named BB, all its atoms will be selected).
+//!
 //! Note that to be able to select molecules, the system must contain topology information. Otherwise, no atoms are selected.
-//! 
+//!
 //! **Regular expressions**
 //!
 //! Atom, residue, and group names, as well as element names and element symbols can be specified using regular expressions. For instance all hydrogens atoms in the system can be selected using `name r'^[1-9]?H.*'` (or using `elname hydrogen`).                                 Similarly, all phosphatidylcholine lipids can be selected using `resname r'^.*PC'`. Query `group r'^P'` or just `r'^P'` will then select atoms of all groups which name starts with 'P' (case sensitive).
@@ -506,11 +506,11 @@
 //! Regular expressions are evaluated using the `regex crate`. For more information about the supported regular expressions, visit <https://docs.rs/regex/latest/regex/>.
 //!
 //! **Note on selecting elements**
-//! 
+//!
 //! Note that the atoms of the system are not implicitly assigned elements by the `groan_rs` library. When using `element name` or `element symbol` keywords, the atoms will only be selected if they have been assigned an element.
 //! Inside the `groan_rs` library, you can achieve this by calling the `System::guess_elements` function.
 //! If you are a user of a program employing the groan selection language, make sure that the program assigns elements to the atoms before relying on the `element` keyword.
-//! 
+//!
 //! **Note on whitespace**
 //!
 //! Operators and parentheses do not have to be separated by whitespace from the rest of the query, unless the meaning of the query would become unclear. For instance, `not(name CA)or(serial 1to45||Protein)` is a valid query, while `not(name CA)or(serial 1to45orProtein)` is **not** valid, as `orProtein` becomes uninterpretable. However, enclosing the `Protein` in parentheses, i.e. `not(name CA)or(serial 1to45or(Protein))`, turns the query into a valid one again.

@@ -234,7 +234,7 @@ impl System {
         &self,
         filename: impl AsRef<Path>,
         write_connectivity: bool,
-        ) -> Result<(), WritePdbError> {
+    ) -> Result<(), WritePdbError> {
         match self.group_write_pdb("all", filename, write_connectivity) {
             Ok(_) => Ok(()),
             Err(WritePdbError::GroupNotFound(_)) => {

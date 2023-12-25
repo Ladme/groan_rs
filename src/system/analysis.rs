@@ -47,8 +47,7 @@ impl System {
     /// };
     /// ```
     pub fn group_get_center(&self, name: &str) -> Result<Vector3D, GroupError> {
-        let simbox =
-            simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?;
+        let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?;
 
         let reciprocal_box =
             Vector3D::from([1.0f32 / simbox.x, 1.0f32 / simbox.y, 1.0f32 / simbox.z]);
@@ -135,8 +134,7 @@ impl System {
         let group1_center = self.group_get_center(group1)?;
         let group2_center = self.group_get_center(group2)?;
 
-        let simbox =
-            simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?;
+        let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?;
 
         Ok(group1_center.distance(&group2_center, dim, simbox))
     }
@@ -188,8 +186,7 @@ impl System {
         let n_atoms_group1 = self.group_get_n_atoms(group1)?;
         let n_atoms_group2 = self.group_get_n_atoms(group2)?;
 
-        let simbox =
-            simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?;
+        let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?;
 
         let mut distances = Vec::with_capacity(n_atoms_group1);
 
@@ -248,8 +245,7 @@ impl System {
         let atom1 = self.get_atom_as_ref(index1)?;
         let atom2 = self.get_atom_as_ref(index2)?;
 
-        let simbox =
-            simbox_check(self.get_box_as_ref()).map_err(AtomError::InvalidSimBox)?;
+        let simbox = simbox_check(self.get_box_as_ref()).map_err(AtomError::InvalidSimBox)?;
 
         atom1.distance(atom2, dim, simbox)
     }

@@ -903,13 +903,17 @@ mod tests {
     fn group_create_element_name() {
         let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
         system.guess_elements(Elements::default()).unwrap();
-        system.group_create("Elements", "element name carbon phosphorus").unwrap();
+        system
+            .group_create("Elements", "element name carbon phosphorus")
+            .unwrap();
 
         assert!(system.group_exists("Elements"));
         assert_eq!(system.group_get_n_atoms("Elements").unwrap(), 5612);
 
-        system.group_create("Elements2", "elname carbon phosphorus").unwrap();
-        
+        system
+            .group_create("Elements2", "elname carbon phosphorus")
+            .unwrap();
+
         assert!(system.group_exists("Elements2"));
         assert_eq!(system.group_get_n_atoms("Elements2").unwrap(), 5612);
     }
@@ -918,13 +922,15 @@ mod tests {
     fn group_create_element_symbol() {
         let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
         system.guess_elements(Elements::default()).unwrap();
-        system.group_create("Elements", "element symbol C P").unwrap();
+        system
+            .group_create("Elements", "element symbol C P")
+            .unwrap();
 
         assert!(system.group_exists("Elements"));
         assert_eq!(system.group_get_n_atoms("Elements").unwrap(), 5612);
 
         system.group_create("Elements2", "elsymbol C P").unwrap();
-        
+
         assert!(system.group_exists("Elements2"));
         assert_eq!(system.group_get_n_atoms("Elements2").unwrap(), 5612);
     }
@@ -932,13 +938,17 @@ mod tests {
     #[test]
     fn group_create_element_empty() {
         let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
-        system.group_create("Elements", "element name carbon phosphorus").unwrap();
+        system
+            .group_create("Elements", "element name carbon phosphorus")
+            .unwrap();
 
         assert!(system.group_exists("Elements"));
         assert_eq!(system.group_get_n_atoms("Elements").unwrap(), 0);
 
-        system.group_create("Elements2", "element symbol C P").unwrap();
-        
+        system
+            .group_create("Elements2", "element symbol C P")
+            .unwrap();
+
         assert!(system.group_exists("Elements2"));
         assert_eq!(system.group_get_n_atoms("Elements2").unwrap(), 0);
     }
@@ -948,13 +958,73 @@ mod tests {
         let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
         system.guess_elements(Elements::default()).unwrap();
 
-        system.group_create("Empty Elements", "elname copper gold").unwrap();
+        system
+            .group_create("Empty Elements", "elname copper gold")
+            .unwrap();
         assert!(system.group_exists("Empty Elements"));
         assert_eq!(system.group_get_n_atoms("Empty Elements").unwrap(), 0);
 
-        system.group_create("Empty Elements 2", "elsymbol Cu Au").unwrap();
+        system
+            .group_create("Empty Elements 2", "elsymbol Cu Au")
+            .unwrap();
         assert!(system.group_exists("Empty Elements 2"));
         assert_eq!(system.group_get_n_atoms("Empty Elements 2").unwrap(), 0);
+    }
+
+    #[test]
+    fn group_create_molwith_1() {
+        let mut system = System::from_file("test_files/aa_peptide.pdb").unwrap();
+        system
+            .add_bonds_from_pdb("test_files/aa_peptide.pdb")
+            .unwrap();
+
+        system
+            .group_create("Molecule", "molwith serial 292")
+            .unwrap();
+
+        assert_eq!(
+            system.get_n_atoms(),
+            system.group_get_n_atoms("Molecule").unwrap()
+        );
+
+        for (atom1, atom2) in system
+            .atoms_iter()
+            .zip(system.group_iter("Molecule").unwrap())
+        {
+            assert_eq!(atom1.get_atom_number(), atom2.get_atom_number());
+        }
+    }
+
+    #[test]
+    fn group_create_molwith_2() {
+        let mut system = System::from_file("test_files/conect.pdb").unwrap();
+        system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
+
+        system
+            .group_create("Molecule", "molecule  with (resname LYS and name SC2)")
+            .unwrap();
+
+        assert_eq!(system.group_get_n_atoms("Molecule").unwrap(), 1);
+        for atom in system.group_iter("Molecule").unwrap() {
+            assert_eq!(atom.get_atom_number(), 50);
+        }
+    }
+
+    #[test]
+    fn group_create_molwith_3() {
+        let mut system = System::from_file("test_files/conect.pdb").unwrap();
+        system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
+
+        system
+            .group_create("Molecule", "mol with resname LYS and name SC2")
+            .unwrap();
+
+        assert_eq!(system.group_get_n_atoms("Molecule").unwrap(), 8);
+
+        let numbers = vec![5, 12, 22, 31, 36, 40, 47, 50];
+        for (a, atom) in system.group_iter("Molecule").unwrap().enumerate() {
+            assert_eq!(atom.get_atom_number(), numbers[a]);
+        }
     }
 
     #[test]
