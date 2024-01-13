@@ -582,25 +582,85 @@ mod tests {
         assert_approx_eq!(f32, center.z, 1.73549, epsilon = 0.0001);
     }
 
-    /*#[test]
+    #[test]
     fn com_two_atoms_pbc() {
         let atom1 = Atom::new(1, "LYS", 1, "BB")
             .with_position([4.5, 3.2, 1.7].into())
-            .with_mass(11.0);
+            .with_mass(12.8);
 
         let atom2 = Atom::new(1, "LYS", 2, "SC1")
             .with_position([9.8, 9.5, 3.0].into())
-            .with_mass(10.0);
+            .with_mass(0.4);
 
         let atoms = vec![atom1, atom2];
         let system = System::new("Artificial system.", atoms, Some([10.0, 10.0, 10.0].into()));
 
         let center = system.group_get_com("all").unwrap();
 
-        assert_approx_eq!(f32, center.x, 4.358, epsilon = 0.0001);
-        assert_approx_eq!(f32, center.y, 3.088, epsilon = 0.0001);
-        assert_approx_eq!(f32, center.z, 1.73549, epsilon = 0.0001);
-    }*/
+        assert_approx_eq!(f32, center.x, 4.4904, epsilon = 0.0001);
+        assert_approx_eq!(f32, center.y, 3.1630, epsilon = 0.0001);
+        assert_approx_eq!(f32, center.z, 1.7355, epsilon = 0.0001);
+    }
+
+    #[test]
+    fn com_several_atoms_pbc() {
+        let atom_positions: Vec<[f32; 3]> = vec![
+            [3.3, 0.3, 2.5],
+            [4.3, 1.2, 9.8],
+            [3.2, 5.6, 0.5],
+            [0.2, 9.0, 6.6],
+            [8.7, 5.0, 2.4],
+        ];
+
+        let masses = vec![10.3, 5.4, 3.8, 10.1, 7.6];
+
+        let mut atoms = Vec::new();
+        for (i, position) in atom_positions.into_iter().enumerate() {
+            let atom = Atom::new(i, "UNK", i, "BB")
+                .with_position(position.into())
+                .with_mass(masses[i]);
+
+            atoms.push(atom);
+        }
+
+        let system = System::new("Artificial system.", atoms, Some([10.0, 10.0, 10.0].into()));
+
+        let center = system.group_get_com("all").unwrap();
+
+        assert_approx_eq!(f32, center.x, 1.9526, epsilon = 0.0001);
+        assert_approx_eq!(f32, center.y, 9.7567, epsilon = 0.0001);
+        assert_approx_eq!(f32, center.z, 1.8812, epsilon = 0.0001);
+    }
+
+    #[test]
+    fn com_several_atoms_outofbox() {
+        let atom_positions: Vec<[f32; 3]> = vec![
+            [3.3, 10.3, 2.5],
+            [4.3, 1.2, -0.2],
+            [13.2, 15.6, 0.5],
+            [10.2, -1.0, 6.6],
+            [-1.3, 5.0, 2.4],
+        ];
+
+        let masses = vec![10.3, 5.4, 3.8, 10.1, 7.6];
+
+        let mut atoms = Vec::new();
+        for (i, position) in atom_positions.into_iter().enumerate() {
+            let atom = Atom::new(i, "UNK", i, "BB")
+                .with_position(position.into())
+                .with_mass(masses[i]);
+
+            atoms.push(atom);
+        }
+
+        let system = System::new("Artificial system.", atoms, Some([10.0, 10.0, 10.0].into()));
+
+        let center = system.group_get_com("all").unwrap();
+
+        assert_approx_eq!(f32, center.x, 1.9526, epsilon = 0.0001);
+        assert_approx_eq!(f32, center.y, 9.7567, epsilon = 0.0001);
+        assert_approx_eq!(f32, center.z, 1.8812, epsilon = 0.0001);
+    }
 
     #[test]
     fn com_real_system_same_mass() {

@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023 Ladislav Bartos
+// Copyright (c) 2023-2024 Ladislav Bartos
 
 //! Implementation of the Name enum for the Groan selection language.
 
