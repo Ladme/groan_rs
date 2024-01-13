@@ -129,7 +129,7 @@ impl System {
     /// In other words, this function performs an operation commonly called 'centering'.
     /// As this function uses Bai-Breen method for calculating the center of geometry in periodic systems,
     /// the reference group can be of any size and atom distribution.
-    /// 
+    ///
     /// Unlike `System::atoms_center`, this function uses center of *mass* of the reference group,
     /// instead of center of geometry.
     ///
@@ -174,7 +174,7 @@ impl System {
             box_center.z - reference_com.z,
         ]
         .into();
-        
+
         shift.filter(dimension);
         match self.atoms_translate(&shift) {
             Ok(_) => Ok(()),
@@ -188,7 +188,10 @@ impl System {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{errors::{PositionError, SimBoxError, MassError}, structures::element::Elements};
+    use crate::{
+        errors::{MassError, PositionError, SimBoxError},
+        structures::element::Elements,
+    };
     use float_cmp::assert_approx_eq;
     use std::path::Path;
 
