@@ -94,6 +94,8 @@ pub struct ProgressPrinter {
     jumping_msg: ProgressMessage,
     /// String terminating the progress message. Default: `\r` (carriage return).
     terminating: String,
+    /// Should newline character be printed at the end of the iteration? Default: `true`.
+    newline_at_end: bool,
 }
 
 impl ProgressPrinter {
@@ -111,6 +113,8 @@ impl ProgressPrinter {
     /// - `failed_msg`: `"FAILED!".red()` (string printed when the trajectory reading failed)
     /// - `jumping_msg`: `"JUMPING".bright_purple()` (string printed when the trajectory reader is jumping to the iteration start)
     /// - `terminating`: `\r` (string terminating the progress message; useful to set to `\n` when printing to a file)
+    /// - `newline_at_end`: `true` (should newline be printed once iteration is finished or failed?;
+    ///    useful to set to `false` when reading multiple trajectories sequentially)
     ///
     /// You can set custom values for any of the parameters by using `with_%PARAMETER()` method
     /// when constructing the `ProgressPrinter`.
@@ -171,6 +175,7 @@ impl ProgressPrinter {
             failed_msg: ProgressMessage::new("FAILED!".red()),
             jumping_msg: ProgressMessage::new("JUMPING".bright_purple()),
             terminating: String::from("\r"),
+            newline_at_end: true,
         }
     }
 
@@ -262,6 +267,12 @@ impl ProgressPrinter {
         self
     }
 
+    /// Create new `ProgressPrinter` that will (not) print newline once iteration is finished.
+    pub fn with_newline_at_end(mut self, newline: bool) -> Self {
+        self.newline_at_end = newline;
+        self
+    }
+
     /// Print progress info about trajectory reading.
     pub fn print(&mut self, frame_number: usize, sim_step: u64, sim_time: f32) {
         if self.status != ProgressStatus::Running || frame_number % self.print_freq == 0 {
@@ -304,7 +315,11 @@ impl ProgressPrinter {
 
             match self.status {
                 ProgressStatus::Running | ProgressStatus::Jumping => (),
-                ProgressStatus::Completed | ProgressStatus::Failed => println!(),
+                ProgressStatus::Completed | ProgressStatus::Failed => {
+                    if self.newline_at_end {
+                        write!(self.output, "\n").expect("FATAL GROAN ERROR | ProgressPrinter::print (6) | Could not write to `ProgressPrinter` stream.");
+                    }
+                }
             }
 
             self.output
@@ -528,6 +543,38 @@ mod tests {
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected = File::open("test_files/progress_expected_terminating.txt").unwrap();
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn print_with_newline_at_end_false() {
+        let output = NamedTempFile::new().unwrap();
+        let path_to_output = output.path().to_owned();
+
+        let mut printer = ProgressPrinter::new()
+            .with_output(Box::from(output))
+            .with_colored(false)
+            .with_newline_at_end(false);
+
+        printer.set_status(ProgressStatus::Jumping);
+        printer.print(0, 0, 0.0);
+        printer.set_status(ProgressStatus::Running);
+        printer.print(0, 0, 0.0);
+        printer.print(1, 10, 10.0);
+        printer.print(2, 20, 20.0);
+        printer.print(5, 50, 50.0);
+        printer.print(95, 950, 950.0);
+        printer.print(100, 1000, 1000.0);
+        printer.print(101, 1010, 1010.0);
+        printer.print(200, 2000, 2000.0);
+        printer.print(300, 3000, 3000.0);
+        printer.set_status(ProgressStatus::Completed);
+        printer.print(400, 4000, 4000.0);
+        printer.set_status(ProgressStatus::Failed);
+        printer.print(500, 5000, 5000.0);
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/progress_expected_no_newline.txt").unwrap();
         assert!(file_diff::diff_files(&mut result, &mut expected));
     }
 
