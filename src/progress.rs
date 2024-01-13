@@ -317,7 +317,7 @@ impl ProgressPrinter {
                 ProgressStatus::Running | ProgressStatus::Jumping => (),
                 ProgressStatus::Completed | ProgressStatus::Failed => {
                     if self.newline_at_end {
-                        write!(self.output, "\n").expect("FATAL GROAN ERROR | ProgressPrinter::print (6) | Could not write to `ProgressPrinter` stream.");
+                        writeln!(self.output).expect("FATAL GROAN ERROR | ProgressPrinter::print (6) | Could not write to `ProgressPrinter` stream.");
                     }
                 }
             }
