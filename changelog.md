@@ -2,46 +2,49 @@
 ## Changelog for the `groan_rs` library
 
 ### Version 0.6.0
-
-#### Simulation box is now optional property of the system
-- **Breaking change:** Simulation box is now an optional property of the system.
-  - This causes changes in the return type of various functions accessing the simulation box.
-  - High-level methods of the `System` structure return errors when they require a simulation box but it is not present.
+#### Simulation box is now an optional property of the system
+- **Breaking change:** The simulation box is now an optional property of the system.
+  - This change affects the return type of various functions that access the simulation box.
+  - High-level methods of the `System` structure now return errors if they require a simulation box and it is not present.
 
 #### Undefined atom positions no longer cause panic
-- **Breaking change:** Higher-level `System` and `Atom` methods now do not panic when encountering an atom with undefined position and instead return a recoverable error.
+- **Breaking change:** Higher-level `System` and `Atom` methods no longer panic when encountering an atom with an undefined position; instead, they return a recoverable error.
 
 #### Assigning and guessing elements and bonds
-- Added `Elements` structure which defines properties of the supported elements.
-- `Elements` structure can be constructed from a YAML file containing the element definitions by calling `Elements::from_file`.
-- Default properties of the elements supported by `groan_rs` are stored in `src/config/elements.yaml`. Default `Elements` structure, containing elements and their properties from this YAML file, can be constructed using `Elements::default`.
-- `Elements` structure can be updated using `Elements::update`. In such case, another `Elements` structure must be provided which specifies changes to be made in the original `Elements` structure.
-- Bonds can be now guessed for the system using `System::guess_bonds`. This requires van der Waals radii to be assigned to the individual atoms. Van der Waals radii can be guessed from the elements.
+- Added the `Elements` structure, which defines properties of supported elements.
+- The `Elements` structure can be constructed from a YAML file containing element definitions by calling `Elements::from_file`.
+- Default properties of the elements supported by `groan_rs` are stored in `src/config/elements.yaml`. A default `Elements` structure, containing elements and their properties from this YAML file, can be constructed using `Elements::default`.
+- The `Elements` structure can be updated using `Elements::update`. In this case, another `Elements` structure must be provided, specifying the changes to be made to the original `Elements` structure.
+- Elements can be guessed for the atoms of the system using `System::guess_elements`.
+- Bonds can now be guessed for the system using `System::guess_bonds`. This requires van der Waals radii to be assigned to individual atoms. Van der Waals radii can be guessed based on the elements.
 
 #### Changes to the `Atom` structure
-- New optional fields `mass`, `element_name`, `element_symbol`, `vdw`, and `expected_max_bonds` added:
-  - `mass` specifies mass of the atom.
-  - `element_name` specifies name of the element assigned to this atom.
+- New optional fields added: `mass`, `element_name`, `element_symbol`, `vdw`, `expected_max_bonds`, and `expected_min_bonds`:
+  - `mass` specifies the mass of the atom.
+  - `element_name` specifies the name of the element assigned to this atom.
   - `element_symbol` specifies the symbol of the element.
   - `vdw` specifies the van der Waals radius used to guess bonds between atoms.
-  - `expected_max_bonds` specifies the expected maximal number of bonds this atom may form.
-  - `expected_min_bonds` specifies the expected minimal number of bonds this atom may form.
-- Methods were added to use and access the new fields.
+  - `expected_max_bonds` specifies the expected maximum number of bonds this atom may form.
+  - `expected_min_bonds` specifies the expected minimum number of bonds this atom forms.
+- Methods have been added to utilize and access these new fields.
 
-#### Groan Selection Language
-- **Breaking change:** Macro `@hydrogen` is no longer supported. Instead, use `element name hydrogen`.
-- Bug fix: Invalid queries containing a command in parentheses followed by anything other than a binary operator (e.g. `(name CA CB) resname LYS`) no longer cause a panic, but return a proper error.
-- Atoms can be now selected based on their element name or element symbol (`element name carbon` or `element symbol C`). This requires atoms to be assigned elements.
-- Atoms that are part of the same molecule can be now selected using the `molecule with` operator. For instance, `molecule with serial 13` will select all atoms that are part of the same molecule as atom with number 13. This requires the system to have topology information.
+#### Changes to the Groan Selection Language
+- **Breaking change:** The macro `@hydrogen` is no longer supported. Use `element name hydrogen` instead.
+- Bug fix: Invalid queries containing a command in parentheses followed by anything other than a binary operator (e.g., `(name CA CB) resname LYS`) no longer cause a panic but instead return a proper error.
+- Atoms can now be selected based on their element name or element symbol (`element name carbon` or `element symbol C`). This requires atoms to have assigned elements.
+- Atoms that are part of the same molecule can now be selected using the `molecule with` operator. For example, `molecule with serial 13` will select all atoms that are part of the same molecule as the atom with number 13. This requires the system to have topology information.
+
+#### Center of mass calculations
+- Introduced `System::group_get_com` for calculating the center of mass of a group of atoms using the Bai and Breen algorithm. Note that all atoms in the target group must have mass information.
 
 #### Other changes
-- **Breaking change:** `System::set_mol_references` method is no longer public.
-- Added more tests for basic `Atom` `get_*`, `set_*`, `reset_*`, and `with_*` functions.
+- **Breaking change:** The `System::set_mol_references` method is no longer public.
+- Added more tests for the basic `Atom` `get_*`, `set_*`, `reset_*`, and `with_*` functions.
 - Documentation examples no longer repeat that you have to use `groan_rs::prelude::*`.
-- Added `Atom::distance_naive` for calculating distance between atoms without taking periodic boundary conditions into consideration.
+- Added `Atom::distance_naive` for calculating the distance between atoms without considering periodic boundary conditions.
 - Bug fix: `Vector3D::wrap_coordinate` and `Vector3D::min_image` now panic if `box_len` is 0 instead of looping indefinitely.
-- `System::group_get_center` function has been refactored and may return a result that is not binary identical to previous versions.
-- Introduced `System::group_isempty` function for checking whether target group of atoms is empty.
+- The `System::group_get_center` function has been refactored and may return a result that is not binary identical to previous versions.
+- Introduced `System::group_isempty` function for checking whether a target group of atoms is empty.
 
 ***
 
