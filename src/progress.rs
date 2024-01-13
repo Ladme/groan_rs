@@ -117,9 +117,9 @@ impl ProgressPrinter {
     ///
     /// ## Examples
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use colored::Colorize;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use colored::Colorize;
+    /// #
     /// // create progress printer
     /// // print info every 200th trajectory frame read
     /// // yellow string "ANALYZING" will be printed while the trajectory is being read
@@ -148,8 +148,8 @@ impl ProgressPrinter {
     /// By default, `ProgressPrinter` prints to standard output.
     /// However, you can also let it print into a file.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let file = std::fs::File::create("progress.log").unwrap();
     /// let printer = ProgressPrinter::new()
     ///     .with_output(Box::from(file))

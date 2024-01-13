@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023 Ladislav Bartos
+// Copyright (c) 2023-2024 Ladislav Bartos
 
 //! Implementation of the `System` structure and methods for constructing the `System` and accessing its properties.
 
@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use std::error::Error;
 use std::path::Path;
 
-use crate::errors::{AtomError, GroupError, ParseFileError};
+use crate::errors::{AtomError, GroupError, ParseFileError, SimBoxError};
 use crate::files::FileType;
 use crate::io::gro_io;
 use crate::io::pdb_io;
@@ -20,8 +20,8 @@ pub struct System {
     name: String,
     /// Vector of atoms in the system.
     atoms: Vec<Atom>,
-    /// Size of the simulation box.
-    simulation_box: SimBox,
+    /// Size of the simulation box. (Optional.)
+    simulation_box: Option<SimBox>,
     /// Groups of atoms associated with the system.
     groups: IndexMap<String, Group>,
     /// Current simulation step.
@@ -49,8 +49,8 @@ impl System {
     ///
     /// ## Example 1: Manually creating a system
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let name = "My System";
     /// let atoms = Vec::new();
     ///
@@ -59,13 +59,13 @@ impl System {
     /// let simulation_box = SimBox::from([10.0, 10.0, 12.0]);
     ///
     /// // construct the molecular system
-    /// let system = System::new(name, atoms, simulation_box);
+    /// let system = System::new(name, atoms, Some(simulation_box));
     /// ```
     ///
     /// ## Example 2: Creating system from other system using `extract`
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// // load system from file
     /// let mut original_system = System::from_file("system.gro").unwrap();
     /// // create a group "Protein" consisting of atoms of residues 1 to 29
@@ -82,8 +82,8 @@ impl System {
     ///
     /// ## Example 3: Creating system from other system using iterators
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut original_system = System::from_file("system.gro").unwrap();
     ///
     /// // construct a sphere located at x = 1, y = 2, z = 3 with a radius of 2.5 nm
@@ -100,7 +100,7 @@ impl System {
     ///     iterator.cloned().collect(),
     ///     original_system.get_box_copy());
     /// ```
-    pub fn new(name: &str, atoms: Vec<Atom>, simulation_box: SimBox) -> Self {
+    pub fn new(name: &str, atoms: Vec<Atom>, simulation_box: Option<SimBox>) -> Self {
         let mut system = System {
             name: name.to_string(),
             atoms,
@@ -133,8 +133,8 @@ impl System {
     /// ## Example
     /// Reading gro file.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let system = match System::from_file("system.gro") {
     ///     Ok(x) => x,
     ///     Err(e) => {
@@ -230,30 +230,41 @@ impl System {
     }
 
     /// Get immutable reference to the simulation box.
-    pub fn get_box_as_ref(&self) -> &SimBox {
-        &self.simulation_box
+    pub fn get_box_as_ref(&self) -> Option<&SimBox> {
+        self.simulation_box.as_ref()
+    }
+
+    /// Check whether the system has a simulation box.
+    pub fn has_box(&self) -> bool {
+        self.simulation_box.is_some()
     }
 
     /// Get center of the simulation box.
     ///
-    /// ## Warning
-    /// Currently only implemented for orthogonal simulation boxes!
-    pub fn get_box_center(&self) -> Vector3D {
-        Vector3D {
-            x: self.simulation_box.x / 2.0f32,
-            y: self.simulation_box.y / 2.0f32,
-            z: self.simulation_box.z / 2.0f32,
+    /// ## Returns
+    /// - `Vector3D` if successful.
+    /// - `SimBoxError` if the system has no simulation box
+    /// or if the simulation box is not orthogonal.
+    pub fn get_box_center(&self) -> Result<Vector3D, SimBoxError> {
+        match &self.simulation_box {
+            Some(simbox) if simbox.is_orthogonal() => Ok(Vector3D {
+                x: simbox.x / 2.0f32,
+                y: simbox.y / 2.0f32,
+                z: simbox.z / 2.0f32,
+            }),
+            Some(_) => Err(SimBoxError::NotOrthogonal),
+            None => Err(SimBoxError::DoesNotExist),
         }
     }
 
     /// Get mutable reference to the simulation box.
-    pub fn get_box_as_ref_mut(&mut self) -> &mut SimBox {
-        &mut self.simulation_box
+    pub fn get_box_as_ref_mut(&mut self) -> Option<&mut SimBox> {
+        self.simulation_box.as_mut()
     }
 
     /// Get copy of the simulation box.
-    pub fn get_box_copy(&self) -> SimBox {
-        self.simulation_box.clone()
+    pub fn get_box_copy(&self) -> Option<SimBox> {
+        self.simulation_box.as_ref().cloned()
     }
 
     /// Get the number of atoms in the system.
@@ -298,7 +309,12 @@ impl System {
 
     /// Set simulation box.
     pub fn set_box(&mut self, sim_box: SimBox) {
-        self.simulation_box = sim_box;
+        self.simulation_box = Some(sim_box);
+    }
+
+    /// Set simulation box to `None`.
+    pub fn reset_box(&mut self) {
+        self.simulation_box = None;
     }
 
     /// Set precision of the coordinates.
@@ -328,12 +344,7 @@ impl System {
     }
 
     /// Set reference atoms of molecules.
-    ///
-    /// ## Safety
-    /// Modifying `mol_references` may break the system.
-    /// You should not set `mol_references` manually unless you know what you are doing.
-    /// Which you do not. There really is no reason to use this method.
-    pub unsafe fn set_mol_references(&mut self, indices: Vec<usize>) {
+    pub(crate) unsafe fn set_mol_references(&mut self, indices: Vec<usize>) {
         self.mol_references = Some(indices);
     }
 
@@ -497,7 +508,7 @@ mod tests {
         let system = System::new(
             "System generated using the `groan_rs` library.",
             Vec::new(),
-            [1.5, 3.3, 0.8].into(),
+            Some([1.5, 3.3, 0.8].into()),
         );
 
         assert_eq!(
@@ -506,15 +517,17 @@ mod tests {
         );
         assert_eq!(system.get_atoms_as_ref().len(), 0);
 
-        assert_approx_eq!(f32, system.get_box_as_ref().v1x, 1.5f32);
-        assert_approx_eq!(f32, system.get_box_as_ref().v2y, 3.3f32);
-        assert_approx_eq!(f32, system.get_box_as_ref().v3z, 0.8f32);
-        assert_eq!(system.get_box_as_ref().v1y, 0.0f32);
-        assert_eq!(system.get_box_as_ref().v1z, 0.0f32);
-        assert_eq!(system.get_box_as_ref().v2x, 0.0f32);
-        assert_eq!(system.get_box_as_ref().v2z, 0.0f32);
-        assert_eq!(system.get_box_as_ref().v3x, 0.0f32);
-        assert_eq!(system.get_box_as_ref().v3y, 0.0f32);
+        let simbox = system.get_box_as_ref().unwrap();
+
+        assert_approx_eq!(f32, simbox.v1x, 1.5f32);
+        assert_approx_eq!(f32, simbox.v2y, 3.3f32);
+        assert_approx_eq!(f32, simbox.v3z, 0.8f32);
+        assert_eq!(simbox.v1y, 0.0f32);
+        assert_eq!(simbox.v1z, 0.0f32);
+        assert_eq!(simbox.v2x, 0.0f32);
+        assert_eq!(simbox.v2z, 0.0f32);
+        assert_eq!(simbox.v3x, 0.0f32);
+        assert_eq!(simbox.v3y, 0.0f32);
 
         assert!(system.group_exists("all"));
     }
@@ -526,7 +539,7 @@ mod tests {
         assert_eq!(system_gro.get_name(), "Buforin II peptide P11L");
         assert_eq!(system_gro.get_n_atoms(), 50);
 
-        let simbox = system_gro.get_box_as_ref();
+        let simbox = system_gro.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.x, 6.08608);
         assert_approx_eq!(f32, simbox.y, 6.08608);
         assert_approx_eq!(f32, simbox.z, 6.08608);
@@ -543,7 +556,7 @@ mod tests {
         assert_eq!(system_pdb.get_name(), "Buforin II peptide P11L");
         assert_eq!(system_pdb.get_n_atoms(), 50);
 
-        let simbox = system_pdb.get_box_as_ref();
+        let simbox = system_pdb.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.x, 6.0861);
         assert_approx_eq!(f32, simbox.y, 6.0861);
         assert_approx_eq!(f32, simbox.z, 6.0861);
@@ -615,25 +628,31 @@ mod tests {
     }
 
     #[test]
+    fn reset_box() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        assert!(system.simulation_box.is_some());
+        system.reset_box();
+        assert!(system.simulation_box.is_none());
+    }
+
+    #[test]
     fn get_box_copy() {
         let system = System::from_file("test_files/example_box9.gro").unwrap();
 
-        let mut simbox = system.get_box_copy();
+        let simbox = system.get_box_copy().unwrap();
+        let original_simbox = system.get_box_as_ref().unwrap();
 
-        assert_approx_eq!(f32, simbox.x, system.get_box_as_ref().x);
-        assert_approx_eq!(f32, simbox.y, system.get_box_as_ref().y);
-        assert_approx_eq!(f32, simbox.z, system.get_box_as_ref().z);
+        assert_approx_eq!(f32, simbox.x, original_simbox.x);
+        assert_approx_eq!(f32, simbox.y, original_simbox.y);
+        assert_approx_eq!(f32, simbox.z, original_simbox.z);
 
-        assert_approx_eq!(f32, simbox.v1y, system.get_box_as_ref().v1y);
-        assert_approx_eq!(f32, simbox.v1z, system.get_box_as_ref().v1z);
-        assert_approx_eq!(f32, simbox.v2x, system.get_box_as_ref().v2x);
+        assert_approx_eq!(f32, simbox.v1y, original_simbox.v1y);
+        assert_approx_eq!(f32, simbox.v1z, original_simbox.v1z);
+        assert_approx_eq!(f32, simbox.v2x, original_simbox.v2x);
 
-        assert_approx_eq!(f32, simbox.v2z, system.get_box_as_ref().v2z);
-        assert_approx_eq!(f32, simbox.v3x, system.get_box_as_ref().v3x);
-        assert_approx_eq!(f32, simbox.v3y, system.get_box_as_ref().v3y);
-
-        simbox.v1x = 10.3;
-        simbox.v2x = 8.4;
+        assert_approx_eq!(f32, simbox.v2z, original_simbox.v2z);
+        assert_approx_eq!(f32, simbox.v3x, original_simbox.v3x);
+        assert_approx_eq!(f32, simbox.v3y, original_simbox.v3y);
     }
 
     #[test]
@@ -848,5 +867,44 @@ mod tests {
 
         let atom = system.get_atom_copy(16843).unwrap();
         assert_eq!(atom.get_atom_number(), 16844);
+    }
+
+    #[test]
+    fn get_box_center() {
+        let system = System::from_file("test_files/example.gro").unwrap();
+        let center = system.get_box_center().unwrap();
+
+        assert_approx_eq!(f32, center.x, 6.506655);
+        assert_approx_eq!(f32, center.y, 6.506655);
+        assert_approx_eq!(f32, center.z, 5.626735);
+    }
+
+    #[test]
+    fn get_box_center_nosimbox() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.reset_box();
+
+        match system.get_box_center() {
+            Ok(_) => panic!("Function should have failed."),
+            Err(SimBoxError::DoesNotExist) => (),
+            Err(e) => panic!(
+                "Function failed successfully but incorrect error type `{}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn get_box_center_notorthogonal() {
+        let system = System::from_file("test_files/octahedron.gro").unwrap();
+
+        match system.get_box_center() {
+            Ok(_) => panic!("Function should have failed."),
+            Err(SimBoxError::NotOrthogonal) => (),
+            Err(e) => panic!(
+                "Function failed successfully but incorrect error type `{}` was returned.",
+                e
+            ),
+        }
     }
 }

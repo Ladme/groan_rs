@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023 Ladislav Bartos
+// Copyright (c) 2023-2024 Ladislav Bartos
 
 //! Implementation of the Group structure and its methods.
 
@@ -10,6 +10,7 @@ use crate::selections::select::{self, Select};
 use crate::structures::container::AtomContainer;
 use crate::structures::shape::Shape;
 use crate::system::general::System;
+use crate::system::iterating::get_molecule_indices;
 
 /******************************/
 /*       GROUP STRUCTURE      */
@@ -110,6 +111,9 @@ impl Group {
 
     /// Consumes self returning a new `Group` which only contains atoms fullfilling the geometry condition.
     /// Atoms that have no positions are never inside any geometric shape.
+    ///
+    /// ## Panics
+    /// Panics if the system has no simulation box.
     fn apply_geometry(self, geometry: impl Shape, system: &System) -> Self {
         let mut indices = Vec::new();
 
@@ -123,7 +127,7 @@ impl Group {
 
             // atoms that have no positions are not inside the shape
             if let Some(pos) = atom.get_position() {
-                if geometry.inside(pos, simbox) {
+                if geometry.inside(pos, simbox.expect("FATAL GROAN ERROR | Group::apply_geometry | System does not have a simulation box.")) {
                     indices.push(index);
                 }
             }
@@ -137,6 +141,9 @@ impl Group {
 
     /// Consumes self returning a new `Group` which only contains atoms fulfilling the specified geometry conditions.
     /// Atoms that have no positions are never inside any geometric shape.
+    ///
+    /// ## Panics
+    /// Panics if the system has no simulation box.
     fn apply_geometries(self, geometries: Vec<Box<dyn Shape>>, system: &System) -> Self {
         let mut indices = Vec::new();
 
@@ -151,7 +158,7 @@ impl Group {
 
             for geom in &geometries {
                 if let Some(pos) = atom.get_position() {
-                    if !geom.inside(pos, simbox) {
+                    if !geom.inside(pos, simbox.expect("FATAL GROAN ERROR | Group::apply_geometries | System does not have a simulation box.")) {
                         inside = false;
                         break;
                     }
@@ -174,7 +181,7 @@ impl Group {
     }
 
     /// Check whether properties of target atom match conditions prescribed by target Select tree.
-    fn matches_select(
+    pub(super) fn matches_select(
         atom_index: usize,
         select: &Select,
         system: &System,
@@ -221,6 +228,37 @@ impl Group {
                         Ok(true) => return Ok(true),
                         Ok(false) => (),
                         Err(e) => return Err(e),
+                    }
+                }
+
+                Ok(false)
+            }
+
+            Select::ElementName(names) => {
+                let elname = match system.get_atoms_as_ref()[atom_index].get_element_name() {
+                    None => return Ok(false),
+                    Some(x) => x,
+                };
+
+                Ok(names.iter().any(|target| target == elname))
+            }
+
+            Select::ElementSymbol(symbols) => {
+                let elsymbol = match system.get_atoms_as_ref()[atom_index].get_element_symbol() {
+                    None => return Ok(false),
+                    Some(x) => x,
+                };
+
+                Ok(symbols.iter().any(|target| target == elsymbol))
+            }
+
+            Select::Molecule(operand) => {
+                let molecule_indices = get_molecule_indices(system, atom_index)
+                    .expect("FATAL GROAN ERROR | Group::matches_select | Atom index should exist.");
+
+                for index in molecule_indices {
+                    if Group::matches_select(index, operand, system)? {
+                        return Ok(true);
                     }
                 }
 

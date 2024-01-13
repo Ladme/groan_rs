@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023 Ladislav Bartos
+// Copyright (c) 2023-2024 Ladislav Bartos
 
 //! Implementation of iterators over atoms and filter functions.
 
@@ -19,7 +19,7 @@ use crate::structures::{
 pub struct AtomIterator<'a> {
     atoms: &'a [Atom],
     container_iterator: AtomContainerIterator<'a>,
-    simbox: &'a SimBox,
+    simbox: Option<&'a SimBox>,
 }
 
 /// Iteration over atoms.
@@ -41,8 +41,12 @@ impl<'a> AtomIterator<'a> {
     /// ## Parameters
     /// - `atoms`: reference to the atoms of the `System`
     /// - `atom_container`: `AtomContainer` specifying the atoms to iterate through
-    /// - `simbox`: current dimensions of the simulation box
-    pub fn new(atoms: &'a [Atom], atom_container: &'a AtomContainer, simbox: &'a SimBox) -> Self {
+    /// - `simbox`: current dimensions of the simulation box (required only for geometric filtering)
+    pub fn new(
+        atoms: &'a [Atom],
+        atom_container: &'a AtomContainer,
+        simbox: Option<&'a SimBox>,
+    ) -> Self {
         AtomIterator {
             atoms,
             container_iterator: atom_container.iter(),
@@ -52,12 +56,15 @@ impl<'a> AtomIterator<'a> {
 
     /// Filter atoms located inside the specified geometric shape.
     ///
+    /// ## Panics
+    /// Panics if the `AtomIterator` has no associated simulation box.
+    ///
     /// ## Example
     /// Iterating over all atoms of the system
     /// that are located in a sphere around a specific point.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let system = System::from_file("system.gro").unwrap();
     ///
     /// // construct a sphere located at x = 1, y = 2, z = 3 with a radius of 2.5 nm
@@ -71,7 +78,11 @@ impl<'a> AtomIterator<'a> {
         self,
         geometry: impl Shape,
     ) -> FilterAtomIterator<'a, AtomIterator<'a>, impl Shape> {
-        let simbox = self.simbox;
+        let simbox = match self.simbox {
+            Some(x) => x,
+            None => panic!("FATAL GROAN ERROR | AtomIterator::filter_geometry | No simulation box associated with atom iterator."),
+        };
+
         FilterAtomIterator {
             iterator: self,
             geometry,
@@ -136,7 +147,7 @@ pub struct MoleculeIterator<'a> {
     atoms: &'a [Atom],
     container: Vec<usize>,
     current_index: usize,
-    simbox: &'a SimBox,
+    simbox: Option<&'a SimBox>,
 }
 
 impl<'a> MoleculeIterator<'a> {
@@ -145,8 +156,8 @@ impl<'a> MoleculeIterator<'a> {
     /// ## Parameters
     /// - `atoms`: reference to the atoms of the `System`
     /// - `container`: vector specifying indices of the atoms to iterate through
-    /// - `simbox`: current dimensions of the simulation box
-    pub fn new(atoms: &'a [Atom], container: Vec<usize>, simbox: &'a SimBox) -> Self {
+    /// - `simbox`: current dimensions of the simulation box (required only for geometric filtering)
+    pub fn new(atoms: &'a [Atom], container: Vec<usize>, simbox: Option<&'a SimBox>) -> Self {
         MoleculeIterator {
             atoms,
             container,
@@ -156,11 +167,18 @@ impl<'a> MoleculeIterator<'a> {
     }
 
     /// Filter atoms located inside the specified geometric shape.
+    ///
+    /// ## Panics
+    /// Panics if the `MoleculeIterator` has no associated simulation box.
     pub fn filter_geometry(
         self,
         geometry: impl Shape,
     ) -> FilterAtomIterator<'a, MoleculeIterator<'a>, impl Shape> {
-        let simbox = self.simbox;
+        let simbox = match self.simbox {
+            Some(x) => x,
+            None => panic!("FATAL GROAN ERROR | MoleculeIterator::filter_geometry | No simulation box associated with molecule iterator."),
+        };
+
         FilterAtomIterator {
             iterator: self,
             geometry,
@@ -192,7 +210,7 @@ impl<'a> Iterator for MoleculeIterator<'a> {
 pub struct MutAtomIterator<'a> {
     atoms: *mut [Atom],
     container_iterator: AtomContainerIterator<'a>,
-    simbox: &'a SimBox,
+    simbox: Option<&'a SimBox>,
 }
 
 impl<'a> MutAtomIterator<'a> {
@@ -201,11 +219,11 @@ impl<'a> MutAtomIterator<'a> {
     /// ## Parameters
     /// - `atoms`: mutable reference to the atoms of the `System`
     /// - `atom_container`: `AtomContainer` specifying the atoms to iterate through
-    /// - `simbox`: current dimensions of the simulation box
+    /// - `simbox`: current dimensions of the simulation box (required only for geometric filtering)
     pub fn new(
         atoms: &'a mut [Atom],
         atom_container: &'a AtomContainer,
-        simbox: &'a SimBox,
+        simbox: Option<&'a SimBox>,
     ) -> Self {
         MutAtomIterator {
             atoms: atoms as *mut [Atom],
@@ -216,13 +234,16 @@ impl<'a> MutAtomIterator<'a> {
 
     /// Filter atoms located inside the specified geometric shape.
     ///
+    /// ## Panics
+    /// Panics if the `MutAtomIterator` has no associated simulation box.
+    ///
     /// ## Example
     /// Iterating over all atoms of the system
     /// that are located in a sphere around a specific point
     /// and change their names.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// // construct a sphere located at x = 1, y = 2, z = 3 with a radius of 2.5 nm
@@ -236,7 +257,11 @@ impl<'a> MutAtomIterator<'a> {
         self,
         geometry: impl Shape,
     ) -> MutFilterAtomIterator<'a, MutAtomIterator<'a>, impl Shape> {
-        let simbox = self.simbox;
+        let simbox = match self.simbox {
+            Some(x) => x,
+            None => panic!("FATAL GROAN ERROR | MutAtomIterator::filter_geometry | No simulation box associated with atom iterator."),
+        };
+
         MutFilterAtomIterator {
             iterator: self,
             geometry,
@@ -259,6 +284,7 @@ impl<'a> Iterator for MutAtomIterator<'a> {
 
 /// Mutable iterator over atoms with applied geometry filter.
 /// Constructed by calling `filter_geometry` method on `MutAtomIterator` or `MutFilterAtomIterator`.
+///
 /// ## Notes
 /// - Atoms with no positions set are never inside any geometric shape.
 pub struct MutFilterAtomIterator<'a, I, S>
@@ -312,7 +338,7 @@ pub struct MutMoleculeIterator<'a> {
     atoms: *mut [Atom],
     container: Vec<usize>,
     current_index: usize,
-    simbox: &'a SimBox,
+    simbox: Option<&'a SimBox>,
 }
 
 impl<'a> MutMoleculeIterator<'a> {
@@ -322,7 +348,7 @@ impl<'a> MutMoleculeIterator<'a> {
     /// - `atoms`: mutable reference to the atoms of the `System`
     /// - `container`: vector specifying indices of the atoms to iterate through
     /// - `simbox`: current dimensions of the simulation box
-    pub fn new(atoms: &'a mut [Atom], container: Vec<usize>, simbox: &'a SimBox) -> Self {
+    pub fn new(atoms: &'a mut [Atom], container: Vec<usize>, simbox: Option<&'a SimBox>) -> Self {
         MutMoleculeIterator {
             atoms,
             container,
@@ -336,7 +362,11 @@ impl<'a> MutMoleculeIterator<'a> {
         self,
         geometry: impl Shape,
     ) -> MutFilterAtomIterator<'a, MutMoleculeIterator<'a>, impl Shape> {
-        let simbox = self.simbox;
+        let simbox = match self.simbox {
+            Some(x) => x,
+            None => panic!("FATAL GROAN ERROR | MutMoleculeIterator::filter_geometry | No simulation box associated with molecule iterator."),
+        };
+
         MutFilterAtomIterator {
             iterator: self,
             geometry,

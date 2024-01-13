@@ -1,11 +1,11 @@
 // Released under MIT License.
-// Copyright (c) 2023 Ladislav Bartos
+// Copyright (c) 2023-2024 Ladislav Bartos
 
 //! Implementation of the Atom structure and its methods.
 
 use std::io::Write;
 
-use crate::errors::{WriteGroError, WritePdbError};
+use crate::errors::{AtomError, PositionError, WriteGroError, WritePdbError};
 use crate::structures::{
     container::AtomContainer, dimension::Dimension, simbox::SimBox, vector3d::Vector3D,
 };
@@ -20,15 +20,27 @@ pub struct Atom {
     atom_number: usize,
     /// Name of the atom.
     atom_name: String,
-    /// Identifier of the chain this atom is part of. (Optional.)
+    /// Identifier of the chain this atom is part of. (Optional)
     chain: Option<char>,
-    /// Charge of the atom. (Optional.)
+    /// Charge of the atom. (Optional)
     charge: Option<f32>,
-    /// Position of the atom in 3D space. (Optional.)
+    /// Mass of the atom. (Optional)
+    mass: Option<f32>,
+    /// Van der Waals radius of the atom. (Optional)
+    vdw: Option<f32>,
+    /// Expected maximal number of bonded atoms. (Optional.)
+    expected_max_bonds: Option<u8>,
+    /// Expected minimal number of bonded atoms. (Optional.)
+    expected_min_bonds: Option<u8>,
+    /// Name of the element of the atom. (Optional.)
+    element_name: Option<String>,
+    /// Symbol of the element of the atom. (Optional.)
+    element_symbol: Option<String>,
+    /// Position of the atom in 3D space. (Optional)
     position: Option<Vector3D>,
-    /// Velocity of the atom. (Optional.)
+    /// Velocity of the atom. (Optional)
     velocity: Option<Vector3D>,
-    /// Force acting on the atom. (Optional.)
+    /// Force acting on the atom. (Optional)
     force: Option<Vector3D>,
     /// Indices of atoms that are bonded to this atom.
     bonded: AtomContainer,
@@ -38,7 +50,8 @@ impl Atom {
     /// Create new Atom structure with the specified properties.
     ///
     /// ## Notes
-    /// - By default, atom is constructed with `position`, `velocity`, `force`, `chain`, and `charge`
+    /// - By default, atom is constructed with `position`, `velocity`, `force`, `chain`, `charge`,
+    /// `mass`, `vdw`, `expected_max_bonds`, `expected_min_bonds`, `element_name`, and `element_symbol`
     /// set to `None`. You can provide this information using the `Atom::with_*` methods.
     pub fn new(
         residue_number: usize,
@@ -53,6 +66,12 @@ impl Atom {
             atom_name: atom_name.to_string(),
             chain: None,
             charge: None,
+            mass: None,
+            vdw: None,
+            expected_max_bonds: None,
+            expected_min_bonds: None,
+            element_name: None,
+            element_symbol: None,
             position: None,
             velocity: None,
             force: None,
@@ -87,6 +106,42 @@ impl Atom {
     /// Add charge to target atom.
     pub fn with_charge(mut self, charge: f32) -> Self {
         self.set_charge(charge);
+        self
+    }
+
+    /// Add mass to target atom.
+    pub fn with_mass(mut self, mass: f32) -> Self {
+        self.set_mass(mass);
+        self
+    }
+
+    /// Add vdw to target atom.
+    pub fn with_vdw(mut self, vdw: f32) -> Self {
+        self.set_vdw(vdw);
+        self
+    }
+
+    /// Add expected maximal number of bonds to target atom.
+    pub fn with_expected_max_bonds(mut self, expected_max_bonds: u8) -> Self {
+        self.set_expected_max_bonds(expected_max_bonds);
+        self
+    }
+
+    /// Add expected minimal number of bonds to target atom.
+    pub fn with_expected_min_bonds(mut self, expected_min_bonds: u8) -> Self {
+        self.set_expected_min_bonds(expected_min_bonds);
+        self
+    }
+
+    /// Add element name to target atom.
+    pub fn with_element_name(mut self, name: &str) -> Self {
+        self.set_element_name(name);
+        self
+    }
+
+    /// Add element name to target atom.
+    pub fn with_element_symbol(mut self, symbol: &str) -> Self {
+        self.set_element_symbol(symbol);
         self
     }
 
@@ -140,6 +195,11 @@ impl Atom {
         self.chain = Some(chain);
     }
 
+    /// Set the chain of the atom to `None`.
+    pub fn reset_chain(&mut self) {
+        self.chain = None;
+    }
+
     /// Get the charge of the atom.
     pub fn get_charge(&self) -> Option<f32> {
         self.charge
@@ -150,9 +210,109 @@ impl Atom {
         self.charge = Some(charge);
     }
 
+    /// Set the charge of the atom to `None`.
+    pub fn reset_charge(&mut self) {
+        self.charge = None;
+    }
+
+    /// Get the mass of the atom.
+    pub fn get_mass(&self) -> Option<f32> {
+        self.mass
+    }
+
+    /// Set the mass of the atom.
+    pub fn set_mass(&mut self, mass: f32) {
+        self.mass = Some(mass);
+    }
+
+    /// Set mass of the atom to `None`.
+    pub fn reset_mass(&mut self) {
+        self.mass = None;
+    }
+
+    /// Get the vdW radius of the atom.
+    pub fn get_vdw(&self) -> Option<f32> {
+        self.vdw
+    }
+
+    /// Set the vdW radius of the atom.
+    pub fn set_vdw(&mut self, vdw: f32) {
+        self.vdw = Some(vdw);
+    }
+
+    /// Set the vdW radius of the atom to `None`.
+    pub fn reset_vdw(&mut self) {
+        self.vdw = None;
+    }
+
+    /// Get the expected maximal number of bonds of the atom.
+    pub fn get_expected_max_bonds(&self) -> Option<u8> {
+        self.expected_max_bonds
+    }
+
+    /// Set the expected maximal number of bonds of the atom.
+    pub fn set_expected_max_bonds(&mut self, expected_max_bonds: u8) {
+        self.expected_max_bonds = Some(expected_max_bonds);
+    }
+
+    /// Set the expected maximal number of bonds of the atom to `None`.
+    pub fn reset_expected_max_bonds(&mut self) {
+        self.expected_max_bonds = None;
+    }
+
+    /// Get the expected minimal number of bonds of the atom.
+    pub fn get_expected_min_bonds(&self) -> Option<u8> {
+        self.expected_min_bonds
+    }
+
+    /// Set the expected minimal number of bonds of the atom.
+    pub fn set_expected_min_bonds(&mut self, expected_min_bonds: u8) {
+        self.expected_min_bonds = Some(expected_min_bonds);
+    }
+
+    /// Set the expected minimal number of bonds of the atom to `None`.
+    pub fn reset_expected_min_bonds(&mut self) {
+        self.expected_min_bonds = None;
+    }
+
+    /// Get the element name of the atom.
+    pub fn get_element_name(&self) -> Option<&str> {
+        self.element_name.as_deref()
+    }
+
+    /// Set the element name of the atom.
+    pub fn set_element_name(&mut self, name: &str) {
+        self.element_name = Some(name.to_string());
+    }
+
+    /// Set the element name of the atom to `None`.
+    pub fn reset_element_name(&mut self) {
+        self.element_name = None;
+    }
+
+    /// Get the element symbol of the atom.
+    pub fn get_element_symbol(&self) -> Option<&str> {
+        self.element_symbol.as_deref()
+    }
+
+    /// Set the element symbol of the atom.
+    pub fn set_element_symbol(&mut self, symbol: &str) {
+        self.element_symbol = Some(symbol.to_string());
+    }
+
+    /// Set the element symbol of the atom to `None`.
+    pub fn reset_element_symbol(&mut self) {
+        self.element_symbol = None;
+    }
+
     /// Get the coordinates of the atom.
     pub fn get_position(&self) -> Option<&Vector3D> {
         self.position.as_ref()
+    }
+
+    /// Get mutable reference to the coordinates of the atom.
+    pub fn get_position_mut(&mut self) -> Option<&mut Vector3D> {
+        self.position.as_mut()
     }
 
     /// Set the coordinates of the atom.
@@ -194,6 +354,11 @@ impl Atom {
         self.velocity.as_ref()
     }
 
+    /// Get mutable reference to the velocity vector of the atom.
+    pub fn get_velocity_mut(&mut self) -> Option<&mut Vector3D> {
+        self.velocity.as_mut()
+    }
+
     /// Set the velocity vector of the atom.
     pub fn set_velocity(&mut self, vel: Vector3D) {
         self.velocity = Some(vel);
@@ -207,6 +372,11 @@ impl Atom {
     /// Get the vector of the total force acting on the atom.
     pub fn get_force(&self) -> Option<&Vector3D> {
         self.force.as_ref()
+    }
+
+    /// Get mutable reference to the total force acting on the atom.
+    pub fn get_force_mut(&mut self) -> Option<&mut Vector3D> {
+        self.force.as_mut()
     }
 
     /// Set the vector of the total force acting on the atom.
@@ -291,43 +461,54 @@ impl Atom {
     /// Translates the position of the atom by the provided Vector3D.
     /// Wraps the atom to the simulation box.
     ///
-    /// ## Panics
-    /// Panics if atom has no position.
-    pub fn translate(&mut self, translate: &Vector3D, sbox: &SimBox) {
+    /// ## Returns
+    /// `Ok` or `AtomError::InvalidPosition` if the atom has an undefined position.
+    pub fn translate(&mut self, translate: &Vector3D, sbox: &SimBox) -> Result<(), AtomError> {
         if let Some(ref mut pos) = self.position {
             pos.x += translate.x;
             pos.y += translate.y;
             pos.z += translate.z;
 
             pos.wrap(sbox);
+            Ok(())
         } else {
-            panic!("FATAL GROAN ERROR | Atom::translate | Atom has no position.");
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(
+                self.get_atom_number(),
+            )))
         }
     }
 
     /// Translates the position of the atom by the provided Vector3D.
     /// Does **not** wrap the atom to the simulation box.
     ///
-    /// ## Panics
-    /// Panics if atom has no position.
-    pub fn translate_nopbc(&mut self, translate: &Vector3D) {
+    /// ## Returns
+    /// `Ok` of `AtomError::InvalidPosition` if the atom has an undefined position.
+    pub fn translate_nopbc(&mut self, translate: &Vector3D) -> Result<(), AtomError> {
         if let Some(ref mut pos) = self.position {
             pos.x += translate.x;
             pos.y += translate.y;
             pos.z += translate.z;
+            Ok(())
         } else {
-            panic!("FATAL GROAN ERROR | Atom::translate_nopbc | Atom has no position.");
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(
+                self.get_atom_number(),
+            )))
         }
     }
 
     /// Wrap the atom into the simulation box.
     ///
-    /// ## Panics
-    /// Panics if atom has no position.
-    pub fn wrap(&mut self, sbox: &SimBox) {
+    /// ## Returns
+    /// `Ok` of `AtomError::InvalidPosition` if the atom has an undefined position.
+    pub fn wrap(&mut self, sbox: &SimBox) -> Result<(), AtomError> {
         match self.position {
-            None => panic!("FATAL GROAN ERROR | Atom::wrap | Atom has no position."),
-            Some(ref mut pos) => pos.wrap(sbox),
+            None => Err(AtomError::InvalidPosition(PositionError::NoPosition(
+                self.get_atom_number(),
+            ))),
+            Some(ref mut pos) => {
+                pos.wrap(sbox);
+                Ok(())
+            }
         }
     }
 
@@ -450,38 +631,84 @@ impl Atom {
     /// Takes periodic boundary conditions into consideration.
     /// Returns oriented distance for 1D problems.
     ///
+    /// ## Returns
+    /// - `f32` if successful.
+    /// - `AtomError::InvalidPosition` if any of the atoms has undefined position.
+    ///
     /// ## Warning
     /// - Currently only works with orthogonal simulation boxes.
-    ///
-    /// ## Panics
-    /// Panics if any of the atoms has no position.
     ///
     /// ## Example
     /// Calculate distance between two atoms in the xy-plane.
     /// ```
-    /// use groan_rs::prelude::*;
-    /// use float_cmp::assert_approx_eq;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
     /// let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([1.0, 2.0, 3.0].into());
     /// let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([3.5, 1.0, 2.0].into());
     ///
     /// let simbox = SimBox::from([4.0, 4.0, 4.0]);
     ///
-    /// let distance = atom1.distance(&atom2, Dimension::XY, &simbox);
+    /// let distance = atom1.distance(&atom2, Dimension::XY, &simbox).unwrap();
     /// assert_approx_eq!(f32, distance, 1.802776);
     /// ```
-    pub fn distance(&self, atom: &Atom, dim: Dimension, sbox: &SimBox) -> f32 {
+    ///
+    /// ## Notes
+    /// - If dimension is `Dimension::None` returns 0.
+    pub fn distance(&self, atom: &Atom, dim: Dimension, sbox: &SimBox) -> Result<f32, AtomError> {
         match (&self.position, &atom.position) {
-            (None | Some(_), None) | (None, Some(_)) => {
-                panic!("FATAL GROAN ERROR | Atom::distance | Atom has no position.")
-            }
-            (Some(ref pos1), Some(ref pos2)) => pos1.distance(pos2, dim, sbox),
+            (None, Some(_) | None) => Err(AtomError::InvalidPosition(PositionError::NoPosition(
+                self.get_atom_number(),
+            ))),
+            (Some(_), None) => Err(AtomError::InvalidPosition(PositionError::NoPosition(
+                atom.get_atom_number(),
+            ))),
+            (Some(ref pos1), Some(ref pos2)) => Ok(pos1.distance(pos2, dim, sbox)),
+        }
+    }
+
+    /// Calculate distance between two atoms.
+    /// **Ignores PBC.**
+    /// Returns oriented distance for 1D problems.
+    ///
+    /// ## Returns
+    /// - `f32` if successful.
+    /// - `AtomError::InvalidPosition` if any of the atoms has undefined position.
+    ///
+    /// ## Example
+    /// Calculate naive distance between two atoms in the xy-plane.
+    /// ```
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
+    /// let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([1.0, 2.0, 3.0].into());
+    /// let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([3.5, 1.0, 2.0].into());
+    ///
+    /// let distance = atom1.distance_naive(&atom2, Dimension::XY).unwrap();
+    /// assert_approx_eq!(f32, distance, 2.692582);
+    /// ```
+    ///
+    /// ## Notes
+    /// - If dimension is `Dimension::None` returns 0.
+    pub fn distance_naive(&self, atom: &Atom, dim: Dimension) -> Result<f32, AtomError> {
+        match (&self.position, &atom.position) {
+            (None, Some(_) | None) => Err(AtomError::InvalidPosition(PositionError::NoPosition(
+                self.get_atom_number(),
+            ))),
+            (Some(_), None) => Err(AtomError::InvalidPosition(PositionError::NoPosition(
+                atom.get_atom_number(),
+            ))),
+            (Some(ref pos1), Some(ref pos2)) => Ok(pos1.distance_naive(pos2, dim)),
         }
     }
 
     /// Calculate distance between an atom and a point in space.
     /// Takes periodic boundary conditions into consideration.
     /// Returns oriented distance for 1D problems.
+    ///
+    /// ## Returns
+    /// - `f32` if successful.
+    /// - `AtomError::InvalidPosition` if the atom has undefined position.
     ///
     /// ## Warning
     /// - Currently only works with orthogonal simulation boxes.
@@ -492,21 +719,28 @@ impl Atom {
     /// ## Example
     /// Calculate distance between an atom and a point in the xy-plane.
     /// ```
-    /// use groan_rs::prelude::*;
-    /// use float_cmp::assert_approx_eq;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
     /// let atom = Atom::new(1, "LYS", 1, "BB").with_position([1.0, 2.0, 3.0].into());
     /// let point = Vector3D::from([3.5, 1.0, 2.0]);
     ///
     /// let simbox = SimBox::from([4.0, 4.0, 4.0]);
     ///
-    /// let distance = atom.distance_from_point(&point, Dimension::XY, &simbox);
+    /// let distance = atom.distance_from_point(&point, Dimension::XY, &simbox).unwrap();
     /// assert_approx_eq!(f32, distance, 1.802776);
     /// ```
-    pub fn distance_from_point(&self, point: &Vector3D, dim: Dimension, sbox: &SimBox) -> f32 {
+    pub fn distance_from_point(
+        &self,
+        point: &Vector3D,
+        dim: Dimension,
+        sbox: &SimBox,
+    ) -> Result<f32, AtomError> {
         match self.position {
-            None => panic!("FATAL GROAN ERROR | Atom::distance_from_point | Atom has no position."),
-            Some(ref pos) => pos.distance(point, dim, sbox),
+            None => Err(AtomError::InvalidPosition(PositionError::NoPosition(
+                self.get_atom_number(),
+            ))),
+            Some(ref pos) => Ok(pos.distance(point, dim, sbox)),
         }
     }
 }
@@ -550,55 +784,159 @@ mod tests {
     }
 
     #[test]
-    fn get_residue_number() {
-        let atom = make_default_atom();
-        assert_eq!(atom.get_residue_number(), 45);
-    }
-
-    #[test]
-    fn set_residue_number() {
+    fn residue_number() {
         let mut atom = make_default_atom();
+        assert_eq!(atom.get_residue_number(), 45);
+
         atom.set_residue_number(187);
         assert_eq!(atom.get_residue_number(), 187);
     }
 
     #[test]
-    fn get_residue_name() {
-        let atom = make_default_atom();
-        assert_eq!(atom.get_residue_name(), "GLY");
-    }
-
-    #[test]
-    fn set_residue_name() {
+    fn residue_name() {
         let mut atom = make_default_atom();
+        assert_eq!(atom.get_residue_name(), "GLY");
+
         atom.set_residue_name("LYS");
         assert_eq!(atom.get_residue_name(), "LYS");
     }
 
     #[test]
-    fn get_atom_number() {
-        let atom = make_default_atom();
-        assert_eq!(atom.get_atom_number(), 123);
-    }
-
-    #[test]
-    fn set_atom_number() {
+    fn atom_number() {
         let mut atom = make_default_atom();
+        assert_eq!(atom.get_atom_number(), 123);
+
         atom.set_atom_number(13);
         assert_eq!(atom.get_atom_number(), 13);
     }
 
     #[test]
-    fn get_atom_name() {
-        let atom = make_default_atom();
+    fn atom_name() {
+        let mut atom = make_default_atom();
         assert_eq!(atom.get_atom_name(), "BB");
+
+        atom.set_atom_name("SC1");
+        assert_eq!(atom.get_atom_name(), "SC1");
     }
 
     #[test]
-    fn set_atom_name() {
+    fn chain() {
         let mut atom = make_default_atom();
-        atom.set_atom_name("SC1");
-        assert_eq!(atom.get_atom_name(), "SC1");
+        assert_eq!(atom.get_chain(), None);
+
+        atom.set_chain('B');
+        assert_eq!(atom.get_chain().unwrap(), 'B');
+
+        atom.reset_chain();
+        assert_eq!(atom.get_chain(), None);
+
+        let atom2 = make_default_atom().with_chain('B');
+        assert_eq!(atom2.get_chain().unwrap(), 'B');
+    }
+
+    #[test]
+    fn charge() {
+        let mut atom = make_default_atom();
+        assert_eq!(atom.get_charge(), None);
+
+        atom.set_charge(0.453);
+        assert_approx_eq!(f32, atom.get_charge().unwrap(), 0.453);
+
+        atom.reset_charge();
+        assert_eq!(atom.get_charge(), None);
+
+        let atom2 = make_default_atom().with_charge(0.453);
+        assert_approx_eq!(f32, atom2.get_charge().unwrap(), 0.453);
+    }
+
+    #[test]
+    fn mass() {
+        let mut atom = make_default_atom();
+        assert_eq!(atom.get_mass(), None);
+
+        atom.set_mass(10.453);
+        assert_approx_eq!(f32, atom.get_mass().unwrap(), 10.453);
+
+        atom.reset_mass();
+        assert_eq!(atom.get_mass(), None);
+
+        let atom2 = make_default_atom().with_mass(10.453);
+        assert_approx_eq!(f32, atom2.get_mass().unwrap(), 10.453);
+    }
+
+    #[test]
+    fn vdw() {
+        let mut atom = make_default_atom();
+        assert_eq!(atom.get_vdw(), None);
+
+        atom.set_vdw(0.19);
+        assert_approx_eq!(f32, atom.get_vdw().unwrap(), 0.19);
+
+        atom.reset_vdw();
+        assert_eq!(atom.get_vdw(), None);
+
+        let atom2 = make_default_atom().with_vdw(0.19);
+        assert_approx_eq!(f32, atom2.get_vdw().unwrap(), 0.19);
+    }
+
+    #[test]
+    fn expected_max_bonds() {
+        let mut atom = make_default_atom();
+        assert_eq!(atom.get_expected_max_bonds(), None);
+
+        atom.set_expected_max_bonds(3);
+        assert_eq!(atom.get_expected_max_bonds().unwrap(), 3);
+
+        atom.reset_expected_max_bonds();
+        assert_eq!(atom.get_expected_max_bonds(), None);
+
+        let atom2 = make_default_atom().with_expected_max_bonds(3);
+        assert_eq!(atom2.get_expected_max_bonds().unwrap(), 3);
+    }
+
+    #[test]
+    fn expected_min_bonds() {
+        let mut atom = make_default_atom();
+        assert_eq!(atom.get_expected_min_bonds(), None);
+
+        atom.set_expected_min_bonds(3);
+        assert_eq!(atom.get_expected_min_bonds().unwrap(), 3);
+
+        atom.reset_expected_min_bonds();
+        assert_eq!(atom.get_expected_min_bonds(), None);
+
+        let atom2 = make_default_atom().with_expected_min_bonds(3);
+        assert_eq!(atom2.get_expected_min_bonds().unwrap(), 3);
+    }
+
+    #[test]
+    fn element_name() {
+        let mut atom = make_default_atom();
+        assert_eq!(atom.get_element_name(), None);
+
+        atom.set_element_name("carbon");
+        assert_eq!(atom.get_element_name().unwrap(), String::from("carbon"));
+
+        atom.reset_element_name();
+        assert_eq!(atom.get_element_name(), None);
+
+        let atom2 = make_default_atom().with_element_name("carbon");
+        assert_eq!(atom2.get_element_name().unwrap(), String::from("carbon"));
+    }
+
+    #[test]
+    fn element_symbol() {
+        let mut atom = make_default_atom();
+        assert_eq!(atom.get_element_symbol(), None);
+
+        atom.set_element_symbol("C");
+        assert_eq!(atom.get_element_symbol().unwrap(), String::from("C"));
+
+        atom.reset_element_symbol();
+        assert_eq!(atom.get_element_symbol(), None);
+
+        let atom2 = make_default_atom().with_element_symbol("C");
+        assert_eq!(atom2.get_element_symbol().unwrap(), String::from("C"));
     }
 
     #[test]
@@ -608,6 +946,17 @@ mod tests {
             *atom.get_position().unwrap(),
             Vector3D::from([15.123, 14.321, 9.834])
         );
+    }
+
+    #[test]
+    fn get_position_mut() {
+        let mut atom = make_default_atom();
+
+        atom.get_position_mut().unwrap().x += 3.4;
+        let pos = atom.get_position().unwrap();
+        assert_approx_eq!(f32, pos.x, 18.523);
+        assert_approx_eq!(f32, pos.y, 14.321);
+        assert_approx_eq!(f32, pos.z, 9.834);
     }
 
     #[test]
@@ -659,6 +1008,17 @@ mod tests {
     }
 
     #[test]
+    fn get_velocity_mut() {
+        let mut atom = make_default_atom();
+
+        atom.get_velocity_mut().unwrap().y += 0.3;
+        let vel = atom.get_velocity().unwrap();
+        assert_approx_eq!(f32, vel.x, -3.432);
+        assert_approx_eq!(f32, vel.y, 0.484);
+        assert_approx_eq!(f32, vel.z, 1.234);
+    }
+
+    #[test]
     fn set_velocity() {
         let mut atom = make_default_atom();
         let new_vel = Vector3D::from([1.764, 2.134, 19.129]);
@@ -674,6 +1034,17 @@ mod tests {
             *atom.get_force().unwrap(),
             Vector3D::from([5.1235, 2.3451, -0.32145])
         );
+    }
+
+    #[test]
+    fn get_force_mut() {
+        let mut atom = make_default_atom();
+
+        atom.get_force_mut().unwrap().z -= 0.13;
+        let force = atom.get_force().unwrap();
+        assert_approx_eq!(f32, force.x, 5.1235);
+        assert_approx_eq!(f32, force.y, 2.3451);
+        assert_approx_eq!(f32, force.z, -0.45145);
     }
 
     #[test]
@@ -750,7 +1121,7 @@ mod tests {
         let mut atom = make_default_atom();
 
         let shift = Vector3D::from([4.5, 2.3, -8.3]);
-        atom.translate_nopbc(&shift);
+        atom.translate_nopbc(&shift).unwrap();
 
         assert_approx_eq!(
             f32,
@@ -773,13 +1144,30 @@ mod tests {
     }
 
     #[test]
+    fn translate_nopbc_fail() {
+        let mut atom = make_default_atom();
+        atom.reset_position();
+
+        let shift = Vector3D::from([4.5, 2.3, -8.3]);
+        match atom.translate_nopbc(&shift) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
+                assert_eq!(x, atom.get_atom_number())
+            }
+            Err(e) => {
+                panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
+            }
+        }
+    }
+
+    #[test]
     fn translate() {
         let mut atom = make_default_atom();
 
         let shift = Vector3D::from([4.5, 2.3, -10.2]);
         let simbox = SimBox::from([16.0, 16.0, 16.0]);
 
-        atom.translate(&shift, &simbox);
+        atom.translate(&shift, &simbox).unwrap();
 
         assert_approx_eq!(
             f32,
@@ -802,13 +1190,31 @@ mod tests {
     }
 
     #[test]
+    fn translate_fail() {
+        let mut atom = make_default_atom();
+        atom.reset_position();
+
+        let shift = Vector3D::from([4.5, 2.3, -8.3]);
+        let simbox = SimBox::from([16.0, 16.0, 16.0]);
+        match atom.translate(&shift, &simbox) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
+                assert_eq!(x, atom.get_atom_number())
+            }
+            Err(e) => {
+                panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
+            }
+        }
+    }
+
+    #[test]
     fn wrap() {
         let mut atom =
             Atom::new(45, "GLY", 123, "BB").with_position([15.123, 14.321, -1.743].into());
 
         let simbox = SimBox::from([15.0, 15.0, 15.0]);
 
-        atom.wrap(&simbox);
+        atom.wrap(&simbox).unwrap();
 
         assert_approx_eq!(
             f32,
@@ -837,7 +1243,7 @@ mod tests {
 
         let simbox = SimBox::from([15.0, 15.0, 15.0]);
 
-        atom.wrap(&simbox);
+        atom.wrap(&simbox).unwrap();
 
         assert_approx_eq!(
             f32,
@@ -860,23 +1266,57 @@ mod tests {
     }
 
     #[test]
+    fn wrap_fail() {
+        let mut atom = make_default_atom();
+        atom.reset_position();
+
+        let simbox = SimBox::from([15.0, 15.0, 15.0]);
+        match atom.wrap(&simbox) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
+                assert_eq!(x, atom.get_atom_number())
+            }
+            Err(e) => {
+                panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
+            }
+        }
+    }
+
+    #[test]
     fn distance_x() {
         let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
-
         let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
-
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert_approx_eq!(
             f32,
-            atom1.distance(&atom2, Dimension::X, &simbox),
+            atom1.distance(&atom2, Dimension::X, &simbox).unwrap(),
             -0.7,
             epsilon = 0.00001
         );
         assert_approx_eq!(
             f32,
-            atom2.distance(&atom1, Dimension::X, &simbox),
+            atom2.distance(&atom1, Dimension::X, &simbox).unwrap(),
             0.7,
+            epsilon = 0.00001
+        );
+    }
+
+    #[test]
+    fn distance_naive_x() {
+        let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
+        let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
+
+        assert_approx_eq!(
+            f32,
+            atom1.distance_naive(&atom2, Dimension::X).unwrap(),
+            3.3,
+            epsilon = 0.00001
+        );
+        assert_approx_eq!(
+            f32,
+            atom2.distance_naive(&atom1, Dimension::X).unwrap(),
+            -3.3,
             epsilon = 0.00001
         );
     }
@@ -884,20 +1324,37 @@ mod tests {
     #[test]
     fn distance_y() {
         let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
-
         let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
-
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert_approx_eq!(
             f32,
-            atom1.distance(&atom2, Dimension::Y, &simbox),
+            atom1.distance(&atom2, Dimension::Y, &simbox).unwrap(),
             1.0,
             epsilon = 0.00001
         );
         assert_approx_eq!(
             f32,
-            atom2.distance(&atom1, Dimension::Y, &simbox),
+            atom2.distance(&atom1, Dimension::Y, &simbox).unwrap(),
+            -1.0,
+            epsilon = 0.00001
+        );
+    }
+
+    #[test]
+    fn distance_naive_y() {
+        let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
+        let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
+
+        assert_approx_eq!(
+            f32,
+            atom1.distance_naive(&atom2, Dimension::Y).unwrap(),
+            1.0,
+            epsilon = 0.00001
+        );
+        assert_approx_eq!(
+            f32,
+            atom2.distance_naive(&atom1, Dimension::Y).unwrap(),
             -1.0,
             epsilon = 0.00001
         );
@@ -906,21 +1363,38 @@ mod tests {
     #[test]
     fn distance_z() {
         let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 1.0].into());
-
         let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 3.5].into());
-
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert_approx_eq!(
             f32,
-            atom1.distance(&atom2, Dimension::Z, &simbox),
+            atom1.distance(&atom2, Dimension::Z, &simbox).unwrap(),
             1.5,
             epsilon = 0.00001
         );
         assert_approx_eq!(
             f32,
-            atom2.distance(&atom1, Dimension::Z, &simbox),
+            atom2.distance(&atom1, Dimension::Z, &simbox).unwrap(),
             -1.5,
+            epsilon = 0.00001
+        );
+    }
+
+    #[test]
+    fn distance_naive_z() {
+        let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
+        let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
+
+        assert_approx_eq!(
+            f32,
+            atom1.distance_naive(&atom2, Dimension::Z).unwrap(),
+            2.5,
+            epsilon = 0.00001
+        );
+        assert_approx_eq!(
+            f32,
+            atom2.distance_naive(&atom1, Dimension::Z).unwrap(),
+            -2.5,
             epsilon = 0.00001
         );
     }
@@ -928,21 +1402,38 @@ mod tests {
     #[test]
     fn distance_xy() {
         let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
-
         let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
-
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert_approx_eq!(
             f32,
-            atom1.distance(&atom2, Dimension::XY, &simbox),
+            atom1.distance(&atom2, Dimension::XY, &simbox).unwrap(),
             1.2206556,
             epsilon = 0.00001
         );
         assert_approx_eq!(
             f32,
-            atom2.distance(&atom1, Dimension::XY, &simbox),
+            atom2.distance(&atom1, Dimension::XY, &simbox).unwrap(),
             1.2206556,
+            epsilon = 0.00001
+        );
+    }
+
+    #[test]
+    fn distance_naive_xy() {
+        let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
+        let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
+
+        assert_approx_eq!(
+            f32,
+            atom1.distance_naive(&atom2, Dimension::XY).unwrap(),
+            3.448188,
+            epsilon = 0.00001
+        );
+        assert_approx_eq!(
+            f32,
+            atom2.distance_naive(&atom1, Dimension::XY).unwrap(),
+            3.448188,
             epsilon = 0.00001
         );
     }
@@ -950,21 +1441,38 @@ mod tests {
     #[test]
     fn distance_xz() {
         let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
-
         let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
-
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert_approx_eq!(
             f32,
-            atom1.distance(&atom2, Dimension::XZ, &simbox),
+            atom1.distance(&atom2, Dimension::XZ, &simbox).unwrap(),
             1.6552945,
             epsilon = 0.00001
         );
         assert_approx_eq!(
             f32,
-            atom2.distance(&atom1, Dimension::XZ, &simbox),
+            atom2.distance(&atom1, Dimension::XZ, &simbox).unwrap(),
             1.6552945,
+            epsilon = 0.00001
+        );
+    }
+
+    #[test]
+    fn distance_naive_xz() {
+        let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
+        let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
+
+        assert_approx_eq!(
+            f32,
+            atom1.distance_naive(&atom2, Dimension::XZ).unwrap(),
+            4.140048,
+            epsilon = 0.00001
+        );
+        assert_approx_eq!(
+            f32,
+            atom2.distance_naive(&atom1, Dimension::XZ).unwrap(),
+            4.140048,
             epsilon = 0.00001
         );
     }
@@ -972,21 +1480,38 @@ mod tests {
     #[test]
     fn distance_yz() {
         let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
-
         let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
-
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert_approx_eq!(
             f32,
-            atom1.distance(&atom2, Dimension::YZ, &simbox),
+            atom1.distance(&atom2, Dimension::YZ, &simbox).unwrap(),
             1.8027756,
             epsilon = 0.00001
         );
         assert_approx_eq!(
             f32,
-            atom2.distance(&atom1, Dimension::YZ, &simbox),
+            atom2.distance(&atom1, Dimension::YZ, &simbox).unwrap(),
             1.8027756,
+            epsilon = 0.00001
+        );
+    }
+
+    #[test]
+    fn distance_naive_yz() {
+        let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
+        let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
+
+        assert_approx_eq!(
+            f32,
+            atom1.distance_naive(&atom2, Dimension::YZ).unwrap(),
+            2.692582,
+            epsilon = 0.00001
+        );
+        assert_approx_eq!(
+            f32,
+            atom2.distance_naive(&atom1, Dimension::YZ).unwrap(),
+            2.692582,
             epsilon = 0.00001
         );
     }
@@ -994,21 +1519,38 @@ mod tests {
     #[test]
     fn distance_xyz() {
         let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
-
         let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
-
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert_approx_eq!(
             f32,
-            atom1.distance(&atom2, Dimension::XYZ, &simbox),
+            atom1.distance(&atom2, Dimension::XYZ, &simbox).unwrap(),
             1.933908,
             epsilon = 0.00001
         );
         assert_approx_eq!(
             f32,
-            atom2.distance(&atom1, Dimension::XYZ, &simbox),
+            atom2.distance(&atom1, Dimension::XYZ, &simbox).unwrap(),
             1.933908,
+            epsilon = 0.00001
+        );
+    }
+
+    #[test]
+    fn distance_naive_xyz() {
+        let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
+        let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
+
+        assert_approx_eq!(
+            f32,
+            atom1.distance_naive(&atom2, Dimension::XYZ).unwrap(),
+            4.259108,
+            epsilon = 0.00001
+        );
+        assert_approx_eq!(
+            f32,
+            atom2.distance_naive(&atom1, Dimension::XYZ).unwrap(),
+            4.259108,
             epsilon = 0.00001
         );
     }
@@ -1016,23 +1558,123 @@ mod tests {
     #[test]
     fn distance_none() {
         let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
-
         let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
-
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert_approx_eq!(
             f32,
-            atom1.distance(&atom2, Dimension::None, &simbox),
+            atom1.distance(&atom2, Dimension::None, &simbox).unwrap(),
             0.0,
             epsilon = 0.00001
         );
         assert_approx_eq!(
             f32,
-            atom2.distance(&atom1, Dimension::None, &simbox),
+            atom2.distance(&atom1, Dimension::None, &simbox).unwrap(),
             0.0,
             epsilon = 0.00001
         );
+    }
+
+    #[test]
+    fn distance_naive_none() {
+        let atom1 = Atom::new(1, "LYS", 1, "BB").with_position([3.8, 2.0, 3.5].into());
+        let atom2 = Atom::new(1, "LYS", 2, "SC1").with_position([0.5, 1.0, 1.0].into());
+
+        assert_approx_eq!(
+            f32,
+            atom1.distance_naive(&atom2, Dimension::None).unwrap(),
+            0.0,
+            epsilon = 0.00001
+        );
+        assert_approx_eq!(
+            f32,
+            atom2.distance_naive(&atom1, Dimension::None).unwrap(),
+            0.0,
+            epsilon = 0.00001
+        );
+    }
+
+    #[test]
+    fn distance_fail() {
+        let mut atom1 = Atom::new(1, "LYS", 1, "BB");
+        let mut atom2 = Atom::new(1, "LYS", 2, "SC1");
+        let simbox = SimBox::from([4.0, 4.0, 4.0]);
+
+        match atom1.distance(&atom2, Dimension::XYZ, &simbox) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
+                assert_eq!(x, atom1.get_atom_number())
+            }
+            Err(e) => {
+                panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
+            }
+        }
+
+        atom2.set_position([1.0, 2.0, 3.0].into());
+
+        match atom1.distance(&atom2, Dimension::XYZ, &simbox) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
+                assert_eq!(x, atom1.get_atom_number())
+            }
+            Err(e) => {
+                panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
+            }
+        }
+
+        atom2.reset_position();
+        atom1.set_position([1.0, 2.0, 3.0].into());
+
+        match atom1.distance(&atom2, Dimension::XYZ, &simbox) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
+                assert_eq!(x, atom2.get_atom_number())
+            }
+            Err(e) => {
+                panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
+            }
+        }
+    }
+
+    #[test]
+    fn distance_naive_fail() {
+        let mut atom1 = Atom::new(1, "LYS", 1, "BB");
+        let mut atom2 = Atom::new(1, "LYS", 2, "SC1");
+
+        match atom1.distance_naive(&atom2, Dimension::XYZ) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
+                assert_eq!(x, atom1.get_atom_number())
+            }
+            Err(e) => {
+                panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
+            }
+        }
+
+        atom2.set_position([1.0, 2.0, 3.0].into());
+
+        match atom1.distance_naive(&atom2, Dimension::XYZ) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
+                assert_eq!(x, atom1.get_atom_number())
+            }
+            Err(e) => {
+                panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
+            }
+        }
+
+        atom2.reset_position();
+        atom1.set_position([1.0, 2.0, 3.0].into());
+
+        match atom1.distance_naive(&atom2, Dimension::XYZ) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
+                assert_eq!(x, atom2.get_atom_number())
+            }
+            Err(e) => {
+                panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
+            }
+        }
     }
 
     #[test]
@@ -1045,7 +1687,8 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::X, &simbox),
+            atom.distance_from_point(&point, Dimension::X, &simbox)
+                .unwrap(),
             1.0,
             epsilon = 0.00001
         );
@@ -1061,7 +1704,8 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::Y, &simbox),
+            atom.distance_from_point(&point, Dimension::Y, &simbox)
+                .unwrap(),
             -0.7,
             epsilon = 0.00001
         );
@@ -1077,7 +1721,8 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::Z, &simbox),
+            atom.distance_from_point(&point, Dimension::Z, &simbox)
+                .unwrap(),
             1.5,
             epsilon = 0.00001
         );
@@ -1093,7 +1738,8 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::XY, &simbox),
+            atom.distance_from_point(&point, Dimension::XY, &simbox)
+                .unwrap(),
             1.220656,
             epsilon = 0.00001
         );
@@ -1109,7 +1755,8 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::XZ, &simbox),
+            atom.distance_from_point(&point, Dimension::XZ, &simbox)
+                .unwrap(),
             1.802776,
             epsilon = 0.00001
         );
@@ -1125,7 +1772,8 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::YZ, &simbox),
+            atom.distance_from_point(&point, Dimension::YZ, &simbox)
+                .unwrap(),
             1.6552945,
             epsilon = 0.00001
         );
@@ -1141,7 +1789,8 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::XYZ, &simbox),
+            atom.distance_from_point(&point, Dimension::XYZ, &simbox)
+                .unwrap(),
             1.933908,
             epsilon = 0.00001
         );
@@ -1157,9 +1806,27 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            atom.distance_from_point(&point, Dimension::None, &simbox),
+            atom.distance_from_point(&point, Dimension::None, &simbox)
+                .unwrap(),
             0.0,
             epsilon = 0.00001
         );
+    }
+
+    #[test]
+    fn distance_from_point_fail() {
+        let atom = Atom::new(1, "LYS", 1, "BB");
+        let point = Vector3D::from([1.0, 0.5, 2.0]);
+        let simbox = SimBox::from([4.0, 4.0, 4.0]);
+
+        match atom.distance_from_point(&point, Dimension::XYZ, &simbox) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
+                assert_eq!(x, atom.get_atom_number())
+            }
+            Err(e) => {
+                panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
+            }
+        }
     }
 }

@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023 Ladislav Bartos
+// Copyright (c) 2023-2024 Ladislav Bartos
 
 //! Implementation of shapes for geometry selection.
 
@@ -57,8 +57,8 @@ impl Sphere {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// // constructs a sphere with radius 2.0 nm
     /// let sphere = Sphere::new(
     ///     [1.0, 2.0, 3.0].into(), // position of the sphere center
@@ -98,8 +98,8 @@ impl Rectangular {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// // constructs a rectangular box of specified size
     /// let rect = Rectangular::new(
     ///     [1.0, 2.0, 3.0].into(), // position of box origin
@@ -167,8 +167,8 @@ impl Cylinder {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// // constructs a cylinder oriented along the z-dimension of the simulation box
     /// let cylinder = Cylinder::new(
     ///     [1.0, 2.0, 3.0].into(), // position

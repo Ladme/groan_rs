@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023 Ladislav Bartos
+// Copyright (c) 2023-2024 Ladislav Bartos
 
 //! Implementation of errors that can be returned by the library.
 
@@ -7,6 +7,8 @@ use colored::{ColoredString, Colorize};
 use std::collections::HashSet;
 use std::path::Path;
 use thiserror::Error;
+
+use crate::system::guess::{BondsGuessInfo, ElementGuessInfo, PropertiesGuessInfo};
 
 fn path_to_yellow(path: &Path) -> ColoredString {
     path.to_str().unwrap().yellow()
@@ -168,6 +170,18 @@ pub enum GroupError {
     /// Encapsulates the `SelectError` providing more information about the type of error.
     #[error("{}", .0)]
     InvalidQuery(SelectError),
+    /// Used when there is an issue with simulation box of the system.
+    #[error("{}", .0)]
+    InvalidSimBox(SimBoxError),
+    /// Used when there is an issue with positions of atoms in the system.
+    #[error("{}", .0)]
+    InvalidPosition(PositionError),
+    /// Used when there is an issue with masses of atoms in the system.
+    #[error("{}", .0)]
+    InvalidMass(MassError),
+    /// Used when the group is empty and is expected not to be.
+    #[error("{} group '{}' contains no atoms", "error:".red().bold(), .0.yellow())]
+    EmptyGroup(String),
 }
 
 /// Errors that can occur when working with atoms in a system.
@@ -179,6 +193,12 @@ pub enum AtomError {
     /// Used when attempting to create a bond that is invalid.
     #[error("{} bond could not be created between atoms {} and {}", "error:".red().bold(), .0.to_string().yellow(), .1.to_string().yellow())]
     InvalidBond(usize, usize),
+    /// Used when there is an issue with simulation box of the system.
+    #[error("{}", .0)]
+    InvalidSimBox(SimBoxError),
+    /// Used when there is an issue with position of an atom.
+    #[error("{}", .0)]
+    InvalidPosition(PositionError),
 }
 
 /// Errors that can occur when reading and parsing ndx file.
@@ -303,6 +323,10 @@ pub enum SelectError {
     /// Used when the quotes are incorrectly used in the groan selection language query.
     #[error("{} unmatching number of quotes in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
     InvalidQuotes(String),
+    /// Used when a `()` expression is not followed or preceeded by a binary operator.
+    /// (e.g. things like `(name CA CB) Protein` or `element (name CA)`)
+    #[error("{} invalid token following or preceeding parentheses in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
+    InvalidTokenParentheses(String),
     /// Used when any error occurs while parsing atom/residue numbers or ranges in the groan selection language query.
     #[error("{} could not understand the residue/atom numbers in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
     InvalidNumber(String),
@@ -322,4 +346,77 @@ pub enum SelectError {
     /// Used when an unknown error which does not have a specific `SelectError` variant occurs while parsing the groan selection language query.
     #[error("{} the provided query '{}' could not be understood for unknown reason", "error:".red().bold(), .0.to_string().yellow())]
     UnknownError(String),
+}
+
+/// Errors that can occur when reading element data.
+#[derive(Error, Debug)]
+pub enum ParseElementError {
+    /// Used when the yaml file was not found (i.e. does not exist).
+    #[error("{} file '{}' was not found", "error:".red().bold(), path_to_yellow(.0))]
+    FileNotFound(Box<Path>),
+    /// Used when the content of the yaml file could not be read.
+    #[error("{} file '{}' could not be read", "error:".red().bold(), path_to_yellow(.0))]
+    FileCouldNotBeRead(Box<Path>),
+    /// Used when the yaml string containing element data can't be parsed.
+    #[error("{} could not parse yaml input as elements ({})", "error:".red().bold(), .0.to_string().yellow())]
+    CouldNotParseYaml(serde_yaml::Error),
+    /// Used when the same element symbol corresponds to multiple elements.
+    #[error("{} element symbol '{}' corresponds to both '{}' and '{}'", "error:".red().bold(), .0.yellow(), .1.yellow(), .2.yellow())]
+    DuplicateSymbol(String, String, String),
+}
+
+/// Errors that can occur when working with elements.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum ElementError {
+    /// Used in `System::guess_elements`.
+    /// Used when a select tree associated with the given element is invalid.
+    /// This should only happen when the query uses group names.
+    #[error("{} (this error occured when guessing elements)", .0)]
+    InvalidQuery(SelectError),
+
+    /// Used in `System::guess_elements`.
+    /// Used when there is at least one atom which was not assigned an element
+    /// or when there is at least one atom which matches multiple elements.
+    /// This is a warning and does not indicate failure of the function.
+    #[error("{} when guessing elements, following concerns have been raised:\n{}", "warning:".yellow().bold(), .0.to_string())]
+    ElementGuessWarning(Box<ElementGuessInfo>),
+
+    /// Used in `System::guess_properties`.
+    /// Used when there is at least one atom which was not assigned all the properties.
+    /// This is a warning and does not indicate failure of the function.
+    #[error("{} when guessing properties, following concerns have been raised:\n{}", "warning:".yellow().bold(), .0.to_string())]
+    PropertiesGuessWarning(Box<PropertiesGuessInfo>),
+
+    /// Used in `System::guess_bonds`.
+    /// Used when there is at least one atom with suspicious number of bonds.
+    /// This is a warning and does not indicate failure of the function.
+    #[error("{} when guessing bonds, following concerns have been raised:\n{}", "warning:".yellow().bold(), .0.to_string())]
+    BondsGuessWarning(Box<BondsGuessInfo>),
+}
+
+/// Errors that can occur when working with simulation box.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum SimBoxError {
+    /// Used when the system has no defined simulation box.
+    #[error("{} system has no simulation box", "error:".red().bold())]
+    DoesNotExist,
+    /// Used when the simulation box is not orthogonal but is required to be.
+    #[error("{} simulation box is not orthogonal but is required to be", "error:".red().bold())]
+    NotOrthogonal,
+}
+
+/// Errors that can occur when working with positions of atoms.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum PositionError {
+    /// Used when the atom has no position but it is required.
+    #[error("{} atom with atom number '{}' has undefined position", "error:".red().bold(), .0.to_string().yellow())]
+    NoPosition(usize),
+}
+
+/// Errors that can occur when working with masses of atoms.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum MassError {
+    /// Used when the atom has no mass but it is required.
+    #[error("{} atom with atom number '{}' has undefined mass", "error:".red().bold(), .0.to_string().yellow())]
+    NoMass(usize),
 }

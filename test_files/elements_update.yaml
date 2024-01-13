@@ -1,0 +1,13 @@
+---
+carbon:
+  vdw: 0.20
+polonium:
+  symbol: Po
+  query: name r'^[Pp][Oo].*$'
+  mass: 209.0
+hydrogen:
+  symbol: HH
+  mass: 2.014
+  expected_max_bonds: 8
+  expected_min_bonds: 2
+...

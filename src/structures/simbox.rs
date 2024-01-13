@@ -1,9 +1,9 @@
 // Released under MIT License.
-// Copyright (c) 2023 Ladislav Bartos
+// Copyright (c) 2023-2024 Ladislav Bartos
 
 //! Implementation of the SimBox structure and its methods.
 
-use crate::structures::vector3d::Vector3D;
+use crate::{errors::SimBoxError, structures::vector3d::Vector3D};
 use std::ops::Deref;
 
 /// Structure defining simulation box shape and dimensions.
@@ -72,9 +72,9 @@ impl SimBox {
     ///
     /// ## Example
     /// ```
-    /// use groan_rs::prelude::*;
-    /// use float_cmp::assert_approx_eq;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
     /// let simbox = SimBox::from_lengths_angles([5.0, 4.0, 3.0].into(), [80.0, 70.0, 120.0].into());
     ///
     /// assert_approx_eq!(f32, simbox.v1x,  5.000000, epsilon = 0.0001);
@@ -92,7 +92,10 @@ impl SimBox {
     /// - Adapted from Tsjerk Wassenaar's `triclinic` function:
     /// <https://www.mail-archive.com/gmx-users@gromacs.org/msg28032.html>
     pub fn from_lengths_angles(lengths: Vector3D, angles: Vector3D) -> Self {
-        let mut simbox = SimBox { v1x: lengths.x, ..Default::default() };
+        let mut simbox = SimBox {
+            v1x: lengths.x,
+            ..Default::default()
+        };
 
         if angles.x == 90.0 && angles.y == 90.0 && angles.z == 90.0 {
             simbox.v2y = lengths.y;
@@ -124,9 +127,9 @@ impl SimBox {
     ///
     /// ## Example
     /// ```
-    /// use groan_rs::prelude::*;
-    /// use float_cmp::assert_approx_eq;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
     /// let simbox = SimBox::from([
     ///     5.0, 3.464102, 2.553768,
     ///     0.0, 0.0, -2.000000,
@@ -184,21 +187,16 @@ impl SimBox {
     /// Check that the simulation box is orthogonal.
     ///
     /// ## Returns
-    /// `true` if only the first three dimensions of the `SimBox` are non-zero. Otherwise, returns `false`.
+    /// `true` if the simulation box is orthogonal. Otherwise, returns `false`.
     pub fn is_orthogonal(&self) -> bool {
-        self.v1y == 0.0
-            && self.v1z == 0.0
-            && self.v2x == 0.0
-            && self.v2z == 0.0
-            && self.v3x == 0.0
-            && self.v3y == 0.0
+        // we do not need to check v1y, v1z, and v2z as these must be zero
+        self.v2x == 0.0 && self.v3x == 0.0 && self.v3y == 0.0
     }
 
-    /// Check that the box is a valid simulation box, i.e. at least the first 3 dimensions of the box are positive.
-    /// ## Returns
-    /// `true` if the box is a valid simulation box. Otherwise, returns `false`.
-    pub fn is_valid(&self) -> bool {
-        self.x > 0.0 && self.y > 0.0 && self.z > 0.0
+    /// Check whether all dimensions of the simulation box are zero.
+    pub fn is_zero(&self) -> bool {
+        // we do not need to check v1y, v1z, and v2z as these must be zero
+        self.x == 0.0 && self.y == 0.0 && self.z == 0.0 && self.is_orthogonal()
     }
 }
 
@@ -231,6 +229,15 @@ impl Deref for SimBox {
 
     fn deref(&self) -> &Self::Target {
         unsafe { &*(self as *const SimBox as *const SimBoxDimensions) }
+    }
+}
+
+/// Checks whether the simulation box exists and whether it is orthogonal.
+pub(crate) fn simbox_check(simbox: Option<&SimBox>) -> Result<&SimBox, SimBoxError> {
+    match simbox {
+        Some(x) if x.is_orthogonal() => Ok(x),
+        Some(_) => Err(SimBoxError::NotOrthogonal),
+        None => Err(SimBoxError::DoesNotExist),
     }
 }
 

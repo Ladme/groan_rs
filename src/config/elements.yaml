@@ -1,0 +1,183 @@
+--- # Parameters for default elements supported by the `groan_rs` library.
+# Taken from Gromacs `atommass.dat` and `vdwradii.dat`. 
+# Modified based on VMD's https://www.cgl.ucsf.edu/chimera/docs/UsersGuide/midas/vdwtables.html#allatom.
+# All fields are optional.
+# When using `System::quess_elements` function, the elements are assigned to atoms based on the herein provided Groan Selection Language query.
+# Higher placed elements have priority over the lower placed ones.
+# Unknown fields and invalid queries, masses, van der Waals radii, min_bonds and max bonds will raise a parsing error.
+# If you define multiple elements with the same name, only the last element with this name will be used!
+
+dummy:
+  query: name MN1 MN2 MNZ1 MNZ2 MW
+  mass: 0.0
+hydrogen:
+  symbol: H
+  query: name r'^[1-9]?[Hh].*'
+  mass: 1.0079
+  vdw: 0.1
+  expected_max_bonds: 1
+  expected_min_bonds: 1
+carbon:
+  symbol: C
+  query: name r'^[Cc].*$' and not @ion
+  mass: 12.0107
+  vdw: 0.17
+  expected_max_bonds: 4
+  expected_min_bonds: 2
+nitrogen:
+  symbol: N
+  query: name r'^[Nn].*$' and not @ion
+  mass: 14.00670
+  vdw: 0.1625
+  expected_max_bonds: 4
+  expected_min_bonds: 1
+oxygen:
+  symbol: O
+  query: name r'^[Oo].*$'
+  mass: 15.99940
+  vdw: 0.15
+  expected_max_bonds: 2
+  expected_min_bonds: 1
+phosphorus:
+  symbol: P
+  query: name r'^[Pp].*$'
+  mass: 30.97380
+  vdw: 0.1871
+  expected_max_bonds: 5
+  expected_min_bonds: 2
+sulfur:
+  symbol: S
+  query: name r'^[Ss][^iI].*$'
+  mass: 32.06500
+  vdw: 0.1782
+  expected_min_bonds: 1
+sodium:
+  symbol: Na
+  query: name r'^[Nn][Aa]\+?$' SOD and @ion
+  mass: 22.98970
+chlorine:
+  symbol: Cl
+  query: name r'^[Cc][Ll]\-?$' CLA and @ion
+  mass: 35.45300
+potassium:
+  symbol: K
+  query: name r'^[Kk]\+?$'
+  mass: 39.09830
+calcium:
+  symbol: Ca
+  query: name r'^[Cc][Aa]2?\+?$' CAL Cal and @ion
+  mass: 40.07800
+magnesium:
+  symbol: Mg
+  query: name r'^[Mm][Gg]2?\+?$'
+  mass: 24.30500
+fluorine:
+  symbol: F
+  query: name r'^[Ff]\-?$'
+  mass: 18.99840
+  vdw: 0.156
+iodine:
+  symbol: I
+  query: name r'^[Ii]\-?$'
+  mass: 126.90450
+silicon:
+  symbol: Si
+  query: name r'^[Ss][Ii].*$'
+  mass: 28.08550
+iron:
+  symbol: Fe
+  query: name r'^[Ff][Ee].*$'
+  mass: 55.84500
+gold:
+  symbol: Au
+  query: name r'^[Aa][Uu].*$'
+  mass: 196.96650
+aluminum:
+  symbol: Al
+  query: name r'^[Aa][Ll].*$'
+  mass: 26.98150
+lithium:
+  symbol: Li
+  query: name r'^[Ll][Ii].*$'
+  mass: 6.94100
+beryllium:
+  symbol: Be
+  query: name r'^[Bb][Ee].*$'
+  mass: 9.01220
+boron:
+  symbol: B
+  query: name r'^[Bb][^Ee].*$'
+  mass: 10.81100
+titanium:
+  symbol: Ti
+  query: name r'^[Tt][Ii].*$'
+  mass: 47.86700
+vanadium:
+  symbol: V
+  query: name r'^[Vv].*$'
+  mass: 50.94150
+chromium:
+  symbol: Cr
+  query: name r'^[Cc][Rr].*$'
+  mass: 51.99610
+manganese:
+  symbol: Mn
+  query: name r'^[Mm][Nn].*$'
+  mass: 54.93800
+cobalt:
+  symbol: Co
+  query: name r'^[Cc][Oo].*$'
+  mass: 58.93320
+nickel:
+  symbol: Ni
+  query: name r'^[Nn][Ii].*$'
+  mass: 58.69340
+copper:
+  symbol: Cu
+  query: name r'^[Cc][Uu].*$'
+  mass: 63.54600
+zinc:
+  symbol: Zn
+  query: name r'^[Zz][Nn].*$'
+  mass: 65.39000
+gallium:
+  symbol: Ga
+  query: name r'^[Gg][Aa].*$'
+  mass: 69.72300
+germanium:
+  symbol: Ge
+  query: name r'^[Gg][Ee].*$'
+  mass: 72.64000
+arsenic:
+  symbol: As
+  query: name r'^[Aa][Ss].*$'
+  mass: 74.92160
+selenium:
+  symbol: Se
+  query: name r'^[Ss][Ee].*$'
+  mass: 78.96000
+bromine:
+  symbol: Br
+  query: name r'^[Bb][Rr].*$'
+  mass: 79.90400
+silver:
+  symbol: Ag
+  query: name r'^[Aa][Gg].*$'
+  mass: 107.86820
+platinum:
+  symbol: Pt
+  query: name r'^[Pp][Tt].*$'
+  mass: 195.07800
+mercury:
+  symbol: Hg
+  query: name r'^[Hh][Gg].*$' and not @protein
+  mass: 200.59000
+lead:
+  symbol: Pb
+  query: name r'^[Pp][Bb].*$'
+  mass: 207.20000
+bismuth:
+  symbol: Bi
+  query: name r'^[Bb][Ii].*$'
+  mass: 208.98040
+...

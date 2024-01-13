@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023 Ladislav Bartos
+// Copyright (c) 2023-2024 Ladislav Bartos
 
 //! Traits for reading generic trajectory files.
 
@@ -175,14 +175,14 @@ where
     /// Iteration is ended at the frame with time corresponding to `end_time` or once the end of the trajectory file is reached.
     /// The range is inclusive on both ends, i.e., frames with `time = start_time` and `time = end_time` will be included in the iteration.
     ///
-    /// If the frame corresponding to the `start_time` doesn't exist in the trajectory file,
+    /// If the frame corresponding to the `start_time` does not exist in the trajectory file,
     /// the iterator starts at the frame closest in time to but greater than the `start_time`.
     ///
     /// If either the `start_time` or the `end_time` is negative, it results in a `ReadTrajError::TimeRangeNegative` error.
     ///
     /// If the `start_time` is greater than the `end_time`, it results in a `ReadTrajError::InvalidTimeRange` error.
     ///
-    /// If the `start_time` exceeds the time of any frame in the xtc file, it results in a `ReadTrajError::StartNotFound` error.
+    /// If the `start_time` exceeds the time of all frames in the xtc file, it results in a `ReadTrajError::StartNotFound` error.
     pub fn with_range(
         self,
         start_time: f32,
@@ -572,8 +572,8 @@ pub trait TrajMasterRead<'a>:
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// // create the `ProgressPrinter` defining how often and in what format the
@@ -609,8 +609,8 @@ pub trait TrajMasterRead<'a>:
     ///
     /// Example:
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// let printer_jump = ProgressPrinter::new();
@@ -752,9 +752,9 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use groan_rs::errors::ReadTrajError;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use groan_rs::errors::ReadTrajError;
+    /// #
     /// fn example_fn() -> Result<(), ReadTrajError> {
     ///     // load system from file
     ///     let mut system = System::from_file("system.gro").unwrap();
@@ -804,9 +804,9 @@ pub trait TrajWrite {
     /// ## Example
     /// Using `TrajWrite::new` in a generic function.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use std::path::Path;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use std::path::Path;
+    /// #
     /// // this function can write any trajectory file implementing `TrajWrite` trait
     /// fn write_trajectory<Writer>(system: &System, file: impl AsRef<Path>)
     ///     where Writer: TrajWrite
@@ -838,9 +838,9 @@ pub trait TrajGroupWrite {
     /// ## Example
     /// Using `TrajGroupWrite::new` in a generic function.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use std::path::Path;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use std::path::Path;
+    /// #
     /// // this function can write any trajectory file implementing `TrajGroupWrite` trait
     /// fn write_trajectory_group<Writer>(system: &System, file: impl AsRef<Path>)
     ///     where Writer: TrajGroupWrite
@@ -880,48 +880,7 @@ mod tests {
 
     use super::*;
     use crate::prelude::*;
-    use float_cmp::assert_approx_eq;
-
-    fn compare_atoms(atom1: &Atom, atom2: &Atom) {
-        assert_eq!(atom1.get_residue_number(), atom2.get_residue_number());
-        assert_eq!(atom1.get_residue_name(), atom2.get_residue_name());
-        assert_eq!(atom1.get_atom_number(), atom2.get_atom_number());
-        assert_eq!(atom1.get_atom_name(), atom2.get_atom_name());
-        assert_eq!(atom1.get_chain(), atom2.get_chain());
-
-        if let (Some(pos1), Some(pos2)) = (atom1.get_position(), atom2.get_position()) {
-            assert_approx_eq!(f32, pos1.x, pos2.x);
-            assert_approx_eq!(f32, pos1.y, pos2.y);
-            assert_approx_eq!(f32, pos1.z, pos2.z);
-        } else {
-            assert!(
-                atom1.get_position().is_none() && atom2.get_position().is_none(),
-                "Positions are not both None"
-            );
-        }
-
-        if let (Some(vel1), Some(vel2)) = (atom1.get_velocity(), atom2.get_velocity()) {
-            assert_approx_eq!(f32, vel1.x, vel2.x);
-            assert_approx_eq!(f32, vel1.y, vel2.y);
-            assert_approx_eq!(f32, vel1.z, vel2.z);
-        } else {
-            assert!(
-                atom1.get_velocity().is_none() && atom2.get_velocity().is_none(),
-                "Velocities are not both None"
-            );
-        }
-
-        if let (Some(force1), Some(force2)) = (atom1.get_force(), atom2.get_force()) {
-            assert_approx_eq!(f32, force1.x, force2.x);
-            assert_approx_eq!(f32, force1.y, force2.y);
-            assert_approx_eq!(f32, force1.z, force2.z);
-        } else {
-            assert!(
-                atom1.get_force().is_none() && atom2.get_force().is_none(),
-                "Forces are not both None"
-            );
-        }
-    }
+    use crate::test_utilities::utilities::compare_atoms;
 
     #[test]
     fn traj_iter_xtc() {

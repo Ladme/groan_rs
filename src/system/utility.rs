@@ -1,9 +1,9 @@
 // Released under MIT License.
-// Copyright (c) 2023 Ladislav Bartos
+// Copyright (c) 2023-2024 Ladislav Bartos
 
 //! Implementation of some higher level functions for `groan_rs` programs.
 
-use crate::errors::{GroupError, ParseNdxError};
+use crate::errors::{AtomError, GroupError, ParseNdxError};
 use crate::structures::{dimension::Dimension, vector3d::Vector3D};
 use crate::system::general::System;
 
@@ -79,20 +79,18 @@ impl System {
     /// - `dimension` - Dimension enum for specifying centering dimensions.
     ///
     /// ## Returns
-    /// `Ok` if centering was successful. `GroupError` if the group does not exist.
-    ///
-    /// ## Warning
-    /// - This function currently only supports orthogonal simulation boxes.
-    ///
-    /// ## Panics
-    /// Panics if any of the atoms has no position.
+    /// - `Ok` if centering was successful.
+    /// - `GroupError::NotFound` if the group does not exist.
+    /// - `GroupError::EmptyGroup` if the group contains no atoms.
+    /// - `GroupError::InvalidSimBox` if the system has no simulation box or the simulation box is not orthogonal.
+    /// - `GroupError::InvalidPosition` if any of the atoms in the system has an undefined position.
     ///
     /// ## Example
     /// Center the group `Protein` in the xy-plane.
     /// The positions of the atoms along the z-dimension will be unchanged.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// // load system from a gro file
     /// let mut system = System::from_file("system.gro").unwrap();
     ///  
@@ -109,7 +107,7 @@ impl System {
     ) -> Result<(), GroupError> {
         let reference_center = self.group_get_center(reference)?;
 
-        let box_center = self.get_box_center();
+        let box_center = self.get_box_center().map_err(GroupError::InvalidSimBox)?;
         let mut shift: Vector3D = [
             box_center.x - reference_center.x,
             box_center.y - reference_center.y,
@@ -118,14 +116,79 @@ impl System {
         .into();
 
         shift.filter(dimension);
-        self.atoms_translate(&shift);
-        Ok(())
+        match self.atoms_translate(&shift) {
+            Ok(_) => Ok(()),
+            Err(AtomError::InvalidSimBox(e)) => Err(GroupError::InvalidSimBox(e)),
+            Err(AtomError::InvalidPosition(e)) => Err(GroupError::InvalidPosition(e)),
+            _ => panic!("FATAL GROAN ERROR | System::atoms_center | Invalid error type returned from `System::atoms_translate.`"),
+        }
+    }
+
+    /// Place the center of mass of the reference group to the center of a simulation box.
+    /// This shifts all other atoms accordingly and wraps them into the simulation box.
+    /// In other words, this function performs an operation commonly called 'centering'.
+    /// As this function uses Bai-Breen method for calculating the center of geometry in periodic systems,
+    /// the reference group can be of any size and atom distribution.
+    /// 
+    /// Unlike `System::atoms_center`, this function uses center of *mass* of the reference group,
+    /// instead of center of geometry.
+    ///
+    /// ## Arguments
+    /// - `reference` - Name of the group to center.
+    /// - `dimension` - Dimension enum for specifying centering dimensions.
+    ///
+    /// ## Returns
+    /// - `Ok` if centering was successful.
+    /// - `GroupError::NotFound` if the group does not exist.
+    /// - `GroupError::EmptyGroup` if the group contains no atoms.
+    /// - `GroupError::InvalidSimBox` if the system has no simulation box or the simulation box is not orthogonal.
+    /// - `GroupError::InvalidPosition` if any of the atoms in the system has an undefined position.
+    /// - `GroupError::InvalidMass` if any of the atoms in the reference group has no mass.
+    ///
+    /// ## Example
+    /// Center the group `Protein` in the xy-plane. Use center of mass as the reference point.
+    /// The positions of the atoms along the z-dimension will be unchanged.
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// // load system from a gro file
+    /// let mut system = System::from_file("system.gro").unwrap();
+    ///  
+    /// // create a group Protein by autodetecting protein atoms
+    /// system.group_create("Protein", "@protein").unwrap();
+    ///
+    /// // center the group 'Protein'
+    /// system.atoms_center_mass("Protein", Dimension::XY).unwrap();
+    /// ```
+    pub fn atoms_center_mass(
+        &mut self,
+        reference: &str,
+        dimension: Dimension,
+    ) -> Result<(), GroupError> {
+        let reference_com = self.group_get_com(reference)?;
+
+        let box_center = self.get_box_center().map_err(GroupError::InvalidSimBox)?;
+        let mut shift: Vector3D = [
+            box_center.x - reference_com.x,
+            box_center.y - reference_com.y,
+            box_center.z - reference_com.z,
+        ]
+        .into();
+        
+        shift.filter(dimension);
+        match self.atoms_translate(&shift) {
+            Ok(_) => Ok(()),
+            Err(AtomError::InvalidSimBox(e)) => Err(GroupError::InvalidSimBox(e)),
+            Err(AtomError::InvalidPosition(e)) => Err(GroupError::InvalidPosition(e)),
+            _ => panic!("FATAL GROAN ERROR | System::atoms_center_mass | Invalid error type returned from `System::atoms_translate.`"),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{errors::{PositionError, SimBoxError, MassError}, structures::element::Elements};
     use float_cmp::assert_approx_eq;
     use std::path::Path;
 
@@ -296,7 +359,7 @@ mod tests {
         assert_approx_eq!(
             f32,
             system.group_get_center("Protein").unwrap().x,
-            system.get_box_center().x
+            system.get_box_center().unwrap().x
         );
 
         let atom1 = system.atoms_iter().next().unwrap().get_position();
@@ -321,7 +384,7 @@ mod tests {
         assert_approx_eq!(
             f32,
             system.group_get_center("Protein").unwrap().y,
-            system.get_box_center().y
+            system.get_box_center().unwrap().y
         );
 
         let atom1 = system.atoms_iter().next().unwrap().get_position();
@@ -346,7 +409,7 @@ mod tests {
         assert_approx_eq!(
             f32,
             system.group_get_center("Protein").unwrap().z,
-            system.get_box_center().z
+            system.get_box_center().unwrap().z
         );
 
         let atom1 = system.atoms_iter().next().unwrap().get_position();
@@ -369,8 +432,8 @@ mod tests {
         system.atoms_center("Protein", Dimension::XY).unwrap();
 
         let group_center = system.group_get_center("Protein").unwrap();
-        assert_approx_eq!(f32, group_center.x, system.get_box_center().x);
-        assert_approx_eq!(f32, group_center.y, system.get_box_center().y);
+        assert_approx_eq!(f32, group_center.x, system.get_box_center().unwrap().x);
+        assert_approx_eq!(f32, group_center.y, system.get_box_center().unwrap().y);
 
         let atom1 = system.atoms_iter().next().unwrap().get_position();
         let atom2 = system.atoms_iter().last().unwrap().get_position();
@@ -392,8 +455,8 @@ mod tests {
         system.atoms_center("Protein", Dimension::XZ).unwrap();
 
         let group_center = system.group_get_center("Protein").unwrap();
-        assert_approx_eq!(f32, group_center.x, system.get_box_center().x);
-        assert_approx_eq!(f32, group_center.z, system.get_box_center().z);
+        assert_approx_eq!(f32, group_center.x, system.get_box_center().unwrap().x);
+        assert_approx_eq!(f32, group_center.z, system.get_box_center().unwrap().z);
 
         let atom1 = system.atoms_iter().next().unwrap().get_position();
         let atom2 = system.atoms_iter().last().unwrap().get_position();
@@ -415,8 +478,8 @@ mod tests {
         system.atoms_center("Protein", Dimension::YZ).unwrap();
 
         let group_center = system.group_get_center("Protein").unwrap();
-        assert_approx_eq!(f32, group_center.y, system.get_box_center().y);
-        assert_approx_eq!(f32, group_center.z, system.get_box_center().z);
+        assert_approx_eq!(f32, group_center.y, system.get_box_center().unwrap().y);
+        assert_approx_eq!(f32, group_center.z, system.get_box_center().unwrap().z);
 
         let atom1 = system.atoms_iter().next().unwrap().get_position();
         let atom2 = system.atoms_iter().last().unwrap().get_position();
@@ -438,9 +501,9 @@ mod tests {
         system.atoms_center("Protein", Dimension::XYZ).unwrap();
 
         let group_center = system.group_get_center("Protein").unwrap();
-        assert_approx_eq!(f32, group_center.x, system.get_box_center().x);
-        assert_approx_eq!(f32, group_center.y, system.get_box_center().y);
-        assert_approx_eq!(f32, group_center.z, system.get_box_center().z);
+        assert_approx_eq!(f32, group_center.x, system.get_box_center().unwrap().x);
+        assert_approx_eq!(f32, group_center.y, system.get_box_center().unwrap().y);
+        assert_approx_eq!(f32, group_center.z, system.get_box_center().unwrap().z);
 
         let atom1 = system.atoms_iter().next().unwrap().get_position();
         let atom2 = system.atoms_iter().last().unwrap().get_position();
@@ -452,5 +515,359 @@ mod tests {
         assert_approx_eq!(f32, atom2.unwrap().x, 5.478555);
         assert_approx_eq!(f32, atom2.unwrap().y, 2.2167444);
         assert_approx_eq!(f32, atom2.unwrap().z, 2.2404397);
+    }
+
+    #[test]
+    fn atoms_center_fail_group() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.atoms_center("Nonexistent", Dimension::XYZ) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(GroupError::NotFound(x)) => assert_eq!(x, "Nonexistent"),
+            Err(e) => panic!(
+                "Function failed successfully, but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn atoms_center_fail_empty() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.atoms_center("Backbone", Dimension::XYZ) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(GroupError::EmptyGroup(x)) => assert_eq!(x, "Backbone"),
+            Err(e) => panic!(
+                "Function failed successfully, but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn atoms_center_fail_simbox() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+        system.reset_box();
+
+        match system.atoms_center("Protein", Dimension::XYZ) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(GroupError::InvalidSimBox(SimBoxError::DoesNotExist)) => (),
+            Err(e) => panic!(
+                "Function failed successfully, but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn atoms_center_fail_position() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+
+        match system.atoms_center("Protein", Dimension::XYZ) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Err(e) => panic!(
+                "Function failed successfully, but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn atoms_center_mass_x() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+        system.guess_elements(Elements::default()).unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        system.atoms_center_mass("Protein", Dimension::X).unwrap();
+
+        assert_approx_eq!(
+            f32,
+            system.group_get_com("Protein").unwrap().x,
+            system.get_box_center().unwrap().x
+        );
+
+        let atom1 = system.atoms_iter().next().unwrap().get_position();
+        let atom2 = system.atoms_iter().last().unwrap().get_position();
+
+        assert_approx_eq!(f32, atom1.unwrap().x, 3.456437);
+        assert_approx_eq!(f32, atom1.unwrap().y, 3.899);
+        assert_approx_eq!(f32, atom1.unwrap().z, 4.993);
+
+        assert_approx_eq!(f32, atom2.unwrap().x, 2.0444372);
+        assert_approx_eq!(f32, atom2.unwrap().y, 3.823);
+        assert_approx_eq!(f32, atom2.unwrap().z, 0.378);
+    }
+
+    #[test]
+    fn atoms_center_mass_y() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+        system.guess_elements(Elements::default()).unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        system.atoms_center_mass("Protein", Dimension::Y).unwrap();
+
+        assert_approx_eq!(
+            f32,
+            system.group_get_com("Protein").unwrap().y,
+            system.get_box_center().unwrap().y
+        );
+
+        let atom1 = system.atoms_iter().next().unwrap().get_position();
+        let atom2 = system.atoms_iter().last().unwrap().get_position();
+
+        assert_approx_eq!(f32, atom1.unwrap().x, 4.322);
+        assert_approx_eq!(f32, atom1.unwrap().y, 3.475028);
+        assert_approx_eq!(f32, atom1.unwrap().z, 4.993);
+
+        assert_approx_eq!(f32, atom2.unwrap().x, 2.910);
+        assert_approx_eq!(f32, atom2.unwrap().y, 3.399028);
+        assert_approx_eq!(f32, atom2.unwrap().z, 0.378);
+    }
+
+    #[test]
+    fn atoms_center_mass_z() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+        system.guess_elements(Elements::default()).unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        system.atoms_center_mass("Protein", Dimension::Z).unwrap();
+
+        assert_approx_eq!(
+            f32,
+            system.group_get_com("Protein").unwrap().z,
+            system.get_box_center().unwrap().z
+        );
+
+        let atom1 = system.atoms_iter().next().unwrap().get_position();
+        let atom2 = system.atoms_iter().last().unwrap().get_position();
+
+        assert_approx_eq!(f32, atom1.unwrap().x, 4.322);
+        assert_approx_eq!(f32, atom1.unwrap().y, 3.899);
+        assert_approx_eq!(f32, atom1.unwrap().z, 5.4376106);
+
+        assert_approx_eq!(f32, atom2.unwrap().x, 2.910);
+        assert_approx_eq!(f32, atom2.unwrap().y, 3.823);
+        assert_approx_eq!(f32, atom2.unwrap().z, 0.82261086);
+    }
+
+    #[test]
+    fn atoms_center_mass_xy() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+        system.guess_elements(Elements::default()).unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        system.atoms_center_mass("Protein", Dimension::XY).unwrap();
+
+        assert_approx_eq!(
+            f32,
+            system.group_get_com("Protein").unwrap().x,
+            system.get_box_center().unwrap().x
+        );
+
+        assert_approx_eq!(
+            f32,
+            system.group_get_com("Protein").unwrap().y,
+            system.get_box_center().unwrap().y
+        );
+
+        let atom1 = system.atoms_iter().next().unwrap().get_position();
+        let atom2 = system.atoms_iter().last().unwrap().get_position();
+
+        assert_approx_eq!(f32, atom1.unwrap().x, 3.456437);
+        assert_approx_eq!(f32, atom1.unwrap().y, 3.475028);
+        assert_approx_eq!(f32, atom1.unwrap().z, 4.993);
+
+        assert_approx_eq!(f32, atom2.unwrap().x, 2.0444372);
+        assert_approx_eq!(f32, atom2.unwrap().y, 3.399028);
+        assert_approx_eq!(f32, atom2.unwrap().z, 0.378);
+    }
+
+    #[test]
+    fn atoms_center_mass_xz() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+        system.guess_elements(Elements::default()).unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        system.atoms_center_mass("Protein", Dimension::XZ).unwrap();
+
+        assert_approx_eq!(
+            f32,
+            system.group_get_com("Protein").unwrap().x,
+            system.get_box_center().unwrap().x
+        );
+
+        assert_approx_eq!(
+            f32,
+            system.group_get_com("Protein").unwrap().z,
+            system.get_box_center().unwrap().z
+        );
+
+        let atom1 = system.atoms_iter().next().unwrap().get_position();
+        let atom2 = system.atoms_iter().last().unwrap().get_position();
+
+        assert_approx_eq!(f32, atom1.unwrap().x, 3.456437);
+        assert_approx_eq!(f32, atom1.unwrap().y, 3.899);
+        assert_approx_eq!(f32, atom1.unwrap().z, 5.4376106);
+
+        assert_approx_eq!(f32, atom2.unwrap().x, 2.0444372);
+        assert_approx_eq!(f32, atom2.unwrap().y, 3.823);
+        assert_approx_eq!(f32, atom2.unwrap().z, 0.82261086);
+    }
+
+    #[test]
+    fn atoms_center_mass_yz() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+        system.guess_elements(Elements::default()).unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        system.atoms_center_mass("Protein", Dimension::YZ).unwrap();
+
+        assert_approx_eq!(
+            f32,
+            system.group_get_com("Protein").unwrap().y,
+            system.get_box_center().unwrap().y
+        );
+
+        assert_approx_eq!(
+            f32,
+            system.group_get_com("Protein").unwrap().z,
+            system.get_box_center().unwrap().z
+        );
+
+        let atom1 = system.atoms_iter().next().unwrap().get_position();
+        let atom2 = system.atoms_iter().last().unwrap().get_position();
+
+        assert_approx_eq!(f32, atom1.unwrap().x, 4.322);
+        assert_approx_eq!(f32, atom1.unwrap().y, 3.475028);
+        assert_approx_eq!(f32, atom1.unwrap().z, 5.4376106);
+
+        assert_approx_eq!(f32, atom2.unwrap().x, 2.910);
+        assert_approx_eq!(f32, atom2.unwrap().y, 3.399028);
+        assert_approx_eq!(f32, atom2.unwrap().z, 0.82261086);
+    }
+
+    #[test]
+    fn atoms_center_mass_xyz() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+        system.guess_elements(Elements::default()).unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        system.atoms_center_mass("Protein", Dimension::XYZ).unwrap();
+
+        assert_approx_eq!(
+            f32,
+            system.group_get_com("Protein").unwrap().x,
+            system.get_box_center().unwrap().x
+        );
+
+        assert_approx_eq!(
+            f32,
+            system.group_get_com("Protein").unwrap().y,
+            system.get_box_center().unwrap().y
+        );
+
+        assert_approx_eq!(
+            f32,
+            system.group_get_com("Protein").unwrap().z,
+            system.get_box_center().unwrap().z
+        );
+
+        let atom1 = system.atoms_iter().next().unwrap().get_position();
+        let atom2 = system.atoms_iter().last().unwrap().get_position();
+
+        assert_approx_eq!(f32, atom1.unwrap().x, 3.456437);
+        assert_approx_eq!(f32, atom1.unwrap().y, 3.475028);
+        assert_approx_eq!(f32, atom1.unwrap().z, 5.4376106);
+
+        assert_approx_eq!(f32, atom2.unwrap().x, 2.0444372);
+        assert_approx_eq!(f32, atom2.unwrap().y, 3.399028);
+        assert_approx_eq!(f32, atom2.unwrap().z, 0.82261086);
+    }
+
+    #[test]
+    fn atoms_center_mass_fail_group() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+        system.guess_elements(Elements::default()).unwrap();
+
+        match system.atoms_center_mass("Protein", Dimension::XYZ) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(GroupError::NotFound(x)) => assert_eq!(x, "Protein"),
+            Err(e) => panic!(
+                "Function failed successfully, but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn atoms_center_mass_fail_empty() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+        system.guess_elements(Elements::default()).unwrap();
+        system.group_create("Empty", "resname X").unwrap();
+
+        match system.atoms_center_mass("Empty", Dimension::XYZ) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(GroupError::EmptyGroup(x)) => assert_eq!(x, "Empty"),
+            Err(e) => panic!(
+                "Function failed successfully, but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn atoms_center_mass_fail_simbox() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+        system.guess_elements(Elements::default()).unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+        system.reset_box();
+
+        match system.atoms_center_mass("Protein", Dimension::XYZ) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(GroupError::InvalidSimBox(SimBoxError::DoesNotExist)) => (),
+            Err(e) => panic!(
+                "Function failed successfully, but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn atoms_center_mass_fail_position() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+        system.guess_elements(Elements::default()).unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+
+        match system.atoms_center_mass("Protein", Dimension::XYZ) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Err(e) => panic!(
+                "Function failed successfully, but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn atoms_center_mass_fail_mass() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        match system.atoms_center_mass("Protein", Dimension::XYZ) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(GroupError::InvalidMass(MassError::NoMass(x))) => assert_eq!(x, 1),
+            Err(e) => panic!(
+                "Function failed successfully, but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
     }
 }

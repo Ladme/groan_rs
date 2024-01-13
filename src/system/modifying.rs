@@ -1,12 +1,16 @@
 // Released under MIT License.
-// Copyright (c) 2023 Ladislav Bartos
+// Copyright (c) 2023-2024 Ladislav Bartos
 
 //! Implementation of System methods for modifying the system.
 
 use std::collections::HashSet;
 
-use crate::errors::{AtomError, GroupError};
-use crate::structures::{atom::Atom, simbox::SimBox, vector3d::Vector3D};
+use crate::errors::{AtomError, GroupError, PositionError};
+use crate::structures::{
+    atom::Atom,
+    simbox::{simbox_check, SimBox},
+    vector3d::Vector3D,
+};
 use crate::system::general::System;
 
 /// ## Methods for modifying the properties of the system.
@@ -14,16 +18,18 @@ impl System {
     /// Translate all atoms of a group by target vector.
     ///
     /// ## Returns
-    /// `Ok` or `GroupError::NotFound` in case the group does not exist.
-    ///
-    /// ## Panics
-    /// Panics if any of the atoms of the group has no position.
+    /// - `Ok` if everything was successful.
+    /// - `GroupError::NotFound` in case the group does not exist.
+    /// - `GroupError::InvalidSimBox` if the system has no simulation box
+    /// or the simulation box is not orthogonal.
+    /// - `GroupError::InvalidPosition` if any of the atoms of the group
+    /// has an undefined position.
     ///
     /// ## Example
     /// Translating the atoms of the group "Protein".
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.group_create("Protein", "resid 1 to 29");
     ///
@@ -33,16 +39,16 @@ impl System {
     /// }
     /// ```
     pub fn group_translate(&mut self, name: &str, vector: &Vector3D) -> Result<(), GroupError> {
-        unsafe {
-            let simbox = self.get_box_as_ref() as *const SimBox;
+        let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?
+            as *const SimBox;
 
+        unsafe {
             for atom in self.group_iter_mut(name)? {
-                atom.translate(
-                    vector,
-                    simbox
-                        .as_ref()
-                        .expect("FATAL GROAN ERROR | System::group_translate | SimBox is NULL which should not happen.")
-                );
+                match atom.translate(vector, &*simbox) {
+                    Ok(_) => (),
+                    Err(AtomError::InvalidPosition(e)) => return Err(GroupError::InvalidPosition(e)),
+                    _ => panic!("FATAL GROAN ERROR | System::group_translate | Invalid error type returned from `Atom::translate`."), 
+                }
             }
         }
 
@@ -51,30 +57,32 @@ impl System {
 
     /// Translate all atoms in the system by target vector.
     ///
-    /// ## Panics
-    /// Panics if any of the atoms has no position.
+    /// ## Returns
+    /// - `Ok` if everything was successful.
+    /// - `AtomError::InvalidSimBox` if the system has no simulation box
+    /// or the simulation box is not orthogonal.
+    /// - `AtomError::InvalidPosition` if any of the atoms of the system
+    /// has an undefined position.
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// system.atoms_translate(&[1.0, 2.0, -1.0].into());
     /// ```
-    pub fn atoms_translate(&mut self, vector: &Vector3D) {
-        unsafe {
-            let simbox = self.get_box_as_ref() as *const SimBox;
+    pub fn atoms_translate(&mut self, vector: &Vector3D) -> Result<(), AtomError> {
+        let simbox =
+            simbox_check(self.get_box_as_ref()).map_err(AtomError::InvalidSimBox)? as *const SimBox;
 
+        unsafe {
             for atom in self.get_atoms_as_ref_mut().iter_mut() {
-                atom.translate(
-                    vector,
-                    simbox
-                        .as_ref()
-                        .expect("FATAL GROAN ERROR | System::atoms_translate | SimBox is NULL which should not happen.")
-                );
+                atom.translate(vector, &*simbox)?;
             }
         }
+
+        Ok(())
     }
 
     /// Renumber all atoms of the system. This function will give a new atom number
@@ -84,8 +92,8 @@ impl System {
     /// Constructing a new system containing a dimer
     /// of a protein from the original system.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// // load system and ndx groups from files
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.read_ndx("index.ndx").unwrap();
@@ -130,8 +138,8 @@ impl System {
     /// Constructing a new system containing a dimer
     /// of a protein from the original system.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// // load system and ndx groups from files
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.read_ndx("index.ndx").unwrap();
@@ -196,29 +204,42 @@ impl System {
 
     /// Wrap atoms of the system into the simulation box.
     ///
-    /// ## Panics
-    /// Panics if any of the atoms has no position.
-    pub fn atoms_wrap(&mut self) {
-        self.group_wrap("all")
-            .expect("FATAL GROAN ERROR | System::atoms_wrap | Default group 'all' does not exist.")
+    /// ## Returns
+    /// `Ok` if everything was successful.
+    /// `AtomError::InvalidSimBox` if the system has no simulation box
+    /// or the simulation box is not orthogonal.
+    /// `AtomError::InvalidPosition` if any of the atoms in the system
+    /// has an undefined position.
+    pub fn atoms_wrap(&mut self) -> Result<(), AtomError> {
+        match self.group_wrap("all") {
+            Ok(_) => Ok(()),
+            Err(GroupError::NotFound(_)) => panic!("FATAL GROAN ERROR | System::atoms_wrap | Default group 'all' does not exist."),
+            Err(GroupError::InvalidSimBox(e)) => Err(AtomError::InvalidSimBox(e)),
+            Err(GroupError::InvalidPosition(e)) => Err(AtomError::InvalidPosition(e)),
+            Err(_) => panic!("FATAL GROAN ERROR | System::atoms_wrap | Invalid error type returned from `System::group_wrap`."),
+        }
     }
 
     /// Wrap atoms of a given group into the simulation box.
     ///
     /// ## Returns
-    /// `Ok` if the group exists.
-    /// `GroupError` otherwise.
-    ///
-    /// ## Panics
-    /// Panics if any of the atoms has no position.
+    /// - `Ok` if everything was successful.
+    /// - `GroupError::NotFound` if the group does not exist.
+    /// - `GroupError::InvalidSimBox` if the system has no simulation box
+    /// or the simulation box is not orthogonal.
+    /// - `GroupError::InvalidPosition` if any of the atoms of the group
+    /// has an undefined position.
     pub fn group_wrap(&mut self, name: &str) -> Result<(), GroupError> {
-        let simulation_box = self.get_box_as_ref() as *const SimBox;
+        let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?
+            as *const SimBox;
 
         unsafe {
             for atom in self.group_iter_mut(name)? {
-                atom.wrap(simulation_box
-                    .as_ref()
-                    .expect("FATAL GROAN ERROR | System::group_wrap | SimBox is NULL which should not happen."));
+                match atom.wrap(&*simbox) {
+                    Ok(_) => (),
+                    Err(AtomError::InvalidPosition(e)) => return Err(GroupError::InvalidPosition(e)),
+                    _ => panic!("FATAL GROAN ERROR | System::group_wrap | Invalid error type returned from `Atom::wrap`."),
+                }
             }
         }
 
@@ -290,11 +311,12 @@ impl System {
 
     /// Make molecules whole in the simulation box.
     ///
-    /// ## Warning
-    /// Only works with orthogonal simulation boxes!
-    ///
-    /// ## Panics
-    /// Panics if any atom that is part of any polyatomic molecule has no position.
+    /// ## Returns
+    /// - `Ok` if everything was successful.
+    /// - `AtomError::InvalidSimBox` if the system has no simulation box
+    /// or the simulation box is not orthogonal.
+    /// - `AtomError::InvalidPosition` if any atom that is part of any
+    /// polyatomic molecule has no position.
     ///
     /// ## Notes
     /// - Assume you have a system composed of two molecules:
@@ -340,16 +362,18 @@ impl System {
     /// the reference atoms for the polyatomic molecules.
     /// In case `mol_references` do not exist, they are generated and stored in the `System` structure.
     /// Note that all functions changing the topology of the `System` MUST reset `mol_references`.
-    pub fn make_molecules_whole(&mut self) {
+    pub fn make_molecules_whole(&mut self) -> Result<(), AtomError> {
         if self.get_mol_references().is_none() {
             self.create_mol_references();
         }
 
-        let simbox = self.get_box_as_ref() as *const SimBox;
         let starts = self
             .get_mol_references()
             .expect("FATAL GROAN ERROR | System::make_molecules_whole (1) | `mol_starts` should be `Some` but it is `None`.") 
             as *const Vec<usize>;
+
+        let simbox =
+            simbox_check(self.get_box_as_ref()).map_err(AtomError::InvalidSimBox)? as *const SimBox;
 
         unsafe {
             for index in (*starts).iter() {
@@ -358,28 +382,30 @@ impl System {
                 ) as *mut Atom;
 
                 // wrap reference atom to the simulation box
-                (*atom).wrap(simbox
-                    .as_ref()
-                    .expect("FATAL GROAN ERROR | System::make_molecules_whole (3) | SimBox is NULL which should not happen."));
+                (*atom).wrap(&*simbox)?;
 
-                let ref_atom_position = (*atom).get_position().expect(
-                    "FATAL GROAN ERROR | System::make_molecules_whole (4) | Atom has no position.",
-                );
+                let ref_atom_position = match (*atom).get_position() {
+                    Some(x) => x,
+                    None => {
+                        return Err(AtomError::InvalidPosition(PositionError::NoPosition(
+                            (*atom).get_atom_number(),
+                        )))
+                    }
+                };
 
                 // iterate through other atoms of the molecule
                 for atom2 in self
                     .molecule_iter_mut(*index)
-                    .expect("FATAL GROAN ERROR | System::make_molecules_whole (5) | Atom index does not exist.") 
+                    .expect("FATAL GROAN ERROR | System::make_molecules_whole (4) | Atom index does not exist.") 
                     .skip(1)
                 {
+                    let atom2_pos = match atom2.get_position() {
+                        Some(x) => x,
+                        None => return Err(AtomError::InvalidPosition(PositionError::NoPosition(atom2.get_atom_number()))),
+                    };
+
                     // get the shortest vector between the reference atom and the target atom
-                    let vector = ref_atom_position.vector_to(
-                    atom2.get_position()
-                        .expect("FATAL GROAN ERROR | System::make_molecules_whole (6) | Atom has no position."),
-                    simbox
-                        .as_ref()
-                        .expect("FATAL GROAN ERROR | System::make_molecules_whole (7) | SimBox is NULL which should not happen.")
-                    );
+                    let vector = ref_atom_position.vector_to(atom2_pos, &*simbox);
 
                     // place the target atom to position based on the shortest vector
                     let new_position = Vector3D::from(
@@ -392,6 +418,8 @@ impl System {
                 }
             }
         }
+
+        Ok(())
     }
 }
 
@@ -401,6 +429,8 @@ impl System {
 
 #[cfg(test)]
 mod tests {
+    use crate::errors::SimBoxError;
+
     use super::*;
     use float_cmp::assert_approx_eq;
     use std::fs::File;
@@ -410,7 +440,9 @@ mod tests {
     fn atoms_translate() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        system.atoms_translate(&Vector3D::from([3.5, -1.1, 5.4]));
+        system
+            .atoms_translate(&Vector3D::from([3.5, -1.1, 5.4]))
+            .unwrap();
 
         let first = system.atoms_iter().next().unwrap();
         let last = system.atoms_iter().last().unwrap();
@@ -425,6 +457,40 @@ mod tests {
         assert_approx_eq!(f32, last_pos.unwrap().x, 12.329);
         assert_approx_eq!(f32, last_pos.unwrap().y, 10.086);
         assert_approx_eq!(f32, last_pos.unwrap().z, 7.475);
+    }
+
+    #[test]
+    fn atoms_translate_fail_simbox() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let shift = Vector3D::from([3.5, -1.1, 5.4]);
+
+        system.reset_box();
+
+        match system.atoms_translate(&shift) {
+            Err(AtomError::InvalidSimBox(SimBoxError::DoesNotExist)) => (),
+            Ok(_) => panic!("Funtion should have failed, but it succeeded."),
+            Err(e) => panic!(
+                "Function successfully failed but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn atoms_translate_fail_position() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let shift = Vector3D::from([3.5, -1.1, 5.4]);
+
+        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+
+        match system.atoms_translate(&shift) {
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Ok(_) => panic!("Funtion should have failed, but it succeeded."),
+            Err(e) => panic!(
+                "Function successfully failed but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
     }
 
     #[test]
@@ -448,6 +514,55 @@ mod tests {
         assert_approx_eq!(f32, last_pos.unwrap().x, 12.329);
         assert_approx_eq!(f32, last_pos.unwrap().y, 10.086);
         assert_approx_eq!(f32, last_pos.unwrap().z, 7.475);
+    }
+
+    #[test]
+    fn group_translate_fail_group() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let shift = Vector3D::from([3.5, -1.1, 5.4]);
+
+        match system.group_translate("Nonexistent", &shift) {
+            Err(GroupError::NotFound(x)) => assert_eq!(x, "Nonexistent"),
+            Ok(_) => panic!("Funtion should have failed, but it succeeded."),
+            Err(e) => panic!(
+                "Function successfully failed but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn group_translate_fail_simbox() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let shift = Vector3D::from([3.5, -1.1, 5.4]);
+
+        system.reset_box();
+
+        match system.group_translate("all", &shift) {
+            Err(GroupError::InvalidSimBox(SimBoxError::DoesNotExist)) => (),
+            Ok(_) => panic!("Funtion should have failed, but it succeeded."),
+            Err(e) => panic!(
+                "Function successfully failed but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn group_translate_fail_position() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let shift = Vector3D::from([3.5, -1.1, 5.4]);
+
+        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+
+        match system.group_translate("all", &shift) {
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Ok(_) => panic!("Funtion should have failed, but it succeeded."),
+            Err(e) => panic!(
+                "Function successfully failed but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
     }
 
     #[test]
@@ -516,14 +631,15 @@ mod tests {
         let system_orig = System::from_file("test_files/example.gro").unwrap();
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        let simbox = system.get_box_copy();
+        let simbox = system.get_box_copy().unwrap();
         let translate1 = Vector3D::from([simbox.x * 3.0, -simbox.y, 0.0]);
 
         for index in [154, 1754, 12345, 4, 37, 0] {
             system
                 .get_atom_as_ref_mut(index)
                 .unwrap()
-                .translate_nopbc(&translate1);
+                .translate_nopbc(&translate1)
+                .unwrap();
         }
 
         let translate2 = Vector3D::from([0.0, simbox.y, -simbox.z * 2.0]);
@@ -531,10 +647,11 @@ mod tests {
             system
                 .get_atom_as_ref_mut(index)
                 .unwrap()
-                .translate_nopbc(&translate2);
+                .translate_nopbc(&translate2)
+                .unwrap();
         }
 
-        system.atoms_wrap();
+        system.atoms_wrap().unwrap();
 
         for (a1, a2) in system_orig.atoms_iter().zip(system.atoms_iter()) {
             assert_approx_eq!(
@@ -559,20 +676,53 @@ mod tests {
     }
 
     #[test]
+    fn atoms_wrap_fail_simbox() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.reset_box();
+
+        match system.atoms_wrap() {
+            Err(AtomError::InvalidSimBox(SimBoxError::DoesNotExist)) => (),
+            Ok(_) => panic!("Funtion should have failed, but it succeeded."),
+            Err(e) => panic!(
+                "Function successfully failed but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn atoms_wrap_fail_position() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+
+        match system.atoms_wrap() {
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Ok(_) => panic!("Funtion should have failed, but it succeeded."),
+            Err(e) => panic!(
+                "Function successfully failed but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
     fn group_wrap() {
         let system_orig = System::from_file("test_files/example.gro").unwrap();
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        let simbox = system.get_box_copy();
+        let simbox = system.get_box_copy().unwrap();
         let translate1 = Vector3D::from([simbox.x * 3.0, -simbox.y, 0.0]);
 
         for index in [154, 1754, 12345, 4, 37, 0] {
             system
                 .get_atom_as_ref_mut(index)
                 .unwrap()
-                .translate_nopbc(&translate1);
+                .translate_nopbc(&translate1)
+                .unwrap();
         }
 
         let translate2 = Vector3D::from([0.0, simbox.y, -simbox.z * 2.0]);
@@ -580,7 +730,8 @@ mod tests {
             system
                 .get_atom_as_ref_mut(index)
                 .unwrap()
-                .translate_nopbc(&translate2);
+                .translate_nopbc(&translate2)
+                .unwrap();
         }
 
         system.group_wrap("Protein").unwrap();
@@ -655,12 +806,42 @@ mod tests {
     }
 
     #[test]
-    fn group_wrap_fail() {
+    fn group_wrap_fail_group() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
         match system.group_wrap("Protein") {
             Ok(_) => panic!("Function should have failed but it succeeded."),
             Err(GroupError::NotFound(g)) => assert_eq!(g, "Protein"),
+            Err(e) => panic!(
+                "Function failed successfully but incorrect error type `{:?}` was returned",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn group_wrap_fail_simbox() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.reset_box();
+
+        match system.group_wrap("all") {
+            Ok(_) => panic!("Function should have failed but it succeeded."),
+            Err(GroupError::InvalidSimBox(SimBoxError::DoesNotExist)) => (),
+            Err(e) => panic!(
+                "Function failed successfully but incorrect error type `{:?}` was returned",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn group_wrap_fail_position() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+
+        match system.group_wrap("all") {
+            Ok(_) => panic!("Function should have failed but it succeeded."),
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
             Err(e) => panic!(
                 "Function failed successfully but incorrect error type `{:?}` was returned",
                 e
@@ -776,11 +957,11 @@ mod tests {
 
         let atoms = vec![atom1, atom2, atom3];
 
-        let mut system = System::new("System", atoms.clone(), [5.0, 5.0, 5.0].into());
+        let mut system = System::new("System", atoms.clone(), Some([5.0, 5.0, 5.0].into()));
 
         system.add_bond(0, 1).unwrap();
         system.add_bond(0, 2).unwrap();
-        system.make_molecules_whole();
+        system.make_molecules_whole().unwrap();
 
         let atom1 = system.atoms_iter().nth(0).unwrap();
         let atom2 = system.atoms_iter().nth(1).unwrap();
@@ -798,10 +979,10 @@ mod tests {
         assert_eq!(atom3.get_position().unwrap().y, 1.0);
         assert_eq!(atom3.get_position().unwrap().z, 2.0);
 
-        let mut system = System::new("System", atoms.clone(), [5.0, 5.0, 5.0].into());
+        let mut system = System::new("System", atoms.clone(), Some([5.0, 5.0, 5.0].into()));
 
         system.add_bond(1, 2).unwrap();
-        system.make_molecules_whole();
+        system.make_molecules_whole().unwrap();
 
         let atom1 = system.atoms_iter().nth(0).unwrap();
         let atom2 = system.atoms_iter().nth(1).unwrap();
@@ -824,8 +1005,8 @@ mod tests {
     fn make_molecules_whole() {
         let mut system = System::from_file("test_files/conect.pdb").unwrap();
         system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
-        system.atoms_translate(&[3.5, 4.5, -3.0].into());
-        system.make_molecules_whole();
+        system.atoms_translate(&[3.5, 4.5, -3.0].into()).unwrap();
+        system.make_molecules_whole().unwrap();
 
         let output = NamedTempFile::new().unwrap();
         let path_to_output = output.path();
@@ -836,5 +1017,38 @@ mod tests {
         let mut expected = File::open("test_files/whole_molecules_expected.gro").unwrap();
 
         assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn make_molecules_whole_fail_simbox() {
+        let mut system = System::from_file("test_files/conect.pdb").unwrap();
+        system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
+        system.reset_box();
+
+        match system.make_molecules_whole() {
+            Ok(_) => panic!("Function should have failed but it succeeded."),
+            Err(AtomError::InvalidSimBox(SimBoxError::DoesNotExist)) => (),
+            Err(e) => panic!(
+                "Function failed successfully but incorrect error type `{:?}` was returned",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn make_molecules_whole_fail_position() {
+        let mut system = System::from_file("test_files/conect.pdb").unwrap();
+        system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
+        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+
+        match system.make_molecules_whole() {
+            Ok(_) => panic!("Function should have failed but it succeeded."),
+            // atoms are renumbered, therefore we use 17
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 17),
+            Err(e) => panic!(
+                "Function failed successfully but incorrect error type `{:?}` was returned",
+                e
+            ),
+        }
     }
 }

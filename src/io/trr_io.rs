@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023 Ladislav Bartos
+// Copyright (c) 2023-2024 Ladislav Bartos
 
 //! Implementation of functions for reading and writing trr files.
 
@@ -226,9 +226,9 @@ impl System {
     /// and printing the current center of geometry of the system.
     ///
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use groan_rs::errors::ReadTrajError;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use groan_rs::errors::ReadTrajError;
+    /// #
     /// fn example_fn() -> Result<(), ReadTrajError> {
     ///     // load system from file
     ///     let mut system = System::from_file("system.gro").unwrap();
@@ -249,9 +249,9 @@ impl System {
     /// as the particle properties from the trr frames outside of
     /// the range will not be read.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use groan_rs::errors::ReadTrajError;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use groan_rs::errors::ReadTrajError;
+    /// #
     /// fn example_fn() -> Result<(), ReadTrajError> {
     ///     let mut system = System::from_file("system.gro").unwrap();
     ///
@@ -272,9 +272,9 @@ impl System {
     /// The `with_step` method is very efficient for the trr files as the
     /// particle properties from the skipped over frames will not be read.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use groan_rs::errors::ReadTrajError;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use groan_rs::errors::ReadTrajError;
+    /// #
     /// fn example_fn() -> Result<(), ReadTrajError> {
     ///     let mut system = System::from_file("system.gro").unwrap();
     ///
@@ -296,9 +296,9 @@ impl System {
     /// Here, only every other frame will be read and the iteration
     /// will start at time 10 ns and end at time 100 ns.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use groan_rs::errors::ReadTrajError;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use groan_rs::errors::ReadTrajError;
+    /// #
     /// fn example_fn() -> Result<(), ReadTrajError> {
     ///     let mut system = System::from_file("system.gro").unwrap();
     ///
@@ -356,10 +356,9 @@ impl TrajWrite for TrrWriter {
     /// ## Example
     /// Create a new trr file for writing and associate a system with it.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let system = System::from_file("system.gro").unwrap();
-    ///
     /// let mut writer = TrrWriter::new(&system, "output.trr").unwrap();
     /// ```
     fn new(system: &System, filename: impl AsRef<Path>) -> Result<TrrWriter, WriteTrajError> {
@@ -381,9 +380,9 @@ impl TrajWrite for TrrWriter {
     /// ## Example
     /// Reading and writing a trr file.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use std::error::Error;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use std::error::Error;
+    /// #
     /// fn example_fn() -> Result<(), Box<dyn Error + Send + Sync>> {
     ///     // load system from file
     ///     let mut system = System::from_file("system.gro")?;
@@ -464,7 +463,7 @@ impl TrajWrite for TrrWriter {
 /// `TrrGroupWriter` will still use the original group of atoms.
 /// If you completely remove the original group, `TrrGroupWriter` will still maintain a working copy of it.
 ///
-/// `TrrGroupWriter` implements the `TrajGroupWritr` trait.
+/// `TrrGroupWriter` implements the `TrajGroupWrite` trait.
 pub struct TrrGroupWriter {
     system: *const System,
     trr: XdrFile,
@@ -482,8 +481,8 @@ impl TrajGroupWrite for TrrGroupWriter {
     /// ## Example
     /// Create a new trr file for writing and associate a group with it.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.group_create("My Group", "resid 1-4").unwrap();
     ///
@@ -518,9 +517,9 @@ impl TrajGroupWrite for TrrGroupWriter {
     /// ## Example
     /// Reading a trr file and writing only the atoms corresponding to an ndx group `Protein` into the output trr file.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use std::error::Error;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use std::error::Error;
+    /// #
     /// fn example_fn() -> Result<(), Box<dyn Error + Send + Sync>> {
     ///     // load system from file
     ///     let mut system = System::from_file("system.gro")?;
@@ -633,51 +632,10 @@ impl XdrFile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::structures::atom::Atom;
+    use crate::test_utilities::utilities::compare_atoms;
     use float_cmp::assert_approx_eq;
     use std::fs::File;
     use tempfile::NamedTempFile;
-
-    fn compare_atoms(atom1: &Atom, atom2: &Atom) {
-        assert_eq!(atom1.get_residue_number(), atom2.get_residue_number());
-        assert_eq!(atom1.get_residue_name(), atom2.get_residue_name());
-        assert_eq!(atom1.get_atom_number(), atom2.get_atom_number());
-        assert_eq!(atom1.get_atom_name(), atom2.get_atom_name());
-        assert_eq!(atom1.get_chain(), atom2.get_chain());
-
-        if let (Some(pos1), Some(pos2)) = (atom1.get_position(), atom2.get_position()) {
-            assert_approx_eq!(f32, pos1.x, pos2.x);
-            assert_approx_eq!(f32, pos1.y, pos2.y);
-            assert_approx_eq!(f32, pos1.z, pos2.z);
-        } else {
-            assert!(
-                atom1.get_position().is_none() && atom2.get_position().is_none(),
-                "Positions are not both None"
-            );
-        }
-
-        if let (Some(vel1), Some(vel2)) = (atom1.get_velocity(), atom2.get_velocity()) {
-            assert_approx_eq!(f32, vel1.x, vel2.x);
-            assert_approx_eq!(f32, vel1.y, vel2.y);
-            assert_approx_eq!(f32, vel1.z, vel2.z);
-        } else {
-            assert!(
-                atom1.get_velocity().is_none() && atom2.get_velocity().is_none(),
-                "Velocities are not both None"
-            );
-        }
-
-        if let (Some(force1), Some(force2)) = (atom1.get_force(), atom2.get_force()) {
-            assert_approx_eq!(f32, force1.x, force2.x);
-            assert_approx_eq!(f32, force1.y, force2.y);
-            assert_approx_eq!(f32, force1.z, force2.z);
-        } else {
-            assert!(
-                atom1.get_force().is_none() && atom2.get_force().is_none(),
-                "Forces are not both None"
-            );
-        }
-    }
 
     #[test]
     fn read_trr() {
@@ -692,9 +650,10 @@ mod tests {
         assert_eq!(system.get_simulation_step(), 0);
         assert_eq!(system.get_lambda(), 0.0);
         assert_approx_eq!(f32, system.get_simulation_time(), 0.0);
-        assert_approx_eq!(f32, system.get_box_as_ref().x, 13.01331);
-        assert_approx_eq!(f32, system.get_box_as_ref().y, 13.01331);
-        assert_approx_eq!(f32, system.get_box_as_ref().z, 11.25347);
+        let simbox = system.get_box_as_ref().unwrap();
+        assert_approx_eq!(f32, simbox.x, 13.01331);
+        assert_approx_eq!(f32, simbox.y, 13.01331);
+        assert_approx_eq!(f32, simbox.z, 11.25347);
 
         let atom1 = &system.get_atoms_as_ref()[0];
         let atom2 = &system.get_atoms_as_ref()[16843];
@@ -742,9 +701,10 @@ mod tests {
         assert_eq!(system.get_simulation_step(), 6000);
         assert_eq!(system.get_lambda(), 0.0);
         assert_approx_eq!(f32, system.get_simulation_time(), 120.0);
-        assert_approx_eq!(f32, system.get_box_as_ref().x, 13.024242);
-        assert_approx_eq!(f32, system.get_box_as_ref().y, 13.024242);
-        assert_approx_eq!(f32, system.get_box_as_ref().z, 11.242146);
+        let simbox = system.get_box_as_ref().unwrap();
+        assert_approx_eq!(f32, simbox.x, 13.024242);
+        assert_approx_eq!(f32, simbox.y, 13.024242);
+        assert_approx_eq!(f32, simbox.z, 11.242146);
 
         let atom1 = &system.get_atoms_as_ref()[0];
         let atom2 = &system.get_atoms_as_ref()[16843];
@@ -784,9 +744,10 @@ mod tests {
         assert_eq!(system.get_simulation_step(), 8000);
         assert_eq!(system.get_lambda(), 0.0);
         assert_approx_eq!(f32, system.get_simulation_time(), 160.0);
-        assert_approx_eq!(f32, system.get_box_as_ref().x, 13.076236);
-        assert_approx_eq!(f32, system.get_box_as_ref().y, 13.076236);
-        assert_approx_eq!(f32, system.get_box_as_ref().z, 11.13604);
+        let simbox = system.get_box_as_ref().unwrap();
+        assert_approx_eq!(f32, simbox.x, 13.076236);
+        assert_approx_eq!(f32, simbox.y, 13.076236);
+        assert_approx_eq!(f32, simbox.z, 11.13604);
 
         let atom1 = &system.get_atoms_as_ref()[0];
         let atom2 = &system.get_atoms_as_ref()[16843];
@@ -826,9 +787,10 @@ mod tests {
         assert_eq!(system.get_simulation_step(), 12000);
         assert_eq!(system.get_lambda(), 0.0);
         assert_approx_eq!(f32, system.get_simulation_time(), 240.0);
-        assert_approx_eq!(f32, system.get_box_as_ref().x, 13.083817);
-        assert_approx_eq!(f32, system.get_box_as_ref().y, 13.083817);
-        assert_approx_eq!(f32, system.get_box_as_ref().z, 11.159238);
+        let simbox = system.get_box_as_ref().unwrap();
+        assert_approx_eq!(f32, simbox.x, 13.083817);
+        assert_approx_eq!(f32, simbox.y, 13.083817);
+        assert_approx_eq!(f32, simbox.z, 11.159238);
 
         let atom1 = &system.get_atoms_as_ref()[0];
         let atom2 = &system.get_atoms_as_ref()[16843];
@@ -872,9 +834,10 @@ mod tests {
         assert_eq!(system.get_simulation_step(), 32000);
         assert_eq!(system.get_lambda(), 0.0);
         assert_approx_eq!(f32, system.get_simulation_time(), 640.0);
-        assert_approx_eq!(f32, system.get_box_as_ref().x, 12.965868);
-        assert_approx_eq!(f32, system.get_box_as_ref().y, 12.965868);
-        assert_approx_eq!(f32, system.get_box_as_ref().z, 11.348931);
+        let simbox = system.get_box_as_ref().unwrap();
+        assert_approx_eq!(f32, simbox.x, 12.965868);
+        assert_approx_eq!(f32, simbox.y, 12.965868);
+        assert_approx_eq!(f32, simbox.z, 11.348931);
 
         let atom1 = &system.get_atoms_as_ref()[0];
         let atom2 = &system.get_atoms_as_ref()[16843];
@@ -922,9 +885,10 @@ mod tests {
         assert_eq!(system.get_simulation_step(), 0);
         assert_eq!(system.get_lambda(), 0.0);
         assert_approx_eq!(f32, system.get_simulation_time(), 0.0);
-        assert_approx_eq!(f32, system.get_box_as_ref().x, 13.01331);
-        assert_approx_eq!(f32, system.get_box_as_ref().y, 13.01331);
-        assert_approx_eq!(f32, system.get_box_as_ref().z, 11.25347);
+        let simbox = system.get_box_as_ref().unwrap();
+        assert_approx_eq!(f32, simbox.x, 13.01331);
+        assert_approx_eq!(f32, simbox.y, 13.01331);
+        assert_approx_eq!(f32, simbox.z, 11.25347);
 
         assert_eq!(atom1.get_residue_name(), "GLY");
         assert_eq!(atom1.get_residue_number(), 1);
@@ -972,9 +936,10 @@ mod tests {
         assert_eq!(system.get_simulation_step(), 6000);
         assert_eq!(system.get_lambda(), 0.0);
         assert_approx_eq!(f32, system.get_simulation_time(), 120.0);
-        assert_approx_eq!(f32, system.get_box_as_ref().x, 13.00128);
-        assert_approx_eq!(f32, system.get_box_as_ref().y, 13.00128);
-        assert_approx_eq!(f32, system.get_box_as_ref().z, 11.277555);
+        let simbox = system.get_box_as_ref().unwrap();
+        assert_approx_eq!(f32, simbox.x, 13.00128);
+        assert_approx_eq!(f32, simbox.y, 13.00128);
+        assert_approx_eq!(f32, simbox.z, 11.277555);
 
         assert_eq!(atom1.get_residue_name(), "GLY");
         assert_eq!(atom1.get_residue_number(), 1);
@@ -1014,9 +979,10 @@ mod tests {
         assert_eq!(system.get_simulation_step(), 8000);
         assert_eq!(system.get_lambda(), 0.0);
         assert_approx_eq!(f32, system.get_simulation_time(), 160.0);
-        assert_approx_eq!(f32, system.get_box_as_ref().x, 13.117418);
-        assert_approx_eq!(f32, system.get_box_as_ref().y, 13.117418);
-        assert_approx_eq!(f32, system.get_box_as_ref().z, 11.052416);
+        let simbox = system.get_box_as_ref().unwrap();
+        assert_approx_eq!(f32, simbox.x, 13.117418);
+        assert_approx_eq!(f32, simbox.y, 13.117418);
+        assert_approx_eq!(f32, simbox.z, 11.052416);
 
         assert_eq!(atom1.get_residue_name(), "GLY");
         assert_eq!(atom1.get_residue_number(), 1);
@@ -1056,9 +1022,10 @@ mod tests {
         assert_eq!(system.get_simulation_step(), 12000);
         assert_eq!(system.get_lambda(), 0.0);
         assert_approx_eq!(f32, system.get_simulation_time(), 240.0);
-        assert_approx_eq!(f32, system.get_box_as_ref().x, 13.020565);
-        assert_approx_eq!(f32, system.get_box_as_ref().y, 13.020565);
-        assert_approx_eq!(f32, system.get_box_as_ref().z, 11.256957);
+        let simbox = system.get_box_as_ref().unwrap();
+        assert_approx_eq!(f32, simbox.x, 13.020565);
+        assert_approx_eq!(f32, simbox.y, 13.020565);
+        assert_approx_eq!(f32, simbox.z, 11.256957);
 
         assert_eq!(atom1.get_residue_name(), "GLY");
         assert_eq!(atom1.get_residue_number(), 1);
@@ -1102,9 +1069,10 @@ mod tests {
         assert_eq!(system.get_simulation_step(), 32000);
         assert_eq!(system.get_lambda(), 0.0);
         assert_approx_eq!(f32, system.get_simulation_time(), 640.0);
-        assert_approx_eq!(f32, system.get_box_as_ref().x, 13.068602);
-        assert_approx_eq!(f32, system.get_box_as_ref().y, 13.068602);
-        assert_approx_eq!(f32, system.get_box_as_ref().z, 11.147263);
+        let simbox = system.get_box_as_ref().unwrap();
+        assert_approx_eq!(f32, simbox.x, 13.068602);
+        assert_approx_eq!(f32, simbox.y, 13.068602);
+        assert_approx_eq!(f32, simbox.z, 11.147263);
 
         assert_eq!(atom1.get_residue_name(), "GLY");
         assert_eq!(atom1.get_residue_number(), 1);
@@ -1579,8 +1547,8 @@ mod tests {
                 frame2.get_simulation_time()
             );
 
-            let box1 = frame1.get_box_as_ref();
-            let box2 = frame2.get_box_as_ref();
+            let box1 = frame1.get_box_as_ref().unwrap();
+            let box2 = frame2.get_box_as_ref().unwrap();
             assert_approx_eq!(f32, box1.x, box2.x);
             assert_approx_eq!(f32, box1.y, box2.y);
             assert_approx_eq!(f32, box1.z, box2.z);
@@ -1609,7 +1577,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 6000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 120.0);
 
-        let simbox = frame.get_box_as_ref();
+        let simbox = frame.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 5.2841544);
         assert_approx_eq!(f32, simbox.v2y, 4.7775064);
         assert_approx_eq!(f32, simbox.v3z, 2.2274022);
@@ -1630,7 +1598,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 48000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 960.0);
 
-        let simbox = frame.get_box_as_ref();
+        let simbox = frame.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 5.2607775);
         assert_approx_eq!(f32, simbox.v2y, 4.7563710);
         assert_approx_eq!(f32, simbox.v3z, 2.1813555);
@@ -1656,7 +1624,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 6000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 120.0);
 
-        let simbox = frame.get_box_as_ref();
+        let simbox = frame.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 6.2648335);
         assert_approx_eq!(f32, simbox.v2y, 5.9065430);
         assert_approx_eq!(f32, simbox.v3z, 5.1107280);
@@ -1677,7 +1645,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 48000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 960.0);
 
-        let simbox = frame.get_box_as_ref();
+        let simbox = frame.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 6.2079663);
         assert_approx_eq!(f32, simbox.v2y, 5.8529277);
         assert_approx_eq!(f32, simbox.v3z, 5.0791510);
@@ -1703,7 +1671,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 6000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 120.0);
 
-        let simbox = frame.get_box_as_ref();
+        let simbox = frame.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 6.2602970);
         assert_approx_eq!(f32, simbox.v2y, 6.2602970);
         assert_approx_eq!(f32, simbox.v3z, 4.4314090);
@@ -1724,7 +1692,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 48000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 960.0);
 
-        let simbox = frame.get_box_as_ref();
+        let simbox = frame.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 6.2228966);
         assert_approx_eq!(f32, simbox.v2y, 6.2228966);
         assert_approx_eq!(f32, simbox.v3z, 4.4067430);
@@ -1750,7 +1718,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 6000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 120.0);
 
-        let simbox = frame.get_box_as_ref();
+        let simbox = frame.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 5.2975800);
         assert_approx_eq!(f32, simbox.v2y, 4.7896442);
         assert_approx_eq!(f32, simbox.v3z, 2.1716056);
@@ -1771,7 +1739,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 48000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 960.0);
 
-        let simbox = frame.get_box_as_ref();
+        let simbox = frame.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 5.1767554);
         assert_approx_eq!(f32, simbox.v2y, 4.6804047);
         assert_approx_eq!(f32, simbox.v3z, 2.0012338);

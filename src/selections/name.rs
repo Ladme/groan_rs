@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023 Ladislav Bartos
+// Copyright (c) 2023-2024 Ladislav Bartos
 
 //! Implementation of the Name enum for the Groan selection language.
 
@@ -8,7 +8,7 @@ use crate::system::general::System;
 use regex::Regex;
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Name {
     String(String),
     Regex(Regex),
@@ -33,13 +33,15 @@ impl Name {
     pub fn match_groups(&self, system: &System, atom_index: usize) -> Result<bool, SelectError> {
         match self {
             Name::String(s) => match system.group_isin(s, atom_index) {
-                Err(e) => Err(SelectError::GroupNotFound(e.to_string())),
+                Err(_) => Err(SelectError::GroupNotFound(s.to_string())),
                 Ok(result) => Ok(result),
             },
 
             // this is inefficient; it's better to expand the regular expression into a vector of group names
             // matching the regex; this is what happens when `Group::from_select` is called;
-            // this match arm is here just in case this is forgotten
+            // this match arm is however used if there are regex group names in elements
+            // definitions, see `System::guess_elements`
+            // these are rare so it should not matter
             Name::Regex(r) => {
                 let group_names = system.get_groups_as_ref().keys();
 

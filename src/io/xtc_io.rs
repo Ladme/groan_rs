@@ -199,8 +199,8 @@ impl System {
     /// Iterating through an xtc trajectory and calculating
     /// and printing the current center of geometry of the system.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// // load system from file
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
@@ -229,9 +229,9 @@ impl System {
     /// ```
     /// Much more concise way using the `?` operator.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use groan_rs::errors::ReadTrajError;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use groan_rs::errors::ReadTrajError;
+    /// #
     /// fn example_fn() -> Result<(), ReadTrajError> {
     ///     // load system from file
     ///     let mut system = System::from_file("system.gro").unwrap();
@@ -252,9 +252,9 @@ impl System {
     /// as the particle coordinates from the xtc frames outside
     /// of the range will not be read.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use groan_rs::errors::ReadTrajError;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use groan_rs::errors::ReadTrajError;
+    /// #
     /// fn example_fn() -> Result<(), ReadTrajError> {
     ///     let mut system = System::from_file("system.gro").unwrap();
     ///
@@ -275,9 +275,9 @@ impl System {
     /// The `with_step` method is very efficient for the xtc files as the
     /// particle coordinates from the skipped over frames will not be read.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use groan_rs::errors::ReadTrajError;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use groan_rs::errors::ReadTrajError;
+    /// #
     /// fn example_fn() -> Result<(), ReadTrajError> {
     ///     let mut system = System::from_file("system.gro").unwrap();
     ///
@@ -299,9 +299,9 @@ impl System {
     /// Here, only every other frame will be read and the iteration
     /// will start at time 10 ns and end at time 100 ns.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use groan_rs::errors::ReadTrajError;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use groan_rs::errors::ReadTrajError;
+    /// #
     /// fn example_fn() -> Result<(), ReadTrajError> {
     ///     let mut system = System::from_file("system.gro").unwrap();
     ///
@@ -359,10 +359,9 @@ impl TrajWrite for XtcWriter {
     /// ## Example
     /// Create a new xtc file for writing and associate a system with it.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let system = System::from_file("system.gro").unwrap();
-    ///
     /// let mut writer = XtcWriter::new(&system, "output.xtc").unwrap();
     /// ```
     fn new(system: &System, filename: impl AsRef<Path>) -> Result<XtcWriter, WriteTrajError> {
@@ -384,9 +383,9 @@ impl TrajWrite for XtcWriter {
     /// ## Example
     /// Reading and writing an xtc file.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use std::error::Error;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use std::error::Error;
+    /// #
     /// fn example_fn() -> Result<(), Box<dyn Error + Send + Sync>> {
     ///     // load system from file
     ///     let mut system = System::from_file("system.gro")?;
@@ -471,8 +470,8 @@ impl TrajGroupWrite for XtcGroupWriter {
     /// ## Example
     /// Create a new xtc file for writing and associate a group with it.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.group_create("My Group", "resid 1-4").unwrap();
     ///
@@ -490,13 +489,11 @@ impl TrajGroupWrite for XtcGroupWriter {
         };
 
         // create the xtc file and save a handle to it
-        let xtc = match XdrFile::open_xdr(filename.as_ref(), OpenMode::Write) {
-            Ok(x) => x,
-            Err(TrajError::FileNotFound(x)) => return Err(WriteTrajError::CouldNotCreate(x)),
-            Err(TrajError::InvalidPath(x)) => return Err(WriteTrajError::InvalidPath(x)),
-        };
-
-        Ok(XtcGroupWriter { system, xtc, group })
+        match XdrFile::open_xdr(filename.as_ref(), OpenMode::Write) {
+            Ok(xtc) => Ok(XtcGroupWriter { system, xtc, group }),
+            Err(TrajError::FileNotFound(x)) => Err(WriteTrajError::CouldNotCreate(x)),
+            Err(TrajError::InvalidPath(x)) => Err(WriteTrajError::InvalidPath(x)),
+        }
     }
 
     /// Write the current state of the group into an open xtc file.
@@ -507,9 +504,9 @@ impl TrajGroupWrite for XtcGroupWriter {
     /// ## Example
     /// Reading an xtc file and writing only the atoms corresponding to an ndx group `Protein` into the output xtc file.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    /// use std::error::Error;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// # use std::error::Error;
+    /// #
     /// fn example_fn() -> Result<(), Box<dyn Error + Send + Sync>> {
     ///     // load system from file
     ///     let mut system = System::from_file("system.gro")?;
@@ -610,51 +607,11 @@ impl XdrFile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::structures::atom::Atom;
     use float_cmp::assert_approx_eq;
     use std::fs::File;
     use tempfile::NamedTempFile;
 
-    fn compare_atoms(atom1: &Atom, atom2: &Atom) {
-        assert_eq!(atom1.get_residue_number(), atom2.get_residue_number());
-        assert_eq!(atom1.get_residue_name(), atom2.get_residue_name());
-        assert_eq!(atom1.get_atom_number(), atom2.get_atom_number());
-        assert_eq!(atom1.get_atom_name(), atom2.get_atom_name());
-        assert_eq!(atom1.get_chain(), atom2.get_chain());
-
-        if let (Some(pos1), Some(pos2)) = (atom1.get_position(), atom2.get_position()) {
-            assert_approx_eq!(f32, pos1.x, pos2.x);
-            assert_approx_eq!(f32, pos1.y, pos2.y);
-            assert_approx_eq!(f32, pos1.z, pos2.z);
-        } else {
-            assert!(
-                atom1.get_position().is_none() && atom2.get_position().is_none(),
-                "Positions are not both None"
-            );
-        }
-
-        if let (Some(vel1), Some(vel2)) = (atom1.get_velocity(), atom2.get_velocity()) {
-            assert_approx_eq!(f32, vel1.x, vel2.x);
-            assert_approx_eq!(f32, vel1.y, vel2.y);
-            assert_approx_eq!(f32, vel1.z, vel2.z);
-        } else {
-            assert!(
-                atom1.get_velocity().is_none() && atom2.get_velocity().is_none(),
-                "Velocities are not both None"
-            );
-        }
-
-        if let (Some(force1), Some(force2)) = (atom1.get_force(), atom2.get_force()) {
-            assert_approx_eq!(f32, force1.x, force2.x);
-            assert_approx_eq!(f32, force1.y, force2.y);
-            assert_approx_eq!(f32, force1.z, force2.z);
-        } else {
-            assert!(
-                atom1.get_force().is_none() && atom2.get_force().is_none(),
-                "Forces are not both None"
-            );
-        }
-    }
+    use crate::test_utilities::utilities::compare_atoms;
 
     #[test]
     fn read_xtc() {
@@ -669,9 +626,10 @@ mod tests {
         assert_eq!(system.get_simulation_step(), 0);
         assert_eq!(system.get_precision(), 100);
         assert_approx_eq!(f32, system.get_simulation_time(), 0.0);
-        assert_approx_eq!(f32, system.get_box_as_ref().x, 13.034535);
-        assert_approx_eq!(f32, system.get_box_as_ref().y, 13.034535);
-        assert_approx_eq!(f32, system.get_box_as_ref().z, 11.228164);
+        let simbox = system.get_box_as_ref().unwrap();
+        assert_approx_eq!(f32, simbox.x, 13.034535);
+        assert_approx_eq!(f32, simbox.y, 13.034535);
+        assert_approx_eq!(f32, simbox.z, 11.228164);
 
         let atom1 = &system.get_atoms_as_ref()[0];
         let atom2 = &system.get_atoms_as_ref()[16843];
@@ -711,9 +669,10 @@ mod tests {
         assert_eq!(system.get_simulation_step(), 50000);
         assert_eq!(system.get_precision(), 100);
         assert_approx_eq!(f32, system.get_simulation_time(), 1000.0);
-        assert_approx_eq!(f32, system.get_box_as_ref().x, 13.02659);
-        assert_approx_eq!(f32, system.get_box_as_ref().y, 13.02659);
-        assert_approx_eq!(f32, system.get_box_as_ref().z, 11.250414);
+        let simbox = system.get_box_as_ref().unwrap();
+        assert_approx_eq!(f32, simbox.x, 13.02659);
+        assert_approx_eq!(f32, simbox.y, 13.02659);
+        assert_approx_eq!(f32, simbox.z, 11.250414);
 
         let atom1 = &system.get_atoms_as_ref()[0];
         let atom2 = &system.get_atoms_as_ref()[16843];
@@ -1101,7 +1060,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 5000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 100.0);
 
-        let simbox = frame.get_box_as_ref();
+        let simbox = frame.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 5.2868834);
         assert_approx_eq!(f32, simbox.v2y, 4.7799735);
         assert_approx_eq!(f32, simbox.v3z, 2.2256064);
@@ -1122,7 +1081,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 50000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 1000.0);
 
-        let simbox = frame.get_box_as_ref();
+        let simbox = frame.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 5.2712817);
         assert_approx_eq!(f32, simbox.v2y, 4.7658677);
         assert_approx_eq!(f32, simbox.v3z, 2.1743093);
@@ -1148,7 +1107,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 5000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 100.0);
 
-        let simbox = frame.get_box_as_ref();
+        let simbox = frame.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 6.2666030);
         assert_approx_eq!(f32, simbox.v2y, 5.9082110);
         assert_approx_eq!(f32, simbox.v3z, 5.1106043);
@@ -1169,7 +1128,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 50000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 1000.0);
 
-        let simbox = frame.get_box_as_ref();
+        let simbox = frame.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 6.2004085);
         assert_approx_eq!(f32, simbox.v2y, 5.8458023);
         assert_approx_eq!(f32, simbox.v3z, 5.0840497);
@@ -1195,7 +1154,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 5000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 100.0);
 
-        let simbox = frame.get_box_as_ref();
+        let simbox = frame.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 6.2607090);
         assert_approx_eq!(f32, simbox.v2y, 6.2607090);
         assert_approx_eq!(f32, simbox.v3z, 4.4316807);
@@ -1216,7 +1175,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 50000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 1000.0);
 
-        let simbox = frame.get_box_as_ref();
+        let simbox = frame.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 6.2197995);
         assert_approx_eq!(f32, simbox.v2y, 6.2197995);
         assert_approx_eq!(f32, simbox.v3z, 4.4066653);

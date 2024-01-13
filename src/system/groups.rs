@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023 Ladislav Bartos
+// Copyright (c) 2023-2024 Ladislav Bartos
 
 //! Implementation of System methods for working with groups.
 
@@ -7,7 +7,7 @@ use std::collections::HashSet;
 
 use indexmap::IndexMap;
 
-use crate::errors::GroupError;
+use crate::errors::{GroupError, SimBoxError};
 use crate::structures::group::Group;
 use crate::structures::shape::Shape;
 use crate::system::general::System;
@@ -24,8 +24,8 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// if let Err(e) = system.group_create("Phosphori", "resname POPE POPG and name P") {
@@ -64,13 +64,15 @@ impl System {
     /// - `GroupError::AlreadyExistsWarning` if the new group has overwritten a previous group.
     /// - `GroupError::InvalidName` if the name of the group is invalid (no group created).
     /// - `GroupError::InvalidQuery` if the query could not be parsed.
+    /// - `GroupError::InvalidSimBox` if the system has no simulation box or if the
+    /// simulation box is not orthogonal.
     ///
     /// ## Example
     /// Select phosphori atoms which are inside a z-axis oriented cylinder
     /// with a radius of 2 nm and height of 4 nm located at coordinates x = 5 nm, y = 5 nm, z = 3 nm.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// let cylinder = Cylinder::new([5.0, 5.0, 3.0].into(), 2.0, 4.0, Dimension::Z);
@@ -86,6 +88,7 @@ impl System {
     /// the same atoms as initially. In other words, the group is NOT dynamically updated.
     /// - If you want to choose atoms dynamically, it is better to use `AtomIterator` and `filter_geometry` function
     /// while iterating through the trajectory.
+    /// - Atoms that have undefiend positions will never be selected.
     ///
     /// ## Notes
     /// - In case a group with the given name already exists, it is replaced with the new group.
@@ -99,6 +102,14 @@ impl System {
     ) -> Result<(), GroupError> {
         if !Group::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
+        }
+
+        if !self.has_box() {
+            return Err(GroupError::InvalidSimBox(SimBoxError::DoesNotExist));
+        }
+
+        if !self.get_box_as_ref().unwrap().is_orthogonal() {
+            return Err(GroupError::InvalidSimBox(SimBoxError::NotOrthogonal));
         }
 
         let group = match Group::from_query_and_geometry(query, geometry, self) {
@@ -122,14 +133,16 @@ impl System {
     /// - `GroupError::AlreadyExistsWarning` if the new group has overwritten a previous group.
     /// - `GroupError::InvalidName` if the name of the group is invalid (no group created).
     /// - `GroupError::InvalidQuery` if the query could not be parsed.
+    /// - `GroupError::InvalidSimBox` if the system has no simulation box or if the
+    /// simulation box is not orthogonal.
     ///
     /// ## Example
     /// Select phosphori atoms which are inside a z-axis oriented cylinder
     /// with a radius of 2 nm and height of 4 nm located at coordinates x = 5 nm, y = 5 nm, z = 3 nm
     /// while also being inside a sphere with a radius of 3 nm at corodinates x = 5 nm, y = 5 nm, z = 3 nm.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// let cylinder = Cylinder::new([5.0, 5.0, 3.0].into(), 2.0, 4.0, Dimension::Z);
@@ -150,6 +163,7 @@ impl System {
     /// the same atoms as initially. In other words, the group is NOT dynamically updated.
     /// - If you want to choose atoms dynamically, it is better to use `AtomIterator` and `filter_geometry` function
     /// while iterating through the trajectory.
+    /// - Atoms that have undefiend positions will never be selected.
     ///
     /// ## Notes
     /// - In case a group with the given name already exists, it is replaced with the new group.
@@ -163,6 +177,14 @@ impl System {
     ) -> Result<(), GroupError> {
         if !Group::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
+        }
+
+        if !self.has_box() {
+            return Err(GroupError::InvalidSimBox(SimBoxError::DoesNotExist));
+        }
+
+        if !self.get_box_as_ref().unwrap().is_orthogonal() {
+            return Err(GroupError::InvalidSimBox(SimBoxError::NotOrthogonal));
         }
 
         let group = match Group::from_query_and_geometries(query, geometries, self) {
@@ -188,8 +210,8 @@ impl System {
     /// ## Example
     /// Creating a group "My Group" containing the atoms indexed as 0, 1, 2, 3, 10, 11, and 12.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// match system.group_create_from_indices("My Group", vec![0, 1, 2, 3, 12, 10, 11]) {
@@ -230,8 +252,8 @@ impl System {
     /// ## Example
     /// Creating a group "My Group" containing the atoms of the system with indices 0-25 and 50-75 (including).
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// match system.group_create_from_ranges("My Group", vec![(0, 25), (50, 75)]) {
@@ -272,8 +294,8 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// let (result, residues) = system.atoms_split_by_resid();
@@ -317,8 +339,8 @@ impl System {
     /// ## Example
     /// Creating a group for each residue of the group 'Protein', i.e. creating a group for each amino acid.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// system.read_ndx("index.ndx").unwrap();
@@ -397,8 +419,8 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// let (result, residues) = system.atoms_split_by_resname();
@@ -441,8 +463,8 @@ impl System {
     /// ## Example
     /// Creating a group for each residue type of the group 'Protein', i.e. creating a group for each amino acid type.
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// system.read_ndx("index.ndx").unwrap();
@@ -696,8 +718,8 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.group_create("Custom Group", "resid 1 to 3").unwrap();
     ///
@@ -721,8 +743,8 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
-    /// use groan_rs::prelude::*;
-    ///
+    /// # use groan_rs::prelude::*;
+    /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.group_create("Custom Group", "resid 1 to 3").unwrap();
     ///
@@ -746,6 +768,21 @@ impl System {
             })
             .collect()
     }
+
+    /// Check whether target group is empty.
+    /// Faster than `System::group_get_n_atoms` (O(1) time complexity).
+    ///
+    /// ## Returns
+    /// - `true` if the group contains no atoms. `false` if it contains at least one atom.
+    /// - `GroupError` if the group does not exist.
+    pub fn group_isempty(&self, name: &str) -> Result<bool, GroupError> {
+        let group = self
+            .get_groups_as_ref()
+            .get(name)
+            .ok_or(GroupError::NotFound(name.to_string()))?;
+
+        Ok(group.get_atoms().is_empty())
+    }
 }
 
 /******************************/
@@ -757,6 +794,7 @@ mod tests {
     use super::*;
     use crate::errors::SelectError;
     use crate::structures::dimension::Dimension;
+    use crate::structures::element::Elements;
     use crate::structures::shape::*;
 
     #[test]
@@ -874,6 +912,134 @@ mod tests {
 
         assert!(system.group_exists("Chains A+B"));
         assert_eq!(system.group_get_n_atoms("Chains A+B").unwrap(), 0);
+    }
+
+    #[test]
+    fn group_create_element_name() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+        system.guess_elements(Elements::default()).unwrap();
+        system
+            .group_create("Elements", "element name carbon phosphorus")
+            .unwrap();
+
+        assert!(system.group_exists("Elements"));
+        assert_eq!(system.group_get_n_atoms("Elements").unwrap(), 5612);
+
+        system
+            .group_create("Elements2", "elname carbon phosphorus")
+            .unwrap();
+
+        assert!(system.group_exists("Elements2"));
+        assert_eq!(system.group_get_n_atoms("Elements2").unwrap(), 5612);
+    }
+
+    #[test]
+    fn group_create_element_symbol() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+        system.guess_elements(Elements::default()).unwrap();
+        system
+            .group_create("Elements", "element symbol C P")
+            .unwrap();
+
+        assert!(system.group_exists("Elements"));
+        assert_eq!(system.group_get_n_atoms("Elements").unwrap(), 5612);
+
+        system.group_create("Elements2", "elsymbol C P").unwrap();
+
+        assert!(system.group_exists("Elements2"));
+        assert_eq!(system.group_get_n_atoms("Elements2").unwrap(), 5612);
+    }
+
+    #[test]
+    fn group_create_element_empty() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+        system
+            .group_create("Elements", "element name carbon phosphorus")
+            .unwrap();
+
+        assert!(system.group_exists("Elements"));
+        assert_eq!(system.group_get_n_atoms("Elements").unwrap(), 0);
+
+        system
+            .group_create("Elements2", "element symbol C P")
+            .unwrap();
+
+        assert!(system.group_exists("Elements2"));
+        assert_eq!(system.group_get_n_atoms("Elements2").unwrap(), 0);
+    }
+
+    #[test]
+    fn group_create_element_empty2() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+        system.guess_elements(Elements::default()).unwrap();
+
+        system
+            .group_create("Empty Elements", "elname copper gold")
+            .unwrap();
+        assert!(system.group_exists("Empty Elements"));
+        assert_eq!(system.group_get_n_atoms("Empty Elements").unwrap(), 0);
+
+        system
+            .group_create("Empty Elements 2", "elsymbol Cu Au")
+            .unwrap();
+        assert!(system.group_exists("Empty Elements 2"));
+        assert_eq!(system.group_get_n_atoms("Empty Elements 2").unwrap(), 0);
+    }
+
+    #[test]
+    fn group_create_molwith_1() {
+        let mut system = System::from_file("test_files/aa_peptide.pdb").unwrap();
+        system
+            .add_bonds_from_pdb("test_files/aa_peptide.pdb")
+            .unwrap();
+
+        system
+            .group_create("Molecule", "molwith serial 292")
+            .unwrap();
+
+        assert_eq!(
+            system.get_n_atoms(),
+            system.group_get_n_atoms("Molecule").unwrap()
+        );
+
+        for (atom1, atom2) in system
+            .atoms_iter()
+            .zip(system.group_iter("Molecule").unwrap())
+        {
+            assert_eq!(atom1.get_atom_number(), atom2.get_atom_number());
+        }
+    }
+
+    #[test]
+    fn group_create_molwith_2() {
+        let mut system = System::from_file("test_files/conect.pdb").unwrap();
+        system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
+
+        system
+            .group_create("Molecule", "molecule  with (resname LYS and name SC2)")
+            .unwrap();
+
+        assert_eq!(system.group_get_n_atoms("Molecule").unwrap(), 1);
+        for atom in system.group_iter("Molecule").unwrap() {
+            assert_eq!(atom.get_atom_number(), 50);
+        }
+    }
+
+    #[test]
+    fn group_create_molwith_3() {
+        let mut system = System::from_file("test_files/conect.pdb").unwrap();
+        system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
+
+        system
+            .group_create("Molecule", "mol with resname LYS and name SC2")
+            .unwrap();
+
+        assert_eq!(system.group_get_n_atoms("Molecule").unwrap(), 8);
+
+        let numbers = vec![5, 12, 22, 31, 36, 40, 47, 50];
+        for (a, atom) in system.group_iter("Molecule").unwrap().enumerate() {
+            assert_eq!(atom.get_atom_number(), numbers[a]);
+        }
     }
 
     #[test]
@@ -1055,7 +1221,10 @@ mod tests {
 
         for atom in system.group_iter("Selected Membrane").unwrap() {
             assert_eq!(atom.get_residue_name(), "POPC");
-            assert!(cylinder.inside(atom.get_position().unwrap(), system.get_box_as_ref()));
+            assert!(cylinder.inside(
+                atom.get_position().unwrap(),
+                system.get_box_as_ref().unwrap()
+            ));
         }
     }
 
@@ -1075,7 +1244,10 @@ mod tests {
 
         for atom in system.group_iter("Selected Water").unwrap() {
             assert_eq!(atom.get_residue_name(), "W");
-            assert!(sphere.inside(atom.get_position().unwrap(), system.get_box_as_ref()));
+            assert!(sphere.inside(
+                atom.get_position().unwrap(),
+                system.get_box_as_ref().unwrap()
+            ));
         }
     }
 
@@ -1102,7 +1274,10 @@ mod tests {
                     || resname == "LYS"
                     || resname == "CYS"
             );
-            assert!(rectangular.inside(atom.get_position().unwrap(), system.get_box_as_ref()));
+            assert!(rectangular.inside(
+                atom.get_position().unwrap(),
+                system.get_box_as_ref().unwrap()
+            ));
         }
     }
 
@@ -1115,7 +1290,10 @@ mod tests {
         match system.group_create_from_geometry("Selected Me>brane", "Membrane", cylinder.clone()) {
             Ok(()) => panic!("Function should have failed."),
             Err(GroupError::InvalidName(name)) => assert_eq!(name, "Selected Me>brane"),
-            Err(_) => panic!("Function failed but incorrect error type has been returned."),
+            Err(e) => panic!(
+                "Function failed but incorrect error type `{}` has been returned.",
+                e
+            ),
         }
 
         match system.group_create_from_geometry("Selected Membrane", "brane", cylinder.clone()) {
@@ -1123,7 +1301,21 @@ mod tests {
             Err(GroupError::InvalidQuery(SelectError::GroupNotFound(group))) => {
                 assert_eq!(group, "brane")
             }
-            Err(_) => panic!("Function failed but incorrect error type has been returned."),
+            Err(e) => panic!(
+                "Function failed but incorrect error type `{}` has been returned.",
+                e
+            ),
+        }
+
+        system.reset_box();
+
+        match system.group_create_from_geometry("Selection", "serial 1 to 5", cylinder.clone()) {
+            Ok(()) => panic!("Function should have failed."),
+            Err(GroupError::InvalidSimBox(SimBoxError::DoesNotExist)) => (),
+            Err(e) => panic!(
+                "Function failed but incorrect error type `{}` has been returned.",
+                e
+            ),
         }
     }
 
@@ -1249,9 +1441,18 @@ mod tests {
         for (i, atom) in system.group_iter("Selected Membrane").unwrap().enumerate() {
             assert_eq!(atom.get_atom_number(), expected_numbers[i]);
 
-            assert!(rectangular.inside(atom.get_position().unwrap(), system.get_box_as_ref()));
-            assert!(sphere.inside(atom.get_position().unwrap(), system.get_box_as_ref()));
-            assert!(cylinder.inside(atom.get_position().unwrap(), system.get_box_as_ref()));
+            assert!(rectangular.inside(
+                atom.get_position().unwrap(),
+                system.get_box_as_ref().unwrap()
+            ));
+            assert!(sphere.inside(
+                atom.get_position().unwrap(),
+                system.get_box_as_ref().unwrap()
+            ));
+            assert!(cylinder.inside(
+                atom.get_position().unwrap(),
+                system.get_box_as_ref().unwrap()
+            ));
         }
     }
 
@@ -1274,7 +1475,10 @@ mod tests {
         ) {
             Ok(()) => panic!("Function should have failed."),
             Err(GroupError::InvalidName(name)) => assert_eq!(name, "Selected Me>brane"),
-            Err(_) => panic!("Function failed but incorrect error type has been returned."),
+            Err(e) => panic!(
+                "Function failed but incorrect error type `{}` has been returned.",
+                e
+            ),
         }
 
         match system.group_create_from_geometries(
@@ -1290,7 +1494,29 @@ mod tests {
             Err(GroupError::InvalidQuery(SelectError::GroupNotFound(group))) => {
                 assert_eq!(group, "brane")
             }
-            Err(_) => panic!("Function failed but incorrect error type has been returned."),
+            Err(e) => panic!(
+                "Function failed but incorrect error type `{}` has been returned.",
+                e
+            ),
+        }
+
+        system.reset_box();
+
+        match system.group_create_from_geometries(
+            "Selected",
+            "serial 1 to 5",
+            vec![
+                Box::from(rectangular.clone()),
+                Box::from(sphere.clone()),
+                Box::from(cylinder.clone()),
+            ],
+        ) {
+            Ok(()) => panic!("Function should have failed."),
+            Err(GroupError::InvalidSimBox(SimBoxError::DoesNotExist)) => (),
+            Err(e) => panic!(
+                "Function failed but incorrect error type `{}` has been returned.",
+                e
+            ),
         }
     }
 
@@ -1474,6 +1700,8 @@ mod tests {
         assert!(!system.group_exists("Regex5"));
     }
 
+    /*
+    // deprecated since v0.6.0
     #[test]
     fn group_create_macro_hydrogen() {
         let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
@@ -1485,7 +1713,7 @@ mod tests {
 
         assert!(system.group_isin("Hydrogens", 32787).unwrap());
         assert!(system.group_isin("Hydrogens", 1).unwrap());
-    }
+    }*/
 
     #[test]
     fn group_create_invalid_names() {
@@ -2243,6 +2471,27 @@ mod tests {
 
         for index in 0..61 {
             assert!(system.group_isin("Membrane", index).unwrap());
+        }
+    }
+
+    #[test]
+    fn group_isempty() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system
+            .group_create("Membrane", "@membrane and name PO4")
+            .unwrap();
+        system.group_create("Single", "serial 15").unwrap();
+        system.group_create("Empty", "resname NON").unwrap();
+
+        assert!(!system.group_isempty("Membrane").unwrap());
+        assert!(!system.group_isempty("Single").unwrap());
+        assert!(system.group_isempty("Empty").unwrap());
+
+        match system.group_isempty("Nonexistent") {
+            Ok(_) => panic!("Function should have failed."),
+            Err(GroupError::NotFound(x)) => assert_eq!(x, "Nonexistent"),
+            Err(e) => panic!("Incorrect error type returned: {:?}", e),
         }
     }
 }

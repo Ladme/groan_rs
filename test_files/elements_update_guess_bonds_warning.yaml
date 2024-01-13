@@ -1,0 +1,6 @@
+---
+nitrogen:
+  expected_max_bonds: 1
+carbon:
+  expected_min_bonds: 4
+...
