@@ -36,6 +36,7 @@
 
 #### Center of mass calculations
 - Introduced `System::group_get_com` for calculating the center of mass of a group of atoms using the Bai and Breen algorithm. Note that all atoms in the target group must have mass information.
+- Introduced `System::atoms_center_mass` as an alternative to `System::atoms_center` but using center of mass instead of center of geometry.
 
 #### Other changes
 - **Breaking change:** The `System::set_mol_references` method is no longer public.

@@ -187,7 +187,7 @@ impl SimBox {
     /// Check that the simulation box is orthogonal.
     ///
     /// ## Returns
-    /// `true` if only the first three dimensions of the `SimBox` are non-zero. Otherwise, returns `false`.
+    /// `true` if the simulation box is orthogonal. Otherwise, returns `false`.
     pub fn is_orthogonal(&self) -> bool {
         // we do not need to check v1y, v1z, and v2z as these must be zero
         self.v2x == 0.0 && self.v3x == 0.0 && self.v3y == 0.0
