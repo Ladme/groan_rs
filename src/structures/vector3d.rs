@@ -143,7 +143,8 @@ impl Vector3D {
     /// assert_approx_eq!(f32, vector1.dot(&vector2), -4.0);
     /// ```
     pub fn dot(&self, vector: &Vector3D) -> f32 {
-        self.x * vector.x + self.y * vector.y + self.z * vector.z
+        self.0.dot(&vector.0)
+        //self.x * vector.x + self.y * vector.y + self.z * vector.z
     }
 
     /// Calculate the cross product of two vectors.
