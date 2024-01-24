@@ -55,7 +55,7 @@ impl System {
 
         let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?;
 
-        let scaling = Vector3D::from([PI_X2 / simbox.x, PI_X2 / simbox.y, PI_X2 / simbox.z]);
+        let scaling = Vector3D::new(PI_X2 / simbox.x, PI_X2 / simbox.y, PI_X2 / simbox.z);
 
         let mut sum_xi = Vector3D::default();
         let mut sum_zeta = Vector3D::default();
@@ -127,7 +127,7 @@ impl System {
 
         let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?;
 
-        let scaling = Vector3D::from([PI_X2 / simbox.x, PI_X2 / simbox.y, PI_X2 / simbox.z]);
+        let scaling = Vector3D::new(PI_X2 / simbox.x, PI_X2 / simbox.y, PI_X2 / simbox.z);
 
         let mut sum_xi = Vector3D::default();
         let mut sum_zeta = Vector3D::default();

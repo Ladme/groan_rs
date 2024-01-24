@@ -262,7 +262,7 @@ mod tests_sphere {
     fn inside_nopbc() {
         let sphere = Sphere::new([1.0, 2.0, 3.0].into(), 1.5);
 
-        let point = Vector3D::from([2.0, 2.5, 2.4]);
+        let point = Vector3D::new(2.0, 2.5, 2.4);
         let simbox = SimBox::from([5.0, 5.0, 5.0]);
 
         assert!(sphere.inside(&point, &simbox));
@@ -272,7 +272,7 @@ mod tests_sphere {
     fn inside_pbc() {
         let sphere = Sphere::new([1.0, 2.0, 4.5].into(), 1.5);
 
-        let point = Vector3D::from([4.8, 2.1, 0.3]);
+        let point = Vector3D::new(4.8, 2.1, 0.3);
         let simbox = SimBox::from([5.0, 5.0, 5.0]);
 
         assert!(sphere.inside(&point, &simbox));
@@ -282,7 +282,7 @@ mod tests_sphere {
     fn not_inside() {
         let sphere = Sphere::new([1.0, 2.0, 4.5].into(), 1.5);
 
-        let point = Vector3D::from([4.0, 2.1, 0.3]);
+        let point = Vector3D::new(4.0, 2.1, 0.3);
         let simbox = SimBox::from([5.0, 5.0, 5.0]);
 
         assert!(!sphere.inside(&point, &simbox));
@@ -290,7 +290,7 @@ mod tests_sphere {
 
     #[test]
     fn inside_random() {
-        let sphere_center = Vector3D::from([1.0, 2.0, 3.0]);
+        let sphere_center = Vector3D::new(1.0, 2.0, 3.0);
         let sphere_radius = 2.5;
 
         let sphere = Sphere::new(sphere_center.clone(), sphere_radius);
@@ -302,7 +302,7 @@ mod tests_sphere {
             let y = rng.gen_range(0.0..5.0);
             let z = rng.gen_range(0.0..5.0);
 
-            let point = Vector3D::from([x, y, z]);
+            let point = Vector3D::new(x, y, z);
 
             assert_eq!(
                 sphere.inside(&point, &simbox),
@@ -334,7 +334,7 @@ mod tests_rectangular {
     fn inside_nopbc_1() {
         let rect = Rectangular::new([1.0, 2.0, 3.0].into(), 3.0, 2.0, 1.0);
 
-        let point = Vector3D::from([3.1, 3.8, 3.9]);
+        let point = Vector3D::new(3.1, 3.8, 3.9);
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(rect.inside(&point, &simbox));
@@ -344,7 +344,7 @@ mod tests_rectangular {
     fn inside_nopbc_2() {
         let rect = Rectangular::new([2.5, 3.1, 0.3].into(), 1.2, 1.3, 5.0);
 
-        let point = Vector3D::from([2.6, 4.3, 4.9]);
+        let point = Vector3D::new(2.6, 4.3, 4.9);
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(rect.inside(&point, &simbox));
@@ -354,7 +354,7 @@ mod tests_rectangular {
     fn not_inside_nopbc_1() {
         let rect = Rectangular::new([1.0, 2.0, 3.0].into(), 3.0, 2.0, 1.0);
 
-        let point = Vector3D::from([4.1, 3.8, 3.9]);
+        let point = Vector3D::new(4.1, 3.8, 3.9);
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(!rect.inside(&point, &simbox));
@@ -364,7 +364,7 @@ mod tests_rectangular {
     fn not_inside_nopbc_2() {
         let rect = Rectangular::new([1.0, 2.0, 3.0].into(), 3.0, 2.0, 1.0);
 
-        let point = Vector3D::from([2.1, 1.9, 3.9]);
+        let point = Vector3D::new(2.1, 1.9, 3.9);
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(!rect.inside(&point, &simbox));
@@ -374,7 +374,7 @@ mod tests_rectangular {
     fn not_inside_nopbc_3() {
         let rect = Rectangular::new([1.0, 2.0, 3.0].into(), 3.0, 2.0, 1.0);
 
-        let point = Vector3D::from([2.1, 2.5, 4.1]);
+        let point = Vector3D::new(2.1, 2.5, 4.1);
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(!rect.inside(&point, &simbox));
@@ -384,7 +384,7 @@ mod tests_rectangular {
     fn inside_pbc_1() {
         let rect = Rectangular::new([1.0, 2.0, 3.0].into(), 4.0, 2.0, 1.5);
 
-        let point = Vector3D::from([0.5, 3.8, 3.3]);
+        let point = Vector3D::new(0.5, 3.8, 3.3);
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert!(rect.inside(&point, &simbox));
@@ -394,7 +394,7 @@ mod tests_rectangular {
     fn inside_pbc_2() {
         let rect = Rectangular::new([1.0, 2.0, 3.0].into(), 1.0, 4.0, 1.5);
 
-        let point = Vector3D::from([1.3, 1.2, 3.5]);
+        let point = Vector3D::new(1.3, 1.2, 3.5);
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert!(rect.inside(&point, &simbox));
@@ -404,7 +404,7 @@ mod tests_rectangular {
     fn inside_pbc_3() {
         let rect = Rectangular::new([1.0, 2.0, 3.0].into(), 1.0, 2.0, 1.5);
 
-        let point = Vector3D::from([1.9, 2.2, 0.0]);
+        let point = Vector3D::new(1.9, 2.2, 0.0);
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert!(rect.inside(&point, &simbox));
@@ -432,7 +432,7 @@ mod tests_cylinder {
     fn inside_x_nopbc() {
         let cylinder = Cylinder::new([2.0, 1.0, 3.0].into(), 2.0, 4.0, Dimension::X);
 
-        let point = Vector3D::from([4.2, 1.8, 2.2]);
+        let point = Vector3D::new(4.2, 1.8, 2.2);
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(cylinder.inside(&point, &simbox));
@@ -442,7 +442,7 @@ mod tests_cylinder {
     fn not_inside_x_nopbc() {
         let cylinder = Cylinder::new([3.0, 3.0, 3.0].into(), 2.0, 4.0, Dimension::X);
 
-        let point = Vector3D::from([2.9, 3.8, 2.2]);
+        let point = Vector3D::new(2.9, 3.8, 2.2);
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(!cylinder.inside(&point, &simbox));
@@ -452,7 +452,7 @@ mod tests_cylinder {
     fn not_inside_x_nopbc2() {
         let cylinder = Cylinder::new([3.0, 3.0, 3.0].into(), 2.0, 4.0, Dimension::X);
 
-        let point = Vector3D::from([3.1, 4.6, 1.2]);
+        let point = Vector3D::new(3.1, 4.6, 1.2);
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(!cylinder.inside(&point, &simbox));
@@ -462,7 +462,7 @@ mod tests_cylinder {
     fn inside_x_pbc_1() {
         let cylinder = Cylinder::new([2.0, 1.0, 3.0].into(), 2.0, 3.0, Dimension::X);
 
-        let point = Vector3D::from([0.3, 1.4, 2.2]);
+        let point = Vector3D::new(0.3, 1.4, 2.2);
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert!(cylinder.inside(&point, &simbox));
@@ -472,7 +472,7 @@ mod tests_cylinder {
     fn inside_x_pbc_2() {
         let cylinder = Cylinder::new([2.0, 1.0, 3.0].into(), 2.0, 3.0, Dimension::X);
 
-        let point = Vector3D::from([2.4, 3.8, 2.8]);
+        let point = Vector3D::new(2.4, 3.8, 2.8);
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert!(cylinder.inside(&point, &simbox));
@@ -482,7 +482,7 @@ mod tests_cylinder {
     fn inside_y_nopbc() {
         let cylinder = Cylinder::new([3.0, 3.0, 3.0].into(), 4.0, 4.0, Dimension::Y);
 
-        let point = Vector3D::from([5.2, 3.8, 3.2]);
+        let point = Vector3D::new(5.2, 3.8, 3.2);
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(cylinder.inside(&point, &simbox));
@@ -492,7 +492,7 @@ mod tests_cylinder {
     fn not_inside_y_nopbc() {
         let cylinder = Cylinder::new([3.0, 3.0, 3.0].into(), 2.0, 4.0, Dimension::Y);
 
-        let point = Vector3D::from([4.2, 7.3, 2.2]);
+        let point = Vector3D::new(4.2, 7.3, 2.2);
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(!cylinder.inside(&point, &simbox));
@@ -502,7 +502,7 @@ mod tests_cylinder {
     fn not_inside_y_nopbc2() {
         let cylinder = Cylinder::new([3.0, 3.0, 3.0].into(), 2.0, 4.0, Dimension::Y);
 
-        let point = Vector3D::from([1.1, 5.4, 3.7]);
+        let point = Vector3D::new(1.1, 5.4, 3.7);
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(!cylinder.inside(&point, &simbox));
@@ -512,7 +512,7 @@ mod tests_cylinder {
     fn inside_y_pbc_1() {
         let cylinder = Cylinder::new([1.0, 2.0, 3.0].into(), 2.0, 3.0, Dimension::Y);
 
-        let point = Vector3D::from([0.7, 0.8, 3.4]);
+        let point = Vector3D::new(0.7, 0.8, 3.4);
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert!(cylinder.inside(&point, &simbox));
@@ -522,7 +522,7 @@ mod tests_cylinder {
     fn inside_y_pbc_2() {
         let cylinder = Cylinder::new([1.0, 2.0, 3.5].into(), 2.0, 3.0, Dimension::Y);
 
-        let point = Vector3D::from([3.5, 3.4, 0.0]);
+        let point = Vector3D::new(3.5, 3.4, 0.0);
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert!(cylinder.inside(&point, &simbox));
@@ -532,7 +532,7 @@ mod tests_cylinder {
     fn inside_z_nopbc() {
         let cylinder = Cylinder::new([3.0, 3.0, 3.0].into(), 2.0, 2.0, Dimension::Z);
 
-        let point = Vector3D::from([4.0, 3.8, 4.8]);
+        let point = Vector3D::new(4.0, 3.8, 4.8);
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(cylinder.inside(&point, &simbox));
@@ -542,7 +542,7 @@ mod tests_cylinder {
     fn not_inside_z_nopbc() {
         let cylinder = Cylinder::new([3.0, 3.0, 3.0].into(), 2.0, 4.0, Dimension::Z);
 
-        let point = Vector3D::from([4.0, 3.8, 7.2]);
+        let point = Vector3D::new(4.0, 3.8, 7.2);
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(!cylinder.inside(&point, &simbox));
@@ -552,7 +552,7 @@ mod tests_cylinder {
     fn not_inside_z_nopbc2() {
         let cylinder = Cylinder::new([3.0, 3.0, 3.0].into(), 2.0, 4.0, Dimension::Z);
 
-        let point = Vector3D::from([4.9, 3.7, 6.8]);
+        let point = Vector3D::new(4.9, 3.7, 6.8);
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(!cylinder.inside(&point, &simbox));
@@ -562,7 +562,7 @@ mod tests_cylinder {
     fn inside_z_pbc_1() {
         let cylinder = Cylinder::new([1.0, 2.0, 3.0].into(), 2.0, 3.0, Dimension::Z);
 
-        let point = Vector3D::from([1.4, 1.5, 1.5]);
+        let point = Vector3D::new(1.4, 1.5, 1.5);
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert!(cylinder.inside(&point, &simbox));
@@ -572,7 +572,7 @@ mod tests_cylinder {
     fn inside_z_pbc_2() {
         let cylinder = Cylinder::new([3.0, 2.0, 3.0].into(), 2.0, 3.0, Dimension::Z);
 
-        let point = Vector3D::from([0.3, 1.5, 3.1]);
+        let point = Vector3D::new(0.3, 1.5, 3.1);
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert!(cylinder.inside(&point, &simbox));

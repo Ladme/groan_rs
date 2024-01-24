@@ -104,7 +104,7 @@ impl System {
     /// let mut protein2 = protein.clone();
     ///
     /// // translate atoms of the second protomer
-    /// let translate = Vector3D::from([2.0, 0.0, 0.0]);
+    /// let translate = Vector3D::new(2.0, 0.0, 0.0);
     /// for atom in protein2.iter_mut() {
     ///     atom.translate_nopbc(&translate);
     /// }
@@ -150,7 +150,7 @@ impl System {
     /// let mut protein2 = protein.clone();
     ///
     /// // translate atoms of the second protomer
-    /// let translate = Vector3D::from([2.0, 0.0, 0.0]);
+    /// let translate = Vector3D::new(2.0, 0.0, 0.0);
     /// for atom in protein2.iter_mut() {
     ///     atom.translate_nopbc(&translate);
     /// }
@@ -408,10 +408,10 @@ impl System {
                     let vector = ref_atom_position.vector_to(atom2_pos, &*simbox);
 
                     // place the target atom to position based on the shortest vector
-                    let new_position = Vector3D::from(
-                        [ref_atom_position.x + vector.x,
+                    let new_position = Vector3D::new(
+                        ref_atom_position.x + vector.x,
                         ref_atom_position.y + vector.y,
-                        ref_atom_position.z + vector.z]
+                        ref_atom_position.z + vector.z
                     );
 
                     atom2.set_position(new_position);
@@ -441,7 +441,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
         system
-            .atoms_translate(&Vector3D::from([3.5, -1.1, 5.4]))
+            .atoms_translate(&Vector3D::new(3.5, -1.1, 5.4))
             .unwrap();
 
         let first = system.atoms_iter().next().unwrap();
@@ -462,7 +462,7 @@ mod tests {
     #[test]
     fn atoms_translate_fail_simbox() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
-        let shift = Vector3D::from([3.5, -1.1, 5.4]);
+        let shift = Vector3D::new(3.5, -1.1, 5.4);
 
         system.reset_box();
 
@@ -479,7 +479,7 @@ mod tests {
     #[test]
     fn atoms_translate_fail_position() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
-        let shift = Vector3D::from([3.5, -1.1, 5.4]);
+        let shift = Vector3D::new(3.5, -1.1, 5.4);
 
         system.get_atom_as_ref_mut(15).unwrap().reset_position();
 
@@ -498,7 +498,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
         system
-            .group_translate("all", &Vector3D::from([3.5, -1.1, 5.4]))
+            .group_translate("all", &Vector3D::new(3.5, -1.1, 5.4))
             .unwrap();
 
         let first = system.atoms_iter().next().unwrap();
@@ -519,7 +519,7 @@ mod tests {
     #[test]
     fn group_translate_fail_group() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
-        let shift = Vector3D::from([3.5, -1.1, 5.4]);
+        let shift = Vector3D::new(3.5, -1.1, 5.4);
 
         match system.group_translate("Nonexistent", &shift) {
             Err(GroupError::NotFound(x)) => assert_eq!(x, "Nonexistent"),
@@ -534,7 +534,7 @@ mod tests {
     #[test]
     fn group_translate_fail_simbox() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
-        let shift = Vector3D::from([3.5, -1.1, 5.4]);
+        let shift = Vector3D::new(3.5, -1.1, 5.4);
 
         system.reset_box();
 
@@ -551,7 +551,7 @@ mod tests {
     #[test]
     fn group_translate_fail_position() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
-        let shift = Vector3D::from([3.5, -1.1, 5.4]);
+        let shift = Vector3D::new(3.5, -1.1, 5.4);
 
         system.get_atom_as_ref_mut(15).unwrap().reset_position();
 
@@ -632,7 +632,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
         let simbox = system.get_box_copy().unwrap();
-        let translate1 = Vector3D::from([simbox.x * 3.0, -simbox.y, 0.0]);
+        let translate1 = Vector3D::new(simbox.x * 3.0, -simbox.y, 0.0);
 
         for index in [154, 1754, 12345, 4, 37, 0] {
             system
@@ -642,7 +642,7 @@ mod tests {
                 .unwrap();
         }
 
-        let translate2 = Vector3D::from([0.0, simbox.y, -simbox.z * 2.0]);
+        let translate2 = Vector3D::new(0.0, simbox.y, -simbox.z * 2.0);
         for index in [13, 65, 9853, 16843, 7832, 489] {
             system
                 .get_atom_as_ref_mut(index)
@@ -715,7 +715,7 @@ mod tests {
         system.read_ndx("test_files/index.ndx").unwrap();
 
         let simbox = system.get_box_copy().unwrap();
-        let translate1 = Vector3D::from([simbox.x * 3.0, -simbox.y, 0.0]);
+        let translate1 = Vector3D::new(simbox.x * 3.0, -simbox.y, 0.0);
 
         for index in [154, 1754, 12345, 4, 37, 0] {
             system
@@ -725,7 +725,7 @@ mod tests {
                 .unwrap();
         }
 
-        let translate2 = Vector3D::from([0.0, simbox.y, -simbox.z * 2.0]);
+        let translate2 = Vector3D::new(0.0, simbox.y, -simbox.z * 2.0);
         for index in [13, 65, 9853, 16843, 7832, 489] {
             system
                 .get_atom_as_ref_mut(index)

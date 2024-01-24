@@ -328,7 +328,7 @@ impl Atom {
     /// Set the x-coordinate of the atom.
     pub fn set_position_x(&mut self, x: f32) {
         match self.position {
-            None => self.position = Some(Vector3D::from([x, 0.0, 0.0])),
+            None => self.position = Some(Vector3D::new(x, 0.0, 0.0)),
             Some(ref mut pos) => pos.x = x,
         }
     }
@@ -336,7 +336,7 @@ impl Atom {
     /// Set the y-coordinate of the atom.
     pub fn set_position_y(&mut self, y: f32) {
         match self.position {
-            None => self.position = Some(Vector3D::from([0.0, y, 0.0])),
+            None => self.position = Some(Vector3D::new(0.0, y, 0.0)),
             Some(ref mut pos) => pos.y = y,
         }
     }
@@ -344,7 +344,7 @@ impl Atom {
     /// Set the z-coordinate of the atom.
     pub fn set_position_z(&mut self, z: f32) {
         match self.position {
-            None => self.position = Some(Vector3D::from([0.0, 0.0, z])),
+            None => self.position = Some(Vector3D::new(0.0, 0.0, z)),
             Some(ref mut pos) => pos.z = z,
         }
     }
@@ -485,9 +485,7 @@ impl Atom {
     /// `Ok` of `AtomError::InvalidPosition` if the atom has an undefined position.
     pub fn translate_nopbc(&mut self, translate: &Vector3D) -> Result<(), AtomError> {
         if let Some(ref mut pos) = self.position {
-            pos.x += translate.x;
-            pos.y += translate.y;
-            pos.z += translate.z;
+            pos.0 += translate.0;
             Ok(())
         } else {
             Err(AtomError::InvalidPosition(PositionError::NoPosition(
@@ -723,7 +721,7 @@ impl Atom {
     /// # use float_cmp::assert_approx_eq;
     /// #
     /// let atom = Atom::new(1, "LYS", 1, "BB").with_position([1.0, 2.0, 3.0].into());
-    /// let point = Vector3D::from([3.5, 1.0, 2.0]);
+    /// let point = Vector3D::new(3.5, 1.0, 2.0);
     ///
     /// let simbox = SimBox::from([4.0, 4.0, 4.0]);
     ///
@@ -944,7 +942,7 @@ mod tests {
         let atom = make_default_atom();
         assert_eq!(
             *atom.get_position().unwrap(),
-            Vector3D::from([15.123, 14.321, 9.834])
+            Vector3D::new(15.123, 14.321, 9.834)
         );
     }
 
@@ -962,7 +960,7 @@ mod tests {
     #[test]
     fn set_position() {
         let mut atom = make_default_atom();
-        let new_pos = Vector3D::from([1.764, 2.134, 19.129]);
+        let new_pos = Vector3D::new(1.764, 2.134, 19.129);
         atom.set_position(new_pos.clone());
 
         assert_eq!(*atom.get_position().unwrap(), new_pos);
@@ -972,7 +970,7 @@ mod tests {
     fn set_position_x() {
         let mut atom = make_default_atom();
         let new_x = 19.129;
-        let new_pos = Vector3D::from([19.129, 14.321, 9.834]);
+        let new_pos = Vector3D::new(19.129, 14.321, 9.834);
         atom.set_position_x(new_x);
 
         assert_eq!(*atom.get_position().unwrap(), new_pos);
@@ -982,7 +980,7 @@ mod tests {
     fn set_position_y() {
         let mut atom = make_default_atom();
         let new_y = 19.129;
-        let new_pos = Vector3D::from([15.123, 19.129, 9.834]);
+        let new_pos = Vector3D::new(15.123, 19.129, 9.834);
         atom.set_position_y(new_y);
 
         assert_eq!(*atom.get_position().unwrap(), new_pos);
@@ -992,7 +990,7 @@ mod tests {
     fn set_position_z() {
         let mut atom = make_default_atom();
         let new_z = 19.129;
-        let new_pos = Vector3D::from([15.123, 14.321, 19.129]);
+        let new_pos = Vector3D::new(15.123, 14.321, 19.129);
         atom.set_position_z(new_z);
 
         assert_eq!(*atom.get_position().unwrap(), new_pos);
@@ -1003,7 +1001,7 @@ mod tests {
         let atom = make_default_atom();
         assert_eq!(
             *atom.get_velocity().unwrap(),
-            Vector3D::from([-3.432, 0.184, 1.234])
+            Vector3D::new(-3.432, 0.184, 1.234)
         );
     }
 
@@ -1021,7 +1019,7 @@ mod tests {
     #[test]
     fn set_velocity() {
         let mut atom = make_default_atom();
-        let new_vel = Vector3D::from([1.764, 2.134, 19.129]);
+        let new_vel = Vector3D::new(1.764, 2.134, 19.129);
         atom.set_velocity(new_vel.clone());
 
         assert_eq!(*atom.get_velocity().unwrap(), new_vel);
@@ -1032,7 +1030,7 @@ mod tests {
         let atom = make_default_atom();
         assert_eq!(
             *atom.get_force().unwrap(),
-            Vector3D::from([5.1235, 2.3451, -0.32145])
+            Vector3D::new(5.1235, 2.3451, -0.32145)
         );
     }
 
@@ -1050,7 +1048,7 @@ mod tests {
     #[test]
     fn set_force() {
         let mut atom = make_default_atom();
-        let new_for = Vector3D::from([1.764, 2.134, 19.129]);
+        let new_for = Vector3D::new(1.764, 2.134, 19.129);
         atom.set_force(new_for.clone());
 
         assert_eq!(*atom.get_force().unwrap(), new_for);
@@ -1120,7 +1118,7 @@ mod tests {
     fn translate_nopbc() {
         let mut atom = make_default_atom();
 
-        let shift = Vector3D::from([4.5, 2.3, -8.3]);
+        let shift = Vector3D::new(4.5, 2.3, -8.3);
         atom.translate_nopbc(&shift).unwrap();
 
         assert_approx_eq!(
@@ -1148,7 +1146,7 @@ mod tests {
         let mut atom = make_default_atom();
         atom.reset_position();
 
-        let shift = Vector3D::from([4.5, 2.3, -8.3]);
+        let shift = Vector3D::new(4.5, 2.3, -8.3);
         match atom.translate_nopbc(&shift) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
@@ -1164,7 +1162,7 @@ mod tests {
     fn translate() {
         let mut atom = make_default_atom();
 
-        let shift = Vector3D::from([4.5, 2.3, -10.2]);
+        let shift = Vector3D::new(4.5, 2.3, -10.2);
         let simbox = SimBox::from([16.0, 16.0, 16.0]);
 
         atom.translate(&shift, &simbox).unwrap();
@@ -1194,7 +1192,7 @@ mod tests {
         let mut atom = make_default_atom();
         atom.reset_position();
 
-        let shift = Vector3D::from([4.5, 2.3, -8.3]);
+        let shift = Vector3D::new(4.5, 2.3, -8.3);
         let simbox = SimBox::from([16.0, 16.0, 16.0]);
         match atom.translate(&shift, &simbox) {
             Ok(_) => panic!("Function should have failed."),
@@ -1681,7 +1679,7 @@ mod tests {
     fn distance_from_point_x() {
         let atom = Atom::new(1, "LYS", 1, "BB").with_position([2.0, 3.8, 3.5].into());
 
-        let point = Vector3D::from([1.0, 0.5, 2.0]);
+        let point = Vector3D::new(1.0, 0.5, 2.0);
 
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
@@ -1698,7 +1696,7 @@ mod tests {
     fn distance_from_point_y() {
         let atom = Atom::new(1, "LYS", 1, "BB").with_position([2.0, 3.8, 3.5].into());
 
-        let point = Vector3D::from([1.0, 0.5, 2.0]);
+        let point = Vector3D::new(1.0, 0.5, 2.0);
 
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
@@ -1715,7 +1713,7 @@ mod tests {
     fn distance_from_point_z() {
         let atom = Atom::new(1, "LYS", 1, "BB").with_position([2.0, 3.8, 3.5].into());
 
-        let point = Vector3D::from([1.0, 0.5, 2.0]);
+        let point = Vector3D::new(1.0, 0.5, 2.0);
 
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
@@ -1732,7 +1730,7 @@ mod tests {
     fn distance_from_point_xy() {
         let atom = Atom::new(1, "LYS", 1, "BB").with_position([2.0, 3.8, 3.5].into());
 
-        let point = Vector3D::from([1.0, 0.5, 2.0]);
+        let point = Vector3D::new(1.0, 0.5, 2.0);
 
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
@@ -1749,7 +1747,7 @@ mod tests {
     fn distance_from_point_xz() {
         let atom = Atom::new(1, "LYS", 1, "BB").with_position([2.0, 3.8, 3.5].into());
 
-        let point = Vector3D::from([1.0, 0.5, 2.0]);
+        let point = Vector3D::new(1.0, 0.5, 2.0);
 
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
@@ -1766,7 +1764,7 @@ mod tests {
     fn distance_from_point_yz() {
         let atom = Atom::new(1, "LYS", 1, "BB").with_position([2.0, 3.8, 3.5].into());
 
-        let point = Vector3D::from([1.0, 0.5, 2.0]);
+        let point = Vector3D::new(1.0, 0.5, 2.0);
 
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
@@ -1783,7 +1781,7 @@ mod tests {
     fn distance_from_point_xyz() {
         let atom = Atom::new(1, "LYS", 1, "BB").with_position([2.0, 3.8, 3.5].into());
 
-        let point = Vector3D::from([1.0, 0.5, 2.0]);
+        let point = Vector3D::new(1.0, 0.5, 2.0);
 
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
@@ -1800,7 +1798,7 @@ mod tests {
     fn distance_from_point_none() {
         let atom = Atom::new(1, "LYS", 1, "BB").with_position([2.0, 3.8, 3.5].into());
 
-        let point = Vector3D::from([1.0, 0.5, 2.0]);
+        let point = Vector3D::new(1.0, 0.5, 2.0);
 
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
@@ -1816,7 +1814,7 @@ mod tests {
     #[test]
     fn distance_from_point_fail() {
         let atom = Atom::new(1, "LYS", 1, "BB");
-        let point = Vector3D::from([1.0, 0.5, 2.0]);
+        let point = Vector3D::new(1.0, 0.5, 2.0);
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         match atom.distance_from_point(&point, Dimension::XYZ, &simbox) {
