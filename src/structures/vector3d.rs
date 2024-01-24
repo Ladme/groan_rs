@@ -84,6 +84,7 @@ impl Vector3D {
     /// let vector = Vector3D::from([1.0, 2.0, 3.0]);
     /// assert_approx_eq!(f32, vector.len(), 3.741657);
     /// ```
+    #[inline]
     pub fn len(&self) -> f32 {
         self.0.magnitude()
     }
@@ -105,6 +106,7 @@ impl Vector3D {
     /// assert_approx_eq!(f32, vector.z, 0.8017837);
     /// assert_approx_eq!(f32, vector.len(), 1.0);
     /// ```
+    #[inline]
     pub fn to_unit(self) -> Vector3D {
         Vector3D(self.0.normalize())
     }
@@ -122,6 +124,7 @@ impl Vector3D {
     /// assert_approx_eq!(f32, vector.y,  2.0);
     /// assert_approx_eq!(f32, vector.z, -3.0);
     /// ```
+    #[inline]
     pub fn invert(mut self) -> Vector3D {
         self.x *= -1.0;
         self.y *= -1.0;
@@ -142,6 +145,7 @@ impl Vector3D {
     ///
     /// assert_approx_eq!(f32, vector1.dot(&vector2), -4.0);
     /// ```
+    #[inline]
     pub fn dot(&self, vector: &Vector3D) -> f32 {
         self.0.dot(&vector.0)
         //self.x * vector.x + self.y * vector.y + self.z * vector.z
