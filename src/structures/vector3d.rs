@@ -70,6 +70,7 @@ impl DerefMut for Vector3D {
 impl Vector3D {    
 
     /// Create a new `Vector3D` structure.
+    #[inline]
     pub fn new(x: f32, y: f32, z: f32) -> Self {
         Vector3D(Vector3::new(x, y, z))
     }
