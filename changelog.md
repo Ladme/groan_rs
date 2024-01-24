@@ -1,6 +1,11 @@
 
 ## Changelog for the `groan_rs` library
 
+### Version 0.7.0
+#### Replaced custom `Vector3D` implementation with faster `Vector3` from `nalgebra` crate
+- **Breaking change:** When `Vector3D::to_unit` is applied to a vector with a length (magnitude) of zero, its fields are set to `NaN` instead of the previously set `0.0`.
+
+
 ### Version 0.6.1
 - Bug fix: When setting `ProgressPrinter` to write into a file, the printer did not start a new line once iteration was finished and instead printed new line into standard output. This has been now fixed.
 - `ProgressPrinter` can be now set to NOT start a new line upon finishing the iteration through the trajectory (see `ProgressPrinter::with_newline_at_end`).

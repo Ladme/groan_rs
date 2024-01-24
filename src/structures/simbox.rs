@@ -148,37 +148,37 @@ impl SimBox {
     pub fn to_lengths_angles(&self) -> (Vector3D, Vector3D) {
         if self.is_orthogonal() {
             // orthogonal simulation box
-            let lengths = Vector3D {
-                x: self.v1x,
-                y: self.v2y,
-                z: self.v3z,
-            };
+            let lengths = Vector3D::new(
+                self.v1x,
+                self.v2y,
+                self.v3z,
+            );
 
-            let angles = Vector3D {
-                x: 90.0,
-                y: 90.0,
-                z: 90.0,
-            };
+            let angles = Vector3D::new(
+                90.0,
+                90.0,
+                90.0,
+            );
 
             (lengths, angles)
         } else {
             // triclinic simulation box
             let gamma = self.v2y.atan2(self.v2x);
 
-            let lengths = Vector3D {
-                x: self.v1x,
-                y: (self.v2x * self.v2x + self.v2y * self.v2y).sqrt(),
-                z: (self.v3x * self.v3x + self.v3y * self.v3y + self.v3z * self.v3z).sqrt(),
-            };
+            let lengths = Vector3D::new(
+                self.v1x,
+                (self.v2x * self.v2x + self.v2y * self.v2y).sqrt(),
+                (self.v3x * self.v3x + self.v3y * self.v3y + self.v3z * self.v3z).sqrt(),
+            );
 
             let beta = (self.v3x / lengths.z).acos();
             let alpha = ((self.v3y * gamma.sin()) / lengths.z + beta.cos() * gamma.cos()).acos();
 
-            let angles = Vector3D {
-                x: 180.0 * alpha / std::f32::consts::PI,
-                y: 180.0 * beta / std::f32::consts::PI,
-                z: 180.0 * gamma / std::f32::consts::PI,
-            };
+            let angles = Vector3D::new(
+                180.0 * alpha / std::f32::consts::PI,
+                180.0 * beta / std::f32::consts::PI,
+                180.0 * gamma / std::f32::consts::PI,
+            );
 
             (lengths, angles)
         }

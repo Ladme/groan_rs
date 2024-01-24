@@ -326,11 +326,7 @@ fn center_atom_contribution(
     // wrap position into the box
     position.wrap(simbox);
 
-    let theta = Vector3D {
-        x: position.x * scaling.x,
-        y: position.y * scaling.y,
-        z: position.z * scaling.z,
-    };
+    let theta = Vector3D::new(position.x * scaling.x, position.y * scaling.y, position.z * scaling.z);
 
     sum_xi.x += mass * theta.x.cos();
     sum_xi.y += mass * theta.y.cos();
@@ -344,17 +340,17 @@ fn center_atom_contribution(
 /// Convert coordinates from their representation on a circle to their representation on a line.
 #[inline(always)]
 fn from_circle_to_line(zeta: Vector3D, xi: Vector3D, scaling: &Vector3D) -> Vector3D {
-    let theta = Vector3D {
-        x: (-zeta.x).atan2(-xi.x) + consts::PI,
-        y: (-zeta.y).atan2(-xi.y) + consts::PI,
-        z: (-zeta.z).atan2(-xi.z) + consts::PI,
-    };
+    let theta = Vector3D::new(
+        (-zeta.x).atan2(-xi.x) + consts::PI,
+        (-zeta.y).atan2(-xi.y) + consts::PI,
+        (-zeta.z).atan2(-xi.z) + consts::PI,
+    );
 
-    Vector3D {
-        x: theta.x / scaling.x,
-        y: theta.y / scaling.y,
-        z: theta.z / scaling.z,
-    }
+    Vector3D::new(
+        theta.x / scaling.x,
+        theta.y / scaling.y,
+        theta.z / scaling.z,
+    )
 }
 
 /******************************/

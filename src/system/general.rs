@@ -247,11 +247,11 @@ impl System {
     /// or if the simulation box is not orthogonal.
     pub fn get_box_center(&self) -> Result<Vector3D, SimBoxError> {
         match &self.simulation_box {
-            Some(simbox) if simbox.is_orthogonal() => Ok(Vector3D {
-                x: simbox.x / 2.0f32,
-                y: simbox.y / 2.0f32,
-                z: simbox.z / 2.0f32,
-            }),
+            Some(simbox) if simbox.is_orthogonal() => Ok(Vector3D::new(
+                simbox.x / 2.0f32,
+                simbox.y / 2.0f32,
+                simbox.z / 2.0f32,
+            )),
             Some(_) => Err(SimBoxError::NotOrthogonal),
             None => Err(SimBoxError::DoesNotExist),
         }

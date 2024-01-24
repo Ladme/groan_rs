@@ -3,7 +3,15 @@
 
 //! Implementation of methods for three-dimensional vector.
 
+use std::ops::{Deref, DerefMut};
+
 use crate::structures::{dimension::Dimension, simbox::SimBox};
+use nalgebra::base::Vector3;
+
+/// Describes length and orientation of a vector in space or a position of a point in space.
+/// Since v0.7.0 implemented using `nalgebra`'s Vector3
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct Vector3D(Vector3<f32>);
 
 /// Function replicating the behavior of Python '%'.
 fn floor_mod(x: f32, y: f32) -> f32 {
@@ -15,21 +23,9 @@ const REC_SQRT2: f32 = std::f32::consts::FRAC_1_SQRT_2;
 /// Reciprocal of square root of 3, i.e. 1/sqrt(3).
 const REC_SQRT3: f32 = 0.577_350_3_f32;
 
-/// Describes length and orientation of a vector in space or a position of a point in space.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Vector3D {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-}
-
 impl From<[f32; 3]> for Vector3D {
     fn from(arr: [f32; 3]) -> Self {
-        Vector3D {
-            x: arr[0],
-            y: arr[1],
-            z: arr[2],
-        }
+        Vector3D(Vector3::new(arr[0], arr[1], arr[2]))
     }
 }
 
@@ -50,7 +46,34 @@ impl From<Dimension> for Vector3D {
     }
 }
 
-impl Vector3D {
+/// Allows accessing fields of `Vector3D` as `.x`, `.y`, and `.z`.
+pub struct Vector3Raw {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
+
+impl Deref for Vector3D {
+    type Target = Vector3Raw;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { &*(self.0.as_ptr() as *const Vector3Raw) }
+    }
+}
+
+impl DerefMut for Vector3D {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { &mut *(self.0.as_mut_ptr() as *mut Vector3Raw) }
+    }
+}
+
+impl Vector3D {    
+
+    /// Create a new `Vector3D` structure.
+    pub fn new(x: f32, y: f32, z: f32) -> Self {
+        Vector3D(Vector3::new(x, y, z))
+    }
+
     /// Calculate length of the vector.
     ///
     /// ## Example
@@ -62,7 +85,7 @@ impl Vector3D {
     /// assert_approx_eq!(f32, vector.len(), 3.741657);
     /// ```
     pub fn len(&self) -> f32 {
-        (self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
+        self.0.magnitude()
     }
 
     /// Convert vector to unit vector.
@@ -82,16 +105,8 @@ impl Vector3D {
     /// assert_approx_eq!(f32, vector.z, 0.8017837);
     /// assert_approx_eq!(f32, vector.len(), 1.0);
     /// ```
-    pub fn to_unit(mut self) -> Vector3D {
-        let length = self.len();
-
-        if length > 0.0 {
-            self.x /= length;
-            self.y /= length;
-            self.z /= length;
-        }
-
-        self
+    pub fn to_unit(self) -> Vector3D {
+        Vector3D(self.0.normalize())
     }
 
     /// Invert the vector. (Reverse direction of the vector.)
@@ -424,11 +439,7 @@ impl Vector3D {
     /// assert_approx_eq!(f32, vec.z, -2.0);
     /// ```
     pub fn vector_to(&self, point: &Vector3D, sbox: &SimBox) -> Vector3D {
-        let box_half = Vector3D {
-            x: sbox.x / 2.0,
-            y: sbox.y / 2.0,
-            z: sbox.z / 2.0,
-        };
+        let box_half = Vector3D(Vector3::new(sbox.x / 2.0, sbox.y / 2.0, sbox.z / 2.0));
 
         Vector3D::from([
             floor_mod(point.x - self.x + box_half.x, sbox.x) - box_half.x,
@@ -500,11 +511,7 @@ impl Vector3D {
 impl Default for Vector3D {
     /// Create a zero vector.
     fn default() -> Self {
-        Vector3D {
-            x: 0.0f32,
-            y: 0.0f32,
-            z: 0.0f32,
-        }
+        Vector3D(Vector3::new(0.0, 0.0, 0.0))
     }
 }
 
@@ -543,10 +550,9 @@ mod tests {
     fn to_unit_null() {
         let vec = Vector3D::from([0.0, 0.0, 0.0]).to_unit();
 
-        assert_approx_eq!(f32, vec.x, 0.0);
-        assert_approx_eq!(f32, vec.y, 0.0);
-        assert_approx_eq!(f32, vec.z, 0.0);
-        assert_approx_eq!(f32, vec.len(), 0.0);
+        assert!(vec.x.is_nan());
+        assert!(vec.y.is_nan());
+        assert!(vec.z.is_nan());
     }
 
     #[test]
