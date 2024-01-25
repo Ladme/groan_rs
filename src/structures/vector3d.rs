@@ -72,8 +72,7 @@ impl DerefMut for Vector3D {
     }
 }
 
-impl Vector3D {    
-
+impl Vector3D {
     /// Create a new `Vector3D` structure.
     #[inline]
     pub fn new(x: f32, y: f32, z: f32) -> Self {
@@ -335,17 +334,17 @@ impl Vector3D {
                 let dx = Vector3D::min_image(self.0.x - point.0.x, sbox.x);
                 let dy = Vector3D::min_image(self.0.y - point.0.y, sbox.y);
                 Vector3::new(dx, dy, 0.0).magnitude()
-            },
+            }
             Dimension::XZ => {
                 let dx = Vector3D::min_image(self.0.x - point.0.x, sbox.x);
                 let dz = Vector3D::min_image(self.0.z - point.0.z, sbox.z);
                 Vector3::new(dx, 0.0, dz).magnitude()
-            },
+            }
             Dimension::YZ => {
                 let dy = Vector3D::min_image(self.0.y - point.0.y, sbox.y);
                 let dz = Vector3D::min_image(self.0.z - point.0.z, sbox.z);
                 Vector3::new(0.0, dy, dz).magnitude()
-            },
+            }
             Dimension::XYZ => {
                 let dx = Vector3D::min_image(self.0.x - point.0.x, sbox.x);
                 let dy = Vector3D::min_image(self.0.y - point.0.y, sbox.y);

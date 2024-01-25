@@ -5,6 +5,10 @@
 #### Replaced custom `Vector3D` implementation with faster `Vector3` from `nalgebra` crate
 - **Breaking change:** When `Vector3D::to_unit` is applied to a vector with a length (magnitude) of zero, its fields are set to `NaN` instead of the previously set `0.0`.
 
+#### Parallelization
+- Parallelized versions of several methods have been introduced:
+  - `System::guess_bonds` -> `System::guess_bonds_parallel`
+
 
 ### Version 0.6.1
 - Bug fix: When setting `ProgressPrinter` to write into a file, the printer did not start a new line once iteration was finished and instead printed new line into standard output. This has been now fixed.

@@ -148,17 +148,9 @@ impl SimBox {
     pub fn to_lengths_angles(&self) -> (Vector3D, Vector3D) {
         if self.is_orthogonal() {
             // orthogonal simulation box
-            let lengths = Vector3D::new(
-                self.v1x,
-                self.v2y,
-                self.v3z,
-            );
+            let lengths = Vector3D::new(self.v1x, self.v2y, self.v3z);
 
-            let angles = Vector3D::new(
-                90.0,
-                90.0,
-                90.0,
-            );
+            let angles = Vector3D::new(90.0, 90.0, 90.0);
 
             (lengths, angles)
         } else {

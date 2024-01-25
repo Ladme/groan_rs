@@ -326,7 +326,11 @@ fn center_atom_contribution(
     // wrap position into the box
     position.wrap(simbox);
 
-    let theta = Vector3D::new(position.x * scaling.x, position.y * scaling.y, position.z * scaling.z);
+    let theta = Vector3D::new(
+        position.x * scaling.x,
+        position.y * scaling.y,
+        position.z * scaling.z,
+    );
 
     sum_xi.x += mass * theta.x.cos();
     sum_xi.y += mass * theta.y.cos();
