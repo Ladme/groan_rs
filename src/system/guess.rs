@@ -330,6 +330,11 @@ impl System {
     /// It is almost always useful to use the parallelized version of this function: [`System::guess_bonds_parallel`],
     /// especially if your system is large.
     pub fn guess_bonds(&mut self, radius_factor: Option<f32>) -> Result<(), ElementError> {
+        let n_atoms = self.get_n_atoms();
+        if n_atoms == 0 {
+            return Ok(())
+        }
+
         // identify bonds
         let (bonds, no_vdw) = self.identify_bonds(
             radius_factor.unwrap_or(DEFAULT_RADIUS_FACTOR),
@@ -565,7 +570,10 @@ impl System {
         (too_many_bonds, too_few_bonds)
     }
 
-    /// Distribute atoms between threads. `n_atoms` must be >= `n_threads`.
+    /// Distribute atoms between threads. 
+    /// 
+    /// `n_atoms` must be >= `n_threads`. 
+    /// `n_threads` must be > 0.
     /// TODO: write tests
     #[inline]
     fn distribute_atoms(&self, n_atoms: usize, n_threads: usize) -> Vec<(usize, usize)> {
@@ -860,7 +868,7 @@ impl fmt::Display for BondsGuessInfo {
 
 #[cfg(test)]
 mod tests {
-    use crate::errors::SelectError;
+    use crate::{errors::SelectError, structures::simbox::SimBox};
 
     use super::*;
     use float_cmp::assert_approx_eq;
@@ -1630,22 +1638,33 @@ mod tests {
     }
 
     #[test]
-    fn guess_bonds_warnings_parallel() {
-        let mut system = System::from_file("test_files/aa_peptide.pdb").unwrap();
+    fn guess_bonds_distribute_atoms() {
+        for file_name in ["test_files/aa_peptide.pdb", "test_files/aa_membrane_peptide.gro", "test_files/example.gro"] {
+            let system = System::from_file(file_name).unwrap();
 
-        system.guess_elements(Elements::default()).unwrap();
-
-        let mut elements_for_bonds = Elements::default();
-        elements_for_bonds.update(
-            Elements::from_file("test_files/elements_update_guess_bonds_warning.yaml").unwrap(),
-        );
-
-        match system.guess_properties(elements_for_bonds) {
-            Ok(_) | Err(_) => (),
+            for n_threads in 1..=128 {
+                let rem = if system.get_n_atoms() % n_threads != 0 {
+                    1
+                } else {
+                    0
+                };
+                let atoms_per_block = system.get_n_atoms() / n_threads;
+    
+                let distribution = system.distribute_atoms(system.get_n_atoms(), n_threads);
+                assert_eq!(distribution.len(), n_threads);
+                let mut sum = 0;
+                for range in distribution {
+                    assert!(range.1 - range.0 == atoms_per_block || range.1 - range.0 == atoms_per_block + rem);
+                    sum += range.1 - range.0;
+                }
+    
+                assert_eq!(sum, system.get_n_atoms());
+            }
         }
+    }
 
-        system.get_atom_as_ref_mut(1).unwrap().reset_vdw();
-
+    #[test]
+    fn guess_bonds_multithreaded() {
         let no_vdw = vec![2];
         let too_few_bonds = vec![
             2, 12, 31, 50, 61, 72, 91, 110, 121, 132, 151, 170, 192, 211, 230, 241, 252, 271, 290,
@@ -1656,33 +1675,72 @@ mod tests {
             292, 303, 314, 333, 352,
         ];
 
-        match system.guess_bonds_parallel(None, 3) {
-            Ok(_) => panic!("Function should have returned a warning."),
-            Err(ElementError::BondsGuessWarning(e)) => {
-                assert_eq!(e.no_vdw, no_vdw);
-                assert_eq!(
-                    e.too_few_bonds.keys().cloned().collect::<Vec<usize>>(),
-                    too_few_bonds
-                );
-                assert_eq!(
-                    e.too_many_bonds.keys().cloned().collect::<Vec<usize>>(),
-                    too_many_bonds
-                );
-            }
-            Err(e) => panic!("Incorrect warning type `{:?}` returned.", e),
-        }
+        for n_threads in [1, 2, 3, 4, 5, 6, 7, 8, 16, 32, 512, 1024] {
+            let mut system = System::from_file("test_files/aa_peptide.pdb").unwrap();
 
-        let mut system_from_pdb = System::from_file("test_files/aa_peptide.pdb").unwrap();
-        system_from_pdb
-            .add_bonds_from_pdb("test_files/aa_peptide.pdb")
-            .unwrap();
+            system.guess_elements(Elements::default()).unwrap();
 
-        for (atom1, atom2) in system.atoms_iter().zip(system_from_pdb.atoms_iter()) {
-            if atom1.get_atom_number() <= 2 {
-                continue;
+            let mut elements_for_bonds = Elements::default();
+            elements_for_bonds.update(
+                Elements::from_file("test_files/elements_update_guess_bonds_warning.yaml").unwrap(),
+            );
+
+            match system.guess_properties(elements_for_bonds) {
+                Ok(_) | Err(_) => (),
             }
 
-            assert_eq!(atom1.get_bonded(), atom2.get_bonded());
+            system.get_atom_as_ref_mut(1).unwrap().reset_vdw();
+            
+
+            match system.guess_bonds_parallel(None, n_threads) {
+                Ok(_) => panic!("Function should have returned a warning."),
+                Err(ElementError::BondsGuessWarning(e)) => {
+                    assert_eq!(e.no_vdw, no_vdw);
+                    assert_eq!(
+                        e.too_few_bonds.keys().cloned().collect::<Vec<usize>>(),
+                        too_few_bonds
+                    );
+                    assert_eq!(
+                        e.too_many_bonds.keys().cloned().collect::<Vec<usize>>(),
+                        too_many_bonds
+                    );
+                }
+                Err(e) => panic!("Incorrect warning type `{:?}` returned.", e),
+            }
+
+            let mut system_from_pdb = System::from_file("test_files/aa_peptide.pdb").unwrap();
+            system_from_pdb
+                .add_bonds_from_pdb("test_files/aa_peptide.pdb")
+                .unwrap();
+
+            for (atom1, atom2) in system.atoms_iter().zip(system_from_pdb.atoms_iter()) {
+                if atom1.get_atom_number() <= 2 {
+                    continue;
+                }
+
+                assert_eq!(atom1.get_bonded(), atom2.get_bonded());
+            }
         }
+    }
+
+    #[test]
+    fn guess_bonds_empty_system() {
+        let mut system = System::new("Empty system", vec![], Some(SimBox::from([10.0, 10.0, 10.0])));
+        system.guess_bonds(None).unwrap();
+        assert!(!system.has_bonds());
+
+        let mut system = System::new("Empty system", vec![], Some(SimBox::from([10.0, 10.0, 10.0])));
+        system.guess_bonds_parallel(None, 7).unwrap();
+        assert!(!system.has_bonds());
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "FATAL GROAN ERROR | System::guess_bonds_parallel | Number of threads should not be zero."
+    )]
+    fn guess_bonds_no_threads() {
+        let mut system = System::from_file("test_files/aa_peptide.pdb").unwrap();
+
+        system.guess_bonds_parallel(None, 0).unwrap();
     }
 }
