@@ -1304,7 +1304,10 @@ mod tests {
 
         // remove the protein group from the system; this should not change the output of the XtcGroupWriter
         unsafe {
-            let val = system.get_groups_as_ref_mut().swap_remove("Protein").unwrap();
+            let val = system
+                .get_groups_as_ref_mut()
+                .swap_remove("Protein")
+                .unwrap();
             assert_eq!(val.get_atoms(), writer.group.get_atoms());
             assert!(!system.group_exists("Protein"));
         }

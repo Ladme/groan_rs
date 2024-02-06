@@ -150,6 +150,23 @@ pub enum WritePdbError {
     ConectInvalidNumber(usize),
 }
 
+/// Errors that can occur when reading and parsing pqr file.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum ParsePqrError {
+    /// Used when the pqr file was not found (i.e. does not exist).
+    #[error("{} file '{}' was not found", "error:".red().bold(), path_to_yellow(.0))]
+    FileNotFound(Box<Path>),
+    /// Used when the pqr file ended unexpectedly.
+    #[error("{} file '{}' ended unexpectedly", "error:".red().bold(), path_to_yellow(.0))]
+    LineNotFound(Box<Path>),
+    /// Used when a generic line in the pqr file could not be parsed.
+    #[error("{} could not parse line '{}'", "error:".red().bold(), .0.yellow())]
+    ParseLineErr(String),
+    /// Used when an "ATOM" or "HETATM" line in the pqr file could not be parsed.
+    #[error("{} could not parse line '{}' as atom", "error:".red().bold(), .0.yellow())]
+    ParseAtomLineErr(String),
+}
+
 /// Errors that can occur when working with Groups of atoms.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum GroupError {

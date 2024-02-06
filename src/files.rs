@@ -14,6 +14,7 @@ pub enum FileType {
     XTC,
     NDX,
     TRR,
+    PQR,
 }
 
 impl FileType {
@@ -30,6 +31,7 @@ impl FileType {
             Some("xtc") => FileType::XTC,
             Some("ndx") => FileType::NDX,
             Some("trr") => FileType::TRR,
+            Some("pqr") => FileType::PQR,
             Some(_) | None => FileType::Unknown,
         }
     }
@@ -62,6 +64,11 @@ mod tests {
     #[test]
     fn identify_trr() {
         assert_eq!(FileType::from_name("file.trr"), FileType::TRR);
+    }
+
+    #[test]
+    fn identity_pqr() {
+        assert_eq!(FileType::from_name("file.pqr"), FileType::PQR);
     }
 
     #[test]

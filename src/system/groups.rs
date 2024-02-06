@@ -566,12 +566,12 @@ impl System {
     ///
     /// ## Returns
     /// `Ok` if successful, `GroupError::NotFound` in case the group does not exist.
-    /// 
+    ///
     /// ## Safety
     /// Do not use this function to remove any of the default groups ('all' or 'All').
     /// Doing so would make many functions associated with the `System` structure invalid.
     /// Removing other groups is generally safe to do.
-    /// 
+    ///
     /// ## Notes
     /// - This function maintains the order of the groups in the system.
     /// - Time complexity is O(n).

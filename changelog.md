@@ -5,6 +5,10 @@
 #### Replaced custom `Vector3D` implementation with faster `Vector3` from `nalgebra` crate
 - **Breaking change:** When `Vector3D::to_unit` is applied to a vector with a length (magnitude) of zero, its fields are set to `NaN` instead of the previously set `0.0`.
 
+#### Reading and writing PQR files
+- `System::from_file` function now supports reading whitespace-delimited PQR files.
+- PQR files can also be explicitly read using `pqr_io::read_pqr` function (`use groan_rs::io::pqr_io`).
+
 #### Parallelization
 - Parallelized versions of several methods have been introduced:
   - `System::guess_bonds` -> `System::guess_bonds_parallel`

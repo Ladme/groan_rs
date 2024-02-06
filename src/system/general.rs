@@ -10,8 +10,8 @@ use std::path::Path;
 
 use crate::errors::{AtomError, GroupError, ParseFileError, SimBoxError};
 use crate::files::FileType;
-use crate::io::gro_io;
 use crate::io::pdb_io;
+use crate::io::{gro_io, pqr_io};
 use crate::structures::{atom::Atom, group::Group, simbox::SimBox, vector3d::Vector3D};
 
 #[derive(Debug)]
@@ -122,13 +122,14 @@ impl System {
     }
 
     /// Create a new System from gro file or pdb file.
-    /// The method will attempt to automatically recognize gro or pdb file based on the file extension.
+    /// The method will attempt to automatically recognize gro, pdb or a pqr file based on the file extension.
     ///
     /// ## Returns
     /// `System` structure if successful.
     /// `ParseFileError` if the file format is not supported.
     /// `ParseGroError` if parsing of the gro file fails.
     /// `ParsePdbError` if parsing of the pdb file fails.
+    /// `ParsePqrError` if parsing of the pqr file fails.
     ///
     /// ## Example
     /// Reading gro file.
@@ -150,6 +151,7 @@ impl System {
         match FileType::from_name(&filename) {
             FileType::GRO => gro_io::read_gro(filename).map_err(Box::from),
             FileType::PDB => pdb_io::read_pdb(filename).map_err(Box::from),
+            FileType::PQR => pqr_io::read_pqr(filename).map_err(Box::from),
             _ => Err(Box::from(ParseFileError::UnknownExtension(Box::from(
                 filename.as_ref(),
             )))),
@@ -569,6 +571,11 @@ mod tests {
         assert_eq!(simbox.v3x, 0.0f32);
         assert_eq!(simbox.v3y, 0.0f32);
 
+        let system_pqr = System::from_file("test_files/example.pqr").unwrap();
+        assert_eq!(system_pqr.get_name(), "Unknown");
+        assert_eq!(system_pqr.get_n_atoms(), 50);
+        assert!(!system_pqr.has_box());
+
         // compare atoms from PDB an GRO file
         for (groa, pdba) in system_gro.atoms_iter().zip(system_pdb.atoms_iter()) {
             assert_eq!(groa.get_residue_number(), pdba.get_residue_number());
@@ -593,6 +600,33 @@ mod tests {
 
             assert_eq!(groa.get_velocity(), pdba.get_velocity());
             assert_eq!(groa.get_force(), pdba.get_force());
+        }
+
+        // compare atoms from PQR and PDB file
+        for (pqra, pdba) in system_pqr.atoms_iter().zip(system_pdb.atoms_iter()) {
+            assert_eq!(pqra.get_residue_number(), pdba.get_residue_number());
+            assert_eq!(pqra.get_residue_name(), pdba.get_residue_name());
+            assert_eq!(pqra.get_atom_number(), pdba.get_atom_number());
+            assert_eq!(pqra.get_atom_name(), pdba.get_atom_name());
+            assert_approx_eq!(
+                f32,
+                pqra.get_position().unwrap().x,
+                pdba.get_position().unwrap().x
+            );
+            assert_approx_eq!(
+                f32,
+                pqra.get_position().unwrap().y,
+                pdba.get_position().unwrap().y
+            );
+            assert_approx_eq!(
+                f32,
+                pqra.get_position().unwrap().z,
+                pdba.get_position().unwrap().z
+            );
+
+            assert_eq!(pqra.get_velocity(), pdba.get_velocity());
+            assert_eq!(pqra.get_force(), pdba.get_force());
+            assert_eq!(pqra.get_chain(), pdba.get_chain());
         }
     }
 

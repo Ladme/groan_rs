@@ -7,7 +7,7 @@
 //! Currently in an early stage of development: anything can break, change or stop working at any time.
 //!
 //! ## What it can do
-//! - Read and write gro, pdb, ndx, xtc and trr files.
+//! - Read and write gro, pdb, pqr, ndx, xtc and trr files.
 //! - Iterate over atoms and access their properties, including connectivity (bonds).
 //! - Select atoms using a selection language similar to VMD.
 //! - Calculate distances between atoms respecting periodic boundary conditions.
@@ -49,8 +49,8 @@
 //! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     // read a gro file
 //!     let mut system = System::from_file("system.gro")?;
-//!     // `groan_rs` also supports pdb files which can be read as:
-//!     // let mut system = System::from_file("system.pdb")?;
+//!     // `groan_rs` also supports pdb and pqr files which
+//!     // can be read using the same function as above
 //!
 //!     // read an ndx file
 //!     system.read_ndx("index.ndx")?;
@@ -548,6 +548,7 @@ pub mod io {
     pub mod gro_io;
     mod ndx_io;
     pub mod pdb_io;
+    pub mod pqr_io;
     pub mod traj_io;
     pub mod trr_io;
     mod xdrfile;
