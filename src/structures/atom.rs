@@ -5,7 +5,8 @@
 
 use std::io::Write;
 
-use crate::errors::{AtomError, PositionError, WriteGroError, WritePdbError};
+use crate::errors::{AtomError, PositionError, WriteGroError, WritePdbError, WritePqrError};
+use crate::io::pqr_io::PqrPrecision;
 use crate::structures::{
     container::AtomContainer, dimension::Dimension, simbox::SimBox, vector3d::Vector3D,
 };
@@ -621,6 +622,72 @@ impl Atom {
             position.z * 10.0,
         )
         .map_err(|_| WritePdbError::CouldNotWrite)?;
+
+        Ok(())
+    }
+
+    /// Write information about the atom in whitespace-delimited PQR format.
+    ///
+    /// ## Parameters
+    /// - `precision` parameters specify the number of decimal places to be printed for
+    /// position, charge and radius.
+    /// 
+    /// ## Notes
+    /// - All atoms are treated as 'ATOM'. 'HETATM' is not used at all.
+    /// - Allows for any atom and residue names of any length. No numbers are wrapped.
+    /// - If atom has no position, 0 is printed out for all dimensions.
+    /// - If atom has no charge or no vdw, 0 is used.
+    pub fn write_pqr(&self, stream: &mut impl Write, precision: &PqrPrecision) -> Result<(), WritePqrError> {
+        let format_resname = match self.get_residue_name().len() {
+            0..=3 => format!("{:>3} ", self.get_residue_name()),
+            _ => format!("{} ", self.get_residue_name()),
+        };
+
+        let format_atomname = match self.get_atom_name().len() {
+            0..=3 => format!(" {:<3}", self.get_atom_name()),
+            _ => format!("{}", self.get_atom_name()),
+        };
+
+        let resid = self.get_residue_number();
+        let format_resid = match resid {
+            0..=999 => format!("{:>4}    ", resid),
+            1000..=9999 => format!("{:>5}   ", resid),
+            10000..=99999 => format!("{:>6}  ", resid),
+            100000..=999999 => format!("{:>7} ", resid),
+            1000000..=9999999 => format!("{:>8}", resid),
+            _ => format!(" {}", resid),
+        };
+
+        let format_atomid = match self.get_atom_number() {
+            0..=99999 => format!(" {:>5}", self.get_atom_number()),
+            _ => format!("{}", self.get_atom_number()),
+        };
+        
+        let chain = self.get_chain().unwrap_or(' ');
+
+        let binding = Vector3D::default();
+        let position = self.get_position().unwrap_or(&binding);
+        let charge = self.get_charge().unwrap_or(0.0);
+        let vdw = self.get_vdw().unwrap_or(0.0);
+        
+        writeln!(
+            stream,
+            "ATOM {3} {4} {5}{6}{7} {8:>7.0$} {9:>7.0$} {10:>7.0$} {11:>7.1$} {12:>6.2$}",
+            precision.position,
+            precision.charge,
+            precision.vdw,
+            format_atomid,
+            format_atomname,
+            format_resname,
+            chain,
+            format_resid,
+            position.x * 10.0,
+            position.y * 10.0,
+            position.z * 10.0,
+            charge,
+            vdw * 10.0,
+        )
+        .map_err(|_| WritePqrError::CouldNotWrite)?;
 
         Ok(())
     }

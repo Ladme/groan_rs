@@ -167,6 +167,20 @@ pub enum ParsePqrError {
     ParseAtomLineErr(String),
 }
 
+/// Errors that can occur when writing a pqr file.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum WritePqrError {
+    /// Used when the pqr file could not be opened for writing (i.e. path is invalid).
+    #[error("{} file '{}' could not be created", "error:".red().bold(), path_to_yellow(.0))]
+    CouldNotCreate(Box<Path>),
+    /// Used when writing into the pqr file failed for any reason.
+    #[error("{} could not write line into file", "error:".red().bold())]
+    CouldNotWrite,
+    /// Used when the group of atoms selected to be written into the pqr file does not exist.
+    #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
+    GroupNotFound(String),
+}
+
 /// Errors that can occur when working with Groups of atoms.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum GroupError {

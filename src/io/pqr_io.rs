@@ -4,14 +4,14 @@
 //! Implementation of functions for reading and writing pqr files.
 
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, Write, BufReader, BufWriter};
 use std::path::Path;
 
 use crate::structures::atom::Atom;
 use crate::structures::vector3d::Vector3D;
 use crate::system::general::System;
 
-use crate::errors::ParsePqrError;
+use crate::errors::{ParsePqrError, WritePqrError};
 
 /// Read a pqr file and construct a System structure.
 ///
@@ -60,6 +60,134 @@ pub fn read_pqr(filename: impl AsRef<Path>) -> Result<System, ParsePqrError> {
     }
 
     Ok(System::new("Unknown", atoms, None))
+}
+
+/// Contains specification of the precision of the PQR file.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PqrPrecision {
+    pub position: usize,
+    pub charge: usize,
+    pub vdw: usize,
+}
+
+impl PqrPrecision {
+    /// Create new `PqrPrecision` structure with specified values of precision.
+    /// 
+    /// ## Panics
+    /// Panics if any of the provided values is zero.
+    pub fn new(position: usize, charge: usize, vdw: usize) -> Self {
+        if position == 0 || charge == 0 || vdw == 0 {
+            panic!("FATAL GROAN ERROR | PqrPrecision::new | Precision should not be zero.");
+        }
+
+        PqrPrecision {
+            position,
+            charge,
+            vdw
+        }
+    }
+}
+
+/// ## Methods for writing pqr files.
+impl System {
+    /// Write all atoms of the system into a pqr file with the given name.
+    ///
+    /// ## Parameters
+    /// - `precision` parameter specifies the number of decimal places to be printed for
+    /// position, charge and radius.
+    /// - If not provided, the default values are used. In such case, position coordinates
+    /// are written with 3 decimal places, and charge and radius are both written with 4 decimal places.
+    /// 
+    /// ## Returns
+    /// `Ok` if writing has been successful. Otherwise `WritePqrError`.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// use groan_rs::io::pqr_io;
+    /// 
+    /// let mut system = System::from_file("system.gro").unwrap();
+    ///
+    /// // we use the default PQR file precision
+    /// if let Err(e) = system.write_pqr("system.pqr", None) {
+    ///     eprintln!("{}", e);
+    ///     return;
+    /// }
+    /// ```
+    pub fn write_pqr(
+        &self,
+        filename: impl AsRef<Path>,
+        precision: Option<PqrPrecision>,
+    ) -> Result<(), WritePqrError> {
+        match self.group_write_pqr("all", filename, precision) {
+            Ok(_) => Ok(()),
+            Err(WritePqrError::GroupNotFound(_)) => {
+                panic!(
+                    "FATAL GROAN ERROR | System::write_pqr | Default group 'all' does not exist."
+                )
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Write atoms of the specified group into a pqr file with the given name.
+    ///
+    /// ## Parameters
+    /// - `precision` parameter specifies the number of decimal places to be printed for
+    /// position, charge and radius.
+    /// - If not provided, the default values are used. In such case, position coordinates
+    /// are written with 3 decimal places, and charge and radius are both written with 4 decimal places.
+    /// 
+    /// ## Returns
+    /// `Ok` if writing has been successful. Otherwise `WritePqrError`.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// use groan_rs::io::pqr_io;
+    /// 
+    /// let mut system = System::from_file("system.gro").unwrap();
+    ///
+    /// system.read_ndx("index.ndx").unwrap();
+    /// 
+    /// // set precision of the pqr file (optional step)
+    /// let precision = pqr_io::PqrPrecision::new(5, 3, 3);
+    ///
+    /// if let Err(e) = system.group_write_pqr("Protein", "protein.pqr", Some(precision)) {
+    ///     eprintln!("{}", e);
+    ///     return;
+    /// }
+    /// ```
+    pub fn group_write_pqr(
+        &self,
+        group_name: &str,
+        filename: impl AsRef<Path>,
+        precision: Option<PqrPrecision>,
+    ) -> Result<(), WritePqrError> {
+        if !self.group_exists(group_name) {
+            return Err(WritePqrError::GroupNotFound(group_name.to_string()));
+        }
+
+        let output = File::create(&filename)
+        .map_err(|_| WritePqrError::CouldNotCreate(Box::from(filename.as_ref())))?;
+
+        let mut writer = BufWriter::new(output);
+
+        // create PqrPrecision structure if not provided
+        let precision = precision.unwrap_or(PqrPrecision::new(3, 4, 4));
+
+        for atom in self.group_iter(group_name).expect(
+            "FATAL GROAN ERROR | System::group_write_pqr | Group should exist but it does not.",
+        ) {
+            atom.write_pqr(&mut writer, &precision)?;
+        }
+
+        writeln!(writer, "TER\nEND").map_err(|_| WritePqrError::CouldNotWrite)?;
+
+        Ok(())
+    }
 }
 
 fn line_as_atom(line: &str) -> Result<Atom, ParsePqrError> {
