@@ -566,13 +566,17 @@ impl System {
     ///
     /// ## Returns
     /// `Ok` if successful, `GroupError::NotFound` in case the group does not exist.
-    ///
+    /// 
     /// ## Safety
     /// Do not use this function to remove any of the default groups ('all' or 'All').
     /// Doing so would make many functions associated with the `System` structure invalid.
     /// Removing other groups is generally safe to do.
+    /// 
+    /// ## Notes
+    /// - This function maintains the order of the groups in the system.
+    /// - Time complexity is O(n).
     pub unsafe fn group_remove(&mut self, name: &str) -> Result<(), GroupError> {
-        if self.get_groups_as_ref_mut().remove(name).is_none() {
+        if self.get_groups_as_ref_mut().shift_remove(name).is_none() {
             Err(GroupError::NotFound(name.to_owned()))
         } else {
             Ok(())
@@ -593,9 +597,12 @@ impl System {
     /// ## Notes
     /// - Note that if the `new` name already matches name of another group in the `System`,
     /// the previous group with this name is overwritten and `GroupError::AlreadyExistsWarning` is returned.
+    /// - This function maintains the order of the groups in the system, except for the renamed group
+    /// which is placed to the last position.
+    /// - Time complexity is O(n).
     pub unsafe fn group_rename(&mut self, old: &str, new: &str) -> Result<(), GroupError> {
         // get the old group
-        let group = match self.get_groups_as_ref_mut().remove(old) {
+        let group = match self.get_groups_as_ref_mut().shift_remove(old) {
             Some(x) => x,
             None => return Err(GroupError::NotFound(old.to_owned())),
         };

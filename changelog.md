@@ -9,6 +9,8 @@
 - Parallelized versions of several methods have been introduced:
   - `System::guess_bonds` -> `System::guess_bonds_parallel`
 
+#### Other changes
+- Clarified the changes in the order of groups when removing or renaming a group.
 
 ### Version 0.6.1
 - Bug fix: When setting `ProgressPrinter` to write into a file, the printer did not start a new line once iteration was finished and instead printed new line into standard output. This has been now fixed.
