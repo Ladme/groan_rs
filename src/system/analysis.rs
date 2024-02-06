@@ -65,7 +65,7 @@ impl System {
         {
             match atom.get_position() {
                 Some(x) => center_atom_contribution(
-                    x.clone(),
+                    *x,
                     &scaling,
                     simbox,
                     1.0, // use 1 as mass since we are calculating center of geometry
@@ -143,7 +143,7 @@ impl System {
 
             match atom.get_position() {
                 Some(x) => center_atom_contribution(
-                    x.clone(),
+                    *x,
                     &scaling,
                     simbox,
                     mass,

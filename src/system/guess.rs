@@ -332,7 +332,7 @@ impl System {
     pub fn guess_bonds(&mut self, radius_factor: Option<f32>) -> Result<(), ElementError> {
         let n_atoms = self.get_n_atoms();
         if n_atoms == 0 {
-            return Ok(())
+            return Ok(());
         }
 
         // identify bonds
@@ -361,18 +361,17 @@ impl System {
         }
     }
 
-    
     /// Assign bonds between atoms based on the distances between them, their van der Waals radii
     /// and the provided `radius_factor`.
     /// If the `radius_factor` is not provided, the default value of 0.55 is used.
-    /// 
+    ///
     /// This function works the same as [`System::guess_bonds`] but can employ multiple threads
     /// significantly increasing the speed of the calculation. The number of threads (`n_threads`)
     /// to use is provided by the user.
-    /// 
+    ///
     /// ## Panics
     /// Panics if the number of threads (`n_threads`) to be employed equals zero.
-    /// 
+    ///
     /// ## Notes
     /// - If the number of threads is higher than the number of atoms (`n_atoms`) in the system,
     /// only `n_atoms` threads will be used.
@@ -568,32 +567,6 @@ impl System {
         }
 
         (too_many_bonds, too_few_bonds)
-    }
-
-    /// Distribute atoms between threads. 
-    /// 
-    /// `n_atoms` must be >= `n_threads`. 
-    /// `n_threads` must be > 0.
-    /// TODO: write tests
-    #[inline]
-    fn distribute_atoms(&self, n_atoms: usize, n_threads: usize) -> Vec<(usize, usize)> {
-        let atoms_per_thread = n_atoms / n_threads;
-        let mut extra_atoms = n_atoms % n_threads;
-
-        (0..n_threads)
-            .scan(0, move |start, _| {
-                let additional_atom = if extra_atoms > 0 { 1 } else { 0 };
-                if extra_atoms > 0 {
-                    extra_atoms -= 1;
-                }
-
-                let end = *start + atoms_per_thread + additional_atom;
-                let range = (*start, end);
-                *start = end;
-
-                Some(range)
-            })
-            .collect()
     }
 
     /// Set properties of the atom based on properties of the element.
@@ -1638,32 +1611,6 @@ mod tests {
     }
 
     #[test]
-    fn guess_bonds_distribute_atoms() {
-        for file_name in ["test_files/aa_peptide.pdb", "test_files/aa_membrane_peptide.gro", "test_files/example.gro"] {
-            let system = System::from_file(file_name).unwrap();
-
-            for n_threads in 1..=128 {
-                let rem = if system.get_n_atoms() % n_threads != 0 {
-                    1
-                } else {
-                    0
-                };
-                let atoms_per_block = system.get_n_atoms() / n_threads;
-    
-                let distribution = system.distribute_atoms(system.get_n_atoms(), n_threads);
-                assert_eq!(distribution.len(), n_threads);
-                let mut sum = 0;
-                for range in distribution {
-                    assert!(range.1 - range.0 == atoms_per_block || range.1 - range.0 == atoms_per_block + rem);
-                    sum += range.1 - range.0;
-                }
-    
-                assert_eq!(sum, system.get_n_atoms());
-            }
-        }
-    }
-
-    #[test]
     fn guess_bonds_multithreaded() {
         let no_vdw = vec![2];
         let too_few_bonds = vec![
@@ -1690,7 +1637,6 @@ mod tests {
             }
 
             system.get_atom_as_ref_mut(1).unwrap().reset_vdw();
-            
 
             match system.guess_bonds_parallel(None, n_threads) {
                 Ok(_) => panic!("Function should have returned a warning."),
@@ -1725,11 +1671,19 @@ mod tests {
 
     #[test]
     fn guess_bonds_empty_system() {
-        let mut system = System::new("Empty system", vec![], Some(SimBox::from([10.0, 10.0, 10.0])));
+        let mut system = System::new(
+            "Empty system",
+            vec![],
+            Some(SimBox::from([10.0, 10.0, 10.0])),
+        );
         system.guess_bonds(None).unwrap();
         assert!(!system.has_bonds());
 
-        let mut system = System::new("Empty system", vec![], Some(SimBox::from([10.0, 10.0, 10.0])));
+        let mut system = System::new(
+            "Empty system",
+            vec![],
+            Some(SimBox::from([10.0, 10.0, 10.0])),
+        );
         system.guess_bonds_parallel(None, 7).unwrap();
         assert!(!system.has_bonds());
     }

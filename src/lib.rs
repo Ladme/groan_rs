@@ -561,7 +561,7 @@ mod selections {
 pub mod progress;
 pub mod structures {
     pub mod atom;
-    mod container;
+    pub(crate) mod container;
     pub mod dimension;
     pub mod element;
     pub mod group;
@@ -577,6 +577,7 @@ pub mod system {
     pub mod guess;
     pub(crate) mod iterating;
     mod modifying;
+    mod parallel;
     mod utility;
 }
 mod test_utilities;
