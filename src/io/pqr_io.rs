@@ -4,33 +4,41 @@
 //! Implementation of functions for reading and writing pqr files.
 
 use std::fs::File;
-use std::io::{BufRead, Write, BufReader, BufWriter};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 
 use crate::structures::atom::Atom;
 use crate::structures::vector3d::Vector3D;
 use crate::system::general::System;
 
-use crate::errors::{ParsePqrError, WritePqrError};
+use crate::errors::{ParsePdbError, ParsePqrError, WritePqrError};
+use crate::io::pdb_io;
 
 /// Read a pqr file and construct a System structure.
 ///
 /// ## Supported keywords
-/// This function can handle lines starting with ATOM, HETATM, ENDMDL, END.
-/// All other lines are ignored. Note that PQR file format does not support
-/// providing information about the simulation box and the name of the system.
+/// This function can handle lines starting with ATOM, HETATM, TITLE, ENDMDL, END, and CRYST1.
+/// All other lines are ignored.
 ///
 /// ## Notes
-/// - The fields on each line must be separated by whitespace. The expected format is this:
+/// - TITLE and CRYST1 are expected to have the same format is in PDB files and are optional.
+///
+/// - The fields of each ATOM and HETATM line must be separated by whitespace. The expected format is this:
 ///
 /// `record_name atom_number atom_name residue_name (chain_id) residue_number x y z charge vdw_radius`
 ///
 /// `chain_id` is an optional property and can be skipped.
 ///
+/// - In case multiple TITLE lines are provided, the **last one** is used as the
+/// name of the system. If no TITLE line is provided, "Unknown" is used as the name.
+///
+/// - In case multiple CRYST1 lines are provided, information from the **last one** is used.
+/// If no CRYST1 line is provided, the simulation box is undefined.
+///
 /// - Reading ends once `ENDMDL`, `END`, or the end of file is reached.
-/// - Name of the system is set to "Unknown". Simulation box of the system is undefined.
 /// - The implementation of this function is based on the MDAnalysis' implementation,
-/// see `https://docs.mdanalysis.org/2.0.0/documentation_pages/coordinates/PQR.html`.
+/// see `https://docs.mdanalysis.org/2.0.0/documentation_pages/coordinates/PQR.html`
+/// but unlike MDAnalysis, this function also reads CRYST1 and TITLE keywords.
 pub fn read_pqr(filename: impl AsRef<Path>) -> Result<System, ParsePqrError> {
     let file = match File::open(filename.as_ref()) {
         Ok(x) => x,
@@ -40,6 +48,8 @@ pub fn read_pqr(filename: impl AsRef<Path>) -> Result<System, ParsePqrError> {
     let reader = BufReader::new(file);
 
     let mut atoms: Vec<Atom> = Vec::new();
+    let mut title = "Unknown".to_string();
+    let mut simbox = None;
 
     for raw_line in reader.lines() {
         let line = match raw_line {
@@ -53,13 +63,25 @@ pub fn read_pqr(filename: impl AsRef<Path>) -> Result<System, ParsePqrError> {
         {
             atoms.push(line_as_atom(&line)?);
         }
+        // parse TITLE line
+        else if line.len() >= 5 && line[0..5] == *"TITLE" {
+            title = pdb_io::line_as_title(&line);
+        }
+        // parse CRYST1 line
+        else if line.len() >= 6 && line[0..6] == *"CRYST1" {
+            simbox = match pdb_io::line_as_box(&line) {
+                Ok(x) => Some(x),
+                Err(ParsePdbError::ParseBoxLineErr(x)) => return Err(ParsePqrError::ParseBoxLineErr(x)),
+                Err(e) => panic!("FATAL GROAN ERROR | pqr_io::read_pqr | Unexpected error type {} returned from pdb_io::line_as_box", e),
+            }
+        }
         // END or ENDMDL is reached => stop reading
         else if line.len() >= 3 && line[0..3] == *"END" {
             break;
         }
     }
 
-    Ok(System::new("Unknown", atoms, None))
+    Ok(System::new(&title, atoms, simbox))
 }
 
 /// Contains specification of the precision of the PQR file.
@@ -72,7 +94,7 @@ pub struct PqrPrecision {
 
 impl PqrPrecision {
     /// Create new `PqrPrecision` structure with specified values of precision.
-    /// 
+    ///
     /// ## Panics
     /// Panics if any of the provided values is zero.
     pub fn new(position: usize, charge: usize, vdw: usize) -> Self {
@@ -83,7 +105,7 @@ impl PqrPrecision {
         PqrPrecision {
             position,
             charge,
-            vdw
+            vdw,
         }
     }
 }
@@ -97,7 +119,7 @@ impl System {
     /// position, charge and radius.
     /// - If not provided, the default values are used. In such case, position coordinates
     /// are written with 3 decimal places, and charge and radius are both written with 4 decimal places.
-    /// 
+    ///
     /// ## Returns
     /// `Ok` if writing has been successful. Otherwise `WritePqrError`.
     ///
@@ -106,7 +128,7 @@ impl System {
     /// # use groan_rs::prelude::*;
     /// #
     /// use groan_rs::io::pqr_io;
-    /// 
+    ///
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// // we use the default PQR file precision
@@ -138,7 +160,7 @@ impl System {
     /// position, charge and radius.
     /// - If not provided, the default values are used. In such case, position coordinates
     /// are written with 3 decimal places, and charge and radius are both written with 4 decimal places.
-    /// 
+    ///
     /// ## Returns
     /// `Ok` if writing has been successful. Otherwise `WritePqrError`.
     ///
@@ -147,11 +169,11 @@ impl System {
     /// # use groan_rs::prelude::*;
     /// #
     /// use groan_rs::io::pqr_io;
-    /// 
+    ///
     /// let mut system = System::from_file("system.gro").unwrap();
     ///
     /// system.read_ndx("index.ndx").unwrap();
-    /// 
+    ///
     /// // set precision of the pqr file (optional step)
     /// let precision = pqr_io::PqrPrecision::new(5, 3, 3);
     ///
@@ -171,7 +193,7 @@ impl System {
         }
 
         let output = File::create(&filename)
-        .map_err(|_| WritePqrError::CouldNotCreate(Box::from(filename.as_ref())))?;
+            .map_err(|_| WritePqrError::CouldNotCreate(Box::from(filename.as_ref())))?;
 
         let mut writer = BufWriter::new(output);
 
@@ -262,9 +284,22 @@ mod tests_read {
     fn read_simple() {
         let system = read_pqr("test_files/example.pqr").unwrap();
 
-        assert_eq!(system.get_name(), "Unknown");
+        assert_eq!(system.get_name(), "Buforin II peptide P11L");
         assert_eq!(system.get_n_atoms(), 50);
-        assert!(system.get_box_as_ref().is_none());
+        
+        // check box size
+        let simbox = system.get_box_as_ref().unwrap();
+        assert_approx_eq!(f32, simbox.x, 6.0861);
+        assert_approx_eq!(f32, simbox.y, 6.0861);
+        assert_approx_eq!(f32, simbox.z, 6.0861);
+
+        assert_eq!(simbox.v1y, 0.0f32);
+        assert_eq!(simbox.v1z, 0.0f32);
+        assert_eq!(simbox.v2x, 0.0f32);
+
+        assert_eq!(simbox.v2z, 0.0f32);
+        assert_eq!(simbox.v3x, 0.0f32);
+        assert_eq!(simbox.v3y, 0.0f32);
 
         let atoms = system.get_atoms_as_ref();
 
@@ -347,8 +382,18 @@ mod tests_read {
         let system_nochain = read_pqr("test_files/example_nochain.pqr").unwrap();
 
         assert_eq!(system_chain.get_name(), system_nochain.get_name());
-        assert!(!system_chain.has_box());
-        assert!(!system_nochain.has_box());
+        assert_eq!(
+            system_chain.get_box_as_ref().unwrap().x,
+            system_nochain.get_box_as_ref().unwrap().x
+        );
+        assert_eq!(
+            system_chain.get_box_as_ref().unwrap().y,
+            system_nochain.get_box_as_ref().unwrap().y
+        );
+        assert_eq!(
+            system_chain.get_box_as_ref().unwrap().z,
+            system_nochain.get_box_as_ref().unwrap().z
+        );
 
         for (ac, anc) in system_chain.atoms_iter().zip(system_nochain.atoms_iter()) {
             assert_eq!(ac.get_residue_number(), anc.get_residue_number());
@@ -374,8 +419,18 @@ mod tests_read {
         let system2 = read_pqr("test_files/example_weird_format.pqr").unwrap();
 
         assert_eq!(system1.get_name(), system2.get_name());
-        assert!(!system1.has_box());
-        assert!(!system2.has_box());
+        assert_eq!(
+            system1.get_box_as_ref().unwrap().x,
+            system2.get_box_as_ref().unwrap().x
+        );
+        assert_eq!(
+            system1.get_box_as_ref().unwrap().y,
+            system2.get_box_as_ref().unwrap().y
+        );
+        assert_eq!(
+            system1.get_box_as_ref().unwrap().z,
+            system2.get_box_as_ref().unwrap().z
+        );
 
         for (a1, a2) in system1.atoms_iter().zip(system2.atoms_iter()) {
             assert_eq!(a1.get_residue_number(), a2.get_residue_number());
@@ -401,8 +456,18 @@ mod tests_read {
         let system2 = read_pqr("test_files/example_mixchain.pqr").unwrap();
 
         assert_eq!(system1.get_name(), system2.get_name());
-        assert!(!system1.has_box());
-        assert!(!system2.has_box());
+        assert_eq!(
+            system1.get_box_as_ref().unwrap().x,
+            system2.get_box_as_ref().unwrap().x
+        );
+        assert_eq!(
+            system1.get_box_as_ref().unwrap().y,
+            system2.get_box_as_ref().unwrap().y
+        );
+        assert_eq!(
+            system1.get_box_as_ref().unwrap().z,
+            system2.get_box_as_ref().unwrap().z
+        );
 
         for (a1, a2) in system1.atoms_iter().zip(system2.atoms_iter()) {
             assert_eq!(a1.get_residue_number(), a2.get_residue_number());
@@ -462,5 +527,12 @@ mod tests_read {
         "test_files/example_invalid_vdw.pqr",
         ParsePqrError::ParseAtomLineErr,
         "ATOM      8  BB  SER A   4      20.040  24.210  30.630  0.0000 0.0O00"
+    );
+
+    read_pqr_fails!(
+        read_invalid_box,
+        "test_files/example_invalid_box.pqr",
+        ParsePqrError::ParseBoxLineErr,
+        "CRYST1   60.861   60.861.3 60.861  90.00  90.00  90.00 P 1           1"
     );
 }

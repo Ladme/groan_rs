@@ -165,6 +165,12 @@ pub enum ParsePqrError {
     /// Used when an "ATOM" or "HETATM" line in the pqr file could not be parsed.
     #[error("{} could not parse line '{}' as atom", "error:".red().bold(), .0.yellow())]
     ParseAtomLineErr(String),
+    /// Used when a "CRYST1" line in the pqr file could not be parsed.
+    #[error("{} could not parse line '{}' as box dimensions", "error:".red().bold(), .0.yellow())]
+    ParseBoxLineErr(String),
+    /// Used when a "TITLE" line in the pqr file could not be parsed.
+    #[error("{} could not parse line '{}' as title", "error:".red().bold(), .0.yellow())]
+    ParseTitleLineErr(String),
 }
 
 /// Errors that can occur when writing a pqr file.

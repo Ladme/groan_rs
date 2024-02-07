@@ -572,9 +572,21 @@ mod tests {
         assert_eq!(simbox.v3y, 0.0f32);
 
         let system_pqr = System::from_file("test_files/example.pqr").unwrap();
-        assert_eq!(system_pqr.get_name(), "Unknown");
+        assert_eq!(system_pqr.get_name(), "Buforin II peptide P11L");
         assert_eq!(system_pqr.get_n_atoms(), 50);
-        assert!(!system_pqr.has_box());
+        
+        let simbox = system_pqr.get_box_as_ref().unwrap();
+        assert_approx_eq!(f32, simbox.x, 6.0861);
+        assert_approx_eq!(f32, simbox.y, 6.0861);
+        assert_approx_eq!(f32, simbox.z, 6.0861);
+
+        assert_eq!(simbox.v1y, 0.0f32);
+        assert_eq!(simbox.v1z, 0.0f32);
+        assert_eq!(simbox.v2x, 0.0f32);
+
+        assert_eq!(simbox.v2z, 0.0f32);
+        assert_eq!(simbox.v3x, 0.0f32);
+        assert_eq!(simbox.v3y, 0.0f32);
 
         // compare atoms from PDB an GRO file
         for (groa, pdba) in system_gro.atoms_iter().zip(system_pdb.atoms_iter()) {

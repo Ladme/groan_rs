@@ -631,13 +631,17 @@ impl Atom {
     /// ## Parameters
     /// - `precision` parameters specify the number of decimal places to be printed for
     /// position, charge and radius.
-    /// 
+    ///
     /// ## Notes
     /// - All atoms are treated as 'ATOM'. 'HETATM' is not used at all.
     /// - Allows for any atom and residue names of any length. No numbers are wrapped.
     /// - If atom has no position, 0 is printed out for all dimensions.
     /// - If atom has no charge or no vdw, 0 is used.
-    pub fn write_pqr(&self, stream: &mut impl Write, precision: &PqrPrecision) -> Result<(), WritePqrError> {
+    pub fn write_pqr(
+        &self,
+        stream: &mut impl Write,
+        precision: &PqrPrecision,
+    ) -> Result<(), WritePqrError> {
         let format_resname = match self.get_residue_name().len() {
             0..=3 => format!("{:>3} ", self.get_residue_name()),
             _ => format!("{} ", self.get_residue_name()),
@@ -662,14 +666,14 @@ impl Atom {
             0..=99999 => format!(" {:>5}", self.get_atom_number()),
             _ => format!("{}", self.get_atom_number()),
         };
-        
+
         let chain = self.get_chain().unwrap_or(' ');
 
         let binding = Vector3D::default();
         let position = self.get_position().unwrap_or(&binding);
         let charge = self.get_charge().unwrap_or(0.0);
         let vdw = self.get_vdw().unwrap_or(0.0);
-        
+
         writeln!(
             stream,
             "ATOM {3} {4} {5}{6}{7} {8:>7.0$} {9:>7.0$} {10:>7.0$} {11:>7.1$} {12:>6.2$}",

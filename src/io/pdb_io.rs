@@ -392,7 +392,7 @@ fn line_as_atom(line: &str) -> Result<Atom, ParsePdbError> {
 ///
 /// ## Notes
 /// - Parses a line starting with CRYST1.
-fn line_as_box(line: &str) -> Result<SimBox, ParsePdbError> {
+pub(super) fn line_as_box(line: &str) -> Result<SimBox, ParsePdbError> {
     // check line length
     if line.len() < 54 {
         return Err(ParsePdbError::ParseBoxLineErr(line.to_string()));
@@ -429,7 +429,7 @@ fn line_as_box(line: &str) -> Result<SimBox, ParsePdbError> {
 /// ## Notes
 /// - Parses a line starting with TITLE.
 /// - In case the TITLE line is empty, 'Unknown' is used as the name for the system.
-fn line_as_title(line: &str) -> String {
+pub(super) fn line_as_title(line: &str) -> String {
     let title = line[5..].trim().to_string();
     if title.is_empty() {
         return "Unknown".to_string();

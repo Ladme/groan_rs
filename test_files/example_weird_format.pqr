@@ -1,5 +1,5 @@
-TITLE     None of the first 4 lines should be parsed
 REMARK    THIS IS A SIMULATION BOX
+TITLE     Buforin II peptide P11L
 CRYST1   60.861   60.861   60.861  90.00  90.00  90.00 P 1           1
 MODEL        1
 ATOM         1  BB      THR    A   1      16.600      20.610   31.530 1.0000                 2.8000
