@@ -318,10 +318,6 @@ impl System {
     /// }
     /// ```
     ///
-    ///
-    /// ## Warning
-    /// - Only orthogonal simulation boxes are currently supported!
-    ///
     /// ## Notes
     /// - The function checks whether the number of atoms in the system corresponds to the number of atoms in the xtc file.
     /// - The `System` structure is modified while iterating through the xtc file.

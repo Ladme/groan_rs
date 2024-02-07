@@ -775,9 +775,6 @@ impl System {
     /// }
     /// ```
     ///
-    /// ## Warning
-    /// - `XtcReader` and `TrrReader` currently only support orthogonal simulation boxes!
-    ///
     /// ## Notes
     /// - The `System` structure is modified while iterating through the trajectory.
     /// - `xtc` and `trr` files also have their own specific functions implementing iteration.
