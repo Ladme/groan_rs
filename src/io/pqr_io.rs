@@ -8,6 +8,7 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 
 use crate::structures::atom::Atom;
+use crate::structures::simbox::SimBox;
 use crate::structures::vector3d::Vector3D;
 use crate::system::general::System;
 
@@ -94,14 +95,7 @@ pub struct PqrPrecision {
 
 impl PqrPrecision {
     /// Create new `PqrPrecision` structure with specified values of precision.
-    ///
-    /// ## Panics
-    /// Panics if any of the provided values is zero.
     pub fn new(position: usize, charge: usize, vdw: usize) -> Self {
-        if position == 0 || charge == 0 || vdw == 0 {
-            panic!("FATAL GROAN ERROR | PqrPrecision::new | Precision should not be zero.");
-        }
-
         PqrPrecision {
             position,
             charge,
@@ -137,6 +131,10 @@ impl System {
     ///     return;
     /// }
     /// ```
+    /// 
+    /// ## Notes
+    /// - Unlike many other programs, `groan_rs` library also uses `CRYST1` and `TITLE` in pqr files.
+    /// The pqr file will thus contain information about box dimensions and the name of the system.
     pub fn write_pqr(
         &self,
         filename: impl AsRef<Path>,
@@ -182,6 +180,9 @@ impl System {
     ///     return;
     /// }
     /// ```
+    /// ## Notes
+    /// - Unlike many other programs, `groan_rs` library also uses `CRYST1` and `TITLE` in pqr files.
+    /// The pqr file will thus contain information about box dimensions and the name of the system.
     pub fn group_write_pqr(
         &self,
         group_name: &str,
@@ -199,6 +200,13 @@ impl System {
 
         // create PqrPrecision structure if not provided
         let precision = precision.unwrap_or(PqrPrecision::new(3, 4, 4));
+
+        let title = match group_name {
+            "all" => self.get_name().to_owned(),
+            _ => format!("Group `{}` from {}", group_name, self.get_name()),
+        };
+
+        write_header(&mut writer, &title, self.get_box_as_ref())?;
 
         for atom in self.group_iter(group_name).expect(
             "FATAL GROAN ERROR | System::group_write_pqr | Group should exist but it does not.",
@@ -269,6 +277,33 @@ fn parse_float(line: &str, string: &str) -> Result<f32, ParsePqrError> {
     string
         .parse::<f32>()
         .map_err(|_| ParsePqrError::ParseAtomLineErr(line.to_string()))
+}
+
+/// Write a header for a PQR file.
+/// If `simbox` is `None`, CRYST line is not written.
+fn write_header(
+    writer: &mut BufWriter<File>,
+    title: &str,
+    simbox: Option<&SimBox>,
+) -> Result<(), WritePqrError> {
+
+    writeln!(writer, "TITLE     {}", title).map_err(|_| WritePqrError::CouldNotWrite)?;
+
+    if let Some(simbox) = simbox {
+        let (lengths, angles) = simbox.to_lengths_angles();
+        writeln!(
+            writer,
+            "CRYST1{:>9.3}{:>9.3}{:>9.3}{:>7.2}{:>7.2}{:>7.2} P 1           1",
+            lengths.x * 10.0,
+            lengths.y * 10.0,
+            lengths.z * 10.0,
+            angles.x,
+            angles.y,
+            angles.z,
+        ).map_err(|_| WritePqrError::CouldNotWrite)?;
+    }
+
+    Ok(())
 }
 
 /******************************/
@@ -535,4 +570,152 @@ mod tests_read {
         ParsePqrError::ParseBoxLineErr,
         "CRYST1   60.861   60.861.3 60.861  90.00  90.00  90.00 P 1           1"
     );
+}
+
+#[cfg(test)]
+mod tests_write {
+    use super::*;
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn write() {
+        let system = System::from_file("test_files/example.pqr").unwrap();
+
+        let pqr_output = NamedTempFile::new().unwrap();
+        let path_to_output = pqr_output.path();
+
+        if let Err(_) = system.write_pqr(path_to_output, None) {
+            panic!("Writing pqr file failed.");
+        }
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/example.pqr").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_nochain() {
+        let mut system = System::from_file("test_files/example.pqr").unwrap();
+
+        for atom in system.atoms_iter_mut() {
+            atom.reset_chain();
+        }
+
+        let pqr_output = NamedTempFile::new().unwrap();
+        let path_to_output = pqr_output.path();
+
+        if let Err(_) = system.write_pqr(path_to_output, None) {
+            panic!("Writing pqr file failed.");
+        }
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/example_nochain.pqr").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_nobox() {
+        let system = System::from_file("test_files/example_nobox.pqr").unwrap();
+
+        let pqr_output = NamedTempFile::new().unwrap();
+        let path_to_output = pqr_output.path();
+
+        if let Err(_) = system.write_pqr(path_to_output, None) {
+            panic!("Writing pqr file failed.");
+        }
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/example_nobox.pqr").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_group() {
+        let mut system = System::from_file("test_files/example.pqr").unwrap();
+
+        system.group_create("Selected", "resname ARG PHE LEU").unwrap();
+
+        let pqr_output = NamedTempFile::new().unwrap();
+        let path_to_output = pqr_output.path();
+
+        if let Err(_) = system.group_write_pqr("Selected", path_to_output, None) {
+            panic!("Writing pqr file failed.");
+        }
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/example_group.pqr").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_precision() {
+        let system = System::from_file("test_files/example.pqr").unwrap();
+
+        let pqr_output = NamedTempFile::new().unwrap();
+        let path_to_output = pqr_output.path();
+
+        let precision = PqrPrecision::new(6, 0, 2);
+
+        if let Err(_) = system.write_pqr(path_to_output, Some(precision)) {
+            panic!("Writing pqr file failed.");
+        }
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/example_precision.pqr").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_large() {
+        let mut system = System::from_file("test_files/example.pqr").unwrap();
+
+        system.get_atom_as_ref_mut(3).unwrap().set_atom_number(12753);
+        system.get_atom_as_ref_mut(28).unwrap().set_atom_number(127533497463);
+        system.get_atom_as_ref_mut(29).unwrap().set_atom_number(999999);
+        system.get_atom_as_ref_mut(31).unwrap().set_atom_name("SC1234");
+        system.get_atom_as_ref_mut(2).unwrap().set_residue_name("ARGG");
+        system.get_atom_as_ref_mut(17).unwrap().reset_chain();
+        system.get_atom_as_ref_mut(17).unwrap().set_residue_number(29345);
+        system.get_atom_as_ref_mut(13).unwrap().set_position_x(14.32);
+        system.get_atom_as_ref_mut(12).unwrap().set_position_x(214.32134);
+        system.get_atom_as_ref_mut(12).unwrap().set_position_y(16.21);
+        system.get_atom_as_ref_mut(11).unwrap().set_position_z(9423.32);
+        system.get_atom_as_ref_mut(42).unwrap().set_charge(11.32);
+        system.get_atom_as_ref_mut(43).unwrap().set_charge(-11.32);
+        system.get_atom_as_ref_mut(45).unwrap().set_vdw(1.477);
+
+        let pqr_output = NamedTempFile::new().unwrap();
+        let path_to_output = pqr_output.path();
+
+        if let Err(_) = system.write_pqr(path_to_output, None) {
+            panic!("Writing pqr file failed.");
+        }
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/example_large.pqr").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn read_write_large() {
+        let system = System::from_file("test_files/example_large.pqr").unwrap();
+
+        let pqr_output = NamedTempFile::new().unwrap();
+        let path_to_output = pqr_output.path();
+
+        if let Err(_) = system.write_pqr(path_to_output, None) {
+            panic!("Writing pqr file failed.");
+        }
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/example_large.pqr").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
 }

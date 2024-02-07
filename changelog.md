@@ -3,18 +3,18 @@
 
 ### Version 0.7.0
 #### Replaced custom `Vector3D` implementation with faster `Vector3` from `nalgebra` crate
-- **Breaking change:** When `Vector3D::to_unit` is applied to a vector with a length (magnitude) of zero, its fields are set to `NaN` instead of the previously set `0.0`.
+- **Breaking change:** When `Vector3D::to_unit` is applied to a vector with a length (magnitude) of zero, its fields are set to `NaN` instead of the previously used `0.0`.
 
 #### Reading and writing PQR files
 - `System::from_file` function now supports reading whitespace-delimited PQR files.
 - PQR files can also be explicitly read using `pqr_io::read_pqr` function (`use groan_rs::io::pqr_io`).
+- PQR files can be written with user-specified precision using `System::write_pqr` and `System:group_write_pqr`.
 
 #### Parallelization
-- Parallelized versions of several methods have been introduced:
-  - `System::guess_bonds` -> `System::guess_bonds_parallel`
+- Parallelized version of `System::guess_bonds`, called `System::guess_bonds_parallel`, has been introduced.
 
 #### Other changes
-- Clarified the changes in the order of groups when removing or renaming a group.
+- Clarified the changes in the order of groups when removing or renaming a group from the System.
 
 ### Version 0.6.1
 - Bug fix: When setting `ProgressPrinter` to write into a file, the printer did not start a new line once iteration was finished and instead printed new line into standard output. This has been now fixed.
