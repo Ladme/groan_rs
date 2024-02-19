@@ -574,7 +574,7 @@ mod tests {
         let system_pqr = System::from_file("test_files/example.pqr").unwrap();
         assert_eq!(system_pqr.get_name(), "Buforin II peptide P11L");
         assert_eq!(system_pqr.get_n_atoms(), 50);
-        
+
         let simbox = system_pqr.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.x, 6.0861);
         assert_approx_eq!(f32, simbox.y, 6.0861);

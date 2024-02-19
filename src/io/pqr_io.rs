@@ -131,7 +131,7 @@ impl System {
     ///     return;
     /// }
     /// ```
-    /// 
+    ///
     /// ## Notes
     /// - Unlike many other programs, `groan_rs` library also uses `CRYST1` and `TITLE` in pqr files.
     /// The pqr file will thus contain information about box dimensions and the name of the system.
@@ -286,7 +286,6 @@ fn write_header(
     title: &str,
     simbox: Option<&SimBox>,
 ) -> Result<(), WritePqrError> {
-
     writeln!(writer, "TITLE     {}", title).map_err(|_| WritePqrError::CouldNotWrite)?;
 
     if let Some(simbox) = simbox {
@@ -300,7 +299,8 @@ fn write_header(
             angles.x,
             angles.y,
             angles.z,
-        ).map_err(|_| WritePqrError::CouldNotWrite)?;
+        )
+        .map_err(|_| WritePqrError::CouldNotWrite)?;
     }
 
     Ok(())
@@ -321,7 +321,7 @@ mod tests_read {
 
         assert_eq!(system.get_name(), "Buforin II peptide P11L");
         assert_eq!(system.get_n_atoms(), 50);
-        
+
         // check box size
         let simbox = system.get_box_as_ref().unwrap();
         assert_approx_eq!(f32, simbox.x, 6.0861);
@@ -636,7 +636,9 @@ mod tests_write {
     fn write_group() {
         let mut system = System::from_file("test_files/example.pqr").unwrap();
 
-        system.group_create("Selected", "resname ARG PHE LEU").unwrap();
+        system
+            .group_create("Selected", "resname ARG PHE LEU")
+            .unwrap();
 
         let pqr_output = NamedTempFile::new().unwrap();
         let path_to_output = pqr_output.path();
@@ -674,17 +676,47 @@ mod tests_write {
     fn write_large() {
         let mut system = System::from_file("test_files/example.pqr").unwrap();
 
-        system.get_atom_as_ref_mut(3).unwrap().set_atom_number(12753);
-        system.get_atom_as_ref_mut(28).unwrap().set_atom_number(127533497463);
-        system.get_atom_as_ref_mut(29).unwrap().set_atom_number(999999);
-        system.get_atom_as_ref_mut(31).unwrap().set_atom_name("SC1234");
-        system.get_atom_as_ref_mut(2).unwrap().set_residue_name("ARGG");
+        system
+            .get_atom_as_ref_mut(3)
+            .unwrap()
+            .set_atom_number(12753);
+        system
+            .get_atom_as_ref_mut(28)
+            .unwrap()
+            .set_atom_number(127533497463);
+        system
+            .get_atom_as_ref_mut(29)
+            .unwrap()
+            .set_atom_number(999999);
+        system
+            .get_atom_as_ref_mut(31)
+            .unwrap()
+            .set_atom_name("SC1234");
+        system
+            .get_atom_as_ref_mut(2)
+            .unwrap()
+            .set_residue_name("ARGG");
         system.get_atom_as_ref_mut(17).unwrap().reset_chain();
-        system.get_atom_as_ref_mut(17).unwrap().set_residue_number(29345);
-        system.get_atom_as_ref_mut(13).unwrap().set_position_x(14.32);
-        system.get_atom_as_ref_mut(12).unwrap().set_position_x(214.32134);
-        system.get_atom_as_ref_mut(12).unwrap().set_position_y(16.21);
-        system.get_atom_as_ref_mut(11).unwrap().set_position_z(9423.32);
+        system
+            .get_atom_as_ref_mut(17)
+            .unwrap()
+            .set_residue_number(29345);
+        system
+            .get_atom_as_ref_mut(13)
+            .unwrap()
+            .set_position_x(14.32);
+        system
+            .get_atom_as_ref_mut(12)
+            .unwrap()
+            .set_position_x(214.32134);
+        system
+            .get_atom_as_ref_mut(12)
+            .unwrap()
+            .set_position_y(16.21);
+        system
+            .get_atom_as_ref_mut(11)
+            .unwrap()
+            .set_position_z(9423.32);
         system.get_atom_as_ref_mut(42).unwrap().set_charge(11.32);
         system.get_atom_as_ref_mut(43).unwrap().set_charge(-11.32);
         system.get_atom_as_ref_mut(45).unwrap().set_vdw(1.477);

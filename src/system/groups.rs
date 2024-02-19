@@ -803,6 +803,7 @@ mod tests {
     use crate::structures::dimension::Dimension;
     use crate::structures::element::Elements;
     use crate::structures::shape::*;
+    use crate::structures::vector3d::Vector3D;
 
     #[test]
     fn group_create_basic() {
@@ -1282,6 +1283,34 @@ mod tests {
                     || resname == "CYS"
             );
             assert!(rectangular.inside(
+                atom.get_position().unwrap(),
+                system.get_box_as_ref().unwrap()
+            ));
+        }
+    }
+
+    #[test]
+    fn group_create_from_geometry_triangular_prism() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let base1 = Vector3D::new(8.0, 8.0, 8.0);
+        let base2 = Vector3D::new(15.0, 12.0, 8.0);
+        let base3 = Vector3D::new(9.5, 7.3, 8.0);
+
+        let triangular_prism = TriangularPrism::new(base1, base2, base3, 5.4);
+
+        system
+            .group_create_from_geometry("Selected Water", "@water", triangular_prism.clone())
+            .unwrap();
+
+        assert!(system.group_exists("Selected Water"));
+        assert_eq!(system.group_get_n_atoms("Selected Water").unwrap(), 213);
+
+        for atom in system.group_iter("Selected Water").unwrap() {
+            let resname = atom.get_residue_name();
+            assert_eq!(resname, "W");
+            assert!(triangular_prism.inside(
                 atom.get_position().unwrap(),
                 system.get_box_as_ref().unwrap()
             ));

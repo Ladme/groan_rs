@@ -649,7 +649,7 @@ impl Atom {
 
         let format_atomname = match self.get_atom_name().len() {
             0..=3 => format!(" {:<3}", self.get_atom_name()),
-            _ => format!("{}", self.get_atom_name()),
+            _ => self.get_atom_name().to_string(),
         };
 
         let resid = self.get_residue_number();

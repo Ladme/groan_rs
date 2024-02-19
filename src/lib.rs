@@ -596,7 +596,7 @@ pub mod prelude {
     pub use crate::structures::atom::Atom;
     pub use crate::structures::dimension::Dimension;
     pub use crate::structures::element::Elements;
-    pub use crate::structures::shape::{Cylinder, Rectangular, Shape, Sphere};
+    pub use crate::structures::shape::{Cylinder, Rectangular, Shape, Sphere, TriangularPrism};
     pub use crate::structures::simbox::SimBox;
     pub use crate::structures::vector3d::Vector3D;
     pub use crate::system::general::System;

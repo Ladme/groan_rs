@@ -42,6 +42,21 @@ pub struct Cylinder {
     plane: Dimension,
 }
 
+/// Structure describing a triangular prism for geometry selections.
+#[derive(Debug, Clone)]
+pub struct TriangularPrism {
+    /// Coordinates of the vertices of the base.
+    base1: Vector3D,
+    base2: Vector3D,
+    base3: Vector3D,
+    /// Height of the prism.
+    height: f32,
+    /// Orientation of the triangular prism in space.
+    orientation: Dimension,
+    /// Plane in which the triangular prism base is placed.
+    plane: Dimension,
+}
+
 /// Any structure implementing this trait can be used for geometry selection.
 pub trait Shape {
     /// Returns `true` if target point is inside the `Shape`. Else returns `false`.
@@ -61,8 +76,8 @@ impl Sphere {
     /// #
     /// // constructs a sphere with radius 2.0 nm
     /// let sphere = Sphere::new(
-    ///     [1.0, 2.0, 3.0].into(), // position of the sphere center
-    ///     2.0,                    // radius of the sphere
+    ///     Vector3D::new(1.0, 2.0, 3.0), // position of the sphere center
+    ///     2.0,                           // radius of the sphere
     /// );
     /// ```
     pub fn new(position: Vector3D, radius: f32) -> Self {
@@ -102,10 +117,10 @@ impl Rectangular {
     /// #
     /// // constructs a rectangular box of specified size
     /// let rect = Rectangular::new(
-    ///     [1.0, 2.0, 3.0].into(), // position of box origin
-    ///     1.0,    // size of the box along x-dimension
-    ///     2.0,    // size of the box along y-dimension
-    ///     3.0,    // size of the box along z-dimension
+    ///     Vector3D::new(1.0, 2.0, 3.0), // position of box origin
+    ///     1.0,                          // size of the box along x-dimension
+    ///     2.0,                          // size of the box along y-dimension
+    ///     3.0,                          // size of the box along z-dimension
     /// );
     /// ```
     pub fn new(position: Vector3D, x: f32, y: f32, z: f32) -> Self {
@@ -171,10 +186,10 @@ impl Cylinder {
     /// #
     /// // constructs a cylinder oriented along the z-dimension of the simulation box
     /// let cylinder = Cylinder::new(
-    ///     [1.0, 2.0, 3.0].into(), // position
-    ///     1.5,                    // radius
-    ///     2.0,                    // height
-    ///     Dimension::Z,           // orientation
+    ///     Vector3D::new(1.0, 2.0, 3.0), // position
+    ///     1.5,                          // radius
+    ///     2.0,                          // height
+    ///     Dimension::Z,                 // orientation
     /// );
     /// ```
     pub fn new(position: Vector3D, radius: f32, height: f32, orientation: Dimension) -> Self {
@@ -239,6 +254,191 @@ impl Shape for Cylinder {
         }
 
         true
+    }
+}
+
+impl TriangularPrism {
+    /// Construct a new Triangular Prism.
+    ///
+    /// ## Arguments
+    /// - `base1`, `base2`, `base3` - Coordinates of the vertices of the prism's base.
+    /// - `height` - Perpendicular distance between the two bases of the prism.
+    ///
+    /// ## Panics
+    /// Panics if the base of the prism is *not* entirely localized in the XY, XZ, or YZ plane.
+    /// Panics if the base can't be constructed.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// // constructs a triangular prism oriented along the x-dimension of the simulation box
+    /// let prism = TriangularPrism::new(
+    ///     Vector3D::new(1.0, 2.0, 3.0),  // first vertex of the base
+    ///     Vector3D::new(1.0, 4.5, 5.3),  // second vertex of the base
+    ///     Vector3D::new(1.0, 2.3, 1.5),  // third vertex of the base
+    ///     4.2                            // height of the prism
+    /// );
+    /// ```
+    ///
+    /// ## Notes
+    /// - Periodic boundary conditions are not applied to the base of the triangular prism.
+    /// In other words, if you define the base of a triangular prism with a point
+    /// that is outside of the box boundaries, you will only select atoms located in the area
+    /// enclosed by the base itself, not by the periodic image of the base.
+    ///
+    /// ```text
+    ///     ╔════════════════╗
+    ///     ║                   ║
+    ///     ║       A           ║
+    ///     ║    ###            ║
+    ///     ║#######            ║
+    ///  C  ║#####B          C'!║
+    ///     ║                   ║
+    ///     ║                   ║
+    ///     ╚════════════════╝
+    ///
+    /// ```
+    /// `A`, `B`, `C` specify vertices of the base, `#` roughly specifies areas that are considered
+    /// to be inside the base. `C'` specifies periodic image of `C`.
+    /// Areas marked with `!` are *NOT* included in the prism, even though they could be if we considered PBC.
+    ///
+    /// - The above-described behavior may change in future version of the `groan_rs` library!
+    ///
+    /// - Since the upper base of the prism is defined relative to the bottom base (using the `height` attribute),
+    /// periodic boundary conditions *ARE* used in this case. In other words,
+    /// if you define a prism with a height that would position the upper base outside of the box,
+    /// the atoms will be selected based on the periodic image of the upper base.
+    ///
+    /// ```text
+    ///     ╔════════════════╗
+    ///     ║      #######      ║
+    ///     ║      #######      ║
+    ///     ║      A#####B      ║
+    ///     ║                   ║
+    ///     ║                   ║
+    ///     ║      #######      ║
+    ///     ║      #######      ║
+    ///     ╚════════════════╝
+    ///
+    /// ```
+    /// (The vertex `C` is not seen.)
+    pub fn new(base1: Vector3D, base2: Vector3D, base3: Vector3D, height: f32) -> Self {
+        let bases = [
+            (base1.x, base2.x, base3.x, Dimension::X, Dimension::YZ),
+            (base1.y, base2.y, base3.y, Dimension::Y, Dimension::XZ),
+            (base1.z, base2.z, base3.z, Dimension::Z, Dimension::XY),
+        ];
+
+        let mut orientation = None;
+        let mut plane = Dimension::None;
+
+        for (val1, val2, val3, current_orientation, current_plane) in bases.iter() {
+            if val1 == val2 && val2 == val3 {
+                if orientation.is_some() {
+                    panic!("FATAL GROAN ERROR | TriangularPrism::new | Base of the requested TriangularPrism can not be constructed.");
+                }
+                orientation = Some(*current_orientation);
+                plane = *current_plane;
+            }
+        }
+
+        if orientation.is_none() {
+            panic!("FATAL GROAN ERROR | TriangularPrism::new | Base of the requested TriangularPrism does not lie in xy, xz, nor yz plane.");
+        }
+
+        // determine position of the bases
+
+        TriangularPrism {
+            base1,
+            base2,
+            base3,
+            height,
+            orientation: orientation.unwrap(),
+            plane,
+        }
+    }
+
+    /// Get coordinates of the first vertex of the base.
+    pub fn get_base1(&self) -> &Vector3D {
+        &self.base1
+    }
+
+    /// Get coordinates of the second vertex of the base.
+    pub fn get_base2(&self) -> &Vector3D {
+        &self.base2
+    }
+
+    /// Get coordinates of the third vertex of the base.
+    pub fn get_base3(&self) -> &Vector3D {
+        &self.base3
+    }
+
+    /// Get height of the triangular prism.
+    pub fn get_height(&self) -> f32 {
+        self.height
+    }
+
+    /// Get orientation of the triangular prism.
+    pub fn get_orientation(&self) -> Dimension {
+        self.orientation
+    }
+
+    /// Get plane of the base of the triangular prism.
+    pub fn get_plane(&self) -> Dimension {
+        self.plane
+    }
+
+    fn sign(point1: &Vector3D, point2: &Vector3D, point3: &Vector3D, plane: Dimension) -> f32 {
+        match plane {
+            Dimension::XY => {
+                (point1.x - point3.x) * (point2.y - point3.y)
+                    - (point2.x - point3.x) * (point1.y - point3.y)
+            }
+            Dimension::XZ => {
+                (point1.x - point3.x) * (point2.z - point3.z)
+                    - (point2.x - point3.x) * (point1.z - point3.z)
+            }
+            Dimension::YZ => {
+                (point1.y - point3.y) * (point2.z - point3.z)
+                    - (point2.y - point3.y) * (point1.z - point3.z)
+            }
+            _ => panic!(
+                "FATAL GROAN ERROR | TriangularPrism::sign | This dimension should never occur."
+            ),
+        }
+    }
+}
+
+impl Shape for TriangularPrism {
+    /// Check if point is inside the triangular prism.
+    ///
+    /// Adapted from `https://stackoverflow.com/questions/2049582/how-to-determine-if-a-point-is-in-a-2d-triangle`
+    fn inside(&self, point: &Vector3D, simbox: &SimBox) -> bool {
+        let mut distance_from_base =
+            point.distance(self.get_base1(), self.get_orientation(), simbox);
+
+        if distance_from_base < 0.0 {
+            match self.get_orientation() {
+                Dimension::X => distance_from_base += simbox.x,
+                Dimension::Y => distance_from_base += simbox.y,
+                Dimension::Z => distance_from_base += simbox.z,
+                d => panic!("FATAL GROAN ERROR | TriangularPrism::inside | Orientation dimension '{}' should never occur in a triangular prism.", d),
+            }
+        }
+
+        if distance_from_base >= self.get_height() {
+            return false;
+        }
+
+        let d1 = TriangularPrism::sign(point, self.get_base1(), self.get_base2(), self.get_plane());
+        let d2 = TriangularPrism::sign(point, self.get_base2(), self.get_base3(), self.get_plane());
+        let d3 = TriangularPrism::sign(point, self.get_base3(), self.get_base1(), self.get_plane());
+
+        let has_neg = (d1 < 0.0) || (d2 < 0.0) || (d3 < 0.0);
+        let has_pos = (d1 > 0.0) || (d2 > 0.0) || (d3 > 0.0);
+
+        !(has_neg && has_pos)
     }
 }
 
@@ -576,5 +776,219 @@ mod tests_cylinder {
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert!(cylinder.inside(&point, &simbox));
+    }
+}
+
+#[cfg(test)]
+mod tests_triprism {
+    use super::*;
+    use float_cmp::assert_approx_eq;
+
+    #[test]
+    fn new_z() {
+        let base1 = Vector3D::new(3.0, 4.0, 2.0);
+        let base2 = Vector3D::new(7.0, 5.0, 2.0);
+        let base3 = Vector3D::new(4.0, 3.0, 2.0);
+
+        let prism = TriangularPrism::new(base1, base2, base3, 4.3);
+
+        assert_approx_eq!(f32, prism.get_base1().x, 3.0);
+        assert_approx_eq!(f32, prism.get_base1().y, 4.0);
+        assert_approx_eq!(f32, prism.get_base1().z, 2.0);
+
+        assert_approx_eq!(f32, prism.get_base2().x, 7.0);
+        assert_approx_eq!(f32, prism.get_base2().y, 5.0);
+        assert_approx_eq!(f32, prism.get_base2().z, 2.0);
+
+        assert_approx_eq!(f32, prism.get_base3().x, 4.0);
+        assert_approx_eq!(f32, prism.get_base3().y, 3.0);
+        assert_approx_eq!(f32, prism.get_base3().z, 2.0);
+
+        assert_approx_eq!(f32, prism.get_height(), 4.3);
+        assert_eq!(prism.get_orientation(), Dimension::Z);
+        assert_eq!(prism.get_plane(), Dimension::XY);
+    }
+
+    #[test]
+    fn new_y() {
+        let base1 = Vector3D::new(3.0, 3.0, 3.0);
+        let base2 = Vector3D::new(7.0, 3.0, 2.0);
+        let base3 = Vector3D::new(4.0, 3.0, 5.0);
+
+        let prism = TriangularPrism::new(base1, base2, base3, 4.3);
+
+        assert_eq!(prism.get_orientation(), Dimension::Y);
+        assert_eq!(prism.get_plane(), Dimension::XZ);
+    }
+
+    #[test]
+    fn new_x() {
+        let base1 = Vector3D::new(5.0, 7.0, 3.0);
+        let base2 = Vector3D::new(5.0, 0.0, 2.0);
+        let base3 = Vector3D::new(5.0, 4.0, 5.0);
+
+        let prism = TriangularPrism::new(base1, base2, base3, 4.3);
+
+        assert_eq!(prism.get_orientation(), Dimension::X);
+        assert_eq!(prism.get_plane(), Dimension::YZ);
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "FATAL GROAN ERROR | TriangularPrism::new | Base of the requested TriangularPrism does not lie in xy, xz, nor yz plane."
+    )]
+    fn invalid_base_orientation() {
+        let base1 = Vector3D::new(3.0, 4.0, 2.0);
+        let base2 = Vector3D::new(7.0, 5.0, 1.8);
+        let base3 = Vector3D::new(4.0, 3.0, 2.0);
+
+        let _ = TriangularPrism::new(base1, base2, base3, 4.3);
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "FATAL GROAN ERROR | TriangularPrism::new | Base of the requested TriangularPrism can not be constructed."
+    )]
+    fn invalid_base() {
+        let base1 = Vector3D::new(3.0, 4.0, 2.0);
+        let base2 = Vector3D::new(7.0, 4.0, 2.0);
+        let base3 = Vector3D::new(4.0, 4.0, 2.0);
+
+        let _ = TriangularPrism::new(base1, base2, base3, 4.3);
+    }
+
+    #[test]
+    fn inside_x_nopbc() {
+        let base1 = Vector3D::new(5.0, 7.0, 3.0);
+        let base2 = Vector3D::new(5.0, 0.0, 2.0);
+        let base3 = Vector3D::new(5.0, 4.0, 5.0);
+
+        let prism = TriangularPrism::new(base1, base2, base3, 4.3);
+
+        let point = Vector3D::new(9.1, 4.8, 3.6);
+
+        let simbox = SimBox::from([10.0, 10.0, 10.0]);
+
+        assert!(prism.inside(&point, &simbox));
+    }
+
+    #[test]
+    fn not_inside_x_nopbc() {
+        let base1 = Vector3D::new(5.0, 7.0, 3.0);
+        let base2 = Vector3D::new(5.0, 0.0, 2.0);
+        let base3 = Vector3D::new(5.0, 4.0, 5.0);
+
+        let prism = TriangularPrism::new(base1, base2, base3, 4.3);
+
+        let point = Vector3D::new(9.7, 4.8, 3.6);
+
+        let simbox = SimBox::from([10.0, 10.0, 10.0]);
+
+        assert!(!prism.inside(&point, &simbox));
+    }
+
+    #[test]
+    fn inside_x_pbc() {
+        let base1 = Vector3D::new(5.0, 7.0, 3.0);
+        let base2 = Vector3D::new(5.0, 0.0, 2.0);
+        let base3 = Vector3D::new(5.0, 4.0, 5.0);
+
+        let prism = TriangularPrism::new(base1, base2, base3, 4.3);
+
+        let point = Vector3D::new(0.3, 4.8, 3.6);
+
+        let simbox = SimBox::from([8.0, 8.0, 8.0]);
+
+        assert!(prism.inside(&point, &simbox));
+    }
+
+    #[test]
+    fn inside_y_nopbc() {
+        let base1 = Vector3D::new(3.0, 3.0, 3.0);
+        let base2 = Vector3D::new(7.0, 3.0, 2.0);
+        let base3 = Vector3D::new(4.0, 3.0, 5.0);
+
+        let prism = TriangularPrism::new(base1, base2, base3, 4.3);
+
+        let point = Vector3D::new(4.8, 5.6, 3.6);
+
+        let simbox = SimBox::from([10.0, 10.0, 10.0]);
+
+        assert!(prism.inside(&point, &simbox));
+    }
+
+    #[test]
+    fn not_inside_y_nopbc() {
+        let base1 = Vector3D::new(3.0, 3.0, 3.0);
+        let base2 = Vector3D::new(7.0, 3.0, 2.0);
+        let base3 = Vector3D::new(4.0, 3.0, 5.0);
+
+        let prism = TriangularPrism::new(base1, base2, base3, 4.3);
+
+        let point = Vector3D::new(5.5, 5.6, 3.6);
+
+        let simbox = SimBox::from([10.0, 10.0, 10.0]);
+
+        assert!(!prism.inside(&point, &simbox));
+    }
+
+    #[test]
+    fn inside_y_pbc() {
+        let base1 = Vector3D::new(3.0, 3.0, 3.0);
+        let base2 = Vector3D::new(7.0, 3.0, 2.0);
+        let base3 = Vector3D::new(4.0, 3.0, 5.0);
+
+        let prism = TriangularPrism::new(base1, base2, base3, 4.3);
+
+        let point = Vector3D::new(4.8, 2.1, 3.6);
+
+        let simbox = SimBox::from([10.0, 5.0, 10.0]);
+
+        assert!(prism.inside(&point, &simbox));
+    }
+
+    #[test]
+    fn inside_z_nopbc() {
+        let base1 = Vector3D::new(3.0, 4.0, 2.0);
+        let base2 = Vector3D::new(7.0, 5.0, 2.0);
+        let base3 = Vector3D::new(4.0, 3.0, 2.0);
+
+        let prism = TriangularPrism::new(base1, base2, base3, 4.3);
+
+        let point = Vector3D::new(4.8, 3.6, 2.1);
+
+        let simbox = SimBox::from([10.0, 10.0, 10.0]);
+
+        assert!(prism.inside(&point, &simbox));
+    }
+
+    #[test]
+    fn not_inside_z_nopbc() {
+        let base1 = Vector3D::new(3.0, 4.0, 2.0);
+        let base2 = Vector3D::new(7.0, 5.0, 2.0);
+        let base3 = Vector3D::new(4.0, 3.0, 2.0);
+
+        let prism = TriangularPrism::new(base1, base2, base3, 4.3);
+
+        let point = Vector3D::new(4.8, 3.4, 2.1);
+
+        let simbox = SimBox::from([10.0, 10.0, 10.0]);
+
+        assert!(!prism.inside(&point, &simbox));
+    }
+
+    #[test]
+    fn inside_z_pbc() {
+        let base1 = Vector3D::new(3.0, 4.0, 8.0);
+        let base2 = Vector3D::new(7.0, 5.0, 8.0);
+        let base3 = Vector3D::new(4.0, 3.0, 8.0);
+
+        let prism = TriangularPrism::new(base1, base2, base3, 4.3);
+
+        let point = Vector3D::new(4.8, 3.6, 2.1);
+
+        let simbox = SimBox::from([10.0, 10.0, 10.0]);
+
+        assert!(prism.inside(&point, &simbox));
     }
 }
