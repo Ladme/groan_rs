@@ -1,6 +1,9 @@
 
 ## Changelog for the `groan_rs` library
 
+### Version 0.6.2
+- Bug fix: `System::group_split_by_resid` and `System::group_split_by_resname` did not work correctly due to incorrect treatment of atom indices. This has now been fixed.
+
 ### Version 0.6.1
 - Bug fix: When setting `ProgressPrinter` to write into a file, the printer did not start a new line once iteration was finished and instead printed new line into standard output. This has been now fixed.
 - `ProgressPrinter` can be now set to NOT start a new line upon finishing the iteration through the trajectory (see `ProgressPrinter::with_newline_at_end`).

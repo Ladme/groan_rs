@@ -367,13 +367,18 @@ impl System {
     pub fn group_split_by_resid(&mut self, name: &str) -> (Result<(), GroupError>, Vec<String>) {
         let mut groups: IndexMap<String, Vec<usize>> = IndexMap::new();
 
-        let iterator = match self.group_iter(name) {
-            Ok(i) => i,
-            Err(e) => return (Err(e), Vec::new()),
+        let group = match self.get_groups_as_ref().get(name) {
+            Some(x) => x,
+            None => return (Err(GroupError::NotFound(name.to_string())), Vec::new()),
         };
 
         // collect atoms into groups
-        for (atomid, atom) in iterator.enumerate() {
+        // Note: we have to iterate through all the atoms to get their correct indices
+        for (atomid, atom) in self.atoms_iter().enumerate() {
+            if !group.get_atoms().isin(atomid) {
+                continue;
+            }
+
             let res = atom.get_residue_number();
             let group_name = format!("resid {}", res);
 
@@ -490,12 +495,16 @@ impl System {
     pub fn group_split_by_resname(&mut self, name: &str) -> (Result<(), GroupError>, Vec<String>) {
         let mut groups: IndexMap<String, Vec<usize>> = IndexMap::new();
 
-        let iterator = match self.group_iter(name) {
-            Ok(i) => i,
-            Err(e) => return (Err(e), Vec::new()),
+        let group = match self.get_groups_as_ref().get(name) {
+            Some(x) => x,
+            None => return (Err(GroupError::NotFound(name.to_string())), Vec::new()),
         };
 
-        for (atomid, atom) in iterator.enumerate() {
+        for (atomid, atom) in self.atoms_iter().enumerate() {
+            if !group.get_atoms().isin(atomid) {
+                continue;
+            }
+
             let res = atom.get_residue_name();
             let group_name = format!("resname {}", res);
 
@@ -2017,6 +2026,30 @@ mod tests {
     }
 
     #[test]
+    fn group_split_by_resid_not_first_group() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let (code, residues) = system.group_split_by_resid("Membrane");
+        if let Err(_) = code {
+            panic!("Error occured when using `System::group_split_by_resid`");
+        }
+
+        assert_eq!(residues.len(), 512);
+        for groupname in residues.iter() {
+            assert!(system.group_exists(groupname));
+            assert!(system.group_get_n_atoms(groupname).unwrap() == 12);
+        }
+
+        // check order of the group names in the `residues` vector
+        for i in 30..=541 {
+            let resname = format!("resid {}", i);
+            assert_eq!(residues[i - 30], resname);
+        }
+    }
+
+    #[test]
     fn group_split_by_resid_warnings() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
@@ -2158,6 +2191,26 @@ mod tests {
         assert_eq!(system.group_get_n_atoms("resname LEU").unwrap(), 2);
         assert_eq!(system.group_get_n_atoms("resname ALA").unwrap(), 22);
         assert_eq!(system.group_get_n_atoms("resname CYS").unwrap(), 2);
+    }
+
+    #[test]
+    fn group_split_by_resname_not_first_group() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        system
+            .group_create("Membrane + Water", "Membrane or resname W")
+            .unwrap();
+
+        let (code, residues) = system.group_split_by_resname("Membrane + Water");
+        if let Err(_) = code {
+            panic!("Error occured when using `System::group_split_by_resname`");
+        }
+
+        assert_eq!(residues.len(), 2);
+        assert_eq!(system.group_get_n_atoms("resname POPC").unwrap(), 6144);
+        assert_eq!(system.group_get_n_atoms("resname W").unwrap(), 10399);
     }
 
     #[test]
