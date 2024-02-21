@@ -8,6 +8,7 @@ use std::ops::Deref;
 
 /// Structure defining simulation box shape and dimensions.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SimBox {
     /// You can also use `.x` to reach this value.
     pub v1x: f32,
@@ -401,5 +402,58 @@ mod tests {
             6.26832, 5.90987, 5.11825, 1.3, 2.5634, 2.08931, -1.322, -2.08931, 2.95467,
         ];
         let _simbox = SimBox::from(arr);
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "serde")]
+mod serde_tests {
+    use float_cmp::assert_approx_eq;
+    use super::*;
+
+    #[test]
+    fn simbox_to_yaml() {
+        let arr = [
+            6.26832, 5.90987, 5.11825, 0.0, 0.0, 2.08931, 0.0, -2.08931, 2.95467,
+        ];
+
+        let simbox = SimBox::from(arr);
+        let string = serde_yaml::to_string(&simbox).unwrap();
+
+        assert_eq!(string, "v1x: 6.26832
+v2y: 5.90987
+v3z: 5.11825
+v1y: 0.0
+v1z: 0.0
+v2x: 2.08931
+v2z: 0.0
+v3x: -2.08931
+v3y: 2.95467
+");
+    }
+
+    #[test]
+    fn simbox_from_yaml() {
+        let string = "v1x: 6.26832
+v2y: 5.90987
+v3z: 5.11825
+v1y: 0.0
+v1z: 0.0
+v2x: 2.08931
+v2z: 0.0
+v3x: -2.08931
+v3y: 2.95467
+";
+        let simbox: SimBox = serde_yaml::from_str(&string).unwrap();
+
+        assert_approx_eq!(f32, simbox.v1x, 6.26832, epsilon = 0.00001);
+        assert_approx_eq!(f32, simbox.v2y, 5.90987, epsilon = 0.00001);
+        assert_approx_eq!(f32, simbox.v3z, 5.11825, epsilon = 0.00001);
+        assert_approx_eq!(f32, simbox.v1y, 0.0, epsilon = 0.00001);
+        assert_approx_eq!(f32, simbox.v1z, 0.0, epsilon = 0.00001);
+        assert_approx_eq!(f32, simbox.v2x, 2.08931, epsilon = 0.00001);
+        assert_approx_eq!(f32, simbox.v2z, 0.0, epsilon = 0.00001);
+        assert_approx_eq!(f32, simbox.v3x, -2.08931, epsilon = 0.00001);
+        assert_approx_eq!(f32, simbox.v3y, 2.95467, epsilon = 0.00001);
     }
 }

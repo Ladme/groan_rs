@@ -14,7 +14,8 @@ use crate::io::pdb_io;
 use crate::io::{gro_io, pqr_io};
 use crate::structures::{atom::Atom, group::Group, simbox::SimBox, vector3d::Vector3D};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct System {
     /// Name of the molecular system.
     name: String,
@@ -952,5 +953,34 @@ mod tests {
                 e
             ),
         }
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "serde")]
+mod serde_tests {
+    use std::fs::read_to_string;
+
+    use super::*;
+
+    #[test]
+    fn system_to_yaml() {
+        let mut system = System::from_file("test_files/protein.gro").unwrap();
+        system.group_create("Sidechains", "name r'^SC.*'").unwrap();
+
+        let string = serde_yaml::to_string(&system).unwrap();
+        let expected = read_to_string("test_files/serde_system.yaml").unwrap();
+
+        assert_eq!(string, expected); 
+    }
+
+    #[test]
+    fn system_from_yaml() {
+        let string = read_to_string("test_files/serde_system.yaml").unwrap();
+        let system: System = serde_yaml::from_str(&string).unwrap();
+
+        assert_eq!(system.get_n_atoms(), 61);
+        assert_eq!(system.get_n_groups(), 3);
+        assert!(system.get_box_as_ref().is_some());
     }
 }

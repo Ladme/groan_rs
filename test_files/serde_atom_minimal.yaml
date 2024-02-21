@@ -1,0 +1,17 @@
+residue_number: 10
+residue_name: CYS
+atom_number: 24
+atom_name: CA
+chain: null
+charge: null
+mass: null
+vdw: null
+expected_max_bonds: null
+expected_min_bonds: null
+element_name: null
+element_symbol: null
+position: null
+velocity: null
+force: null
+bonded:
+  atom_blocks: []

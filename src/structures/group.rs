@@ -18,6 +18,7 @@ use crate::system::iterating::get_molecule_indices;
 
 /// Group of atoms in target system.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Group {
     atoms: AtomContainer,
     pub print_ndx: bool,
@@ -393,5 +394,52 @@ mod tests {
         let group = Group::from_ranges(atom_ranges, 1028);
 
         assert_eq!(group.get_n_atoms(), 198);
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "serde")]
+mod serde_tests {
+    use super::*;
+
+    #[test]
+    fn group_to_yaml() {
+        let ranges = vec![(20, 32), (64, 64), (84, 143)];
+        let group = Group::from_ranges(ranges, 1028);
+
+        let string = serde_yaml::to_string(&group).unwrap();
+        let expected = "atoms:
+  atom_blocks:
+  - start: 20
+    end: 32
+  - start: 64
+    end: 64
+  - start: 84
+    end: 143
+print_ndx: true
+";
+        assert_eq!(string, expected);
+    }
+
+    #[test]
+    fn group_from_yaml() {
+        let string = "atoms:
+  atom_blocks:
+  - start: 20
+    end: 32
+  - start: 64
+    end: 64
+  - start: 84
+    end: 143
+print_ndx: true
+";
+
+    let group: Group = serde_yaml::from_str(&string).unwrap();
+
+    let ranges = vec![(20, 32), (64, 64), (84, 143)];
+    let expected = Group::from_ranges(ranges, 1028);
+
+        assert_eq!(group.atoms, expected.atoms);
+        assert_eq!(group.print_ndx, expected.print_ndx);
     }
 }

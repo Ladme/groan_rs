@@ -505,6 +505,62 @@ impl Default for Vector3D {
 }
 
 /******************************/
+/*       FEATURE: SERDE       */
+/******************************/
+
+#[cfg(feature = "serde")]
+mod serde {
+    use std::fmt;
+
+    use ::serde::{de::{self, SeqAccess, Visitor}, Deserialize, Deserializer};
+    use ::serde::{ser::SerializeSeq, Serialize, Serializer};
+    use super::*;
+
+    impl Serialize for Vector3D {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            let mut seq = serializer.serialize_seq(Some(3))?; // We know the sequence length is 3
+            seq.serialize_element(&self.0.x)?;
+            seq.serialize_element(&self.0.y)?;
+            seq.serialize_element(&self.0.z)?;
+            seq.end()
+        }
+    }
+
+    impl<'de> Deserialize<'de> for Vector3D {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            struct Vector3DVisitor;
+    
+            impl<'de> Visitor<'de> for Vector3DVisitor {
+                type Value = Vector3D;
+    
+                fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                    formatter.write_str("a sequence of three floats")
+                }
+    
+                fn visit_seq<S>(self, mut seq: S) -> Result<Vector3D, S::Error>
+                where
+                    S: SeqAccess<'de>,
+                {
+                    let x = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                    let y = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(1, &self))?;
+                    let z = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(2, &self))?;
+                    Ok(Vector3D(Vector3::new(x, y, z)))
+                }
+            }
+    
+            deserializer.deserialize_seq(Vector3DVisitor)
+        }
+    }
+    
+}
+
+/******************************/
 /*         UNIT TESTS         */
 /******************************/
 
@@ -1312,5 +1368,32 @@ mod tests {
 
         let vec = Vector3D::new(1.2, 0.4, 3.2);
         assert!(!vec.is_zero());
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "serde")]
+mod serde_tests {
+    use float_cmp::assert_approx_eq;
+
+    use super::*;
+
+    #[test]
+    fn vector3d_to_yaml() {
+        let vector = Vector3D::new(4.376, 2.13, 4.0);
+
+        let string = serde_yaml::to_string(&vector).unwrap();
+
+        assert_eq!(string, "- 4.376\n- 2.13\n- 4.0\n");
+    }
+
+    #[test]
+    fn vector3d_from_yaml() {
+        let string = "[ 4.376, 2.13, 4.0 ]\n";
+        let vector: Vector3D = serde_yaml::from_str(&string).unwrap();
+
+        assert_approx_eq!(f32, vector.x, 4.376);
+        assert_approx_eq!(f32, vector.y, 2.13);
+        assert_approx_eq!(f32, vector.z, 4.0);
     }
 }

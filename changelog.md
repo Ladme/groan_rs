@@ -10,6 +10,10 @@
 - PQR files can also be explicitly read using `pqr_io::read_pqr` function (`use groan_rs::io::pqr_io`).
 - PQR files can be written with user-specified precision using `System::write_pqr` and `System:group_write_pqr`.
 
+#### `serde` feature
+- Added a new feature `serde` which provides deserialization and serialization for several `groan_rs` structures, namely: Vector3D, SimBox, Atom, AtomContainer, AtomBlock, Group, and System. This feature is not provided by default and must be activated by using `cargo add groan_rs --features serde` or by adding `groan_rs = { version = "0.7.0", features = ["serde"] }` to your `Cargo.toml` file.
+- Note that the automated tests for (de)serialization only use the `yaml` file format but other formats supported by the `serde` crate should also work.
+
 #### Parallelization
 - Parallelized version of `System::guess_bonds`, called `System::guess_bonds_parallel`, has been introduced.
 

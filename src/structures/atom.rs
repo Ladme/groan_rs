@@ -12,6 +12,7 @@ use crate::structures::{
 };
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Atom {
     /// Number (index) of the residue this atom is part of.
     residue_number: usize,
@@ -839,17 +840,23 @@ mod tests {
         assert_eq!(atom.get_atom_number(), 123);
         assert_eq!(atom.get_atom_name(), "BB");
 
-        assert_approx_eq!(f32, atom.get_position().unwrap().x, 15.123);
-        assert_approx_eq!(f32, atom.get_position().unwrap().y, 14.321);
-        assert_approx_eq!(f32, atom.get_position().unwrap().z, 9.834);
+        let pos = atom.get_position().unwrap();
 
-        assert_approx_eq!(f32, atom.get_velocity().unwrap().x, -3.432);
-        assert_approx_eq!(f32, atom.get_velocity().unwrap().y, 0.184);
-        assert_approx_eq!(f32, atom.get_velocity().unwrap().z, 1.234);
+        assert_approx_eq!(f32, pos.x, 15.123);
+        assert_approx_eq!(f32, pos.y, 14.321);
+        assert_approx_eq!(f32, pos.z, 9.834);
 
-        assert_approx_eq!(f32, atom.get_force().unwrap().x, 5.1235);
-        assert_approx_eq!(f32, atom.get_force().unwrap().y, 2.3451);
-        assert_approx_eq!(f32, atom.get_force().unwrap().z, -0.32145);
+        let vel = atom.get_velocity().unwrap();
+
+        assert_approx_eq!(f32, vel.x, -3.432);
+        assert_approx_eq!(f32, vel.y, 0.184);
+        assert_approx_eq!(f32, vel.z, 1.234);
+
+        let force = atom.get_force().unwrap();
+
+        assert_approx_eq!(f32, force.x, 5.1235);
+        assert_approx_eq!(f32, force.y, 2.3451);
+        assert_approx_eq!(f32, force.z, -0.32145);
     }
 
     #[test]
@@ -1897,5 +1904,118 @@ mod tests {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
             }
         }
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "serde")]
+mod serde_tests {
+    use std::fs::read_to_string;
+
+    use float_cmp::assert_approx_eq;
+
+    use super::*;
+
+    #[test]
+    fn atom_to_yaml() {
+        let mut atom = Atom::new(10, "CYS", 24, "CA")
+            .with_position(Vector3D::new(10.4, 7.5, 2.6))
+            .with_velocity(Vector3D::new(-0.4332, 0.3221, 1.2314))
+            .with_force(Vector3D::new(14.24898, -13.208472, 8.123864))
+            .with_chain('B')
+            .with_charge(-1.0)
+            .with_mass(32.12)
+            .with_vdw(0.64)
+            .with_expected_max_bonds(3)
+            .with_expected_min_bonds(1)
+            .with_element_name("carbon")
+            .with_element_symbol("C");
+
+        unsafe {
+            atom.add_bonded(4);
+            atom.add_bonded(7);
+            atom.add_bonded(8);
+            atom.add_bonded(9);
+        }
+        
+        let string = serde_yaml::to_string(&atom).unwrap();
+        let expected = read_to_string("test_files/serde_atom.yaml").unwrap();
+
+        assert_eq!(string, expected);   
+    }
+
+    #[test]
+    fn minimal_atom_to_yaml() {
+        let atom = Atom::new(10, "CYS", 24, "CA");
+        
+        let string = serde_yaml::to_string(&atom).unwrap();
+        let expected = read_to_string("test_files/serde_atom_minimal.yaml").unwrap();
+
+        assert_eq!(string, expected);   
+    }
+
+    #[test]
+    fn atom_from_yaml() {
+        let string = read_to_string("test_files/serde_atom.yaml").unwrap();
+        let atom: Atom = serde_yaml::from_str(&string).unwrap();
+
+        assert_eq!(atom.get_residue_number(), 10);
+        assert_eq!(atom.get_residue_name(), "CYS");
+        assert_eq!(atom.get_atom_number(), 24);
+        assert_eq!(atom.get_atom_name(), "CA");
+
+        let pos = atom.get_position().unwrap();
+
+        assert_approx_eq!(f32, pos.x, 10.4);
+        assert_approx_eq!(f32, pos.y, 7.5);
+        assert_approx_eq!(f32, pos.z, 2.6);
+
+        let vel = atom.get_velocity().unwrap();
+
+        assert_approx_eq!(f32, vel.x, -0.4332);
+        assert_approx_eq!(f32, vel.y, 0.3221);
+        assert_approx_eq!(f32, vel.z, 1.2314);
+
+        let force = atom.get_force().unwrap();
+
+        assert_approx_eq!(f32, force.x, 14.24898);
+        assert_approx_eq!(f32, force.y, -13.208472);
+        assert_approx_eq!(f32, force.z, 8.123864);
+
+        assert_eq!(atom.get_chain().unwrap(), 'B');
+        assert_approx_eq!(f32, atom.get_charge().unwrap(), -1.0);
+        assert_approx_eq!(f32, atom.get_mass().unwrap(), 32.12);
+        assert_approx_eq!(f32, atom.get_vdw().unwrap(), 0.64);
+        assert_eq!(atom.get_expected_max_bonds().unwrap(), 3);
+        assert_eq!(atom.get_expected_min_bonds().unwrap(), 1);
+        assert_eq!(atom.get_element_name().unwrap(), "carbon");
+        assert_eq!(atom.get_element_symbol().unwrap(), "C");
+
+        assert_eq!(atom.get_bonded(), &AtomContainer::from_indices(vec![4, 7, 8, 9], 100));
+    }
+
+    #[test]
+    fn minimal_atom_from_yaml() {
+        let string = read_to_string("test_files/serde_atom_minimal.yaml").unwrap();
+        let atom: Atom = serde_yaml::from_str(&string).unwrap();
+
+        assert_eq!(atom.get_residue_number(), 10);
+        assert_eq!(atom.get_residue_name(), "CYS");
+        assert_eq!(atom.get_atom_number(), 24);
+        assert_eq!(atom.get_atom_name(), "CA");
+
+        assert!(atom.get_position().is_none());
+        assert!(atom.get_velocity().is_none());
+        assert!(atom.get_force().is_none());
+        assert!(atom.get_chain().is_none());
+        assert!(atom.get_charge().is_none());
+        assert!(atom.get_mass().is_none());
+        assert!(atom.get_vdw().is_none());
+        assert!(atom.get_expected_max_bonds().is_none());
+        assert!(atom.get_expected_min_bonds().is_none());
+        assert!(atom.get_element_name().is_none());
+        assert!(atom.get_element_symbol().is_none());
+
+        assert_eq!(atom.get_bonded(), &AtomContainer::from_indices(vec![], 100));
     }
 }
