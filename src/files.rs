@@ -15,6 +15,7 @@ pub enum FileType {
     NDX,
     TRR,
     PQR,
+    YAML,
 }
 
 impl FileType {
@@ -32,6 +33,7 @@ impl FileType {
             Some("ndx") => FileType::NDX,
             Some("trr") => FileType::TRR,
             Some("pqr") => FileType::PQR,
+            Some("yml") | Some("yaml") => FileType::YAML,
             Some(_) | None => FileType::Unknown,
         }
     }
@@ -69,6 +71,12 @@ mod tests {
     #[test]
     fn identity_pqr() {
         assert_eq!(FileType::from_name("file.pqr"), FileType::PQR);
+    }
+
+    #[test]
+    fn identity_yaml() {
+        assert_eq!(FileType::from_name("file.yaml"), FileType::YAML);
+        assert_eq!(FileType::from_name("file.yml"), FileType::YAML);
     }
 
     #[test]
