@@ -528,6 +528,10 @@
 //!
 //! Note that `groan_rs` will still work correctly even if you do not explicitly include the error types.
 //!
+//! ## Features
+//! Currently, `groan_rs` has one optional feature called `serde` which provides methods for serializing and deserializing various `groan_rs` structures using the `serde` crate.
+//! If you want to use this feature, include the `groan_rs` crate in your project by calling `cargo add groan_rs --features serde`.
+//!
 //! ## Limitations
 //! - Currently, `groan_rs` library is not able to properly work with periodic simulation boxes that are **not orthogonal**.
 //! While it can read structures and trajectories with non-orthogonal boxes, calculated distances and similar properties may be incorrect!
