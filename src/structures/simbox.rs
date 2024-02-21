@@ -408,8 +408,8 @@ mod tests {
 #[cfg(test)]
 #[cfg(feature = "serde")]
 mod serde_tests {
-    use float_cmp::assert_approx_eq;
     use super::*;
+    use float_cmp::assert_approx_eq;
 
     #[test]
     fn simbox_to_yaml() {
@@ -420,7 +420,9 @@ mod serde_tests {
         let simbox = SimBox::from(arr);
         let string = serde_yaml::to_string(&simbox).unwrap();
 
-        assert_eq!(string, "v1x: 6.26832
+        assert_eq!(
+            string,
+            "v1x: 6.26832
 v2y: 5.90987
 v3z: 5.11825
 v1y: 0.0
@@ -429,7 +431,8 @@ v2x: 2.08931
 v2z: 0.0
 v3x: -2.08931
 v3y: 2.95467
-");
+"
+        );
     }
 
     #[test]

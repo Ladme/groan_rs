@@ -512,9 +512,12 @@ impl Default for Vector3D {
 mod serde {
     use std::fmt;
 
-    use ::serde::{de::{self, SeqAccess, Visitor}, Deserialize, Deserializer};
-    use ::serde::{ser::SerializeSeq, Serialize, Serializer};
     use super::*;
+    use ::serde::{
+        de::{self, SeqAccess, Visitor},
+        Deserialize, Deserializer,
+    };
+    use ::serde::{ser::SerializeSeq, Serialize, Serializer};
 
     impl Serialize for Vector3D {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -535,29 +538,34 @@ mod serde {
             D: Deserializer<'de>,
         {
             struct Vector3DVisitor;
-    
+
             impl<'de> Visitor<'de> for Vector3DVisitor {
                 type Value = Vector3D;
-    
+
                 fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                     formatter.write_str("a sequence of three floats")
                 }
-    
+
                 fn visit_seq<S>(self, mut seq: S) -> Result<Vector3D, S::Error>
                 where
                     S: SeqAccess<'de>,
                 {
-                    let x = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
-                    let y = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(1, &self))?;
-                    let z = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(2, &self))?;
+                    let x = seq
+                        .next_element()?
+                        .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                    let y = seq
+                        .next_element()?
+                        .ok_or_else(|| serde::de::Error::invalid_length(1, &self))?;
+                    let z = seq
+                        .next_element()?
+                        .ok_or_else(|| serde::de::Error::invalid_length(2, &self))?;
                     Ok(Vector3D(Vector3::new(x, y, z)))
                 }
             }
-    
+
             deserializer.deserialize_seq(Vector3DVisitor)
         }
     }
-    
 }
 
 /******************************/

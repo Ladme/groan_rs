@@ -971,7 +971,7 @@ mod serde_tests {
         let string = serde_yaml::to_string(&system).unwrap();
         let expected = read_to_string("test_files/serde_system.yaml").unwrap();
 
-        assert_eq!(string, expected); 
+        assert_eq!(string, expected);
     }
 
     #[test]

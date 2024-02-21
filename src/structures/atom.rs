@@ -1937,21 +1937,21 @@ mod serde_tests {
             atom.add_bonded(8);
             atom.add_bonded(9);
         }
-        
+
         let string = serde_yaml::to_string(&atom).unwrap();
         let expected = read_to_string("test_files/serde_atom.yaml").unwrap();
 
-        assert_eq!(string, expected);   
+        assert_eq!(string, expected);
     }
 
     #[test]
     fn minimal_atom_to_yaml() {
         let atom = Atom::new(10, "CYS", 24, "CA");
-        
+
         let string = serde_yaml::to_string(&atom).unwrap();
         let expected = read_to_string("test_files/serde_atom_minimal.yaml").unwrap();
 
-        assert_eq!(string, expected);   
+        assert_eq!(string, expected);
     }
 
     #[test]
@@ -1991,7 +1991,10 @@ mod serde_tests {
         assert_eq!(atom.get_element_name().unwrap(), "carbon");
         assert_eq!(atom.get_element_symbol().unwrap(), "C");
 
-        assert_eq!(atom.get_bonded(), &AtomContainer::from_indices(vec![4, 7, 8, 9], 100));
+        assert_eq!(
+            atom.get_bonded(),
+            &AtomContainer::from_indices(vec![4, 7, 8, 9], 100)
+        );
     }
 
     #[test]

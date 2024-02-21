@@ -887,7 +887,7 @@ mod serde_tests {
     fn atomblock_from_yaml() {
         let string = "{ start: 14, end: 22}";
 
-        let block: AtomBlock= serde_yaml::from_str(&string).unwrap();
+        let block: AtomBlock = serde_yaml::from_str(&string).unwrap();
 
         assert_eq!(block.start, 14);
         assert_eq!(block.end, 22);
@@ -900,14 +900,17 @@ mod serde_tests {
 
         let string = serde_yaml::to_string(&container).unwrap();
 
-        assert_eq!(string, "atom_blocks:
+        assert_eq!(
+            string,
+            "atom_blocks:
 - start: 20
   end: 32
 - start: 64
   end: 64
 - start: 84
   end: 143
-")
+"
+        )
     }
 
     #[test]
