@@ -171,7 +171,7 @@ fn parse_group_name(line: &str) -> Result<String, ParseNdxError> {
 }
 
 /// Parse a line of an ndx file as gmx atom numbers for an atom Group.
-fn parse_ndx_line(line: &str, atoms: &Vec<Atom>) -> Result<Vec<usize>, ParseNdxError> {
+fn parse_ndx_line(line: &str, atoms: &[Atom]) -> Result<Vec<usize>, ParseNdxError> {
     let mut indices = Vec::new();
 
     for raw_id in line.split_whitespace() {

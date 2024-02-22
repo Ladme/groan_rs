@@ -647,7 +647,7 @@ impl fmt::Display for ElementGuessInfo {
 
         for (matches, atoms) in self.multiple_elements.iter() {
             let assigned = matches
-                .get(0)
+                .first()
                 .expect("FATAL GROAN ERROR | ElementGuessInfo::fmt | Element should exist.");
             write!(
                 f,

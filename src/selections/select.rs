@@ -667,6 +667,50 @@ fn fix_ranges(mut ranges: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
 }
 
 /******************************/
+/*       FEATURE: SERDE       */
+/******************************/
+
+#[cfg(feature = "serde")]
+mod serde {
+    use serde::{
+        de::{self, Visitor},
+        Deserialize, Deserializer,
+    };
+    use std::fmt;
+
+    use crate::selections::select::{parse_query, Select};
+
+    impl<'de> Deserialize<'de> for Select {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            struct SelectVisitor;
+
+            impl<'de> Visitor<'de> for SelectVisitor {
+                type Value = Select;
+
+                fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                    formatter.write_str("a string representing a Groan Selection Language query")
+                }
+
+                fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+                where
+                    E: de::Error,
+                {
+                    match parse_query(value) {
+                        Ok(select_box) => Ok(*select_box),
+                        Err(err) => Err(E::custom(err.to_string())),
+                    }
+                }
+            }
+
+            deserializer.deserialize_str(SelectVisitor)
+        }
+    }
+}
+
+/******************************/
 /*         UNIT TESTS         */
 /******************************/
 
@@ -2485,5 +2529,114 @@ mod select_impl {
 
         let string = format!("{:?}", selection);
         assert_eq!(string, "GroupName([String(\"Protein\"), String(\"Protein-H\"), String(\"Prot-Masses\"), String(\"POPC\"), String(\"Protein_Membrane\")])")
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "serde")]
+mod serde_tests {
+    use super::*;
+
+    #[test]
+    fn simple_query_from_yaml() {
+        let string = "resid 4 to 11";
+        let select: Select = serde_yaml::from_str(&string).unwrap();
+
+        assert_eq!(select, Select::ResidueNumber(vec![(4, 11)]));
+    }
+
+    #[test]
+    fn complex_query_from_yaml() {
+        let string = "  not(!(resname 'POPE' LYS LEU and(!name   BB PO4   D2A) || not name C1A ) ||(resname ION&& name CL) )";
+        let select: Select = serde_yaml::from_str(&string).unwrap();
+
+        assert_eq!(
+            select,
+            Select::Not(Box::from(Select::Or(
+                Box::from(Select::Not(Box::from(Select::Or(
+                    Box::from(Select::And(
+                        Box::from(Select::ResidueName(vec![
+                            Name::new("POPE").unwrap(),
+                            Name::new("LYS").unwrap(),
+                            Name::new("LEU").unwrap()
+                        ])),
+                        Box::from(Select::Not(Box::from(Select::AtomName(vec![
+                            Name::new("BB").unwrap(),
+                            Name::new("PO4").unwrap(),
+                            Name::new("D2A").unwrap()
+                        ]))))
+                    )),
+                    Box::from(Select::Not(Box::from(Select::AtomName(vec![Name::new(
+                        "C1A"
+                    )
+                    .unwrap()]))))
+                )))),
+                Box::from(Select::And(
+                    Box::from(Select::ResidueName(vec![Name::new("ION").unwrap()])),
+                    Box::from(Select::AtomName(vec![Name::new("CL").unwrap()]))
+                ))
+            )))
+        );
+    }
+
+    #[test]
+    fn vector_multiple_queries_from_yaml() {
+        let string = "- elname r'^ni' carbon potassium
+- (serial 1 to 3 and chain A) or chain C D
+-   name   BB SC1   PO4   C1 C2B
+";
+
+        let selections: Vec<Select> = serde_yaml::from_str(&string).unwrap();
+
+        assert_eq!(
+            selections[0],
+            Select::ElementName(vec![
+                Name::new("r'^ni'").unwrap(),
+                Name::new("carbon").unwrap(),
+                Name::new("potassium").unwrap()
+            ])
+        );
+
+        assert_eq!(
+            selections[1],
+            Select::Or(
+                Box::from(Select::And(
+                    Box::from(Select::GmxAtomNumber(vec![(1, 3)])),
+                    Box::from(Select::Chain(vec!['A']))
+                )),
+                Box::from(Select::Chain(vec!['C', 'D']))
+            )
+        );
+
+        assert_eq!(
+            selections[2],
+            Select::AtomName(vec![
+                Name::new("BB").unwrap(),
+                Name::new("SC1").unwrap(),
+                Name::new("PO4").unwrap(),
+                Name::new("C1").unwrap(),
+                Name::new("C2B").unwrap()
+            ])
+        );
+    }
+
+    #[test]
+    fn parsing_fail_yaml() {
+        let string = "((resname LYS and name SC1)";
+
+        let serde_error = match serde_yaml::from_str::<Select>(&string) {
+            Ok(_) => panic!("Parsing should have failed. (YAML)"),
+            Err(e) => e,
+        };
+
+        let select_error = match parse_query(&string) {
+            Ok(_) => panic!("Parsing should have failed. (QUERY)"),
+            Err(e) => e,
+        };
+
+        let serde_formatted = format!("{}", serde_error);
+        let select_formatted = format!("{}", select_error);
+
+        assert_eq!(serde_formatted, select_formatted);
     }
 }

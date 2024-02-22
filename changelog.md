@@ -11,7 +11,8 @@
 - PQR files can be written with user-specified precision using `System::write_pqr` and `System:group_write_pqr`.
 
 #### `serde` feature
-- Added a new feature `serde` which provides deserialization and serialization for several `groan_rs` structures, namely: Vector3D, SimBox, Atom, AtomContainer, AtomBlock, Group, and System. This feature is not provided by default and must be activated by using `cargo add groan_rs --features serde` or by adding `groan_rs = { version = "0.7.0", features = ["serde"] }` to your `Cargo.toml` file.
+- Added a new feature `serde` which provides deserialization and serialization for several `groan_rs` structures, namely: Vector3D, SimBox, Atom, AtomContainer, AtomBlock, Group, and System. Deserialization was also implemented for Select, which expects a valid Groan Selection Language query.
+- This feature is not provided by default and must be activated by using `cargo add groan_rs --features serde` or by adding `groan_rs = { version = "0.7.0", features = ["serde"] }` to your `Cargo.toml` file.
 - Note that the automated tests for (de)serialization only use the `yaml` file format but other formats supported by the `serde` crate should also work.
 
 #### Parallelization
