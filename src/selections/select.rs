@@ -5,7 +5,7 @@
 
 use fancy_regex::Regex;
 use std::collections::HashMap;
-use std::fmt::Write;
+use std::fmt::{self, Write};
 
 use crate::errors::SelectError;
 use crate::selections::{name::Name, numbers};
@@ -122,18 +122,70 @@ impl Select {
         Ok(())
     }
 
-    pub fn to_string(&self) -> String {
+    fn write_range(string: &mut String, start: usize, end: usize) {
+        if start == end {
+            write!(string, "{} ", start).unwrap();
+        } else if start == 1 {
+            write!(string, "<= {} ", end).unwrap();
+        } else if end == usize::MAX {
+            write!(string, ">= {} ", start).unwrap();
+        } else {
+            write!(string, "{} to {} ", start, end).unwrap();
+        }
+    }
+
+    fn write_name(string: &mut String, name: &Name) {
+        match name {
+            Name::String(x) => {
+                if x.contains(char::is_whitespace) {
+                    write!(string, "'{}' ", x)
+                } else {
+                    write!(string, "{} ", x)
+                }
+            }
+            Name::Regex(x) => write!(string, "r'{}' ", x),
+        }
+        .unwrap()
+    }
+
+    /// Check whether the target Selection contains an empty vector.
+    fn is_empty(&self) -> bool {
+        match self {
+            Select::ResidueName(v)
+            | Select::AtomName(v)
+            | Select::GroupName(v)
+            | Select::ElementName(v)
+            | Select::ElementSymbol(v) => v.is_empty(),
+
+            Select::ResidueNumber(v) | Select::GmxAtomNumber(v) | Select::AtomNumber(v) => {
+                v.is_empty()
+            }
+
+            Select::Chain(v) => v.is_empty(),
+
+            Select::And(..) | Select::Or(..) | Select::Not(_) | Select::Molecule(_) => false,
+        }
+    }
+}
+
+impl fmt::Display for Select {
+    /// Convert `Select` structure into a valid Groan Selection Language query.
+    ///
+    /// ## Warning
+    /// - The GSL query returned by this function may be different from the query
+    /// used to construct the Select structure in the first place.
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut string = String::new();
 
         // check for empty vectors
-        // this is necessary since the vector can actually be empty in this case
+        // this is necessary since the select can actually be empty
         // (for instance, the query `resid < 0` will lead to empty vector)
-        // (similarly, expanding REGEX query to no groups will lead to an empty vector)
+        // (similarly, expanding REGEX query to no matching groups will lead to an empty vector)
         // we can't just ignore Selections with empty vectors
-        // we use 'none', represented as '!(all)' to represent empty Selections
+        // we use 'none' written as '!(all)' to represent empty Selections
         if self.is_empty() {
             write!(&mut string, "!(all)").unwrap();
-            return string;
+            return write!(f, "{}", string);
         }
 
         match self {
@@ -152,11 +204,6 @@ impl Select {
             }
 
             Self::ResidueNumber(vector) => {
-                if vector.len() == 0 {
-                    write!(&mut string, "!(all)").unwrap();
-                    return string;
-                }
-
                 write!(&mut string, "resid ").unwrap();
                 for (start, end) in vector {
                     Select::write_range(&mut string, *start, *end);
@@ -164,11 +211,6 @@ impl Select {
             }
 
             Self::GmxAtomNumber(vector) => {
-                if vector.len() == 0 {
-                    write!(&mut string, "!(all)").unwrap();
-                    return string;
-                }
-
                 write!(&mut string, "serial ").unwrap();
                 for (start, end) in vector {
                     Select::write_range(&mut string, *start, *end);
@@ -176,11 +218,6 @@ impl Select {
             }
 
             Self::AtomNumber(vector) => {
-                if vector.len() == 0 {
-                    write!(&mut string, "!(all)").unwrap();
-                    return string;
-                }
-
                 write!(&mut string, "atomid ").unwrap();
                 for (start, end) in vector {
                     Select::write_range(&mut string, *start, *end);
@@ -244,52 +281,7 @@ impl Select {
             }
         }
 
-        string.trim().to_string()
-    }
-
-    fn write_range(string: &mut String, start: usize, end: usize) {
-        if start == end {
-            write!(string, "{} ", start).unwrap();
-        } else if start == 1 {
-            write!(string, "<= {} ", end).unwrap();
-        } else if end == usize::MAX {
-            write!(string, ">= {} ", start).unwrap();
-        } else {
-            write!(string, "{} to {} ", start, end).unwrap();
-        }
-    }
-
-    fn write_name(string: &mut String, name: &Name) {
-        match name {
-            Name::String(x) => {
-                if x.contains(char::is_whitespace) {
-                    write!(string, "'{}' ", x)
-                } else {
-                    write!(string, "{} ", x)
-                }
-            }
-            Name::Regex(x) => write!(string, "r'{}' ", x),
-        }
-        .unwrap()
-    }
-
-    /// Check whether the target Selection contains an empty vector.
-    fn is_empty(&self) -> bool {
-        match self {
-            Select::ResidueName(v)
-            | Select::AtomName(v)
-            | Select::GroupName(v)
-            | Select::ElementName(v)
-            | Select::ElementSymbol(v) => v.len() == 0,
-
-            Select::ResidueNumber(v) | Select::GmxAtomNumber(v) | Select::AtomNumber(v) => {
-                v.len() == 0
-            }
-
-            Select::Chain(v) => v.len() == 0,
-
-            Select::And(..) | Select::Or(..) | Select::Not(_) | Select::Molecule(_) => false,
-        }
+        write!(f, "{}", string.trim())
     }
 }
 
@@ -3088,15 +3080,15 @@ mod serde_tests {
         let selection1 = Select::ElementName(vec![
             Name::new("r'^ni'").unwrap(),
             Name::new("carbon").unwrap(),
-            Name::new("potassium").unwrap()
+            Name::new("potassium").unwrap(),
         ]);
 
         let selection2 = Select::Or(
             Box::from(Select::And(
                 Box::from(Select::GmxAtomNumber(vec![(1, 3)])),
-                Box::from(Select::Chain(vec!['A']))
+                Box::from(Select::Chain(vec!['A'])),
             )),
-            Box::from(Select::Chain(vec!['C', 'D']))
+            Box::from(Select::Chain(vec!['C', 'D'])),
         );
 
         let selection3 = Select::AtomName(vec![
@@ -3104,7 +3096,7 @@ mod serde_tests {
             Name::new("SC1").unwrap(),
             Name::new("PO4").unwrap(),
             Name::new("C1").unwrap(),
-            Name::new("C2B").unwrap()
+            Name::new("C2B").unwrap(),
         ]);
 
         let selections = vec![selection1, selection2, selection3];
