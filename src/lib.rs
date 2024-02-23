@@ -558,7 +558,7 @@ pub mod io {
     mod xdrfile;
     pub mod xtc_io;
 }
-mod selections {
+pub mod selections {
     mod name;
     mod numbers;
     pub mod select;

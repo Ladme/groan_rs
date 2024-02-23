@@ -5,6 +5,7 @@
 
 use fancy_regex::Regex;
 use std::collections::HashMap;
+use std::fmt::Write;
 
 use crate::errors::SelectError;
 use crate::selections::{name::Name, numbers};
@@ -41,7 +42,7 @@ impl Select {
     ///
     /// Performing this expansion once before applying the `Select` operation
     /// is more efficient than performing similar expansion for each individual atom.
-    pub fn expand_regex_group(self, system: &System) -> Result<Self, SelectError> {
+    pub(crate) fn expand_regex_group(self, system: &System) -> Result<Self, SelectError> {
         match self {
             Select::GroupName(vector) => {
                 let mut new_vector = Vec::new();
@@ -119,6 +120,176 @@ impl Select {
         }
 
         Ok(())
+    }
+
+    pub fn to_string(&self) -> String {
+        let mut string = String::new();
+
+        // check for empty vectors
+        // this is necessary since the vector can actually be empty in this case
+        // (for instance, the query `resid < 0` will lead to empty vector)
+        // (similarly, expanding REGEX query to no groups will lead to an empty vector)
+        // we can't just ignore Selections with empty vectors
+        // we use 'none', represented as '!(all)' to represent empty Selections
+        if self.is_empty() {
+            write!(&mut string, "!(all)").unwrap();
+            return string;
+        }
+
+        match self {
+            Self::ResidueName(vector) => {
+                write!(&mut string, "resname ").unwrap();
+                for name in vector {
+                    Select::write_name(&mut string, name);
+                }
+            }
+
+            Self::AtomName(vector) => {
+                write!(&mut string, "name ").unwrap();
+                for name in vector {
+                    Select::write_name(&mut string, name);
+                }
+            }
+
+            Self::ResidueNumber(vector) => {
+                if vector.len() == 0 {
+                    write!(&mut string, "!(all)").unwrap();
+                    return string;
+                }
+
+                write!(&mut string, "resid ").unwrap();
+                for (start, end) in vector {
+                    Select::write_range(&mut string, *start, *end);
+                }
+            }
+
+            Self::GmxAtomNumber(vector) => {
+                if vector.len() == 0 {
+                    write!(&mut string, "!(all)").unwrap();
+                    return string;
+                }
+
+                write!(&mut string, "serial ").unwrap();
+                for (start, end) in vector {
+                    Select::write_range(&mut string, *start, *end);
+                }
+            }
+
+            Self::AtomNumber(vector) => {
+                if vector.len() == 0 {
+                    write!(&mut string, "!(all)").unwrap();
+                    return string;
+                }
+
+                write!(&mut string, "atomid ").unwrap();
+                for (start, end) in vector {
+                    Select::write_range(&mut string, *start, *end);
+                }
+            }
+
+            Self::Chain(vector) => {
+                write!(&mut string, "chain ").unwrap();
+                for chain in vector {
+                    write!(&mut string, "{} ", chain).unwrap();
+                }
+            }
+
+            Self::GroupName(vector) => {
+                write!(&mut string, "group ").unwrap();
+                for name in vector {
+                    Select::write_name(&mut string, name);
+                }
+            }
+
+            Self::ElementName(vector) => {
+                write!(&mut string, "element name ").unwrap();
+                for name in vector {
+                    Select::write_name(&mut string, name);
+                }
+            }
+
+            Self::ElementSymbol(vector) => {
+                write!(&mut string, "element symbol ").unwrap();
+                for name in vector {
+                    Select::write_name(&mut string, name);
+                }
+            }
+
+            Self::And(left, right) => {
+                write!(
+                    &mut string,
+                    "({} and {})",
+                    Select::to_string(left),
+                    Select::to_string(right),
+                )
+                .unwrap();
+            }
+
+            Select::Or(left, right) => {
+                write!(
+                    &mut string,
+                    "({} or {})",
+                    Select::to_string(left),
+                    Select::to_string(right),
+                )
+                .unwrap();
+            }
+
+            Select::Not(op) => {
+                write!(&mut string, "not {}", Select::to_string(op),).unwrap();
+            }
+
+            Select::Molecule(op) => {
+                write!(&mut string, "molecule with {}", Select::to_string(op),).unwrap();
+            }
+        }
+
+        string.trim().to_string()
+    }
+
+    fn write_range(string: &mut String, start: usize, end: usize) {
+        if start == end {
+            write!(string, "{} ", start).unwrap();
+        } else if start == 1 {
+            write!(string, "<= {} ", end).unwrap();
+        } else if end == usize::MAX {
+            write!(string, ">= {} ", start).unwrap();
+        } else {
+            write!(string, "{} to {} ", start, end).unwrap();
+        }
+    }
+
+    fn write_name(string: &mut String, name: &Name) {
+        match name {
+            Name::String(x) => {
+                if x.contains(char::is_whitespace) {
+                    write!(string, "'{}' ", x)
+                } else {
+                    write!(string, "{} ", x)
+                }
+            }
+            Name::Regex(x) => write!(string, "r'{}' ", x),
+        }
+        .unwrap()
+    }
+
+    /// Check whether the target Selection contains an empty vector.
+    fn is_empty(&self) -> bool {
+        match self {
+            Select::ResidueName(v)
+            | Select::AtomName(v)
+            | Select::GroupName(v)
+            | Select::ElementName(v)
+            | Select::ElementSymbol(v) => v.len() == 0,
+
+            Select::ResidueNumber(v) | Select::GmxAtomNumber(v) | Select::AtomNumber(v) => {
+                v.len() == 0
+            }
+
+            Select::Chain(v) => v.len() == 0,
+
+            Select::And(..) | Select::Or(..) | Select::Not(_) | Select::Molecule(_) => false,
+        }
     }
 }
 
@@ -674,11 +845,22 @@ fn fix_ranges(mut ranges: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
 mod serde {
     use serde::{
         de::{self, Visitor},
+        ser::{Serialize, Serializer},
         Deserialize, Deserializer,
     };
     use std::fmt;
 
     use crate::selections::select::{parse_query, Select};
+
+    impl Serialize for Select {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            let query_str = self.to_string();
+            serializer.serialize_str(&query_str)
+        }
+    }
 
     impl<'de> Deserialize<'de> for Select {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -2530,6 +2712,289 @@ mod select_impl {
         let string = format!("{:?}", selection);
         assert_eq!(string, "GroupName([String(\"Protein\"), String(\"Protein-H\"), String(\"Prot-Masses\"), String(\"POPC\"), String(\"Protein_Membrane\")])")
     }
+
+    macro_rules! convert_to_string {
+        ($name:ident, $expression:expr, $expected:expr) => {
+            #[test]
+            fn $name() {
+                let select = $expression;
+
+                assert_eq!(select.to_string(), $expected);
+            }
+        };
+    }
+
+    convert_to_string!(
+        empty_selections_1,
+        Select::Or(
+            Box::from(Select::And(
+                Box::from(Select::Chain(vec![])),
+                Box::from(Select::GmxAtomNumber(vec![]))
+            )),
+            Box::from(Select::GroupName(vec![]))
+        ),
+        "((!(all) and !(all)) or !(all))"
+    );
+
+    convert_to_string!(
+        empty_selections_2,
+        Select::Or(
+            Box::from(Select::And(
+                Box::from(Select::ResidueName(vec![])),
+                Box::from(Select::ElementSymbol(vec![]))
+            )),
+            Box::from(Select::AtomNumber(vec![]))
+        ),
+        "((!(all) and !(all)) or !(all))"
+    );
+
+    convert_to_string!(
+        resname_to_string,
+        Select::ResidueName(vec![Name::new("LYS").unwrap()]),
+        "resname LYS"
+    );
+
+    convert_to_string!(
+        resnames_to_string,
+        Select::ResidueName(vec![
+            Name::new("LYS").unwrap(),
+            Name::new("CYS").unwrap(),
+            Name::new("LEU").unwrap(),
+            Name::new("POPE").unwrap()
+        ]),
+        "resname LYS CYS LEU POPE"
+    );
+
+    convert_to_string!(
+        atomnames_to_string,
+        Select::AtomName(vec![
+            Name::new("BB").unwrap(),
+            Name::new("SC1").unwrap(),
+            Name::new("PO4").unwrap(),
+            Name::new("C1").unwrap(),
+            Name::new("C2B").unwrap()
+        ]),
+        "name BB SC1 PO4 C1 C2B"
+    );
+
+    convert_to_string!(
+        resids_to_string,
+        Select::ResidueNumber(vec![(4, 4), (8, 14), (20, 21)]),
+        "resid 4 8 to 14 20 to 21"
+    );
+
+    convert_to_string!(
+        serial_to_string,
+        Select::GmxAtomNumber(vec![(15, 15)]),
+        "serial 15"
+    );
+
+    convert_to_string!(
+        serials_to_string,
+        Select::GmxAtomNumber(vec![(1, 17), (24, 37), (89, usize::MAX)]),
+        "serial <= 17 24 to 37 >= 89"
+    );
+
+    convert_to_string!(
+        atomids_to_string,
+        Select::AtomNumber(vec![(1, 1), (4, 4), (7, 11), (50, usize::MAX)]),
+        "atomid 1 4 7 to 11 >= 50"
+    );
+
+    convert_to_string!(
+        groups_to_string,
+        Select::GroupName(vec![
+            Name::new("Protein").unwrap(),
+            Name::new("Membrane Only POPC  ").unwrap(),
+            Name::new(" ION with  Water").unwrap()
+        ]),
+        "group Protein 'Membrane Only POPC  ' ' ION with  Water'"
+    );
+
+    convert_to_string!(
+        chains_to_string,
+        Select::Chain(vec!['B', 'C', 'E', 'F']),
+        "chain B C E F"
+    );
+
+    convert_to_string!(
+        elsymbols_to_string,
+        Select::ElementSymbol(vec![
+            Name::new("C").unwrap(),
+            Name::new("Na").unwrap(),
+            Name::new("K").unwrap(),
+            Name::new("Br").unwrap()
+        ]),
+        "element symbol C Na K Br"
+    );
+
+    convert_to_string!(
+        elnames_to_string,
+        Select::ElementName(vec![
+            Name::new("carbon number 2  ").unwrap(),
+            Name::new("hydrogen").unwrap()
+        ]),
+        "element name 'carbon number 2  ' hydrogen"
+    );
+
+    convert_to_string!(
+        regex_to_string,
+        Select::And(
+            Box::from(Select::ResidueName(vec![Name::new("r'^.*L.*'").unwrap()])),
+            Box::from(Select::AtomName(vec![
+                Name::new("CA").unwrap(),
+                Name::new("r'^[0-9]*H.*'").unwrap()
+            ]))
+        ),
+        "(resname r'^.*L.*' and name CA r'^[0-9]*H.*')"
+    );
+
+    convert_to_string!(
+        complex_to_string_1,
+        Select::Not(
+            Box::from(Select::Or(
+                Box::from(Select::Not(
+                    Box::from(Select::Or(
+                        Box::from(Select::And(
+                            Box::from(Select::ResidueName(vec![Name::new("POPE").unwrap(), Name::new("LYS").unwrap(), Name::new("LEU").unwrap()])),
+                            Box::from(Select::Not(
+                                Box::from(Select::AtomName(vec![Name::new("BB").unwrap(), Name::new("PO4").unwrap(), Name::new("D2A").unwrap()]))
+                            ))
+                        )),
+                        Box::from(Select::Not(Box::from(Select::AtomName(vec![Name::new("C1A").unwrap()]))))
+                    ))
+                )),
+                Box::from(Select::And(
+                    Box::from(Select::ResidueName(vec![Name::new("ION").unwrap()])),
+                    Box::from(Select::AtomName(vec![Name::new("CL").unwrap()]))
+                ))
+            ))
+        ),
+        "not (not ((resname POPE LYS LEU and not name BB PO4 D2A) or not name C1A) or (resname ION and name CL))"
+    );
+
+    convert_to_string!(
+        complex_to_string_2,
+        Select::Or(
+            Box::from(Select::Not(
+                Box::from(Select::Or(
+                    Box::from(Select::And(
+                        Box::from(Select::AtomName(vec![Name::new("BB").unwrap(), Name::new("PO4").unwrap(), Name::new("D2A").unwrap()])),
+                        Box::from(Select::AtomNumber(vec![(15, 15), (22, 25), (33, 33)]))
+                    )),
+                    Box::from(Select::GmxAtomNumber(vec![(5, 10)]))
+                ))
+            )),
+            Box::from(Select::And(
+                Box::from(Select::AtomName(vec![Name::new("NA").unwrap()])),
+                Box::from(Select::AtomNumber(vec![(6, 6)]))
+            ))
+        ),
+        "(not ((name BB PO4 D2A and atomid 15 22 to 25 33) or serial 5 to 10) or (name NA and atomid 6))"
+    );
+
+    convert_to_string!(
+        molecule_with_to_string_1,
+        Select::Molecule(Box::new(Select::GmxAtomNumber(vec![(1, 12), (17, 17)]))),
+        "molecule with serial <= 12 17"
+    );
+
+    convert_to_string!(
+        molecule_with_to_string_2,
+        Select::Molecule(Box::new(Select::And(
+            Box::new(Select::Molecule(Box::new(Select::AtomName(vec![
+                Name::new("P").unwrap()
+            ])))),
+            Box::new(Select::ResidueNumber(vec![(50, 76)])),
+        ))),
+        "molecule with (molecule with name P and resid 50 to 76)"
+    );
+
+    macro_rules! convert_forward_back {
+        ($name:ident, $expression:expr) => {
+            #[test]
+            fn $name() {
+                let select = $expression;
+
+                assert_eq!(
+                    parse_query(&select.to_string()).unwrap(),
+                    Box::from($expression)
+                );
+            }
+        };
+    }
+
+    convert_forward_back!(
+        forward_back_1,
+        Select::Not(Box::from(Select::Or(
+            Box::from(Select::Not(Box::from(Select::Or(
+                Box::from(Select::And(
+                    Box::from(Select::ResidueName(vec![
+                        Name::new("POPE").unwrap(),
+                        Name::new("LYS").unwrap(),
+                        Name::new("LEU").unwrap()
+                    ])),
+                    Box::from(Select::Not(Box::from(Select::AtomName(vec![
+                        Name::new("BB").unwrap(),
+                        Name::new("PO4").unwrap(),
+                        Name::new("D2A").unwrap()
+                    ]))))
+                )),
+                Box::from(Select::Not(Box::from(Select::AtomName(vec![Name::new(
+                    "C1A"
+                )
+                .unwrap()]))))
+            )))),
+            Box::from(Select::And(
+                Box::from(Select::ResidueName(vec![Name::new("ION").unwrap()])),
+                Box::from(Select::AtomName(vec![Name::new("CL").unwrap()]))
+            ))
+        )))
+    );
+
+    convert_forward_back!(
+        forward_back_2,
+        Select::Or(
+            Box::from(Select::Not(Box::from(Select::Or(
+                Box::from(Select::And(
+                    Box::from(Select::AtomName(vec![
+                        Name::new("BB").unwrap(),
+                        Name::new("PO4").unwrap(),
+                        Name::new("D2A").unwrap()
+                    ])),
+                    Box::from(Select::AtomNumber(vec![(15, 15), (22, 25), (33, 33)]))
+                )),
+                Box::from(Select::GmxAtomNumber(vec![(5, 10)]))
+            )))),
+            Box::from(Select::And(
+                Box::from(Select::AtomName(vec![Name::new("NA").unwrap()])),
+                Box::from(Select::AtomNumber(vec![(6, 6)]))
+            ))
+        )
+    );
+
+    convert_forward_back!(
+        forward_back_3,
+        Select::Molecule(Box::new(Select::And(
+            Box::new(Select::Molecule(Box::new(Select::AtomName(vec![
+                Name::new("P").unwrap()
+            ])))),
+            Box::new(Select::ResidueNumber(vec![(50, 76)])),
+        )))
+    );
+
+    #[test]
+    fn convert_forward_back_fail() {
+        let select = Select::Or(
+            Box::from(Select::And(
+                Box::from(Select::Chain(vec![])),
+                Box::from(Select::GmxAtomNumber(vec![])),
+            )),
+            Box::from(Select::GroupName(vec![])),
+        );
+
+        assert_ne!(parse_query(&select.to_string()).unwrap(), Box::from(select));
+    }
 }
 
 #[cfg(test)]
@@ -2538,11 +3003,50 @@ mod serde_tests {
     use super::*;
 
     #[test]
+    fn simple_selection_to_yaml() {
+        let select = Select::ResidueNumber(vec![(4, 11)]);
+        let string = serde_yaml::to_string(&select).unwrap();
+
+        assert_eq!(string, "resid 4 to 11\n");
+    }
+
+    #[test]
     fn simple_query_from_yaml() {
         let string = "resid 4 to 11";
         let select: Select = serde_yaml::from_str(&string).unwrap();
 
         assert_eq!(select, Select::ResidueNumber(vec![(4, 11)]));
+    }
+
+    #[test]
+    fn complex_selection_to_yaml() {
+        let select = Select::Not(Box::from(Select::Or(
+            Box::from(Select::Not(Box::from(Select::Or(
+                Box::from(Select::And(
+                    Box::from(Select::ResidueName(vec![
+                        Name::new("POPE").unwrap(),
+                        Name::new("LYS").unwrap(),
+                        Name::new("LEU").unwrap(),
+                    ])),
+                    Box::from(Select::Not(Box::from(Select::AtomName(vec![
+                        Name::new("BB").unwrap(),
+                        Name::new("PO4").unwrap(),
+                        Name::new("D2A").unwrap(),
+                    ])))),
+                )),
+                Box::from(Select::Not(Box::from(Select::AtomName(vec![Name::new(
+                    "C1A",
+                )
+                .unwrap()])))),
+            )))),
+            Box::from(Select::And(
+                Box::from(Select::ResidueName(vec![Name::new("ION").unwrap()])),
+                Box::from(Select::AtomName(vec![Name::new("CL").unwrap()])),
+            )),
+        )));
+
+        let string = serde_yaml::to_string(&select).unwrap();
+        assert_eq!(string, "not (not ((resname POPE LYS LEU and not name BB PO4 D2A) or not name C1A) or (resname ION and name CL))\n");
     }
 
     #[test]
@@ -2577,6 +3081,40 @@ mod serde_tests {
                 ))
             )))
         );
+    }
+
+    #[test]
+    fn vector_multiple_selects_to_yaml() {
+        let selection1 = Select::ElementName(vec![
+            Name::new("r'^ni'").unwrap(),
+            Name::new("carbon").unwrap(),
+            Name::new("potassium").unwrap()
+        ]);
+
+        let selection2 = Select::Or(
+            Box::from(Select::And(
+                Box::from(Select::GmxAtomNumber(vec![(1, 3)])),
+                Box::from(Select::Chain(vec!['A']))
+            )),
+            Box::from(Select::Chain(vec!['C', 'D']))
+        );
+
+        let selection3 = Select::AtomName(vec![
+            Name::new("BB").unwrap(),
+            Name::new("SC1").unwrap(),
+            Name::new("PO4").unwrap(),
+            Name::new("C1").unwrap(),
+            Name::new("C2B").unwrap()
+        ]);
+
+        let selections = vec![selection1, selection2, selection3];
+        let string = serde_yaml::to_string(&selections).unwrap();
+        let expected = "- element name r'^ni' carbon potassium
+- ((serial <= 3 and chain A) or chain C D)
+- name BB SC1 PO4 C1 C2B
+";
+
+        assert_eq!(string, expected);
     }
 
     #[test]
