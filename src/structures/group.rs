@@ -6,7 +6,7 @@
 use std::io::Write;
 
 use crate::errors::{SelectError, WriteNdxError};
-use crate::selections::select::{self, Select};
+use crate::selections::select::Select;
 use crate::structures::container::AtomContainer;
 use crate::structures::shape::Shape;
 use crate::system::general::System;
@@ -33,7 +33,7 @@ impl Group {
     /// Create a new valid `Group` structure from query in Groan Selection Language.
     pub fn from_query(query: &str, system: &System) -> Result<Self, SelectError> {
         // parse groan selection language query into binary selection tree
-        let select = select::parse_query(query)?;
+        let select = Select::parse_query(query)?;
         // apply the selection tree to the system
         Group::from_select(*select, system)
     }
@@ -90,7 +90,7 @@ impl Group {
     }
 
     /// Create a new valid Group structure using Select tree.
-    fn from_select(select: Select, system: &System) -> Result<Self, SelectError> {
+    pub(crate) fn from_select(select: Select, system: &System) -> Result<Self, SelectError> {
         // expand regex group names
         let select = Box::new(select.expand_regex_group(system)?);
 

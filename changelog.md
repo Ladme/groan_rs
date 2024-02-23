@@ -20,8 +20,10 @@
 - Parallelized version of `System::guess_bonds`, called `System::guess_bonds_parallel`, has been introduced.
 
 #### Other changes
-- Clarified the changes in the order of groups when removing or renaming a group from the System.
+- **Breaking change:** `parse_query` function from `crate::selections::select` has been transformed into an associated function of the `Select` structure. It should now be called as `Select::parse_query`.
 - Added basic implementation of the `TriangularPrism` shape which implements the `Shape` trait.
+- Added a method `System::group_create_from_select` allowing to create groups directly from `Select` structures.
+- Clarified the changes in the order of groups when removing or renaming a group from the System.
 
 ***
 

@@ -37,6 +37,60 @@ enum Operator {
 }
 
 impl Select {
+    /// Construct a Selection tree (`Select` structure) from the given Groan Selection language query.
+    pub fn parse_query(query: &str) -> Result<Box<Select>, SelectError> {
+        // check that the expression is not empty
+        if query.trim().is_empty() {
+            return Err(SelectError::EmptyQuery);
+        }
+    
+        // check that number of '(' is balanced with the number of ')'
+        if !par_balanced(query) {
+            return Err(SelectError::InvalidParentheses(query.to_string()));
+        }
+    
+        // check that the number of ' and " quotes is even, i.e. all quote-blocks are closed
+        if !quotes_balanced(query) {
+            return Err(SelectError::InvalidQuotes(query.to_string()));
+        }
+    
+        // expand macros
+        let mut expression = query.to_string();
+        if expression.contains('@') {
+            let macros = get_macros();
+            expand_macros(&mut expression, macros);
+        }
+    
+        // replace `mol with` and `molecule with` with `@@`
+        let molwith_pattern = Regex::new(r"(molecule\s*with|mol\s*with)(?=(?:[^']*'[^']*')*[^']*$)")
+            .expect("FATAL GROAN ERROR | select::parse_query | Could not construct regex pattern.");
+        expression = molwith_pattern.replace_all(&expression, "@@").to_string();
+    
+        // replace word operators with their symbolic equivalents
+        expression = replace_keywords(&expression);
+    
+        match parse_subquery(&expression, 0, expression.len()) {
+            Ok(x) => Ok(x),
+            Err(SelectError::InvalidOperator(_)) => {
+                Err(SelectError::InvalidOperator(query.to_string()))
+            }
+            Err(SelectError::MissingArgument(_)) => {
+                Err(SelectError::MissingArgument(query.to_string()))
+            }
+            Err(SelectError::EmptyArgument(_)) => Err(SelectError::EmptyArgument(query.to_string())),
+            Err(SelectError::InvalidParentheses(_)) => {
+                Err(SelectError::InvalidParentheses(query.to_string()))
+            }
+            Err(SelectError::InvalidNumber(_)) => Err(SelectError::InvalidNumber(query.to_string())),
+            Err(SelectError::InvalidChainId(_)) => Err(SelectError::InvalidChainId(query.to_string())),
+            Err(SelectError::InvalidRegex(e)) => Err(SelectError::InvalidRegex(e)),
+            Err(SelectError::InvalidTokenParentheses(_)) => {
+                Err(SelectError::InvalidTokenParentheses(query.to_string()))
+            }
+            Err(_) => Err(SelectError::UnknownError(query.to_string())),
+        }
+    }
+
     /// Expand each `Name::Regex` for `GroupName` into all actual group names matching the regex.
     /// Check whether all `String` groups actually exist and ensure that at least one group is present in each `Select::GroupName`.
     ///
@@ -282,59 +336,6 @@ impl fmt::Display for Select {
         }
 
         write!(f, "{}", string.trim())
-    }
-}
-
-pub fn parse_query(query: &str) -> Result<Box<Select>, SelectError> {
-    // check that the expression is not empty
-    if query.trim().is_empty() {
-        return Err(SelectError::EmptyQuery);
-    }
-
-    // check that number of '(' is balanced with the number of ')'
-    if !par_balanced(query) {
-        return Err(SelectError::InvalidParentheses(query.to_string()));
-    }
-
-    // check that the number of ' and " quotes is even, i.e. all quote-blocks are closed
-    if !quotes_balanced(query) {
-        return Err(SelectError::InvalidQuotes(query.to_string()));
-    }
-
-    // expand macros
-    let mut expression = query.to_string();
-    if expression.contains('@') {
-        let macros = get_macros();
-        expand_macros(&mut expression, macros);
-    }
-
-    // replace `mol with` and `molecule with` with `@@`
-    let molwith_pattern = Regex::new(r"(molecule\s*with|mol\s*with)(?=(?:[^']*'[^']*')*[^']*$)")
-        .expect("FATAL GROAN ERROR | select::parse_query | Could not construct regex pattern.");
-    expression = molwith_pattern.replace_all(&expression, "@@").to_string();
-
-    // replace word operators with their symbolic equivalents
-    expression = replace_keywords(&expression);
-
-    match parse_subquery(&expression, 0, expression.len()) {
-        Ok(x) => Ok(x),
-        Err(SelectError::InvalidOperator(_)) => {
-            Err(SelectError::InvalidOperator(query.to_string()))
-        }
-        Err(SelectError::MissingArgument(_)) => {
-            Err(SelectError::MissingArgument(query.to_string()))
-        }
-        Err(SelectError::EmptyArgument(_)) => Err(SelectError::EmptyArgument(query.to_string())),
-        Err(SelectError::InvalidParentheses(_)) => {
-            Err(SelectError::InvalidParentheses(query.to_string()))
-        }
-        Err(SelectError::InvalidNumber(_)) => Err(SelectError::InvalidNumber(query.to_string())),
-        Err(SelectError::InvalidChainId(_)) => Err(SelectError::InvalidChainId(query.to_string())),
-        Err(SelectError::InvalidRegex(e)) => Err(SelectError::InvalidRegex(e)),
-        Err(SelectError::InvalidTokenParentheses(_)) => {
-            Err(SelectError::InvalidTokenParentheses(query.to_string()))
-        }
-        Err(_) => Err(SelectError::UnknownError(query.to_string())),
     }
 }
 
@@ -842,7 +843,7 @@ mod serde {
     };
     use std::fmt;
 
-    use crate::selections::select::{parse_query, Select};
+    use crate::selections::select::Select;
 
     impl Serialize for Select {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -872,7 +873,7 @@ mod serde {
                 where
                     E: de::Error,
                 {
-                    match parse_query(value) {
+                    match Select::parse_query(value) {
                         Ok(select_box) => Ok(*select_box),
                         Err(err) => Err(E::custom(err.to_string())),
                     }
@@ -898,7 +899,7 @@ mod pass_tests {
             fn $name() {
                 let query = $expression;
 
-                match parse_query(query) {
+                match Select::parse_query(query) {
                     Ok(x) => assert_eq!(*x, $expected),
                     Err(e) => panic!("Parsing failed, returning {:?}", e),
                 }
@@ -912,7 +913,7 @@ mod pass_tests {
             fn $name() {
                 let query = $expression;
 
-                match parse_query(query) {
+                match Select::parse_query(query) {
                     Ok(x) => {
                         let string1 = format!("{:?}", *x);
                         assert_eq!(string1, $expected)
@@ -2399,7 +2400,7 @@ mod fail_tests {
             fn $name() {
                 let query = $expression;
 
-                match parse_query(query) {
+                match Select::parse_query(query) {
                     Err($variant(e)) => assert_eq!(e, query),
                     Ok(_) => panic!("Parsing should have failed, but it succeeded."),
                     Err(e) => panic!("Parsing successfully failed but incorrect error type `{:?}` was returned.", e),
@@ -2412,7 +2413,7 @@ mod fail_tests {
     fn empty_query() {
         let query = "";
 
-        match parse_query(query) {
+        match Select::parse_query(query) {
             Err(SelectError::EmptyQuery) => (),
             Ok(_) => panic!("Parsing should have failed, but it succeeded."),
             Err(e) => panic!(
@@ -2628,7 +2629,7 @@ mod fail_tests {
     fn invalid_regex() {
         let query = "name r'*L*'";
 
-        match parse_query(query) {
+        match Select::parse_query(query) {
             Err(SelectError::InvalidRegex(e)) => assert_eq!(e, "r'*L*'"),
             Ok(_) => panic!("Parsing should have failed, but it succeeded."),
             Err(e) => panic!(
@@ -2652,7 +2653,7 @@ mod select_impl {
 
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        let selection = parse_query("(Protein r'membrane$' or r'^P' ION r'-') and !r'C'").unwrap();
+        let selection = Select::parse_query("(Protein r'membrane$' or r'^P' ION r'-') and !r'C'").unwrap();
 
         let selection = selection.expand_regex_group(&system).unwrap();
 
@@ -2667,7 +2668,7 @@ mod select_impl {
         system.read_ndx("test_files/index.ndx").unwrap();
 
         let selection =
-            parse_query("(Protein r'membrane$' or r'^P' Nonexistent r'-') and !r'C'").unwrap();
+            Select::parse_query("(Protein r'membrane$' or r'^P' Nonexistent r'-') and !r'C'").unwrap();
 
         match selection.expand_regex_group(&system) {
             Ok(_) => panic!("Expansion should have failed."),
@@ -2682,7 +2683,7 @@ mod select_impl {
 
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        let selection = parse_query("r'^x'").unwrap();
+        let selection = Select::parse_query("r'^x'").unwrap();
 
         match selection.expand_regex_group(&system) {
             Ok(_) => panic!("Expansion should have failed."),
@@ -2697,7 +2698,7 @@ mod select_impl {
 
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        let selection = parse_query("r'^x' r'^P'").unwrap();
+        let selection = Select::parse_query("r'^x' r'^P'").unwrap();
 
         let selection = selection.expand_regex_group(&system).unwrap();
 
@@ -2909,7 +2910,7 @@ mod select_impl {
                 let select = $expression;
 
                 assert_eq!(
-                    parse_query(&select.to_string()).unwrap(),
+                    Select::parse_query(&select.to_string()).unwrap(),
                     Box::from($expression)
                 );
             }
@@ -2985,7 +2986,7 @@ mod select_impl {
             Box::from(Select::GroupName(vec![])),
         );
 
-        assert_ne!(parse_query(&select.to_string()).unwrap(), Box::from(select));
+        assert_ne!(Select::parse_query(&select.to_string()).unwrap(), Box::from(select));
     }
 }
 
@@ -3159,7 +3160,7 @@ mod serde_tests {
             Err(e) => e,
         };
 
-        let select_error = match parse_query(&string) {
+        let select_error = match Select::parse_query(&string) {
             Ok(_) => panic!("Parsing should have failed. (QUERY)"),
             Err(e) => e,
         };

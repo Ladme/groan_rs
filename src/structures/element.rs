@@ -14,7 +14,7 @@ use std::path::Path;
 use crate::errors::ElementError;
 use crate::{
     errors::ParseElementError,
-    selections::select::{parse_query, Select},
+    selections::select::Select,
     structures::group::Group,
     system::general::System,
 };
@@ -247,7 +247,7 @@ impl<'de> Visitor<'de> for ElementVisitor {
                 "query" => {
                     let query: Option<String> = map.next_value()?;
                     select = match query {
-                        Some(q) => match parse_query(&q) {
+                        Some(q) => match Select::parse_query(&q) {
                             Ok(sel) => Some(*sel),
                             Err(_) => return Err(de::Error::custom("invalid query")),
                         },

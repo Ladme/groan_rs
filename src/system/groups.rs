@@ -8,6 +8,7 @@ use std::collections::HashSet;
 use indexmap::IndexMap;
 
 use crate::errors::{GroupError, SimBoxError};
+use crate::selections::select::Select;
 use crate::structures::group::Group;
 use crate::structures::shape::Shape;
 use crate::system::general::System;
@@ -276,6 +277,61 @@ impl System {
         }
 
         let group = Group::from_ranges(atom_ranges, self.get_n_atoms());
+
+        unsafe {
+            match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
+                None => Ok(()),
+                Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
+            }
+        }
+    }
+
+    /// Make a group with a given name from the given Selection tree (`Select` structure).
+    /// A Selection tree is a general parsed Groan Selection Language query applicable to any System.
+    /// 
+    /// ## Returns
+    /// - `Ok` if the group was successfully created.
+    /// - `GroupError::AlreadyExistsWarning` if the new group has overwritten a previous group.
+    /// - `GroupError::InvalidName` if the name of the group is invalid (no group created).
+    /// - `GroupError::InvalidQuery` if the `Select` structure is invalid (e.g., group
+    ///    specified in the structure does not exist).
+    ///
+    /// ## Example
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// // you have to specifically include the `Select` structure as it is not
+    /// // provided in the `groan_rs::prelude`
+    /// use groan_rs::selections::select::Select;
+    ///
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// 
+    /// let selection = match Select::parse_query("resname POPE POPG and name P") {
+    ///     Ok(x) => x,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;        
+    ///     }
+    /// };
+    ///
+    /// if let Err(e) = system.group_create_from_select("Phosphori", *selection) {
+    ///     eprintln!("{}", e);
+    ///     return;
+    /// }
+    /// ```
+    ///
+    /// ## Notes
+    /// - In case a group with the given name already exists, it is replaced with the new group.
+    /// - The following characters are not allowed in group names: '"&|!@()<>=
+    /// - The group will be created even if the `Select` structure selects no atoms.
+    pub fn group_create_from_select(&mut self, name: &str, select: Select) -> Result<(), GroupError> {
+        if !Group::name_is_valid(name) {
+            return Err(GroupError::InvalidName(name.to_string()));
+        }
+
+        let group = match Group::from_select(select, self) {
+            Ok(x) => x,
+            Err(e) => return Err(GroupError::InvalidQuery(e)),
+        };
 
         unsafe {
             match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
