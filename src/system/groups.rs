@@ -288,7 +288,7 @@ impl System {
 
     /// Make a group with a given name from the given Selection tree (`Select` structure).
     /// A Selection tree is a general parsed Groan Selection Language query applicable to any System.
-    /// 
+    ///
     /// ## Returns
     /// - `Ok` if the group was successfully created.
     /// - `GroupError::AlreadyExistsWarning` if the new group has overwritten a previous group.
@@ -304,7 +304,7 @@ impl System {
     /// use groan_rs::selections::select::Select;
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
-    /// 
+    ///
     /// let selection = match Select::parse_query("resname POPE POPG and name P") {
     ///     Ok(x) => x,
     ///     Err(e) => {
@@ -323,7 +323,11 @@ impl System {
     /// - In case a group with the given name already exists, it is replaced with the new group.
     /// - The following characters are not allowed in group names: '"&|!@()<>=
     /// - The group will be created even if the `Select` structure selects no atoms.
-    pub fn group_create_from_select(&mut self, name: &str, select: Select) -> Result<(), GroupError> {
+    pub fn group_create_from_select(
+        &mut self,
+        name: &str,
+        select: Select,
+    ) -> Result<(), GroupError> {
         if !Group::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
         }

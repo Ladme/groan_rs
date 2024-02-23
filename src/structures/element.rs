@@ -13,9 +13,7 @@ use std::path::Path;
 
 use crate::errors::ElementError;
 use crate::{
-    errors::ParseElementError,
-    selections::select::Select,
-    structures::group::Group,
+    errors::ParseElementError, selections::select::Select, structures::group::Group,
     system::general::System,
 };
 

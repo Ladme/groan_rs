@@ -43,32 +43,34 @@ impl Select {
         if query.trim().is_empty() {
             return Err(SelectError::EmptyQuery);
         }
-    
+
         // check that number of '(' is balanced with the number of ')'
         if !par_balanced(query) {
             return Err(SelectError::InvalidParentheses(query.to_string()));
         }
-    
+
         // check that the number of ' and " quotes is even, i.e. all quote-blocks are closed
         if !quotes_balanced(query) {
             return Err(SelectError::InvalidQuotes(query.to_string()));
         }
-    
+
         // expand macros
         let mut expression = query.to_string();
         if expression.contains('@') {
             let macros = get_macros();
             expand_macros(&mut expression, macros);
         }
-    
+
         // replace `mol with` and `molecule with` with `@@`
-        let molwith_pattern = Regex::new(r"(molecule\s*with|mol\s*with)(?=(?:[^']*'[^']*')*[^']*$)")
-            .expect("FATAL GROAN ERROR | select::parse_query | Could not construct regex pattern.");
+        let molwith_pattern = Regex::new(
+            r"(molecule\s*with|mol\s*with)(?=(?:[^']*'[^']*')*[^']*$)",
+        )
+        .expect("FATAL GROAN ERROR | select::parse_query | Could not construct regex pattern.");
         expression = molwith_pattern.replace_all(&expression, "@@").to_string();
-    
+
         // replace word operators with their symbolic equivalents
         expression = replace_keywords(&expression);
-    
+
         match parse_subquery(&expression, 0, expression.len()) {
             Ok(x) => Ok(x),
             Err(SelectError::InvalidOperator(_)) => {
@@ -77,12 +79,18 @@ impl Select {
             Err(SelectError::MissingArgument(_)) => {
                 Err(SelectError::MissingArgument(query.to_string()))
             }
-            Err(SelectError::EmptyArgument(_)) => Err(SelectError::EmptyArgument(query.to_string())),
+            Err(SelectError::EmptyArgument(_)) => {
+                Err(SelectError::EmptyArgument(query.to_string()))
+            }
             Err(SelectError::InvalidParentheses(_)) => {
                 Err(SelectError::InvalidParentheses(query.to_string()))
             }
-            Err(SelectError::InvalidNumber(_)) => Err(SelectError::InvalidNumber(query.to_string())),
-            Err(SelectError::InvalidChainId(_)) => Err(SelectError::InvalidChainId(query.to_string())),
+            Err(SelectError::InvalidNumber(_)) => {
+                Err(SelectError::InvalidNumber(query.to_string()))
+            }
+            Err(SelectError::InvalidChainId(_)) => {
+                Err(SelectError::InvalidChainId(query.to_string()))
+            }
             Err(SelectError::InvalidRegex(e)) => Err(SelectError::InvalidRegex(e)),
             Err(SelectError::InvalidTokenParentheses(_)) => {
                 Err(SelectError::InvalidTokenParentheses(query.to_string()))
@@ -2653,7 +2661,8 @@ mod select_impl {
 
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        let selection = Select::parse_query("(Protein r'membrane$' or r'^P' ION r'-') and !r'C'").unwrap();
+        let selection =
+            Select::parse_query("(Protein r'membrane$' or r'^P' ION r'-') and !r'C'").unwrap();
 
         let selection = selection.expand_regex_group(&system).unwrap();
 
@@ -2668,7 +2677,8 @@ mod select_impl {
         system.read_ndx("test_files/index.ndx").unwrap();
 
         let selection =
-            Select::parse_query("(Protein r'membrane$' or r'^P' Nonexistent r'-') and !r'C'").unwrap();
+            Select::parse_query("(Protein r'membrane$' or r'^P' Nonexistent r'-') and !r'C'")
+                .unwrap();
 
         match selection.expand_regex_group(&system) {
             Ok(_) => panic!("Expansion should have failed."),
@@ -2986,7 +2996,10 @@ mod select_impl {
             Box::from(Select::GroupName(vec![])),
         );
 
-        assert_ne!(Select::parse_query(&select.to_string()).unwrap(), Box::from(select));
+        assert_ne!(
+            Select::parse_query(&select.to_string()).unwrap(),
+            Box::from(select)
+        );
     }
 }
 
