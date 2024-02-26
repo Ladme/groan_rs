@@ -21,6 +21,7 @@ serde_yaml = "0.9"
 fancy-regex = "0.13.0"
 nalgebra = "0.32.3"
 crossbeam-utils = "0.8.4"
+minitpr = "0.1.1"
 
 [dev-dependencies]
 file_diff = "1.0.0"

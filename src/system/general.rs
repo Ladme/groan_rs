@@ -183,11 +183,13 @@ impl System {
     }
 
     /// Get the name of the molecular system.
+    #[inline(always)]
     pub fn get_name(&self) -> &str {
         &self.name
     }
 
     /// Get immutable reference to the atoms in the system.
+    #[inline(always)]
     pub fn get_atoms_as_ref(&self) -> &Vec<Atom> {
         &self.atoms
     }
@@ -201,16 +203,19 @@ impl System {
     /// operation would make all the groups associated with the system invalid. The same goes
     /// for reordering the atoms.
     /// - The properties of the individual atoms can however be safely changed.
+    #[inline(always)]
     pub unsafe fn get_atoms_as_ref_mut(&mut self) -> &mut Vec<Atom> {
         &mut self.atoms
     }
 
     /// Get copy of the atoms in the system.
+    #[inline(always)]
     pub fn get_atoms_copy(&self) -> Vec<Atom> {
         self.atoms.clone()
     }
 
     /// Get immutable reference to the groups in the system.
+    #[inline(always)]
     pub fn get_groups_as_ref(&self) -> &IndexMap<String, Group> {
         &self.groups
     }
@@ -223,21 +228,25 @@ impl System {
     /// - Notably, it is forbidden to modify the default groups 'all' and 'All' as changing
     /// these groups may cause the behavior of many other functions associated with `System`
     /// to become incorrect.
+    #[inline(always)]
     pub unsafe fn get_groups_as_ref_mut(&mut self) -> &mut IndexMap<String, Group> {
         &mut self.groups
     }
 
     /// Get copy of the groups in the system.
+    #[inline(always)]
     pub fn get_groups_copy(&self) -> IndexMap<String, Group> {
         self.groups.clone()
     }
 
     /// Get immutable reference to the simulation box.
+    #[inline(always)]
     pub fn get_box_as_ref(&self) -> Option<&SimBox> {
         self.simulation_box.as_ref()
     }
 
     /// Check whether the system has a simulation box.
+    #[inline(always)]
     pub fn has_box(&self) -> bool {
         self.simulation_box.is_some()
     }
@@ -248,6 +257,7 @@ impl System {
     /// - `Vector3D` if successful.
     /// - `SimBoxError` if the system has no simulation box
     /// or if the simulation box is not orthogonal.
+    #[inline(always)]
     pub fn get_box_center(&self) -> Result<Vector3D, SimBoxError> {
         match &self.simulation_box {
             Some(simbox) if simbox.is_orthogonal() => Ok(Vector3D::new(
@@ -261,77 +271,92 @@ impl System {
     }
 
     /// Get mutable reference to the simulation box.
+    #[inline(always)]
     pub fn get_box_as_ref_mut(&mut self) -> Option<&mut SimBox> {
         self.simulation_box.as_mut()
     }
 
     /// Get copy of the simulation box.
+    #[inline(always)]
     pub fn get_box_copy(&self) -> Option<SimBox> {
         self.simulation_box.as_ref().cloned()
     }
 
     /// Get the number of atoms in the system.
+    #[inline(always)]
     pub fn get_n_atoms(&self) -> usize {
         self.atoms.len()
     }
 
     /// Get the number of groups in the system. This counts all groups, even the default ones.
+    #[inline(always)]
     pub fn get_n_groups(&self) -> usize {
         self.groups.len()
     }
 
     /// Get the current simulation time.
+    #[inline(always)]
     pub fn get_simulation_time(&self) -> f32 {
         self.simulation_time
     }
 
     /// Get the current simulation step.
+    #[inline(always)]
     pub fn get_simulation_step(&self) -> u64 {
         self.simulation_step
     }
 
     /// Get the precision of the coordinates.
+    #[inline(always)]
     pub fn get_precision(&self) -> u64 {
         self.coordinates_precision
     }
 
     /// Get the simulation lambda.
+    #[inline(always)]
     pub fn get_lambda(&self) -> f32 {
         self.lambda
     }
 
     /// Set the simulation time.
+    #[inline(always)]
     pub fn set_simulation_time(&mut self, time: f32) {
         self.simulation_time = time;
     }
 
     /// Set the simulation step.
+    #[inline(always)]
     pub fn set_simulation_step(&mut self, step: u64) {
         self.simulation_step = step;
     }
 
     /// Set simulation box.
+    #[inline(always)]
     pub fn set_box(&mut self, sim_box: SimBox) {
         self.simulation_box = Some(sim_box);
     }
 
     /// Set simulation box to `None`.
+    #[inline(always)]
     pub fn reset_box(&mut self) {
         self.simulation_box = None;
     }
 
     /// Set precision of the coordinates.
+    #[inline(always)]
     pub fn set_precision(&mut self, precision: u64) {
         self.coordinates_precision = precision;
     }
 
     /// Set the simulation lambda.
+    #[inline(always)]
     pub fn set_lambda(&mut self, lambda: f32) {
         self.lambda = lambda;
     }
 
     /// Get reference atoms of all polyatomic molecules.
     /// This is mostly for internal use of the `groan_rs` library.
+    #[inline(always)]
     pub fn get_mol_references(&self) -> Option<&Vec<usize>> {
         self.mol_references.as_ref()
     }
@@ -342,11 +367,13 @@ impl System {
     /// - **This function must be called every time topology
     /// of the system is changed**.
     /// - (Safe native groan library functions handle this for you.)
+    #[inline(always)]
     pub fn reset_mol_references(&mut self) {
         self.mol_references = None;
     }
 
     /// Set reference atoms of molecules.
+    #[inline(always)]
     pub(crate) unsafe fn set_mol_references(&mut self, indices: Vec<usize>) {
         self.mol_references = Some(indices);
     }
@@ -359,6 +386,7 @@ impl System {
     ///
     /// ## Notes
     /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
+    #[inline(always)]
     pub fn has_positions(&self) -> bool {
         self.atoms.iter().all(|atom| atom.has_position())
     }
@@ -371,6 +399,7 @@ impl System {
     ///
     /// ## Notes
     /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
+    #[inline(always)]
     pub fn has_velocities(&self) -> bool {
         self.atoms.iter().all(|atom| atom.has_velocity())
     }
@@ -383,6 +412,7 @@ impl System {
     ///
     /// ## Notes
     /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
+    #[inline(always)]
     pub fn has_forces(&self) -> bool {
         self.atoms.iter().all(|atom| atom.has_force())
     }
@@ -414,6 +444,7 @@ impl System {
     ///
     /// ## Notes
     /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
+    #[inline(always)]
     pub fn has_bonds(&self) -> bool {
         self.atoms.iter().any(|atom| atom.get_n_bonded() > 0)
     }
@@ -429,6 +460,7 @@ impl System {
     /// let extracted: Vec<Atom> = system.atoms_extract();
     /// ```
     /// [`get_atoms_copy`]: System::get_atoms_copy
+    #[inline(always)]
     pub fn atoms_extract(&self) -> Vec<Atom> {
         self.atoms.clone()
     }
@@ -454,6 +486,7 @@ impl System {
     ///     }
     /// };
     /// ```
+    #[inline(always)]
     pub fn group_extract(&self, name: &str) -> Result<Vec<Atom>, GroupError> {
         Ok(self.group_iter(name)?.cloned().collect())
     }
@@ -462,6 +495,7 @@ impl System {
     ///
     /// ## Returns
     /// Reference to `Atom` structure or `AtomError::OutOfRange` if `index` is out of range.
+    #[inline(always)]
     pub fn get_atom_as_ref(&self, index: usize) -> Result<&Atom, AtomError> {
         if index >= self.atoms.len() {
             return Err(AtomError::OutOfRange(index));
@@ -474,6 +508,7 @@ impl System {
     ///
     /// ## Returns
     /// Mutable reference to `Atom` structure or `AtomError::OutOfRange` if `index` is out of range.
+    #[inline(always)]
     pub fn get_atom_as_ref_mut(&mut self, index: usize) -> Result<&mut Atom, AtomError> {
         if index >= self.atoms.len() {
             return Err(AtomError::OutOfRange(index));
@@ -486,6 +521,7 @@ impl System {
     ///
     /// ## Returns
     /// Copy of an `Atom` structure or `AtomError::OutOfRange` if `index` is out of range
+    #[inline(always)]
     pub fn get_atom_copy(&self, index: usize) -> Result<Atom, AtomError> {
         if index >= self.atoms.len() {
             return Err(AtomError::OutOfRange(index));

@@ -553,6 +553,7 @@ pub mod io {
     mod ndx_io;
     pub mod pdb_io;
     pub mod pqr_io;
+    mod tpr_io;
     pub mod traj_io;
     pub mod trr_io;
     mod xdrfile;

@@ -187,6 +187,17 @@ pub enum WritePqrError {
     GroupNotFound(String),
 }
 
+/// Errors that can occur when reading a tpr file.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum ParseTprError {
+    /// Used when the file could not be parsed. The inner `String` should be the error message passed by the `minitpr` library.
+    #[error("{}", .0)]
+    CouldNotRead(String),
+    /// Used when a bond specified in the tpr file could not be created when creating a `System` structure.
+    #[error("{} bond could not be created between atoms '{}' and '{}' (the same atom)", "error:".red().bold(), .0.to_string().yellow(), .1.to_string().yellow())]
+    InvalidBond(usize, usize),
+}
+
 /// Errors that can occur when working with Groups of atoms.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum GroupError {
@@ -228,7 +239,7 @@ pub enum AtomError {
     #[error("{} atom index '{}' is out of range", "error:".red().bold(), .0.to_string().yellow())]
     OutOfRange(usize),
     /// Used when attempting to create a bond that is invalid.
-    #[error("{} bond could not be created between atoms {} and {}", "error:".red().bold(), .0.to_string().yellow(), .1.to_string().yellow())]
+    #[error("{} bond could not be created between atoms '{}' and '{}'", "error:".red().bold(), .0.to_string().yellow(), .1.to_string().yellow())]
     InvalidBond(usize, usize),
     /// Used when there is an issue with simulation box of the system.
     #[error("{}", .0)]
