@@ -12,7 +12,7 @@ use crate::errors::{ParsePdbConnectivityError, ParsePdbError, WritePdbError};
 use crate::structures::{atom::Atom, simbox::SimBox};
 use crate::system::general::System;
 
-/// Read a pdb file and construct a System structure. Does not read connectivity.
+/// Read a pdb file and construct a System structure. Do not read connectivity.
 ///
 /// ## Supported keywords
 /// This function can handle lines starting with ATOM, HETATM, TITLE, ENDMDL, END, and CRYST1.
@@ -28,7 +28,7 @@ use crate::system::general::System;
 /// If no CRYST1 line is provided, the simulation box is undefined.
 ///
 /// - If you want to load connectivity from the PDB file,
-/// use `System::add_bonds_from_pdb` after constructing the `System` structure.
+/// use [`System::add_bonds_from_pdb`] after constructing the `System` structure.
 pub fn read_pdb(filename: impl AsRef<Path>) -> Result<System, ParsePdbError> {
     let file = match File::open(filename.as_ref()) {
         Ok(x) => x,

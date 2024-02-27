@@ -2,13 +2,20 @@
 ## Changelog for the `groan_rs` library
 
 ### Version 0.7.0
-#### Replaced custom `Vector3D` implementation with faster `Vector3` from `nalgebra` crate
-- **Breaking change:** When `Vector3D::to_unit` is applied to a vector with a length (magnitude) of zero, its fields are set to `NaN` instead of the previously used `0.0`.
+#### Reading TPR files
+- Using the `minitpr` crate, basic reading of TPR files has been implemented. `System::from_file` function can now recognize and parse TPR files.
+- TPR files can also be explicitly read using `tpr_io::read_tpr` function (`use groan_rs::io::tpr_io`).
+- Note that only system name, simulation box dimensions, and the topology of the system (atoms and bonds) are currently being parsed.
+- **Atom positions, velocities, as well as forces acting on atoms are not being read from the tpr file by `groan_rs`.** All atoms of a system created by parsing a tpr file will have undefined positions and velocities.
+- Reading intermolecular bonds and groups from tpr files is also currently not supported.
 
 #### Reading and writing PQR files
 - `System::from_file` function now supports reading whitespace-delimited PQR files.
 - PQR files can also be explicitly read using `pqr_io::read_pqr` function (`use groan_rs::io::pqr_io`).
 - PQR files can be written with user-specified precision using `System::write_pqr` and `System:group_write_pqr`.
+
+#### Replaced custom `Vector3D` implementation with faster `Vector3` from `nalgebra` crate
+- **Breaking change:** When `Vector3D::to_unit` is applied to a vector with a length (magnitude) of zero, its fields are set to `NaN` instead of the previously used `0.0`.
 
 #### `serde` feature
 - Added a new feature `serde` which provides deserialization and serialization for several `groan_rs` structures, namely: Vector3D, SimBox, Atom, AtomContainer, AtomBlock, Group, System, and Select.

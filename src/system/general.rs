@@ -10,8 +10,8 @@ use std::path::Path;
 
 use crate::errors::{AtomError, GroupError, ParseFileError, SimBoxError};
 use crate::files::FileType;
-use crate::io::pdb_io;
 use crate::io::{gro_io, pqr_io};
+use crate::io::{pdb_io, tpr_io};
 use crate::structures::{atom::Atom, group::Group, simbox::SimBox, vector3d::Vector3D};
 
 #[derive(Debug, Clone)]
@@ -123,13 +123,14 @@ impl System {
     }
 
     /// Create a new System from gro file or pdb file.
-    /// The method will attempt to automatically recognize gro, pdb or a pqr file based on the file extension.
+    /// The method will attempt to automatically recognize gro, pdb, tpr or a pqr file based on the file extension.
     ///
     /// ## Returns
     /// `System` structure if successful.
     /// `ParseFileError` if the file format is not supported.
     /// `ParseGroError` if parsing of the gro file fails.
     /// `ParsePdbError` if parsing of the pdb file fails.
+    /// `ParseTprError` if parsing of the tpr file fails.
     /// `ParsePqrError` if parsing of the pqr file fails.
     ///
     /// ## Example
@@ -148,10 +149,20 @@ impl System {
     /// ## Notes
     /// - The returned System structure will contain two default groups "all" and "All"
     /// consisting of all the atoms in the system.
+    /// - When reading a pdb file, no connectivity information (bonds) is read, even if it is provided. You can add
+    /// connectivity from a pdb file to your system using [`System::add_bonds_from_pdb`]. See more information
+    /// about parsing PDB files in [`pdb_io::read_pdb`](`crate::io::pdb_io::read_pdb`).
+    /// - Reading of the tpr files is currently rather limited. Only the following information are read:
+    /// system name, simulation box dimensions (if present), system topology (atoms + bonds).
+    /// Only the following information are read for each atom: atom name, atom number, residue name, residue number,
+    /// charge, mass, element name, and element symbol (if the element is identifiable). **No positions, velocities, or
+    /// forces are currently being read from a tpr file.**
+    /// - Intermolecular bonds and groups are also not read from tpr files.
     pub fn from_file(filename: impl AsRef<Path>) -> Result<Self, Box<dyn Error + Send + Sync>> {
         match FileType::from_name(&filename) {
             FileType::GRO => gro_io::read_gro(filename).map_err(Box::from),
             FileType::PDB => pdb_io::read_pdb(filename).map_err(Box::from),
+            FileType::TPR => tpr_io::read_tpr(filename).map_err(Box::from),
             FileType::PQR => pqr_io::read_pqr(filename).map_err(Box::from),
             _ => Err(Box::from(ParseFileError::UnknownExtension(Box::from(
                 filename.as_ref(),
@@ -537,7 +548,11 @@ impl System {
 
 #[cfg(test)]
 mod tests {
-    use crate::errors::ParsePdbConnectivityError;
+    use crate::{
+        errors::ParsePdbConnectivityError,
+        structures::element::Elements,
+        test_utilities::utilities::{compare_atoms_tpr, compare_box},
+    };
 
     use super::*;
     use float_cmp::assert_approx_eq;
@@ -677,6 +692,38 @@ mod tests {
             assert_eq!(pqra.get_force(), pdba.get_force());
             assert_eq!(pqra.get_chain(), pdba.get_chain());
         }
+    }
+
+    #[test]
+    fn from_file_tpr() {
+        let system_tpr = System::from_file("test_files/aa_for_testing_tpr.tpr").unwrap();
+        let mut system_pdb = System::from_file("test_files/aa_for_testing_tpr.pdb").unwrap();
+        system_pdb
+            .add_bonds_from_pdb("test_files/aa_for_testing_tpr.pdb")
+            .unwrap();
+        system_pdb.guess_elements(Elements::default()).unwrap();
+
+        assert_eq!(system_tpr.get_name(), system_pdb.get_name());
+        compare_box(
+            system_tpr.get_box_as_ref().unwrap(),
+            system_pdb.get_box_as_ref().unwrap(),
+        );
+
+        // compare atoms (and bonds)
+        for (atom1, atom2) in system_tpr.atoms_iter().zip(system_pdb.atoms_iter()) {
+            compare_atoms_tpr(atom1, atom2);
+        }
+    }
+
+    #[test]
+    fn from_file_tpr_triclinic() {
+        let system_tpr = System::from_file("test_files/triclinic.tpr").unwrap();
+        let system_gro = System::from_file("test_files/triclinic.gro").unwrap();
+
+        compare_box(
+            system_tpr.get_box_as_ref().unwrap(),
+            system_gro.get_box_as_ref().unwrap(),
+        );
     }
 
     #[test]

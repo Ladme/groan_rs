@@ -12,6 +12,10 @@ use crate::{
 };
 
 /// Read topology from a tpr file. Construct a system.
+/// Does not read intermolecular bonds, does not read positions/velocities/forces,
+/// does not create groups (other than the default `all` and `All`).
+/// Note that the atoms and residues in the tpr file are numbered sequentially,
+/// no matter their original numbering in the gro/pdb file.
 pub(crate) fn read_tpr(filename: impl AsRef<Path>) -> Result<System, ParseTprError> {
     let tpr = match minitpr::TprFile::parse(filename) {
         Ok(x) => x,
@@ -25,10 +29,7 @@ pub(crate) fn read_tpr(filename: impl AsRef<Path>) -> Result<System, ParseTprErr
         .map(|x| -> Atom { Atom::from_minitpr_atom(x) })
         .collect();
 
-    let simbox = match tpr.simbox {
-        None => None,
-        Some(x) => Some(SimBox::from_minitpr_simbox(x)),
-    };
+    let simbox = tpr.simbox.map(SimBox::from_minitpr_simbox);
 
     let mut system = System::new(&tpr.system_name, atoms, simbox);
 
@@ -162,5 +163,51 @@ mod tests {
 
         assert_approx_eq!(f32, converted.v3x, 0.0);
         assert_approx_eq!(f32, converted.v3y, 0.0);
+    }
+
+    #[test]
+    fn parse_tpr() {
+        let system_tpr = read_tpr("test_files/example.tpr").unwrap();
+
+        assert_eq!(system_tpr.get_n_atoms(), 16844);
+
+        let atom1 = system_tpr.get_atom_as_ref(0).unwrap();
+        let atom2 = system_tpr.get_atom_as_ref(16843).unwrap();
+
+        assert_eq!(atom1.get_atom_name(), "BB");
+        assert_eq!(atom1.get_atom_number(), 1);
+        assert_eq!(atom1.get_residue_name(), "GLY");
+        assert_eq!(atom1.get_residue_number(), 1);
+        assert_approx_eq!(f32, atom1.get_charge().unwrap(), 1.0);
+        assert_approx_eq!(f32, atom1.get_mass().unwrap(), 72.0);
+        assert!(atom1.get_element_name().is_none());
+        assert!(atom1.get_element_symbol().is_none());
+        assert!(!atom1.has_position());
+        assert!(!atom1.has_velocity());
+        assert!(!atom1.has_force());
+
+        assert_eq!(atom2.get_atom_name(), "CL");
+        assert_eq!(atom2.get_atom_number(), 16844);
+        assert_eq!(atom2.get_residue_name(), "ION");
+        assert_eq!(atom2.get_residue_number(), 11180);
+        assert_approx_eq!(f32, atom2.get_charge().unwrap(), -1.0);
+        assert_approx_eq!(f32, atom2.get_mass().unwrap(), 35.453);
+        assert!(atom2.get_element_name().is_none());
+        assert!(atom2.get_element_symbol().is_none());
+        assert!(!atom2.has_position());
+        assert!(!atom2.has_velocity());
+        assert!(!atom2.has_force());
+
+        let bonded1 = atom1.get_bonded();
+        assert_eq!(bonded1.get_n_atoms(), 1);
+        assert!(bonded1.isin(1));
+
+        let bonded2 = atom2.get_bonded();
+        assert!(bonded2.is_empty());
+
+        let bonded_special = system_tpr.get_atom_as_ref(2).unwrap().get_bonded();
+        assert_eq!(bonded_special.get_n_atoms(), 2);
+        assert!(bonded_special.isin(1));
+        assert!(bonded_special.isin(3));
     }
 }

@@ -536,6 +536,7 @@ impl System {
 
     /// Check for unexpected number of bonds in a system.
     #[inline]
+    #[allow(clippy::type_complexity)]
     fn check_unexpected_bonds(
         &self,
     ) -> (IndexMap<usize, (usize, u8)>, IndexMap<usize, (usize, u8)>) {

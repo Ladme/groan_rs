@@ -292,7 +292,7 @@ where
     /// ## Returns
     /// - `Some(Ok(&mut System))` if the frame has been succesfully read.
     /// - `Some(Err(ReadTrajError))` if the frame could not be read.
-    /// - `None` if the end of the range of the end of the trajectory file has been reached.
+    /// - `None` if the end of the range or the end of the trajectory file has been reached.
     fn next(&mut self) -> Option<Self::Item> {
         unsafe {
             let system = self.traj_reader.get_system();
@@ -359,7 +359,7 @@ pub trait TrajStepRead<'a>: TrajRead<'a> {
     ///
     /// The function should return:
     /// - `Ok(true)` if the skip was successful and there is more to read,
-    /// - `Ok(false)` if the skip was successful but there is no more to read,
+    /// - `Ok(false)` if the skip was successful but there is nothing more to read,
     /// - `Err(ReadTrajError)` if the skip was unsuccessful
     fn skip_frame(&mut self) -> Result<bool, ReadTrajError>;
 }

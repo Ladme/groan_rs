@@ -8,6 +8,7 @@
 //!
 //! ## What it can do
 //! - Read and write gro, pdb, pqr, ndx, xtc and trr files.
+//! - Read topology (atoms and connectivity) from tpr files.
 //! - Iterate over atoms and access their properties, including connectivity (bonds).
 //! - Select atoms using a selection language similar to VMD.
 //! - Calculate distances between atoms respecting periodic boundary conditions.
@@ -18,7 +19,7 @@
 //! - And some other, less relevant stuff.
 //!
 //! ## What it CAN'T do (at the moment)
-//! - Read tpr files.
+//! - Read atom positions, velocities, and forces from tpr files.
 //! - Work with non-orthogonal periodic boundary conditions.
 //! - Perform advanced analyses of structure and dynamics out of the box.
 //! (But `groan_rs` library tries to make it simple to implement your own!)
@@ -49,7 +50,7 @@
 //! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     // read a gro file
 //!     let mut system = System::from_file("system.gro")?;
-//!     // `groan_rs` also supports pdb and pqr files which
+//!     // `groan_rs` also fully supports pdb and pqr files which
 //!     // can be read using the same function as above
 //!
 //!     // read an ndx file
@@ -553,7 +554,7 @@ pub mod io {
     mod ndx_io;
     pub mod pdb_io;
     pub mod pqr_io;
-    mod tpr_io;
+    pub mod tpr_io;
     pub mod traj_io;
     pub mod trr_io;
     mod xdrfile;

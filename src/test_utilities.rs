@@ -5,7 +5,7 @@
 
 #[cfg(test)]
 pub(crate) mod utilities {
-    use crate::structures::atom::Atom;
+    use crate::structures::{atom::Atom, simbox::SimBox};
     use float_cmp::assert_approx_eq;
 
     pub(crate) fn compare_atoms(atom1: &Atom, atom2: &Atom) {
@@ -18,6 +18,7 @@ pub(crate) mod utilities {
         assert_eq!(atom1.get_element_name(), atom2.get_element_name());
         assert_eq!(atom1.get_element_symbol(), atom2.get_element_symbol());
         assert_eq!(atom1.get_vdw(), atom2.get_vdw());
+        assert_eq!(atom1.get_charge(), atom2.get_charge());
         assert_eq!(
             atom1.get_expected_max_bonds(),
             atom2.get_expected_max_bonds()
@@ -56,5 +57,30 @@ pub(crate) mod utilities {
                 "Forces are not both None"
             );
         }
+    }
+
+    pub(crate) fn compare_atoms_tpr(atom1: &Atom, atom2: &Atom) {
+        assert_eq!(atom1.get_residue_number(), atom2.get_residue_number());
+        assert_eq!(atom1.get_residue_name(), atom2.get_residue_name());
+        assert_eq!(atom1.get_atom_number(), atom2.get_atom_number());
+        assert_eq!(atom1.get_atom_name(), atom2.get_atom_name());
+        assert_eq!(atom1.get_element_name(), atom2.get_element_name());
+        assert_eq!(atom1.get_element_symbol(), atom2.get_element_symbol());
+
+        assert_eq!(atom1.get_bonded(), atom2.get_bonded());
+    }
+
+    pub(crate) fn compare_box(box1: &SimBox, box2: &SimBox) {
+        assert_approx_eq!(f32, box1.v1x, box2.v1x);
+        assert_approx_eq!(f32, box1.v1y, box2.v1y);
+        assert_approx_eq!(f32, box1.v1z, box2.v1z);
+
+        assert_approx_eq!(f32, box1.v2x, box2.v2x);
+        assert_approx_eq!(f32, box1.v2y, box2.v2y);
+        assert_approx_eq!(f32, box1.v2z, box2.v2z);
+
+        assert_approx_eq!(f32, box1.v3x, box2.v3x);
+        assert_approx_eq!(f32, box1.v3y, box2.v3y);
+        assert_approx_eq!(f32, box1.v3z, box2.v3z);
     }
 }
