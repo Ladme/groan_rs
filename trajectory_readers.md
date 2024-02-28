@@ -1,59 +1,189 @@
-## Implementing Trajectory Readers for the `groan_rs` Library
+## Guide: Implementing Trajectory Readers in `groan_rs` (v0.7.0+)
 
-**Note**: This guide is applicable to `groan_rs` version 0.4.0 onwards.
+### Overview
+This guide shows you how to read custom trajectory formats in `groan_rs`. Check `src/io/traj_io.rs` for method signatures and `src/io/{xtc_io.rs, trr_io.rs}` for examples. A "template" for creating your own custom trajectory reader is also provided further down in this guide.
 
-For method signatures, refer to `src/io/traj_io.rs`, and see examples of their implementation in `src/io/xtc_io.rs` and `src/io/trr_io.rs`.
+### Steps
 
-### Step 1: Basic Iteration
+1. **Trajectory File Wrapper**
+   - Create a wrapper struct for your trajectory file.
+   - Implement the empty `TrajFile` trait:
+     ```rust
+     impl TrajFile for YourTrajectoryFile {}
+     ```
 
-To read a custom trajectory format in the `groan_rs` library, you need to define three structures:
+2. **Frame Data Holder**
+   - Define a struct to hold frame data.
+   - Implement `FrameData` trait, specifying your `TrajFile` type.
+   - Include:
+     - `from_frame`: Reads and stores data from a frame.
+     - `update_system`: Transfers data to the `System` struct.
 
-1. **Trajectory File Wrapper**:
-    - A structure that acts as a wrapper around the trajectory file.
-    - It should implement the `TrajFile` trait, which is an empty trait:
-    ```rust
-    impl TrajFile for YourTrajectoryFile {}
-    ```
+3. **Trajectory Reader**
+   - Make a struct that reads the trajectory file and holds a mutable `System` pointer.
+   - Implement `TrajRead` and `TrajReadOpen` traits:
+     - `TrajRead` requires:
+       - `get_system`: Returns a mutable `System` pointer.
+       - `get_file_handle`: Gets a reference to the trajectory file.
+     - `TrajReadOpen` requires:
+       - `new`: Opens the trajectory file and initializes the handler.
 
-2. **Frame Data Holder**:
-    - A structure that stores data from individual frames of the trajectory.
-    - It must implement the `FrameData` trait.
-    - You need to provide the type of `TrajFile` that the reader will use.
-    - Implement the following methods:
-        - `from_frame`: This method defines how data from a frame in the trajectory file should be read and subsequently stored within the `FrameData` structure.
-        - `update_system`: This method defines how the data stored within the `FrameData` structure should be transferred to the central `System` structure.
+   - Use `System::traj_iter::<YourTrajectoryReader>` to iterate frames. Add a `ProgressPrinter` for progress updates.
 
-3. **Trajectory File Handler**:
-    - A structure that manages the trajectory file and maintains a mutable pointer to the `System` structure.
-    - It must implement the `TrajRead` trait.
-    - Provide the type of `FrameData` your reader will associate with.
-    - Implement the following methods:
-        - `new`: This method initializes and opens the trajectory file. It also creates a valid instance of the structure implementing the `TrajRead` trait.
-        - `get_system`: Returns a mutable pointer to the `System` structure. Using trajectory iterators inherently involves using `unsafe` operations.
-        - `get_file_handle`: Returns a mutable reference to the trajectory file currently being read.
+### Advanced Iteration
 
-After defining and implementing these traits, you can invoke the `System::traj_iter::<YourTrajectoryReader>` method to iterate over the frames of your trajectory.
+- **Iteration in Range**
+  - Extend `FrameData` with `FrameDataTime` for time-based data handling.
+  - Implement `TrajRangeRead` in your reader for range-specific iterations.
+  - Use `with_range` for time range iterations.
 
-### Step 2a: Range-Based Iteration
+- **Iteration with Step**
+  - For stepping through frames, implement `TrajStepRead` in your reader.
+  - Include `skip_frame` method for frame skipping.
+  - Use `with_step` for stepping through frames.
 
-For iterations based on specific time ranges:
+### Concatenating Trajectories
 
-1. **Frame Data Extension**:
-    - The `FrameData` structure should also implement the `FrameDataTime` trait.
-    - Implement the `get_time` method which retrieves the simulation time from the frame data. Ensure your frames are equipped with simulation time data for this functionality.
+- Implement `FrameDataTime` to enable trajectory concatenation via `System::traj_cat_iter::<YourTrajectoryReader>`.
+- For range-limited iteration, use `with_range`.
+- To step through concatenated trajectories, implement `TrajStepTimeRead` with `skip_frame_time`, allowing `with_step` usage.
 
-2. **Trajectory Reader Extension**:
-    - The `TrajRead` structure should also implement the `TrajRangeRead` trait.
-    - Implement the `jump_to_start` method. It's responsible for efficiently navigating through the trajectory file to reach the starting time of a specified range.
+### Template for a Custom Trajectory Reader
+```rust
 
-After adding these functionalities, you can use the `with_range` method on your trajectory reader iterator to iterate over specific time ranges.
+use std::path::Path;
 
-### Step 2b: Step-Based Iteration
+use crate::{errors::ReadTrajError, system::general::System};
 
-For iterations that process every Nth frame:
+use crate::io::traj_io::*;
 
-1. **Trajectory Reader Step Extension**:
-    - Your `TrajRead` structure should also implement the `TrajStepRead` trait.
-    - Implement the `skip_frame` method. It's tasked with efficiently skipping over single frames in the trajectory.
+/*******************************************/
+/*              BASIC ITERATION            */
+/*******************************************/
 
-Once you've implemented this trait, you can use the `with_step` method on your trajectory reader iterator. Importantly, there's no requirement to implement the `TrajRangeRead` trait (from Step 2a) to leverage the `with_step` method.
+/* Trajectory File Wrapper */
+
+struct TrajFilePlaceholder { /* some fields */ }
+
+impl TrajFile for TrajFilePlaceholder {}
+
+/* Frame Data Holder */
+
+struct FrameDataPlaceholder { /* some fields */ }
+
+impl FrameData for FrameDataPlaceholder {
+    type TrajFile = TrajFilePlaceholder;
+
+    fn from_frame(
+        traj_file: &mut Self::TrajFile,
+        system: &System,
+    ) -> Option<Result<Self, ReadTrajError>> {
+        todo!();
+    }
+
+    fn update_system(self, system: &mut System) {
+        todo!();
+    }
+}
+
+/* Trajectory Reader */
+
+struct TrajectoryReaderPlaceholder { /* some fields */ }
+
+impl<'a> TrajRead<'a> for TrajectoryReaderPlaceholder {
+    type FrameData = FrameDataPlaceholder;
+    
+    fn get_system(&mut self) -> *mut System {
+        todo!();
+    }
+    
+    fn get_file_handle(
+        &mut self,
+    ) -> &mut <<Self as TrajRead<'a>>::FrameData as FrameData>::TrajFile {
+        todo!();
+    }
+}
+
+impl<'a> TrajReadOpen<'a> for TrajectoryReaderPlaceholder {
+    fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<Self, ReadTrajError> {
+        todo!();
+    }
+}
+
+// If you implement the above methods, you should be able to create a trajectory iterator:
+let iterator = system.traj_iter::<TrajectoryReaderPlaceholder>("trajectory_placeholder");
+
+/*******************************************/
+/*              ITERATION IN RANGE         */
+/*******************************************/
+
+/* Frame Data Extension */
+
+impl FrameDataTime for FrameDataPlaceholder {
+    fn get_time(&self) -> f32 {
+        todo!();
+    }
+}
+
+/* Trajectory Reader Extension */
+
+impl<'a> TrajRangeRead<'a> for TrajectoryReaderPlaceholder {
+    fn jump_to_start(&mut self, start_time: f32) -> Result<(), ReadTrajError> {
+        todo!();
+    }
+}
+
+// If you implement the above methods, you should be able to apply the `with_range` method to your iterator:
+let iterator = system
+    .traj_iter::<TrajectoryReaderPlaceholder>("trajectory_placeholder")
+    .unwrap()
+    .with_range(start_time, end_time)
+    .unwrap();
+
+
+// Furthermore, you can now concatenate your trajectories (and apply `with_range` method to them):
+let concatenated_iterator = system
+    .traj_cat_iter::<TrajectoryReaderPlaceholder>(&vec!["traj1", "traj2", "traj3"])
+    .unwrap()
+    .with_range(start_time, end_time)
+    .unwrap();
+
+
+/*******************************************/
+/*             ITERATION WITH STEP         */
+/*******************************************/
+
+/* Trajectory Reader Extension */
+
+impl<'a> TrajStepRead<'a> for TrajectoryReaderPlaceholder {
+    fn skip_frame(&mut self) -> Result<bool, ReadTrajError> {
+        todo!();
+    }
+}
+
+// If you implement the above method, you should be able to apply the `with_step` method to your iterator:
+let iterator = system
+    .traj_iter::<TrajectoryReaderPlaceholder>("trajectory_placeholder")
+    .unwrap()
+    .with_step(step)
+    .unwrap();
+
+/*******************************************/
+/*       CONCATENATING TRAJECTORIES        */
+/*******************************************/
+
+// If you want to use the `with_step` method for your concatenated trajectories, you must implement the following method:
+
+impl<'a >TrajStepTimeRead<'a> for TrajectoryReaderPlaceholder {
+    fn skip_frame_time(&mut self) -> Result<Option<f32>, ReadTrajError> {
+        todo!();
+    }
+}
+
+// Now you should be able to apply the `with_step` method to your concatenated trajectories:
+let concatenated_iterator = system
+    .traj_cat_iter::<TrajectoryReaderPlaceholder>(&vec!["traj1", "traj2", "traj3"])
+    .unwrap()
+    .with_step(step)
+    .unwrap();
+```
