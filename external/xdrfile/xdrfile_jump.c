@@ -150,16 +150,34 @@ int xtc_skip_frame(XDRFILE *xdp)
 	// (but does not have to fail)
 	if (xdr_jump(xdp, size) != 0) return 2;
 
-	// read magic number (to check whether we are at EOF)
-	if (xdrfile_read_int(&magic_number, 1, xdp) != 1) {
-		return 2;
-	}
+	return 0;
+}
 
-	// check validity of the jump
+int xtc_skip_frame_with_time(XDRFILE *xdp, float *time)
+{
+	// read magic number
+	int magic_number = 0;
+	if (xdrfile_read_int(&magic_number, 1, xdp) != 1) return 2;
+
+	// check that the magic number is correct
 	if (magic_number != 1995) return 1;
 
-	// move back four bytes (to the start of the frame)
-	if (xdr_jump(xdp, -4) != 0) return 1;
+	// jump to time information and read it
+    if (xdr_jump(xdp, 8) != 0) return 1;
+	if (xdrfile_read_float(time, 1, xdp) != 1) return 1;
+
+	// get the number of bytes to the next frame
+	if (xdr_jump(xdp, 72) != 0) return 1;
+	int size = 0;
+	if (xdrfile_read_int(&size, 1, xdp) != 1) return 1;
+	// add padding
+	if (size % 4 != 0) {
+		size += 4 - (size % 4);
+	}
+
+	// this should only fail if we have reached the end of the file 
+	// (but does not have to fail)
+	if (xdr_jump(xdp, size) != 0) return 2;
 
 	return 0;
 }
@@ -179,15 +197,26 @@ int trr_skip_frame(XDRFILE *xdp)
 	// (but does not have to fail)
 	if (xdr_jump(xdp, size) != 0) return 2;
 
-	// try to read the magic number to see whether we are at the end of file
-	int magic_number = 0;
-	if (xdrfile_read_int(&magic_number, 1, xdp) != 1) return 2;
+	return 0;
+}
 
-	// check validity of the jump
-	if (magic_number != 1993) return 1;
+int trr_skip_frame_with_time(XDRFILE *xdp, float *time)
+{
+	// read the header of the frame
+    t_trnheader header = { 0 };
+	// assuming this only fails if we have reached the end of the file
+    if (do_trnheader(xdp, 1, &header) != exdrOK) return 2;
 
-	// move back four bytes (to the start of the frame)
-	if (xdr_jump(xdp, -4) != 0) return 1;
+	// store simulation time
+	*time = header.tf;
+
+    // size of the frame should be the sum of the sizes of the individual segments
+    int size = header.ir_size + header.e_size + header.box_size + header.vir_size + header.pres_size + 
+    header.top_size + header.sym_size + header.x_size + header.v_size + header.f_size;
+
+    // this should only fail if we have reached the end of the file
+	// (but does not have to fail)
+	if (xdr_jump(xdp, size) != 0) return 2;
 
 	return 0;
 }

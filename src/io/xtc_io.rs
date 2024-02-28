@@ -8,8 +8,10 @@ use std::os::raw::{c_float, c_int};
 use std::path::Path;
 
 use crate::errors::{ReadTrajError, TrajError, WriteTrajError};
+use crate::io::traj_cat::TrajConcatenator;
 use crate::io::traj_io::{
-    FrameData, FrameDataTime, TrajGroupWrite, TrajRangeRead, TrajRead, TrajStepRead, TrajWrite,
+    FrameData, FrameDataTime, TrajGroupWrite, TrajRangeRead, TrajRead, TrajReadOpen, TrajStepRead,
+    TrajStepTimeRead, TrajWrite,
 };
 use crate::io::xdrfile::{self, CXdrFile, OpenMode, XdrFile};
 use crate::prelude::TrajReader;
@@ -119,6 +121,16 @@ pub struct XtcReader<'a> {
 impl<'a> TrajRead<'a> for XtcReader<'a> {
     type FrameData = XtcFrameData;
 
+    fn get_system(&mut self) -> *mut System {
+        self.system
+    }
+
+    fn get_file_handle(&mut self) -> &mut CXdrFile {
+        unsafe { self.xtc.handle.as_mut().unwrap() }
+    }
+}
+
+impl<'a> TrajReadOpen<'a> for XtcReader<'a> {
     /// Create an iterator over an xtc file.
     fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<XtcReader, ReadTrajError> {
         let n_atoms = system.get_n_atoms();
@@ -149,14 +161,6 @@ impl<'a> TrajRead<'a> for XtcReader<'a> {
 
         Ok(xtc_reader)
     }
-
-    fn get_system(&mut self) -> *mut System {
-        self.system
-    }
-
-    fn get_file_handle(&mut self) -> &mut CXdrFile {
-        unsafe { self.xtc.handle.as_mut().unwrap() }
-    }
 }
 
 impl<'a> TrajRangeRead<'a> for XtcReader<'a> {
@@ -180,6 +184,24 @@ impl<'a> TrajStepRead<'a> for XtcReader<'a> {
                 2 => Ok(false),
                 number => panic!(
                     "FATAL GROAN ERROR | XtcReader::skip_frame | `xdrfile::xtc_skip_frame` returned an unsupported number '{}'",
+                    number
+                ),
+            }
+        }
+    }
+}
+
+impl<'a> TrajStepTimeRead<'a> for XtcReader<'a> {
+    fn skip_frame_time(&mut self) -> Result<Option<f32>, ReadTrajError> {
+        unsafe {
+            let mut time: c_float = 0.0;
+
+            match xdrfile::xtc_skip_frame_with_time(self.get_file_handle(), &mut time as *mut c_float) {
+                0 => Ok(Some(time)),
+                1 => Err(ReadTrajError::SkipFailed),
+                2 => Ok(None),
+                number => panic!(
+                    "FATAL GROAN ERROR | XtcReader::skip_frame_time | `xdrfile::xtc_skip_frame_with_time` returned an unsupported number '{}'",
                     number
                 ),
             }
@@ -327,6 +349,39 @@ impl System {
         filename: impl AsRef<Path>,
     ) -> Result<TrajReader<XtcReader>, ReadTrajError> {
         Ok(TrajReader::wrap_traj(XtcReader::new(self, filename)?))
+    }
+
+    /// Iterate through multiple xtc files.
+    /// Any duplicate frames at the boundaries of the trajectories are skipped.
+    ///
+    /// ## Example
+    /// Iterate through multiple xtc files and calculate and print the current center of geometry of the system.
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// # use groan_rs::errors::ReadTrajError;
+    /// #
+    /// fn example_fn() -> Result<(), ReadTrajError> {
+    ///     let mut system = System::from_file("system.gro").unwrap();
+    ///     let trajectories = vec!["md0001.xtc", "md0002.xtc", "md0003.xtc"];     
+    ///
+    ///     for raw_frame in system.xtc_cat_iter(&trajectories).unwrap() {
+    ///         let frame = raw_frame?;
+    ///         println!("{:?}", frame.group_get_center("all"));
+    ///     }
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// You can also iterate through only part of the trajectory, only read every Nth trajectory frame,
+    /// and print progress of the trajectory reading. For more information, see [`System::xtc_iter`](`System::xtc_iter`).
+    ///
+    /// For more information about trajectory concatenation, see [`System::traj_cat_iter`](`System::traj_cat_iter`).
+    pub fn xtc_cat_iter<'a>(
+        &'a mut self,
+        filenames: &[impl AsRef<Path>],
+    ) -> Result<TrajReader<'a, TrajConcatenator<'a, XtcReader>>, ReadTrajError> {
+        self.traj_cat_iter::<XtcReader>(filenames)
     }
 }
 

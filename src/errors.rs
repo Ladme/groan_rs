@@ -331,6 +331,9 @@ pub enum ReadTrajError {
     /// Used when simulation box read from the trajectory is invalid.
     #[error("{} simulation box is invalid", "error:".red().bold())]
     InvalidSimBox,
+    /// Used when concatenation of trajectories is requested, but no trajectories are provided.
+    #[error("{} no trajectories provided for concatenation", "error:".red().bold())]
+    CatNoTrajectories,
 }
 
 /// Errors that can occur when writing a trajectory file.

@@ -1,0 +1,13 @@
+traj1.xtc: frame 0-2
+traj2.xtc: frame 2
+traj3.xtc: frame 2-4
+traj4.xtc: frame 5-8
+traj5.xtc: frame 9
+traj6.xtc: frame 9-10
+
+traj1.trr: frame 0-1
+traj2.trr: frame 1
+traj3.trr: frame 1-3
+traj4.trr: frame 4-6
+traj5.trr: frame 7
+traj6.trr: frame 7-8

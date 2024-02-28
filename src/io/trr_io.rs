@@ -8,9 +8,10 @@ use std::os::raw::{c_float, c_int};
 use std::path::Path;
 
 use crate::errors::{ReadTrajError, TrajError, WriteTrajError};
+use crate::io::traj_cat::TrajConcatenator;
 use crate::io::traj_io::{
-    FrameData, FrameDataTime, TrajGroupWrite, TrajRangeRead, TrajRead, TrajReader, TrajStepRead,
-    TrajWrite,
+    FrameData, FrameDataTime, TrajGroupWrite, TrajRangeRead, TrajRead, TrajReadOpen, TrajReader,
+    TrajStepRead, TrajStepTimeRead, TrajWrite,
 };
 use crate::io::xdrfile::{self, CXdrFile, OpenMode, XdrFile};
 use crate::structures::iterators::AtomIterator;
@@ -145,6 +146,16 @@ pub struct TrrReader<'a> {
 impl<'a> TrajRead<'a> for TrrReader<'a> {
     type FrameData = TrrFrameData;
 
+    fn get_system(&mut self) -> *mut System {
+        self.system
+    }
+
+    fn get_file_handle(&mut self) -> &mut CXdrFile {
+        unsafe { self.trr.handle.as_mut().unwrap() }
+    }
+}
+
+impl<'a> TrajReadOpen<'a> for TrrReader<'a> {
     /// Create an iterator over a trr file.
     fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<TrrReader, ReadTrajError> {
         let n_atoms = system.get_n_atoms();
@@ -175,14 +186,6 @@ impl<'a> TrajRead<'a> for TrrReader<'a> {
 
         Ok(trr_reader)
     }
-
-    fn get_system(&mut self) -> *mut System {
-        self.system
-    }
-
-    fn get_file_handle(&mut self) -> &mut CXdrFile {
-        unsafe { self.trr.handle.as_mut().unwrap() }
-    }
 }
 
 impl<'a> TrajRangeRead<'a> for TrrReader<'a> {
@@ -206,6 +209,24 @@ impl<'a> TrajStepRead<'a> for TrrReader<'a> {
                 2 => Ok(false),
                 number => panic!(
                     "FATAL GROAN ERROR | TrrReader::skip_frame | `xdrfile::trr_skip_frame` returned an unsupported number '{}'.",
+                    number
+                ),
+            }
+        }
+    }
+}
+
+impl<'a> TrajStepTimeRead<'a> for TrrReader<'a> {
+    fn skip_frame_time(&mut self) -> Result<Option<f32>, ReadTrajError> {
+        unsafe {
+            let mut time: c_float = 0.0;
+
+            match xdrfile::trr_skip_frame_with_time(self.get_file_handle(), &mut time as *mut c_float) {
+                0 => Ok(Some(time)),
+                1 => Err(ReadTrajError::SkipFailed),
+                2 => Ok(None),
+                number => panic!(
+                    "FATAL GROAN ERROR | TrrReader::skip_frame_time | `xdrfile::trr_skip_frame_with_time` returned an unsupported number '{}'",
                     number
                 ),
             }
@@ -325,6 +346,39 @@ impl System {
         filename: impl AsRef<Path>,
     ) -> Result<TrajReader<TrrReader>, ReadTrajError> {
         Ok(TrajReader::wrap_traj(TrrReader::new(self, filename)?))
+    }
+
+    /// Iterate through multiple trr files.
+    /// Any duplicate frames at the boundaries of the trajectories are skipped.
+    ///
+    /// ## Example
+    /// Iterate through multiple trr files and calculate and print the current center of geometry of the system.
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// # use groan_rs::errors::ReadTrajError;
+    /// #
+    /// fn example_fn() -> Result<(), ReadTrajError> {
+    ///     let mut system = System::from_file("system.gro").unwrap();
+    ///     let trajectories = vec!["md0001.trr", "md0002.trr", "md0003.trr"];     
+    ///
+    ///     for raw_frame in system.trr_cat_iter(&trajectories).unwrap() {
+    ///         let frame = raw_frame?;
+    ///         println!("{:?}", frame.group_get_center("all"));
+    ///     }
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// You can also iterate through only part of the trajectory, only read every Nth trajectory frame,
+    /// and print progress of the trajectory reading. For more information, see [`System::trr_iter`](`System::trr_iter`).
+    ///
+    /// For more information about trajectory concatenation, see [`System::traj_cat_iter`](`System::traj_cat_iter`).
+    pub fn trr_cat_iter<'a>(
+        &'a mut self,
+        filenames: &[impl AsRef<Path>],
+    ) -> Result<TrajReader<'a, TrajConcatenator<'a, TrrReader>>, ReadTrajError> {
+        self.traj_cat_iter::<TrrReader>(filenames)
     }
 }
 

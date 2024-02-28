@@ -14,6 +14,13 @@
 - PQR files can also be explicitly read using `pqr_io::read_pqr` function (`use groan_rs::io::pqr_io`).
 - PQR files can be written with user-specified precision using `System::write_pqr` and `System:group_write_pqr`.
 
+#### `TrajConcatenator` structure
+- All trajectory readers implementing specific traits (see `trajectory_readers.md` for more information) can be now concatenated using `System::traj_cat_iter`.
+- During concatenation, duplicate frames from trajectory boundaries are removed allowing for simple iteration through simulation trajectories directly following each other.
+- Functions `System::xtc_cat_iter` and `System::trr_cat_iter` are provided directly for concatenation of xtc and trr files, respectively.
+- All basic methods associated with trajectory readers like `with_range`, `with_step`, or `print_progress` can be applied to the concatenation iterator.
+- `TrajConcatenator` structure makes sure that trajectory range will be correctly identified even if it spans multiple trajectory files and that step-iteration will properly handle trajectory boundaries.
+
 #### Replaced custom `Vector3D` implementation with faster `Vector3` from `nalgebra` crate
 - **Breaking change:** When `Vector3D::to_unit` is applied to a vector with a length (magnitude) of zero, its fields are set to `NaN` instead of the previously used `0.0`.
 
