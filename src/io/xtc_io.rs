@@ -662,7 +662,7 @@ mod tests {
     use std::fs::File;
     use tempfile::NamedTempFile;
 
-    use crate::test_utilities::utilities::compare_atoms;
+    use crate::test_utilities::utilities::{compare_atoms, compare_box};
 
     #[test]
     fn read_xtc() {
@@ -1236,6 +1236,50 @@ mod tests {
         assert_approx_eq!(f32, simbox.v2z, 0.0000000);
         assert_approx_eq!(f32, simbox.v3x, 3.1098998);
         assert_approx_eq!(f32, simbox.v3y, 3.1098998);
+    }
+
+    #[test]
+    fn cat_xtc() {
+        let mut system_single = System::from_file("test_files/example.gro").unwrap();
+        let mut system_cat = System::from_file("test_files/example.gro").unwrap();
+
+        let traj_single = system_single
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap();
+        let traj_cat = system_cat
+            .xtc_cat_iter(&vec![
+                "test_files/split/traj1.xtc",
+                "test_files/split/traj2.xtc",
+                "test_files/split/traj3.xtc",
+                "test_files/split/traj4.xtc",
+                "test_files/split/traj5.xtc",
+                "test_files/split/traj6.xtc",
+            ])
+            .unwrap();
+
+        for (frame_single, frame_cat) in traj_single.zip(traj_cat) {
+            let frame_single = frame_single.unwrap();
+            let frame_cat = frame_cat.unwrap();
+
+            assert_approx_eq!(
+                f32,
+                frame_single.get_simulation_time(),
+                frame_cat.get_simulation_time()
+            );
+            assert_eq!(
+                frame_single.get_simulation_step(),
+                frame_cat.get_simulation_step()
+            );
+
+            compare_box(
+                frame_single.get_box_as_ref().unwrap(),
+                frame_cat.get_box_as_ref().unwrap(),
+            );
+
+            for (atom_single, atom_cat) in frame_single.atoms_iter().zip(frame_cat.atoms_iter()) {
+                compare_atoms(atom_single, atom_cat);
+            }
+        }
     }
 
     #[test]

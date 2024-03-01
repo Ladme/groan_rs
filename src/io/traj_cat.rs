@@ -364,10 +364,14 @@ impl System {
 
 #[cfg(test)]
 mod tests {
+    use std::fs::File;
+
     use float_cmp::assert_approx_eq;
 
+    use crate::io::traj_io::TrajMasterRead;
     use crate::io::trr_io::TrrReader;
     use crate::io::xtc_io::XtcReader;
+    use crate::progress::ProgressPrinter;
     use crate::test_utilities::*;
 
     use self::utilities::*;
@@ -787,6 +791,99 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    #[test]
+    fn cat_traj_print_progress() {
+        let mut system_single = System::from_file("test_files/example.gro").unwrap();
+        let mut system_cat = System::from_file("test_files/example.gro").unwrap();
+
+        let output_single = File::create("tmp_cat_traj_print_progress_single.txt").unwrap();
+        let output_cat = File::create("tmp_cat_traj_print_progress_cat.txt").unwrap();
+
+        let single_printer = ProgressPrinter::new()
+            .with_print_freq(3)
+            .with_output(Box::from(output_single))
+            .with_colored(false);
+        let cat_printer = ProgressPrinter::new()
+            .with_print_freq(3)
+            .with_output(Box::from(output_cat))
+            .with_colored(false);
+
+        let traj_single = system_single
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .print_progress(single_printer);
+        let traj_cat = system_cat
+            .traj_cat_iter::<XtcReader>(&vec![
+                "test_files/split/traj1.xtc",
+                "test_files/split/traj2.xtc",
+                "test_files/split/traj3.xtc",
+                "test_files/split/traj4.xtc",
+                "test_files/split/traj5.xtc",
+                "test_files/split/traj6.xtc",
+            ])
+            .unwrap()
+            .print_progress(cat_printer);
+
+        for frame in traj_single {
+            frame.unwrap();
+        }
+
+        for frame in traj_cat {
+            frame.unwrap();
+        }
+
+        let mut result = File::open("tmp_cat_traj_print_progress_cat.txt").unwrap();
+        let mut expected = File::open("tmp_cat_traj_print_progress_single.txt").unwrap();
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+
+        std::fs::remove_file("tmp_cat_traj_print_progress_cat.txt").unwrap();
+        std::fs::remove_file("tmp_cat_traj_print_progress_single.txt").unwrap();
+    }
+
+    #[test]
+    fn cat_traj_duplicates() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        let times = [0.0, 100.0, 200.0, 300.0, 400.0, 0.0, 100.0, 200.0, 300.0, 400.0, 900.0, 1000.0, 0.0, 100.0, 200.0];
+
+        for (i, frame) in system.traj_cat_iter::<XtcReader>(
+            &vec!["test_files/split/traj1.xtc",
+            "test_files/split/traj2.xtc",
+            "test_files/split/traj3.xtc",
+            "test_files/split/traj1.xtc",
+            "test_files/split/traj3.xtc",
+            "test_files/split/traj6.xtc",
+            "test_files/split/traj1.xtc",
+            "test_files/split/traj2.xtc"]
+        ).unwrap().enumerate() {
+            let frame = frame.unwrap();
+            assert_approx_eq!(f32, frame.get_simulation_time(), times[i]);
+        }
+    }
+
+    #[test]
+    fn cat_traj_empty() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let empty: Vec<&str> = vec![];
+
+        match system.traj_cat_iter::<XtcReader>(&empty) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(e) => assert_eq!(ReadTrajError::CatNoTrajectories, e),
+        }
+    }
+
+    #[test]
+    fn cat_traj_nonexistent() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let empty: Vec<&str> = vec!["test_files/split/traj1.trr", "test_files/split/traj_nonexistent.trr", "test_files/split/traj3.trr"];
+
+        match system.traj_cat_iter::<TrrReader>(&empty) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(ReadTrajError::FileNotFound(file)) => assert_eq!(file.to_str().unwrap(), "test_files/split/traj_nonexistent.trr"),
+            Err(e) => panic!("Incorrect error type returned `{}`", e),
         }
     }
 }

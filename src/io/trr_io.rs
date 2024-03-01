@@ -683,7 +683,7 @@ impl XdrFile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utilities::utilities::compare_atoms;
+    use crate::test_utilities::utilities::{compare_atoms, compare_box};
     use float_cmp::assert_approx_eq;
     use std::fs::File;
     use tempfile::NamedTempFile;
@@ -1800,6 +1800,50 @@ mod tests {
         assert_approx_eq!(f32, simbox.v2z, 0.0000000);
         assert_approx_eq!(f32, simbox.v3x, 0.9947443);
         assert_approx_eq!(f32, simbox.v3y, -1.6520565);
+    }
+
+    #[test]
+    fn cat_trr() {
+        let mut system_single = System::from_file("test_files/example.gro").unwrap();
+        let mut system_cat = System::from_file("test_files/example.gro").unwrap();
+
+        let traj_single = system_single
+            .trr_iter("test_files/short_trajectory.trr")
+            .unwrap();
+        let traj_cat = system_cat
+            .trr_cat_iter(&vec![
+                "test_files/split/traj1.trr",
+                "test_files/split/traj2.trr",
+                "test_files/split/traj3.trr",
+                "test_files/split/traj4.trr",
+                "test_files/split/traj5.trr",
+                "test_files/split/traj6.trr",
+            ])
+            .unwrap();
+
+        for (frame_single, frame_cat) in traj_single.zip(traj_cat) {
+            let frame_single = frame_single.unwrap();
+            let frame_cat = frame_cat.unwrap();
+
+            assert_approx_eq!(
+                f32,
+                frame_single.get_simulation_time(),
+                frame_cat.get_simulation_time()
+            );
+            assert_eq!(
+                frame_single.get_simulation_step(),
+                frame_cat.get_simulation_step()
+            );
+
+            compare_box(
+                frame_single.get_box_as_ref().unwrap(),
+                frame_cat.get_box_as_ref().unwrap(),
+            );
+
+            for (atom_single, atom_cat) in frame_single.atoms_iter().zip(frame_cat.atoms_iter()) {
+                compare_atoms(atom_single, atom_cat);
+            }
+        }
     }
 
     #[test]
