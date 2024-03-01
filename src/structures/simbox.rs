@@ -8,6 +8,7 @@ use std::ops::Deref;
 
 /// Structure defining simulation box shape and dimensions.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SimBox {
     /// You can also use `.x` to reach this value.
     pub v1x: f32,
@@ -148,37 +149,29 @@ impl SimBox {
     pub fn to_lengths_angles(&self) -> (Vector3D, Vector3D) {
         if self.is_orthogonal() {
             // orthogonal simulation box
-            let lengths = Vector3D {
-                x: self.v1x,
-                y: self.v2y,
-                z: self.v3z,
-            };
+            let lengths = Vector3D::new(self.v1x, self.v2y, self.v3z);
 
-            let angles = Vector3D {
-                x: 90.0,
-                y: 90.0,
-                z: 90.0,
-            };
+            let angles = Vector3D::new(90.0, 90.0, 90.0);
 
             (lengths, angles)
         } else {
             // triclinic simulation box
             let gamma = self.v2y.atan2(self.v2x);
 
-            let lengths = Vector3D {
-                x: self.v1x,
-                y: (self.v2x * self.v2x + self.v2y * self.v2y).sqrt(),
-                z: (self.v3x * self.v3x + self.v3y * self.v3y + self.v3z * self.v3z).sqrt(),
-            };
+            let lengths = Vector3D::new(
+                self.v1x,
+                (self.v2x * self.v2x + self.v2y * self.v2y).sqrt(),
+                (self.v3x * self.v3x + self.v3y * self.v3y + self.v3z * self.v3z).sqrt(),
+            );
 
             let beta = (self.v3x / lengths.z).acos();
             let alpha = ((self.v3y * gamma.sin()) / lengths.z + beta.cos() * gamma.cos()).acos();
 
-            let angles = Vector3D {
-                x: 180.0 * alpha / std::f32::consts::PI,
-                y: 180.0 * beta / std::f32::consts::PI,
-                z: 180.0 * gamma / std::f32::consts::PI,
-            };
+            let angles = Vector3D::new(
+                180.0 * alpha / std::f32::consts::PI,
+                180.0 * beta / std::f32::consts::PI,
+                180.0 * gamma / std::f32::consts::PI,
+            );
 
             (lengths, angles)
         }
@@ -409,5 +402,61 @@ mod tests {
             6.26832, 5.90987, 5.11825, 1.3, 2.5634, 2.08931, -1.322, -2.08931, 2.95467,
         ];
         let _simbox = SimBox::from(arr);
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "serde")]
+mod serde_tests {
+    use super::*;
+    use float_cmp::assert_approx_eq;
+
+    #[test]
+    fn simbox_to_yaml() {
+        let arr = [
+            6.26832, 5.90987, 5.11825, 0.0, 0.0, 2.08931, 0.0, -2.08931, 2.95467,
+        ];
+
+        let simbox = SimBox::from(arr);
+        let string = serde_yaml::to_string(&simbox).unwrap();
+
+        assert_eq!(
+            string,
+            "v1x: 6.26832
+v2y: 5.90987
+v3z: 5.11825
+v1y: 0.0
+v1z: 0.0
+v2x: 2.08931
+v2z: 0.0
+v3x: -2.08931
+v3y: 2.95467
+"
+        );
+    }
+
+    #[test]
+    fn simbox_from_yaml() {
+        let string = "v1x: 6.26832
+v2y: 5.90987
+v3z: 5.11825
+v1y: 0.0
+v1z: 0.0
+v2x: 2.08931
+v2z: 0.0
+v3x: -2.08931
+v3y: 2.95467
+";
+        let simbox: SimBox = serde_yaml::from_str(&string).unwrap();
+
+        assert_approx_eq!(f32, simbox.v1x, 6.26832, epsilon = 0.00001);
+        assert_approx_eq!(f32, simbox.v2y, 5.90987, epsilon = 0.00001);
+        assert_approx_eq!(f32, simbox.v3z, 5.11825, epsilon = 0.00001);
+        assert_approx_eq!(f32, simbox.v1y, 0.0, epsilon = 0.00001);
+        assert_approx_eq!(f32, simbox.v1z, 0.0, epsilon = 0.00001);
+        assert_approx_eq!(f32, simbox.v2x, 2.08931, epsilon = 0.00001);
+        assert_approx_eq!(f32, simbox.v2z, 0.0, epsilon = 0.00001);
+        assert_approx_eq!(f32, simbox.v3x, -2.08931, epsilon = 0.00001);
+        assert_approx_eq!(f32, simbox.v3y, 2.95467, epsilon = 0.00001);
     }
 }

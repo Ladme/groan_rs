@@ -1,0 +1,213 @@
+2024-02-06 14:42:59,492 INFO:main.py:240:print_splash_screen:PDB2PQR v3.6.2: biomolecular structure conversion software.
+2024-02-06 14:42:59,492 INFO:main.py:242:print_splash_screen:Please cite:  Jurrus E, et al.  Improvements to the APBS biomolecular solvation software suite.  Protein Sci 27 112-128 (2018).
+2024-02-06 14:42:59,492 INFO:main.py:242:print_splash_screen:Please cite:  Dolinsky TJ, et al.  PDB2PQR: expanding and upgrading automated preparation of biomolecular structures for molecular simulations. Nucleic Acids Res 35 W522-W525 (2007).
+2024-02-06 14:42:59,492 INFO:main.py:768:main_driver:Checking and transforming input arguments.
+2024-02-06 14:42:59,492 INFO:main.py:772:main_driver:Loading topology files.
+2024-02-06 14:42:59,527 INFO:main.py:774:main_driver:Loading molecule: example.pdb
+2024-02-06 14:42:59,527 ERROR:pdb.py:2584:read_pdb:Error parsing line: invalid literal for int() with base 10: ''
+2024-02-06 14:42:59,528 ERROR:pdb.py:2585:read_pdb:<REMARK    THIS IS A SIMULATION BOX>
+2024-02-06 14:42:59,528 ERROR:pdb.py:2586:read_pdb:Truncating remaining errors for record type:REMARK
+2024-02-06 14:42:59,528 WARNING:io.py:468:get_molecule:Warning: example.pdb is a non-standard PDB file.
+
+2024-02-06 14:42:59,528 ERROR:io.py:469:get_molecule:['REMARK']
+2024-02-06 14:42:59,528 INFO:main.py:779:main_driver:Setting up molecule.
+2024-02-06 14:42:59,528 INFO:main.py:417:setup_molecule:Created biomolecule object with 21 residues and 50 atoms.
+2024-02-06 14:42:59,528 INFO:main.py:783:main_driver:Setting termini states for biomolecule chains.
+2024-02-06 14:42:59,529 INFO:main.py:613:non_trivial:Loading forcefield.
+2024-02-06 14:42:59,537 INFO:main.py:617:non_trivial:Loading hydrogen topology definitions.
+2024-02-06 14:42:59,537 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom N in residue THR A 1
+2024-02-06 14:42:59,537 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CA in residue THR A 1
+2024-02-06 14:42:59,537 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom C in residue THR A 1
+2024-02-06 14:42:59,537 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom O in residue THR A 1
+2024-02-06 14:42:59,537 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CB in residue THR A 1
+2024-02-06 14:42:59,537 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom OG1 in residue THR A 1
+2024-02-06 14:42:59,537 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CG2 in residue THR A 1
+2024-02-06 14:42:59,537 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom N in residue ARG A 2
+2024-02-06 14:42:59,537 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CA in residue ARG A 2
+2024-02-06 14:42:59,537 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom C in residue ARG A 2
+2024-02-06 14:42:59,537 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom O in residue ARG A 2
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CB in residue ARG A 2
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CG in residue ARG A 2
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CD in residue ARG A 2
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom NE in residue ARG A 2
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CZ in residue ARG A 2
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom NH1 in residue ARG A 2
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom NH2 in residue ARG A 2
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom N in residue SER A 3
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CA in residue SER A 3
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom C in residue SER A 3
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom O in residue SER A 3
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CB in residue SER A 3
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom OG in residue SER A 3
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom N in residue SER A 4
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CA in residue SER A 4
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom C in residue SER A 4
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom O in residue SER A 4
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CB in residue SER A 4
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom OG in residue SER A 4
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom N in residue ARG A 5
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CA in residue ARG A 5
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom C in residue ARG A 5
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom O in residue ARG A 5
+2024-02-06 14:42:59,538 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CB in residue ARG A 5
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CG in residue ARG A 5
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CD in residue ARG A 5
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom NE in residue ARG A 5
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CZ in residue ARG A 5
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom NH1 in residue ARG A 5
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom NH2 in residue ARG A 5
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom N in residue ALA A 6
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CA in residue ALA A 6
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom C in residue ALA A 6
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom O in residue ALA A 6
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CB in residue ALA A 6
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom N in residue GLY A 7
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CA in residue GLY A 7
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom C in residue GLY A 7
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom O in residue GLY A 7
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom N in residue LEU A 8
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CA in residue LEU A 8
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom C in residue LEU A 8
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom O in residue LEU A 8
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CB in residue LEU A 8
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CG in residue LEU A 8
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CD1 in residue LEU A 8
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CD2 in residue LEU A 8
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom N in residue GLN A 9
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CA in residue GLN A 9
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom C in residue GLN A 9
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom O in residue GLN A 9
+2024-02-06 14:42:59,539 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CB in residue GLN A 9
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CG in residue GLN A 9
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CD in residue GLN A 9
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom OE1 in residue GLN A 9
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom NE2 in residue GLN A 9
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom OXT in residue GLN A 9
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom N in residue PHE B 10
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CA in residue PHE B 10
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom C in residue PHE B 10
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom O in residue PHE B 10
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CB in residue PHE B 10
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CG in residue PHE B 10
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CD1 in residue PHE B 10
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CD2 in residue PHE B 10
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CE1 in residue PHE B 10
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CE2 in residue PHE B 10
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CZ in residue PHE B 10
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom N in residue LEU B 11
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CA in residue LEU B 11
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom C in residue LEU B 11
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom O in residue LEU B 11
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CB in residue LEU B 11
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CG in residue LEU B 11
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CD1 in residue LEU B 11
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CD2 in residue LEU B 11
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom N in residue VAL B 12
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CA in residue VAL B 12
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom C in residue VAL B 12
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom O in residue VAL B 12
+2024-02-06 14:42:59,540 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CB in residue VAL B 12
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CG1 in residue VAL B 12
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CG2 in residue VAL B 12
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom N in residue GLY B 13
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CA in residue GLY B 13
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom C in residue GLY B 13
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom O in residue GLY B 13
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom N in residue ARG B 14
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CA in residue ARG B 14
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom C in residue ARG B 14
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom O in residue ARG B 14
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CB in residue ARG B 14
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CG in residue ARG B 14
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CD in residue ARG B 14
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom NE in residue ARG B 14
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CZ in residue ARG B 14
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom NH1 in residue ARG B 14
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom NH2 in residue ARG B 14
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom OXT in residue ARG B 14
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom N in residue VAL C 15
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CA in residue VAL C 15
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom C in residue VAL C 15
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom O in residue VAL C 15
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CB in residue VAL C 15
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CG1 in residue VAL C 15
+2024-02-06 14:42:59,541 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CG2 in residue VAL C 15
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom N in residue HIS C 16
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CA in residue HIS C 16
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom C in residue HIS C 16
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom O in residue HIS C 16
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CB in residue HIS C 16
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CG in residue HIS C 16
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom ND1 in residue HIS C 16
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CD2 in residue HIS C 16
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CE1 in residue HIS C 16
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom NE2 in residue HIS C 16
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom N in residue ARG C 17
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CA in residue ARG C 17
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom C in residue ARG C 17
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom O in residue ARG C 17
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CB in residue ARG C 17
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CG in residue ARG C 17
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CD in residue ARG C 17
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom NE in residue ARG C 17
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CZ in residue ARG C 17
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom NH1 in residue ARG C 17
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom NH2 in residue ARG C 17
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom N in residue LEU C 18
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CA in residue LEU C 18
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom C in residue LEU C 18
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom O in residue LEU C 18
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CB in residue LEU C 18
+2024-02-06 14:42:59,542 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CG in residue LEU C 18
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CD1 in residue LEU C 18
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CD2 in residue LEU C 18
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom N in residue LEU C 19
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CA in residue LEU C 19
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom C in residue LEU C 19
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom O in residue LEU C 19
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CB in residue LEU C 19
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CG in residue LEU C 19
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CD1 in residue LEU C 19
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CD2 in residue LEU C 19
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom N in residue ARG C 20
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CA in residue ARG C 20
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom C in residue ARG C 20
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom O in residue ARG C 20
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CB in residue ARG C 20
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CG in residue ARG C 20
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CD in residue ARG C 20
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom NE in residue ARG C 20
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CZ in residue ARG C 20
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom NH1 in residue ARG C 20
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom NH2 in residue ARG C 20
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom N in residue LYS C 21
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CA in residue LYS C 21
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom C in residue LYS C 21
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom O in residue LYS C 21
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CB in residue LYS C 21
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CG in residue LYS C 21
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CD in residue LYS C 21
+2024-02-06 14:42:59,543 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom CE in residue LYS C 21
+2024-02-06 14:42:59,544 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom NZ in residue LYS C 21
+2024-02-06 14:42:59,544 WARNING:biomolecule.py:157:num_missing_heavy:Missing atom OXT in residue LYS C 21
+2024-02-06 14:42:59,544 ERROR:main.py:478:is_repairable:This PDB file is missing too many (175 out of 175, 1) heavy atoms to accurately repair the file.The current repair limit is set at 0.1. You may also see this message if PDB2PQR does not have parameters for enough residues in your biomolecule.
+2024-02-06 14:42:59,544 INFO:main.py:632:non_trivial:Updating disulfide bridges.
+2024-02-06 14:42:59,544 INFO:main.py:635:non_trivial:Debumping biomolecule.
+2024-02-06 14:42:59,544 CRITICAL:main.py:809:main_driver:Unable to debump biomolecule. Biomolecular structure is incomplete:  Cannot set references to %s without CA atom!
+2024-02-06 14:42:59,544 CRITICAL:main.py:810:main_driver:Giving up.
+2024-02-06 14:43:20,233 INFO:main.py:240:print_splash_screen:PDB2PQR v3.6.2: biomolecular structure conversion software.
+2024-02-06 14:43:20,233 INFO:main.py:242:print_splash_screen:Please cite:  Jurrus E, et al.  Improvements to the APBS biomolecular solvation software suite.  Protein Sci 27 112-128 (2018).
+2024-02-06 14:43:20,233 INFO:main.py:242:print_splash_screen:Please cite:  Dolinsky TJ, et al.  PDB2PQR: expanding and upgrading automated preparation of biomolecular structures for molecular simulations. Nucleic Acids Res 35 W522-W525 (2007).
+2024-02-06 14:43:20,233 INFO:main.py:768:main_driver:Checking and transforming input arguments.
+2024-02-06 14:43:20,233 INFO:main.py:772:main_driver:Loading topology files.
+2024-02-06 14:43:20,270 INFO:main.py:774:main_driver:Loading molecule: example.pdb
+2024-02-06 14:43:20,270 ERROR:pdb.py:2584:read_pdb:Error parsing line: invalid literal for int() with base 10: ''
+2024-02-06 14:43:20,270 ERROR:pdb.py:2585:read_pdb:<REMARK    THIS IS A SIMULATION BOX>
+2024-02-06 14:43:20,270 ERROR:pdb.py:2586:read_pdb:Truncating remaining errors for record type:REMARK
+2024-02-06 14:43:20,270 WARNING:io.py:468:get_molecule:Warning: example.pdb is a non-standard PDB file.
+
+2024-02-06 14:43:20,270 ERROR:io.py:469:get_molecule:['REMARK']
+2024-02-06 14:43:20,270 INFO:main.py:779:main_driver:Setting up molecule.
+2024-02-06 14:43:20,271 INFO:main.py:417:setup_molecule:Created biomolecule object with 21 residues and 50 atoms.
+2024-02-06 14:43:20,271 INFO:main.py:783:main_driver:Setting termini states for biomolecule chains.
+2024-02-06 14:43:20,272 INFO:main.py:787:main_driver:Arguments specified cleaning only; skipping remaining steps.

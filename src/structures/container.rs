@@ -8,6 +8,7 @@ use std::cmp;
 /// Structure describing a group of atoms.
 /// Guaranteed to only contain valid atom indices.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AtomContainer {
     /// Vector of atom blocks capturing the indices of atoms included in the container.
     atom_blocks: Vec<AtomBlock>,
@@ -16,6 +17,7 @@ pub struct AtomContainer {
 /// Block of atoms described by atom indices in the System structure.
 /// Guaranteed to only contain valid atom indices.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 struct AtomBlock {
     /// Index of the first atom in the `AtomBlock`.
     /// Atoms are indexed starting from 0.
@@ -864,5 +866,62 @@ mod tests_container {
         cmp_block_tuple(&container.atom_blocks[0], (1, 12));
         cmp_block_tuple(&container.atom_blocks[1], (14, 16));
         cmp_block_tuple(&container.atom_blocks[2], (18, 19));
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "serde")]
+mod serde_tests {
+    use super::*;
+
+    #[test]
+    fn atomblock_to_yaml() {
+        let block = AtomBlock::new(14, 22, 30);
+
+        let string = serde_yaml::to_string(&block).unwrap();
+
+        assert_eq!(string, "start: 14\nend: 22\n");
+    }
+
+    #[test]
+    fn atomblock_from_yaml() {
+        let string = "{ start: 14, end: 22}";
+
+        let block: AtomBlock = serde_yaml::from_str(&string).unwrap();
+
+        assert_eq!(block.start, 14);
+        assert_eq!(block.end, 22);
+    }
+
+    #[test]
+    fn atomcontainer_to_yaml() {
+        let ranges = vec![(20, 32), (64, 64), (84, 143)];
+        let container = AtomContainer::from_ranges(ranges, 1028);
+
+        let string = serde_yaml::to_string(&container).unwrap();
+
+        assert_eq!(
+            string,
+            "atom_blocks:
+- start: 20
+  end: 32
+- start: 64
+  end: 64
+- start: 84
+  end: 143
+"
+        )
+    }
+
+    #[test]
+    fn atomcontainer_from_yaml() {
+        let string = "atom_blocks: [ { start: 20, end: 32 }, { start: 64, end: 64 }, { start: 84, end: 143 } ]";
+
+        let container: AtomContainer = serde_yaml::from_str(&string).unwrap();
+
+        let ranges = vec![(20, 32), (64, 64), (84, 143)];
+        let expected = AtomContainer::from_ranges(ranges, 1028);
+
+        assert_eq!(container, expected);
     }
 }

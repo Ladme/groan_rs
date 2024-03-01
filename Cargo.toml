@@ -1,14 +1,14 @@
 [package]
 name = "groan_rs"
 description = "Gromacs Analysis Library for Rust"
-version = "0.6.2"
+version = "0.7.0"
 license = "MIT"
 edition = "2021"
 repository = "https://github.com/Ladme/groan_rs"
 keywords = ["gromacs", "molecular-dynamics"]
 categories = ["command-line-utilities", "science"]
 build = "build.rs"
-exclude = ["/test_files"]
+exclude = ["/test_files", "src/test_utilities.rs"]
 
 [dependencies]
 colored   = "2.0.4"
@@ -19,6 +19,9 @@ thiserror = "1.0.48"
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
 fancy-regex = "0.13.0"
+nalgebra = "0.32.3"
+crossbeam-utils = { version = "0.8.4", optional = true }
+minitpr = "0.1.1"
 
 [dev-dependencies]
 file_diff = "1.0.0"
@@ -27,3 +30,7 @@ rand      = "0.8.5"
 
 [build-dependencies]
 cc = { version = "1.0", features = ["parallel" ]}
+
+[features]
+serde = []
+parallel = ["crossbeam-utils"]

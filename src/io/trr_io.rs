@@ -8,14 +8,15 @@ use std::os::raw::{c_float, c_int};
 use std::path::Path;
 
 use crate::errors::{ReadTrajError, TrajError, WriteTrajError};
+use crate::io::traj_cat::TrajConcatenator;
 use crate::io::traj_io::{
-    FrameData, FrameDataTime, TrajGroupWrite, TrajRangeRead, TrajRead, TrajReader, TrajStepRead,
-    TrajWrite,
+    FrameData, FrameDataTime, TrajGroupWrite, TrajRangeRead, TrajRead, TrajReadOpen, TrajReader,
+    TrajStepRead, TrajStepTimeRead, TrajWrite,
 };
 use crate::io::xdrfile::{self, CXdrFile, OpenMode, XdrFile};
 use crate::structures::iterators::AtomIterator;
 use crate::structures::{group::Group, simbox::SimBox, vector3d::Vector3D};
-use crate::system::general::System;
+use crate::system::System;
 
 /**************************/
 /*      READING TRR       */
@@ -145,6 +146,16 @@ pub struct TrrReader<'a> {
 impl<'a> TrajRead<'a> for TrrReader<'a> {
     type FrameData = TrrFrameData;
 
+    fn get_system(&mut self) -> *mut System {
+        self.system
+    }
+
+    fn get_file_handle(&mut self) -> &mut CXdrFile {
+        unsafe { self.trr.handle.as_mut().unwrap() }
+    }
+}
+
+impl<'a> TrajReadOpen<'a> for TrrReader<'a> {
     /// Create an iterator over a trr file.
     fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<TrrReader, ReadTrajError> {
         let n_atoms = system.get_n_atoms();
@@ -175,14 +186,6 @@ impl<'a> TrajRead<'a> for TrrReader<'a> {
 
         Ok(trr_reader)
     }
-
-    fn get_system(&mut self) -> *mut System {
-        self.system
-    }
-
-    fn get_file_handle(&mut self) -> &mut CXdrFile {
-        unsafe { self.trr.handle.as_mut().unwrap() }
-    }
 }
 
 impl<'a> TrajRangeRead<'a> for TrrReader<'a> {
@@ -206,6 +209,24 @@ impl<'a> TrajStepRead<'a> for TrrReader<'a> {
                 2 => Ok(false),
                 number => panic!(
                     "FATAL GROAN ERROR | TrrReader::skip_frame | `xdrfile::trr_skip_frame` returned an unsupported number '{}'.",
+                    number
+                ),
+            }
+        }
+    }
+}
+
+impl<'a> TrajStepTimeRead<'a> for TrrReader<'a> {
+    fn skip_frame_time(&mut self) -> Result<Option<f32>, ReadTrajError> {
+        unsafe {
+            let mut time: c_float = 0.0;
+
+            match xdrfile::trr_skip_frame_with_time(self.get_file_handle(), &mut time as *mut c_float) {
+                0 => Ok(Some(time)),
+                1 => Err(ReadTrajError::SkipFailed),
+                2 => Ok(None),
+                number => panic!(
+                    "FATAL GROAN ERROR | TrrReader::skip_frame_time | `xdrfile::trr_skip_frame_with_time` returned an unsupported number '{}'",
                     number
                 ),
             }
@@ -315,9 +336,6 @@ impl System {
     /// }
     /// ```
     ///
-    /// ## Warning
-    /// Only orthogonal simulation boxes are currently supported!
-    ///
     /// ## Notes
     /// - The function checks whether the number of atoms in the system corresponds to the number of atoms in the trr file.
     /// - The `System` structure is modified while iterating through the trr file.
@@ -328,6 +346,39 @@ impl System {
         filename: impl AsRef<Path>,
     ) -> Result<TrajReader<TrrReader>, ReadTrajError> {
         Ok(TrajReader::wrap_traj(TrrReader::new(self, filename)?))
+    }
+
+    /// Iterate through multiple trr files.
+    /// Any duplicate frames at the boundaries of the trajectories are skipped.
+    ///
+    /// ## Example
+    /// Iterate through multiple trr files and calculate and print the current center of geometry of the system.
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// # use groan_rs::errors::ReadTrajError;
+    /// #
+    /// fn example_fn() -> Result<(), ReadTrajError> {
+    ///     let mut system = System::from_file("system.gro").unwrap();
+    ///     let trajectories = vec!["md0001.trr", "md0002.trr", "md0003.trr"];     
+    ///
+    ///     for raw_frame in system.trr_cat_iter(&trajectories).unwrap() {
+    ///         let frame = raw_frame?;
+    ///         println!("{:?}", frame.group_get_center("all"));
+    ///     }
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// You can also iterate through only part of the trajectory, only read every Nth trajectory frame,
+    /// and print progress of the trajectory reading. For more information, see [`System::trr_iter`](`System::trr_iter`).
+    ///
+    /// For more information about trajectory concatenation, see [`System::traj_cat_iter`](`System::traj_cat_iter`).
+    pub fn trr_cat_iter<'a>(
+        &'a mut self,
+        filenames: &[impl AsRef<Path>],
+    ) -> Result<TrajReader<'a, TrajConcatenator<'a, TrrReader>>, ReadTrajError> {
+        self.traj_cat_iter::<TrrReader>(filenames)
     }
 }
 
@@ -632,7 +683,7 @@ impl XdrFile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utilities::utilities::compare_atoms;
+    use crate::test_utilities::utilities::{compare_atoms, compare_box};
     use float_cmp::assert_approx_eq;
     use std::fs::File;
     use tempfile::NamedTempFile;
@@ -1752,6 +1803,50 @@ mod tests {
     }
 
     #[test]
+    fn cat_trr() {
+        let mut system_single = System::from_file("test_files/example.gro").unwrap();
+        let mut system_cat = System::from_file("test_files/example.gro").unwrap();
+
+        let traj_single = system_single
+            .trr_iter("test_files/short_trajectory.trr")
+            .unwrap();
+        let traj_cat = system_cat
+            .trr_cat_iter(&vec![
+                "test_files/split/traj1.trr",
+                "test_files/split/traj2.trr",
+                "test_files/split/traj3.trr",
+                "test_files/split/traj4.trr",
+                "test_files/split/traj5.trr",
+                "test_files/split/traj6.trr",
+            ])
+            .unwrap();
+
+        for (frame_single, frame_cat) in traj_single.zip(traj_cat) {
+            let frame_single = frame_single.unwrap();
+            let frame_cat = frame_cat.unwrap();
+
+            assert_approx_eq!(
+                f32,
+                frame_single.get_simulation_time(),
+                frame_cat.get_simulation_time()
+            );
+            assert_eq!(
+                frame_single.get_simulation_step(),
+                frame_cat.get_simulation_step()
+            );
+
+            compare_box(
+                frame_single.get_box_as_ref().unwrap(),
+                frame_cat.get_box_as_ref().unwrap(),
+            );
+
+            for (atom_single, atom_cat) in frame_single.atoms_iter().zip(frame_cat.atoms_iter()) {
+                compare_atoms(atom_single, atom_cat);
+            }
+        }
+    }
+
+    #[test]
     fn write_trr() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
@@ -1872,7 +1967,10 @@ mod tests {
 
         // remove the protein group from the system; this should not change the output of the XtcGroupWriter
         unsafe {
-            let val = system.get_groups_as_ref_mut().remove("Protein").unwrap();
+            let val = system
+                .get_groups_as_ref_mut()
+                .swap_remove("Protein")
+                .unwrap();
             assert_eq!(val.get_atoms(), writer.group.get_atoms());
             assert!(!system.group_exists("Protein"));
         }

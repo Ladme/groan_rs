@@ -5,12 +5,14 @@
 
 use std::io::Write;
 
-use crate::errors::{AtomError, PositionError, WriteGroError, WritePdbError};
+use crate::errors::{AtomError, PositionError, WriteGroError, WritePdbError, WritePqrError};
+use crate::io::pqr_io::PqrPrecision;
 use crate::structures::{
     container::AtomContainer, dimension::Dimension, simbox::SimBox, vector3d::Vector3D,
 };
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Atom {
     /// Number (index) of the residue this atom is part of.
     residue_number: usize,
@@ -328,7 +330,7 @@ impl Atom {
     /// Set the x-coordinate of the atom.
     pub fn set_position_x(&mut self, x: f32) {
         match self.position {
-            None => self.position = Some(Vector3D::from([x, 0.0, 0.0])),
+            None => self.position = Some(Vector3D::new(x, 0.0, 0.0)),
             Some(ref mut pos) => pos.x = x,
         }
     }
@@ -336,7 +338,7 @@ impl Atom {
     /// Set the y-coordinate of the atom.
     pub fn set_position_y(&mut self, y: f32) {
         match self.position {
-            None => self.position = Some(Vector3D::from([0.0, y, 0.0])),
+            None => self.position = Some(Vector3D::new(0.0, y, 0.0)),
             Some(ref mut pos) => pos.y = y,
         }
     }
@@ -344,7 +346,7 @@ impl Atom {
     /// Set the z-coordinate of the atom.
     pub fn set_position_z(&mut self, z: f32) {
         match self.position {
-            None => self.position = Some(Vector3D::from([0.0, 0.0, z])),
+            None => self.position = Some(Vector3D::new(0.0, 0.0, z)),
             Some(ref mut pos) => pos.z = z,
         }
     }
@@ -485,9 +487,7 @@ impl Atom {
     /// `Ok` of `AtomError::InvalidPosition` if the atom has an undefined position.
     pub fn translate_nopbc(&mut self, translate: &Vector3D) -> Result<(), AtomError> {
         if let Some(ref mut pos) = self.position {
-            pos.x += translate.x;
-            pos.y += translate.y;
-            pos.z += translate.z;
+            pos.0 += translate.0;
             Ok(())
         } else {
             Err(AtomError::InvalidPosition(PositionError::NoPosition(
@@ -627,6 +627,76 @@ impl Atom {
         Ok(())
     }
 
+    /// Write information about the atom in whitespace-delimited PQR format.
+    ///
+    /// ## Parameters
+    /// - `precision` parameters specify the number of decimal places to be printed for
+    /// position, charge and radius.
+    ///
+    /// ## Notes
+    /// - All atoms are treated as 'ATOM'. 'HETATM' is not used at all.
+    /// - Allows for any atom and residue names of any length. No numbers are wrapped.
+    /// - If atom has no position, 0 is printed out for all dimensions.
+    /// - If atom has no charge or no vdw, 0 is used.
+    pub fn write_pqr(
+        &self,
+        stream: &mut impl Write,
+        precision: &PqrPrecision,
+    ) -> Result<(), WritePqrError> {
+        let format_resname = match self.get_residue_name().len() {
+            0..=3 => format!("{:>3} ", self.get_residue_name()),
+            _ => format!("{} ", self.get_residue_name()),
+        };
+
+        let format_atomname = match self.get_atom_name().len() {
+            0..=3 => format!(" {:<3}", self.get_atom_name()),
+            _ => self.get_atom_name().to_string(),
+        };
+
+        let resid = self.get_residue_number();
+        let format_resid = match resid {
+            0..=999 => format!("{:>4}    ", resid),
+            1000..=9999 => format!("{:>5}   ", resid),
+            10000..=99999 => format!("{:>6}  ", resid),
+            100000..=999999 => format!("{:>7} ", resid),
+            1000000..=9999999 => format!("{:>8}", resid),
+            _ => format!(" {}", resid),
+        };
+
+        let format_atomid = match self.get_atom_number() {
+            0..=99999 => format!(" {:>5}", self.get_atom_number()),
+            _ => format!("{}", self.get_atom_number()),
+        };
+
+        let chain = self.get_chain().unwrap_or(' ');
+
+        let binding = Vector3D::default();
+        let position = self.get_position().unwrap_or(&binding);
+        let charge = self.get_charge().unwrap_or(0.0);
+        let vdw = self.get_vdw().unwrap_or(0.0);
+
+        writeln!(
+            stream,
+            "ATOM {3} {4} {5}{6}{7} {8:>7.0$} {9:>7.0$} {10:>7.0$} {11:>7.1$} {12:>6.2$}",
+            precision.position,
+            precision.charge,
+            precision.vdw,
+            format_atomid,
+            format_atomname,
+            format_resname,
+            chain,
+            format_resid,
+            position.x * 10.0,
+            position.y * 10.0,
+            position.z * 10.0,
+            charge,
+            vdw * 10.0,
+        )
+        .map_err(|_| WritePqrError::CouldNotWrite)?;
+
+        Ok(())
+    }
+
     /// Calculate distance between two atoms.
     /// Takes periodic boundary conditions into consideration.
     /// Returns oriented distance for 1D problems.
@@ -723,7 +793,7 @@ impl Atom {
     /// # use float_cmp::assert_approx_eq;
     /// #
     /// let atom = Atom::new(1, "LYS", 1, "BB").with_position([1.0, 2.0, 3.0].into());
-    /// let point = Vector3D::from([3.5, 1.0, 2.0]);
+    /// let point = Vector3D::new(3.5, 1.0, 2.0);
     ///
     /// let simbox = SimBox::from([4.0, 4.0, 4.0]);
     ///
@@ -770,17 +840,23 @@ mod tests {
         assert_eq!(atom.get_atom_number(), 123);
         assert_eq!(atom.get_atom_name(), "BB");
 
-        assert_approx_eq!(f32, atom.get_position().unwrap().x, 15.123);
-        assert_approx_eq!(f32, atom.get_position().unwrap().y, 14.321);
-        assert_approx_eq!(f32, atom.get_position().unwrap().z, 9.834);
+        let pos = atom.get_position().unwrap();
 
-        assert_approx_eq!(f32, atom.get_velocity().unwrap().x, -3.432);
-        assert_approx_eq!(f32, atom.get_velocity().unwrap().y, 0.184);
-        assert_approx_eq!(f32, atom.get_velocity().unwrap().z, 1.234);
+        assert_approx_eq!(f32, pos.x, 15.123);
+        assert_approx_eq!(f32, pos.y, 14.321);
+        assert_approx_eq!(f32, pos.z, 9.834);
 
-        assert_approx_eq!(f32, atom.get_force().unwrap().x, 5.1235);
-        assert_approx_eq!(f32, atom.get_force().unwrap().y, 2.3451);
-        assert_approx_eq!(f32, atom.get_force().unwrap().z, -0.32145);
+        let vel = atom.get_velocity().unwrap();
+
+        assert_approx_eq!(f32, vel.x, -3.432);
+        assert_approx_eq!(f32, vel.y, 0.184);
+        assert_approx_eq!(f32, vel.z, 1.234);
+
+        let force = atom.get_force().unwrap();
+
+        assert_approx_eq!(f32, force.x, 5.1235);
+        assert_approx_eq!(f32, force.y, 2.3451);
+        assert_approx_eq!(f32, force.z, -0.32145);
     }
 
     #[test]
@@ -944,7 +1020,7 @@ mod tests {
         let atom = make_default_atom();
         assert_eq!(
             *atom.get_position().unwrap(),
-            Vector3D::from([15.123, 14.321, 9.834])
+            Vector3D::new(15.123, 14.321, 9.834)
         );
     }
 
@@ -962,7 +1038,7 @@ mod tests {
     #[test]
     fn set_position() {
         let mut atom = make_default_atom();
-        let new_pos = Vector3D::from([1.764, 2.134, 19.129]);
+        let new_pos = Vector3D::new(1.764, 2.134, 19.129);
         atom.set_position(new_pos.clone());
 
         assert_eq!(*atom.get_position().unwrap(), new_pos);
@@ -972,7 +1048,7 @@ mod tests {
     fn set_position_x() {
         let mut atom = make_default_atom();
         let new_x = 19.129;
-        let new_pos = Vector3D::from([19.129, 14.321, 9.834]);
+        let new_pos = Vector3D::new(19.129, 14.321, 9.834);
         atom.set_position_x(new_x);
 
         assert_eq!(*atom.get_position().unwrap(), new_pos);
@@ -982,7 +1058,7 @@ mod tests {
     fn set_position_y() {
         let mut atom = make_default_atom();
         let new_y = 19.129;
-        let new_pos = Vector3D::from([15.123, 19.129, 9.834]);
+        let new_pos = Vector3D::new(15.123, 19.129, 9.834);
         atom.set_position_y(new_y);
 
         assert_eq!(*atom.get_position().unwrap(), new_pos);
@@ -992,7 +1068,7 @@ mod tests {
     fn set_position_z() {
         let mut atom = make_default_atom();
         let new_z = 19.129;
-        let new_pos = Vector3D::from([15.123, 14.321, 19.129]);
+        let new_pos = Vector3D::new(15.123, 14.321, 19.129);
         atom.set_position_z(new_z);
 
         assert_eq!(*atom.get_position().unwrap(), new_pos);
@@ -1003,7 +1079,7 @@ mod tests {
         let atom = make_default_atom();
         assert_eq!(
             *atom.get_velocity().unwrap(),
-            Vector3D::from([-3.432, 0.184, 1.234])
+            Vector3D::new(-3.432, 0.184, 1.234)
         );
     }
 
@@ -1021,7 +1097,7 @@ mod tests {
     #[test]
     fn set_velocity() {
         let mut atom = make_default_atom();
-        let new_vel = Vector3D::from([1.764, 2.134, 19.129]);
+        let new_vel = Vector3D::new(1.764, 2.134, 19.129);
         atom.set_velocity(new_vel.clone());
 
         assert_eq!(*atom.get_velocity().unwrap(), new_vel);
@@ -1032,7 +1108,7 @@ mod tests {
         let atom = make_default_atom();
         assert_eq!(
             *atom.get_force().unwrap(),
-            Vector3D::from([5.1235, 2.3451, -0.32145])
+            Vector3D::new(5.1235, 2.3451, -0.32145)
         );
     }
 
@@ -1050,7 +1126,7 @@ mod tests {
     #[test]
     fn set_force() {
         let mut atom = make_default_atom();
-        let new_for = Vector3D::from([1.764, 2.134, 19.129]);
+        let new_for = Vector3D::new(1.764, 2.134, 19.129);
         atom.set_force(new_for.clone());
 
         assert_eq!(*atom.get_force().unwrap(), new_for);
@@ -1120,7 +1196,7 @@ mod tests {
     fn translate_nopbc() {
         let mut atom = make_default_atom();
 
-        let shift = Vector3D::from([4.5, 2.3, -8.3]);
+        let shift = Vector3D::new(4.5, 2.3, -8.3);
         atom.translate_nopbc(&shift).unwrap();
 
         assert_approx_eq!(
@@ -1148,7 +1224,7 @@ mod tests {
         let mut atom = make_default_atom();
         atom.reset_position();
 
-        let shift = Vector3D::from([4.5, 2.3, -8.3]);
+        let shift = Vector3D::new(4.5, 2.3, -8.3);
         match atom.translate_nopbc(&shift) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
@@ -1164,7 +1240,7 @@ mod tests {
     fn translate() {
         let mut atom = make_default_atom();
 
-        let shift = Vector3D::from([4.5, 2.3, -10.2]);
+        let shift = Vector3D::new(4.5, 2.3, -10.2);
         let simbox = SimBox::from([16.0, 16.0, 16.0]);
 
         atom.translate(&shift, &simbox).unwrap();
@@ -1194,7 +1270,7 @@ mod tests {
         let mut atom = make_default_atom();
         atom.reset_position();
 
-        let shift = Vector3D::from([4.5, 2.3, -8.3]);
+        let shift = Vector3D::new(4.5, 2.3, -8.3);
         let simbox = SimBox::from([16.0, 16.0, 16.0]);
         match atom.translate(&shift, &simbox) {
             Ok(_) => panic!("Function should have failed."),
@@ -1681,7 +1757,7 @@ mod tests {
     fn distance_from_point_x() {
         let atom = Atom::new(1, "LYS", 1, "BB").with_position([2.0, 3.8, 3.5].into());
 
-        let point = Vector3D::from([1.0, 0.5, 2.0]);
+        let point = Vector3D::new(1.0, 0.5, 2.0);
 
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
@@ -1698,7 +1774,7 @@ mod tests {
     fn distance_from_point_y() {
         let atom = Atom::new(1, "LYS", 1, "BB").with_position([2.0, 3.8, 3.5].into());
 
-        let point = Vector3D::from([1.0, 0.5, 2.0]);
+        let point = Vector3D::new(1.0, 0.5, 2.0);
 
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
@@ -1715,7 +1791,7 @@ mod tests {
     fn distance_from_point_z() {
         let atom = Atom::new(1, "LYS", 1, "BB").with_position([2.0, 3.8, 3.5].into());
 
-        let point = Vector3D::from([1.0, 0.5, 2.0]);
+        let point = Vector3D::new(1.0, 0.5, 2.0);
 
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
@@ -1732,7 +1808,7 @@ mod tests {
     fn distance_from_point_xy() {
         let atom = Atom::new(1, "LYS", 1, "BB").with_position([2.0, 3.8, 3.5].into());
 
-        let point = Vector3D::from([1.0, 0.5, 2.0]);
+        let point = Vector3D::new(1.0, 0.5, 2.0);
 
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
@@ -1749,7 +1825,7 @@ mod tests {
     fn distance_from_point_xz() {
         let atom = Atom::new(1, "LYS", 1, "BB").with_position([2.0, 3.8, 3.5].into());
 
-        let point = Vector3D::from([1.0, 0.5, 2.0]);
+        let point = Vector3D::new(1.0, 0.5, 2.0);
 
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
@@ -1766,7 +1842,7 @@ mod tests {
     fn distance_from_point_yz() {
         let atom = Atom::new(1, "LYS", 1, "BB").with_position([2.0, 3.8, 3.5].into());
 
-        let point = Vector3D::from([1.0, 0.5, 2.0]);
+        let point = Vector3D::new(1.0, 0.5, 2.0);
 
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
@@ -1783,7 +1859,7 @@ mod tests {
     fn distance_from_point_xyz() {
         let atom = Atom::new(1, "LYS", 1, "BB").with_position([2.0, 3.8, 3.5].into());
 
-        let point = Vector3D::from([1.0, 0.5, 2.0]);
+        let point = Vector3D::new(1.0, 0.5, 2.0);
 
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
@@ -1800,7 +1876,7 @@ mod tests {
     fn distance_from_point_none() {
         let atom = Atom::new(1, "LYS", 1, "BB").with_position([2.0, 3.8, 3.5].into());
 
-        let point = Vector3D::from([1.0, 0.5, 2.0]);
+        let point = Vector3D::new(1.0, 0.5, 2.0);
 
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
@@ -1816,7 +1892,7 @@ mod tests {
     #[test]
     fn distance_from_point_fail() {
         let atom = Atom::new(1, "LYS", 1, "BB");
-        let point = Vector3D::from([1.0, 0.5, 2.0]);
+        let point = Vector3D::new(1.0, 0.5, 2.0);
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         match atom.distance_from_point(&point, Dimension::XYZ, &simbox) {
@@ -1828,5 +1904,121 @@ mod tests {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
             }
         }
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "serde")]
+mod serde_tests {
+    use std::fs::read_to_string;
+
+    use float_cmp::assert_approx_eq;
+
+    use super::*;
+
+    #[test]
+    fn atom_to_yaml() {
+        let mut atom = Atom::new(10, "CYS", 24, "CA")
+            .with_position(Vector3D::new(10.4, 7.5, 2.6))
+            .with_velocity(Vector3D::new(-0.4332, 0.3221, 1.2314))
+            .with_force(Vector3D::new(14.24898, -13.208472, 8.123864))
+            .with_chain('B')
+            .with_charge(-1.0)
+            .with_mass(32.12)
+            .with_vdw(0.64)
+            .with_expected_max_bonds(3)
+            .with_expected_min_bonds(1)
+            .with_element_name("carbon")
+            .with_element_symbol("C");
+
+        unsafe {
+            atom.add_bonded(4);
+            atom.add_bonded(7);
+            atom.add_bonded(8);
+            atom.add_bonded(9);
+        }
+
+        let string = serde_yaml::to_string(&atom).unwrap();
+        let expected = read_to_string("test_files/serde_atom.yaml").unwrap();
+
+        assert_eq!(string, expected);
+    }
+
+    #[test]
+    fn minimal_atom_to_yaml() {
+        let atom = Atom::new(10, "CYS", 24, "CA");
+
+        let string = serde_yaml::to_string(&atom).unwrap();
+        let expected = read_to_string("test_files/serde_atom_minimal.yaml").unwrap();
+
+        assert_eq!(string, expected);
+    }
+
+    #[test]
+    fn atom_from_yaml() {
+        let string = read_to_string("test_files/serde_atom.yaml").unwrap();
+        let atom: Atom = serde_yaml::from_str(&string).unwrap();
+
+        assert_eq!(atom.get_residue_number(), 10);
+        assert_eq!(atom.get_residue_name(), "CYS");
+        assert_eq!(atom.get_atom_number(), 24);
+        assert_eq!(atom.get_atom_name(), "CA");
+
+        let pos = atom.get_position().unwrap();
+
+        assert_approx_eq!(f32, pos.x, 10.4);
+        assert_approx_eq!(f32, pos.y, 7.5);
+        assert_approx_eq!(f32, pos.z, 2.6);
+
+        let vel = atom.get_velocity().unwrap();
+
+        assert_approx_eq!(f32, vel.x, -0.4332);
+        assert_approx_eq!(f32, vel.y, 0.3221);
+        assert_approx_eq!(f32, vel.z, 1.2314);
+
+        let force = atom.get_force().unwrap();
+
+        assert_approx_eq!(f32, force.x, 14.24898);
+        assert_approx_eq!(f32, force.y, -13.208472);
+        assert_approx_eq!(f32, force.z, 8.123864);
+
+        assert_eq!(atom.get_chain().unwrap(), 'B');
+        assert_approx_eq!(f32, atom.get_charge().unwrap(), -1.0);
+        assert_approx_eq!(f32, atom.get_mass().unwrap(), 32.12);
+        assert_approx_eq!(f32, atom.get_vdw().unwrap(), 0.64);
+        assert_eq!(atom.get_expected_max_bonds().unwrap(), 3);
+        assert_eq!(atom.get_expected_min_bonds().unwrap(), 1);
+        assert_eq!(atom.get_element_name().unwrap(), "carbon");
+        assert_eq!(atom.get_element_symbol().unwrap(), "C");
+
+        assert_eq!(
+            atom.get_bonded(),
+            &AtomContainer::from_indices(vec![4, 7, 8, 9], 100)
+        );
+    }
+
+    #[test]
+    fn minimal_atom_from_yaml() {
+        let string = read_to_string("test_files/serde_atom_minimal.yaml").unwrap();
+        let atom: Atom = serde_yaml::from_str(&string).unwrap();
+
+        assert_eq!(atom.get_residue_number(), 10);
+        assert_eq!(atom.get_residue_name(), "CYS");
+        assert_eq!(atom.get_atom_number(), 24);
+        assert_eq!(atom.get_atom_name(), "CA");
+
+        assert!(atom.get_position().is_none());
+        assert!(atom.get_velocity().is_none());
+        assert!(atom.get_force().is_none());
+        assert!(atom.get_chain().is_none());
+        assert!(atom.get_charge().is_none());
+        assert!(atom.get_mass().is_none());
+        assert!(atom.get_vdw().is_none());
+        assert!(atom.get_expected_max_bonds().is_none());
+        assert!(atom.get_expected_min_bonds().is_none());
+        assert!(atom.get_element_name().is_none());
+        assert!(atom.get_element_symbol().is_none());
+
+        assert_eq!(atom.get_bonded(), &AtomContainer::from_indices(vec![], 100));
     }
 }

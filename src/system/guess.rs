@@ -9,10 +9,12 @@ use colored::Colorize;
 use indexmap::IndexMap;
 
 use crate::errors::ElementError;
-use crate::structures::atom::Atom;
 use crate::structures::dimension::Dimension;
 use crate::structures::element::Elements;
-use crate::system::general::System;
+use crate::system::System;
+
+#[cfg(feature = "parallel")]
+use crossbeam_utils::thread;
 
 /// Default factor used to quess bonds between atoms.
 const DEFAULT_RADIUS_FACTOR: f32 = 0.55;
@@ -327,63 +329,229 @@ impl System {
     /// ## Notes
     /// - Atoms which have no assigned van der Waals radius are not assigned any bonds.
     /// - Asymptotic time complexity of this function is O(n^2) where n is the number of atoms in the system.
+    /// It is almost always useful to use the parallelized version of this function: [`System::guess_bonds_parallel`],
+    /// especially if your system is large.
     pub fn guess_bonds(&mut self, radius_factor: Option<f32>) -> Result<(), ElementError> {
-        let mut info = BondsGuessInfo {
-            no_vdw: Vec::new(),
-            too_many_bonds: IndexMap::new(),
-            too_few_bonds: IndexMap::new(),
+        let n_atoms = self.get_n_atoms();
+        if n_atoms == 0 {
+            return Ok(());
+        }
+
+        // identify bonds
+        let (bonds, no_vdw) = self.identify_bonds(
+            radius_factor.unwrap_or(DEFAULT_RADIUS_FACTOR),
+            0,
+            self.get_n_atoms(),
+        );
+
+        // assign bonds
+        self.assign_bonds(bonds);
+
+        // check for unexpected number of bonds
+        let (too_many_bonds, too_few_bonds) = self.check_unexpected_bonds();
+
+        let info = BondsGuessInfo {
+            no_vdw,
+            too_many_bonds,
+            too_few_bonds,
         };
 
-        let unpacked_factor = radius_factor.unwrap_or(DEFAULT_RADIUS_FACTOR);
+        if info.is_empty() {
+            Ok(())
+        } else {
+            Err(ElementError::BondsGuessWarning(Box::new(info)))
+        }
+    }
 
-        for a in 0..self.get_n_atoms() {
+    /// Assign bonds between atoms based on the distances between them, their van der Waals radii
+    /// and the provided `radius_factor`.
+    /// If the `radius_factor` is not provided, the default value of 0.55 is used.
+    ///
+    /// This function works the same as [`System::guess_bonds`] but can employ multiple threads
+    /// significantly increasing the speed of the calculation. The number of threads (`n_threads`)
+    /// to use is provided by the user.
+    ///
+    /// ## Panics
+    /// Panics if the number of threads (`n_threads`) to be employed equals zero.
+    ///
+    /// ## Notes
+    /// - If the number of threads is higher than the number of atoms (`n_atoms`) in the system,
+    /// only `n_atoms` threads will be used.
+    #[cfg(feature = "parallel")]
+    pub fn guess_bonds_parallel(
+        &mut self,
+        radius_factor: Option<f32>,
+        mut n_threads: usize,
+    ) -> Result<(), ElementError> {
+        if n_threads == 0 {
+            panic!("FATAL GROAN ERROR | System::guess_bonds_parallel | Number of threads should not be zero.");
+        }
+
+        let n_atoms = self.get_n_atoms();
+        if n_atoms == 0 {
+            return Ok(());
+        }
+
+        // if the number of atoms is higher than the number of threads, decrease the number of threads
+        if n_atoms < n_threads {
+            n_threads = n_atoms;
+        }
+
+        // identify bonds in parallel
+        let (bonds, no_vdw) = self.identify_bonds_parallel(
+            radius_factor.unwrap_or(DEFAULT_RADIUS_FACTOR),
+            n_atoms,
+            n_threads,
+        );
+
+        // assign bonds
+        self.assign_bonds(bonds);
+
+        // check for unexpected number of bonds
+        let (too_many_bonds, too_few_bonds) = self.check_unexpected_bonds();
+
+        let info = BondsGuessInfo {
+            no_vdw,
+            too_many_bonds,
+            too_few_bonds,
+        };
+
+        if info.is_empty() {
+            Ok(())
+        } else {
+            Err(ElementError::BondsGuessWarning(Box::new(info)))
+        }
+    }
+
+    /// Assign bonds to atoms of the system.
+    ///
+    /// `bonds` must only contain valid indices.
+    #[inline]
+    fn assign_bonds(&mut self, bonds: Vec<(usize, usize)>) {
+        // safety: only safe if bonds vector contains valid indices
+        // we apply `System::reset_mol_references` at the end of the function
+        unsafe {
+            let atoms = self.get_atoms_as_ref_mut();
+            for (index1, index2) in bonds {
+                atoms[index1].add_bonded(index2);
+                atoms[index2].add_bonded(index1);
+            }
+        }
+
+        self.reset_mol_references();
+    }
+
+    /// Assign bonds to the atoms of the system.
+    ///
+    /// ## Warning
+    /// - `n_threads` must be non-zero and smaller than or equal to `n_atoms`
+    /// - `n_atoms` must be non-zero
+    #[cfg(feature = "parallel")]
+    #[inline]
+    fn identify_bonds_parallel(
+        &self,
+        radius_factor: f32,
+        n_atoms: usize,
+        n_threads: usize,
+    ) -> (Vec<(usize, usize)>, Vec<usize>) {
+        // distribute atoms between threads
+        let distribution = self.distribute_atoms(n_atoms, n_threads);
+
+        let mut no_vdw = Vec::new();
+        let mut bonds = Vec::new();
+
+        thread::scope(|s| {
+            let mut handles = Vec::new();
+
+            for (start, end) in distribution {
+                let handle = s.spawn(move |_| -> (Vec<(usize, usize)>, Vec<usize>) {
+                    self.identify_bonds(radius_factor, start, end)
+                });
+
+                handles.push(handle);
+            }
+
+            for handle in handles {
+                let (mut b, mut vdw) = handle.join().expect(
+                    "FATAL GROAN ERROR | System::identify_bonds_parallel | Could not join handle.",
+                );
+                bonds.append(&mut b);
+                no_vdw.append(&mut vdw);
+            }
+        })
+        .expect(
+            "FATAL GROAN ERROR | System::identify_bonds_parallel | Could not iterate in parallel.",
+        );
+
+        (bonds, no_vdw)
+    }
+
+    /// Identify atoms which should be bonded.
+    ///
+    /// ## Parameters
+    /// - `radius_factor`: factor used to quess bonds between atoms.
+    /// - `start` and `end`: range of atom indices for which the bonds should be assigned
+    #[inline]
+    fn identify_bonds(
+        &self,
+        radius_factor: f32,
+        start: usize,
+        end: usize,
+    ) -> (Vec<(usize, usize)>, Vec<usize>) {
+        let mut no_vdw = Vec::new();
+        let mut bonds = Vec::new();
+
+        for a in start..end {
             let atom1 = self
-                .get_atom_as_ref_mut(a)
-                .expect("FATAL GROAN ERROR | System::guess_bonds | Atom 1 should exist.")
-                as *mut Atom;
+                .get_atom_as_ref(a)
+                .expect("FATAL GROAN ERROR | System::identify_bonds | Atom 1 should exist.");
 
-            let vdw1 = match unsafe { (*atom1).get_vdw() } {
+            let vdw1 = match atom1.get_vdw() {
                 Some(x) => x,
                 None => {
-                    info.no_vdw.push(a + 1);
+                    no_vdw.push(a + 1);
                     continue;
                 }
             };
 
             for b in (a + 1)..self.get_n_atoms() {
                 let atom2 = self
-                    .get_atom_as_ref_mut(b)
-                    .expect("FATAL GROAN ERROR | System::guess_bonds | Atom 2 should exist.")
-                    as *mut Atom;
+                    .get_atom_as_ref(b)
+                    .expect("FATAL GROAN ERROR | System::identify_bonds | Atom 2 should exist.");
 
-                let vdw2 = match unsafe { (*atom2).get_vdw() } {
+                let vdw2 = match atom2.get_vdw() {
                     Some(x) => x,
                     None => continue,
                 };
 
                 let distance = self
                     .atoms_distance(a, b, Dimension::XYZ)
-                    .expect("FATAL GROAN ERROR | System::guess_bonds | Atoms should exist.");
-                let limit = (vdw1 + vdw2) * unpacked_factor;
+                    .expect("FATAL GROAN ERROR | System::identify_bonds | Atoms should exist.");
+                let limit = (vdw1 + vdw2) * radius_factor;
 
                 if distance < limit {
-                    // safety: both atom indices are valid and unique, we use `add_bonded` with both atoms,
-                    // we apply `System::reset_mol_references` at the end of the function
-                    unsafe {
-                        (*atom1).add_bonded(b);
-                        (*atom2).add_bonded(a);
-                    }
+                    bonds.push((a, b));
                 }
             }
         }
 
-        // check for unexpected number of atoms
+        (bonds, no_vdw)
+    }
+
+    /// Check for unexpected number of bonds in a system.
+    #[inline]
+    #[allow(clippy::type_complexity)]
+    fn check_unexpected_bonds(
+        &self,
+    ) -> (IndexMap<usize, (usize, u8)>, IndexMap<usize, (usize, u8)>) {
+        let mut too_many_bonds = IndexMap::new();
+        let mut too_few_bonds = IndexMap::new();
+
         for (a, atom) in self.atoms_iter().enumerate() {
             // check limit for maximal number of bonds
             if let Some(limit) = atom.get_expected_max_bonds() {
                 if atom.get_n_bonded() > limit as usize
-                    && info
-                        .too_many_bonds
+                    && too_many_bonds
                         .insert(a + 1, (atom.get_n_bonded(), limit))
                         .is_some()
                 {
@@ -394,8 +562,7 @@ impl System {
             // check limit for minimal number of bonds
             if let Some(limit) = atom.get_expected_min_bonds() {
                 if atom.get_n_bonded() < limit as usize
-                    && info
-                        .too_few_bonds
+                    && too_few_bonds
                         .insert(a + 1, (atom.get_n_bonded(), limit))
                         .is_some()
                 {
@@ -404,13 +571,7 @@ impl System {
             }
         }
 
-        self.reset_mol_references();
-
-        if info.is_empty() {
-            Ok(())
-        } else {
-            Err(ElementError::BondsGuessWarning(Box::new(info)))
-        }
+        (too_many_bonds, too_few_bonds)
     }
 
     /// Set properties of the atom based on properties of the element.
@@ -457,6 +618,10 @@ impl System {
     }
 }
 
+struct SendSystemPtr(*mut System);
+
+unsafe impl Send for SendSystemPtr {}
+
 /******************************/
 /*  ADVANCED ERROR MESSAGES   */
 /******************************/
@@ -487,7 +652,7 @@ impl fmt::Display for ElementGuessInfo {
 
         for (matches, atoms) in self.multiple_elements.iter() {
             let assigned = matches
-                .get(0)
+                .first()
                 .expect("FATAL GROAN ERROR | ElementGuessInfo::fmt | Element should exist.");
             write!(
                 f,
@@ -681,7 +846,7 @@ impl fmt::Display for BondsGuessInfo {
 
 #[cfg(test)]
 mod tests {
-    use crate::errors::SelectError;
+    use crate::{errors::SelectError, structures::simbox::SimBox};
 
     use super::*;
     use float_cmp::assert_approx_eq;
@@ -1377,6 +1542,24 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "parallel")]
+    fn guess_bonds_parallel() {
+        let mut system = System::from_file("test_files/aa_peptide.pdb").unwrap();
+
+        system.guess_elements(Elements::default()).unwrap();
+        system.guess_bonds_parallel(None, 4).unwrap();
+
+        let mut system_from_pdb = System::from_file("test_files/aa_peptide.pdb").unwrap();
+        system_from_pdb
+            .add_bonds_from_pdb("test_files/aa_peptide.pdb")
+            .unwrap();
+
+        for (atom1, atom2) in system.atoms_iter().zip(system_from_pdb.atoms_iter()) {
+            assert_eq!(atom1.get_bonded(), atom2.get_bonded());
+        }
+    }
+
+    #[test]
     fn guess_bonds_warnings() {
         let mut system = System::from_file("test_files/aa_peptide.pdb").unwrap();
 
@@ -1431,5 +1614,99 @@ mod tests {
 
             assert_eq!(atom1.get_bonded(), atom2.get_bonded());
         }
+    }
+
+    #[test]
+    #[cfg(feature = "parallel")]
+    fn guess_bonds_multithreaded() {
+        let no_vdw = vec![2];
+        let too_few_bonds = vec![
+            2, 12, 31, 50, 61, 72, 91, 110, 121, 132, 151, 170, 192, 211, 230, 241, 252, 271, 290,
+            301, 312, 331, 350, 361,
+        ];
+        let too_many_bonds = vec![
+            1, 14, 33, 52, 63, 74, 93, 112, 123, 134, 153, 172, 188, 194, 213, 232, 243, 254, 273,
+            292, 303, 314, 333, 352,
+        ];
+
+        for n_threads in [1, 2, 3, 4, 5, 6, 7, 8, 16, 32, 512, 1024] {
+            let mut system = System::from_file("test_files/aa_peptide.pdb").unwrap();
+
+            system.guess_elements(Elements::default()).unwrap();
+
+            let mut elements_for_bonds = Elements::default();
+            elements_for_bonds.update(
+                Elements::from_file("test_files/elements_update_guess_bonds_warning.yaml").unwrap(),
+            );
+
+            match system.guess_properties(elements_for_bonds) {
+                Ok(_) | Err(_) => (),
+            }
+
+            system.get_atom_as_ref_mut(1).unwrap().reset_vdw();
+
+            match system.guess_bonds_parallel(None, n_threads) {
+                Ok(_) => panic!("Function should have returned a warning."),
+                Err(ElementError::BondsGuessWarning(e)) => {
+                    assert_eq!(e.no_vdw, no_vdw);
+                    assert_eq!(
+                        e.too_few_bonds.keys().cloned().collect::<Vec<usize>>(),
+                        too_few_bonds
+                    );
+                    assert_eq!(
+                        e.too_many_bonds.keys().cloned().collect::<Vec<usize>>(),
+                        too_many_bonds
+                    );
+                }
+                Err(e) => panic!("Incorrect warning type `{:?}` returned.", e),
+            }
+
+            let mut system_from_pdb = System::from_file("test_files/aa_peptide.pdb").unwrap();
+            system_from_pdb
+                .add_bonds_from_pdb("test_files/aa_peptide.pdb")
+                .unwrap();
+
+            for (atom1, atom2) in system.atoms_iter().zip(system_from_pdb.atoms_iter()) {
+                if atom1.get_atom_number() <= 2 {
+                    continue;
+                }
+
+                assert_eq!(atom1.get_bonded(), atom2.get_bonded());
+            }
+        }
+    }
+
+    #[test]
+    fn guess_bonds_empty_system() {
+        let mut system = System::new(
+            "Empty system",
+            vec![],
+            Some(SimBox::from([10.0, 10.0, 10.0])),
+        );
+        system.guess_bonds(None).unwrap();
+        assert!(!system.has_bonds());
+    }
+
+    #[test]
+    #[cfg(feature = "parallel")]
+    fn guess_bonds_empty_system_parallel() {
+        let mut system = System::new(
+            "Empty system",
+            vec![],
+            Some(SimBox::from([10.0, 10.0, 10.0])),
+        );
+        system.guess_bonds_parallel(None, 7).unwrap();
+        assert!(!system.has_bonds());
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "FATAL GROAN ERROR | System::guess_bonds_parallel | Number of threads should not be zero."
+    )]
+    #[cfg(feature = "parallel")]
+    fn guess_bonds_no_threads() {
+        let mut system = System::from_file("test_files/aa_peptide.pdb").unwrap();
+
+        system.guess_bonds_parallel(None, 0).unwrap();
     }
 }

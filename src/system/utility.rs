@@ -5,7 +5,7 @@
 
 use crate::errors::{AtomError, GroupError, ParseNdxError};
 use crate::structures::{dimension::Dimension, vector3d::Vector3D};
-use crate::system::general::System;
+use crate::system::System;
 
 /// ## Methods providing higher level utilities to the `System` structure.
 impl System {

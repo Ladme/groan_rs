@@ -8,9 +8,10 @@ use std::collections::HashSet;
 use indexmap::IndexMap;
 
 use crate::errors::{GroupError, SimBoxError};
+use crate::select::Select;
 use crate::structures::group::Group;
 use crate::structures::shape::Shape;
-use crate::system::general::System;
+use crate::system::System;
 
 /// ## Methods for working with groups of atoms.
 impl System {
@@ -276,6 +277,65 @@ impl System {
         }
 
         let group = Group::from_ranges(atom_ranges, self.get_n_atoms());
+
+        unsafe {
+            match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
+                None => Ok(()),
+                Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
+            }
+        }
+    }
+
+    /// Make a group with a given name from the given Selection tree (`Select` structure).
+    /// A Selection tree is a general parsed Groan Selection Language query applicable to any System.
+    ///
+    /// ## Returns
+    /// - `Ok` if the group was successfully created.
+    /// - `GroupError::AlreadyExistsWarning` if the new group has overwritten a previous group.
+    /// - `GroupError::InvalidName` if the name of the group is invalid (no group created).
+    /// - `GroupError::InvalidQuery` if the `Select` structure is invalid (e.g., group
+    ///    specified in the structure does not exist).
+    ///
+    /// ## Example
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// // you have to specifically include the `Select` structure as it is not
+    /// // provided in the `groan_rs::prelude`
+    /// use groan_rs::select::Select;
+    ///
+    /// let mut system = System::from_file("system.gro").unwrap();
+    ///
+    /// let selection = match Select::parse_query("resname POPE POPG and name P") {
+    ///     Ok(x) => x,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;        
+    ///     }
+    /// };
+    ///
+    /// if let Err(e) = system.group_create_from_select("Phosphori", *selection) {
+    ///     eprintln!("{}", e);
+    ///     return;
+    /// }
+    /// ```
+    ///
+    /// ## Notes
+    /// - In case a group with the given name already exists, it is replaced with the new group.
+    /// - The following characters are not allowed in group names: '"&|!@()<>=
+    /// - The group will be created even if the `Select` structure selects no atoms.
+    pub fn group_create_from_select(
+        &mut self,
+        name: &str,
+        select: Select,
+    ) -> Result<(), GroupError> {
+        if !Group::name_is_valid(name) {
+            return Err(GroupError::InvalidName(name.to_string()));
+        }
+
+        let group = match Group::from_select(select, self) {
+            Ok(x) => x,
+            Err(e) => return Err(GroupError::InvalidQuery(e)),
+        };
 
         unsafe {
             match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
@@ -580,8 +640,12 @@ impl System {
     /// Do not use this function to remove any of the default groups ('all' or 'All').
     /// Doing so would make many functions associated with the `System` structure invalid.
     /// Removing other groups is generally safe to do.
+    ///
+    /// ## Notes
+    /// - This function maintains the order of the groups in the system.
+    /// - Time complexity is O(n).
     pub unsafe fn group_remove(&mut self, name: &str) -> Result<(), GroupError> {
-        if self.get_groups_as_ref_mut().remove(name).is_none() {
+        if self.get_groups_as_ref_mut().shift_remove(name).is_none() {
             Err(GroupError::NotFound(name.to_owned()))
         } else {
             Ok(())
@@ -602,9 +666,12 @@ impl System {
     /// ## Notes
     /// - Note that if the `new` name already matches name of another group in the `System`,
     /// the previous group with this name is overwritten and `GroupError::AlreadyExistsWarning` is returned.
+    /// - This function maintains the order of the groups in the system, except for the renamed group
+    /// which is placed to the last position.
+    /// - Time complexity is O(n).
     pub unsafe fn group_rename(&mut self, old: &str, new: &str) -> Result<(), GroupError> {
         // get the old group
-        let group = match self.get_groups_as_ref_mut().remove(old) {
+        let group = match self.get_groups_as_ref_mut().shift_remove(old) {
             Some(x) => x,
             None => return Err(GroupError::NotFound(old.to_owned())),
         };
@@ -805,6 +872,7 @@ mod tests {
     use crate::structures::dimension::Dimension;
     use crate::structures::element::Elements;
     use crate::structures::shape::*;
+    use crate::structures::vector3d::Vector3D;
 
     #[test]
     fn group_create_basic() {
@@ -1284,6 +1352,34 @@ mod tests {
                     || resname == "CYS"
             );
             assert!(rectangular.inside(
+                atom.get_position().unwrap(),
+                system.get_box_as_ref().unwrap()
+            ));
+        }
+    }
+
+    #[test]
+    fn group_create_from_geometry_triangular_prism() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let base1 = Vector3D::new(8.0, 8.0, 8.0);
+        let base2 = Vector3D::new(15.0, 12.0, 8.0);
+        let base3 = Vector3D::new(9.5, 7.3, 8.0);
+
+        let triangular_prism = TriangularPrism::new(base1, base2, base3, 5.4);
+
+        system
+            .group_create_from_geometry("Selected Water", "@water", triangular_prism.clone())
+            .unwrap();
+
+        assert!(system.group_exists("Selected Water"));
+        assert_eq!(system.group_get_n_atoms("Selected Water").unwrap(), 213);
+
+        for atom in system.group_iter("Selected Water").unwrap() {
+            let resname = atom.get_residue_name();
+            assert_eq!(resname, "W");
+            assert!(triangular_prism.inside(
                 atom.get_position().unwrap(),
                 system.get_box_as_ref().unwrap()
             ));

@@ -11,7 +11,7 @@ use crate::structures::iterators::{
     AtomIterator, MoleculeIterator, MutAtomIterator, MutMoleculeIterator,
 };
 use crate::structures::simbox::SimBox;
-use crate::system::general::System;
+use crate::system::System;
 
 use crate::errors::{AtomError, GroupError};
 
@@ -405,7 +405,7 @@ mod tests {
             assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
 
             group_atom
-                .translate_nopbc(&Vector3D::from([0.5, -1.1, 2.4]))
+                .translate_nopbc(&Vector3D::new(0.5, -1.1, 2.4))
                 .unwrap();
             assert_approx_eq!(
                 f32,
@@ -435,7 +435,7 @@ mod tests {
             assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
 
             group_atom
-                .translate_nopbc(&Vector3D::from([0.5, -1.1, 2.4]))
+                .translate_nopbc(&Vector3D::new(0.5, -1.1, 2.4))
                 .unwrap();
             assert_approx_eq!(
                 f32,
@@ -473,7 +473,7 @@ mod tests {
             );
         }
 
-        let sphere_pos2 = Vector3D::from([9.0, 3.0, 1.0]);
+        let sphere_pos2 = Vector3D::new(9.0, 3.0, 1.0);
         let sphere2 = Sphere::new(sphere_pos2.clone(), 4.0);
 
         for atom in system

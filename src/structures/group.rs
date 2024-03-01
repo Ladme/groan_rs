@@ -6,10 +6,10 @@
 use std::io::Write;
 
 use crate::errors::{SelectError, WriteNdxError};
-use crate::selections::select::{self, Select};
+use crate::select::Select;
 use crate::structures::container::AtomContainer;
 use crate::structures::shape::Shape;
-use crate::system::general::System;
+use crate::system::System;
 use crate::system::iterating::get_molecule_indices;
 
 /******************************/
@@ -18,6 +18,7 @@ use crate::system::iterating::get_molecule_indices;
 
 /// Group of atoms in target system.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Group {
     atoms: AtomContainer,
     pub print_ndx: bool,
@@ -32,7 +33,7 @@ impl Group {
     /// Create a new valid `Group` structure from query in Groan Selection Language.
     pub fn from_query(query: &str, system: &System) -> Result<Self, SelectError> {
         // parse groan selection language query into binary selection tree
-        let select = select::parse_query(query)?;
+        let select = Select::parse_query(query)?;
         // apply the selection tree to the system
         Group::from_select(*select, system)
     }
@@ -89,7 +90,7 @@ impl Group {
     }
 
     /// Create a new valid Group structure using Select tree.
-    fn from_select(select: Select, system: &System) -> Result<Self, SelectError> {
+    pub(crate) fn from_select(select: Select, system: &System) -> Result<Self, SelectError> {
         // expand regex group names
         let select = Box::new(select.expand_regex_group(system)?);
 
@@ -393,5 +394,52 @@ mod tests {
         let group = Group::from_ranges(atom_ranges, 1028);
 
         assert_eq!(group.get_n_atoms(), 198);
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "serde")]
+mod serde_tests {
+    use super::*;
+
+    #[test]
+    fn group_to_yaml() {
+        let ranges = vec![(20, 32), (64, 64), (84, 143)];
+        let group = Group::from_ranges(ranges, 1028);
+
+        let string = serde_yaml::to_string(&group).unwrap();
+        let expected = "atoms:
+  atom_blocks:
+  - start: 20
+    end: 32
+  - start: 64
+    end: 64
+  - start: 84
+    end: 143
+print_ndx: true
+";
+        assert_eq!(string, expected);
+    }
+
+    #[test]
+    fn group_from_yaml() {
+        let string = "atoms:
+  atom_blocks:
+  - start: 20
+    end: 32
+  - start: 64
+    end: 64
+  - start: 84
+    end: 143
+print_ndx: true
+";
+
+        let group: Group = serde_yaml::from_str(&string).unwrap();
+
+        let ranges = vec![(20, 32), (64, 64), (84, 143)];
+        let expected = Group::from_ranges(ranges, 1028);
+
+        assert_eq!(group.atoms, expected.atoms);
+        assert_eq!(group.print_ndx, expected.print_ndx);
     }
 }

@@ -10,9 +10,9 @@ use std::path::Path;
 
 use crate::errors::{ParsePdbConnectivityError, ParsePdbError, WritePdbError};
 use crate::structures::{atom::Atom, simbox::SimBox};
-use crate::system::general::System;
+use crate::system::System;
 
-/// Read a pdb file and construct a System structure. Does not read connectivity.
+/// Read a pdb file and construct a System structure. Do not read connectivity.
 ///
 /// ## Supported keywords
 /// This function can handle lines starting with ATOM, HETATM, TITLE, ENDMDL, END, and CRYST1.
@@ -28,7 +28,7 @@ use crate::system::general::System;
 /// If no CRYST1 line is provided, the simulation box is undefined.
 ///
 /// - If you want to load connectivity from the PDB file,
-/// use `System::add_bonds_from_pdb` after constructing the `System` structure.
+/// use [`System::add_bonds_from_pdb`] after constructing the `System` structure.
 pub fn read_pdb(filename: impl AsRef<Path>) -> Result<System, ParsePdbError> {
     let file = match File::open(filename.as_ref()) {
         Ok(x) => x,
@@ -55,7 +55,7 @@ pub fn read_pdb(filename: impl AsRef<Path>) -> Result<System, ParsePdbError> {
         }
         // parse TITLE line
         else if line.len() >= 5 && line[0..5] == *"TITLE" {
-            title = line_as_title(&line)?;
+            title = line_as_title(&line);
         }
         // parse CRYST1 line
         else if line.len() >= 6 && line[0..6] == *"CRYST1" {
@@ -392,7 +392,7 @@ fn line_as_atom(line: &str) -> Result<Atom, ParsePdbError> {
 ///
 /// ## Notes
 /// - Parses a line starting with CRYST1.
-fn line_as_box(line: &str) -> Result<SimBox, ParsePdbError> {
+pub(super) fn line_as_box(line: &str) -> Result<SimBox, ParsePdbError> {
     // check line length
     if line.len() < 54 {
         return Err(ParsePdbError::ParseBoxLineErr(line.to_string()));
@@ -429,13 +429,13 @@ fn line_as_box(line: &str) -> Result<SimBox, ParsePdbError> {
 /// ## Notes
 /// - Parses a line starting with TITLE.
 /// - In case the TITLE line is empty, 'Unknown' is used as the name for the system.
-fn line_as_title(line: &str) -> Result<String, ParsePdbError> {
+pub(super) fn line_as_title(line: &str) -> String {
     let title = line[5..].trim().to_string();
     if title.is_empty() {
-        return Ok("Unknown".to_string());
+        return "Unknown".to_string();
     }
 
-    Ok(title)
+    title
 }
 
 /// Parse a single line as connectivity information.
@@ -679,7 +679,7 @@ mod tests_read {
         assert_approx_eq!(f32, last.get_position().unwrap().y, 4.447);
         assert_approx_eq!(f32, last.get_position().unwrap().z, 2.813);
 
-        // check that the velocity and force of all atoms is zero
+        // check that the velocity and force of all atoms is undefined
         for atom in atoms.iter() {
             assert_eq!(atom.get_velocity(), None);
             assert_eq!(atom.get_force(), None);

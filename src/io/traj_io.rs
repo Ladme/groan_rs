@@ -6,7 +6,7 @@
 use crate::errors::{ReadTrajError, WriteTrajError};
 use crate::io::xdrfile::CXdrFile;
 use crate::progress::{ProgressPrinter, ProgressStatus};
-use crate::system::general::System;
+use crate::system::System;
 use std::marker::PhantomData;
 use std::path::Path;
 
@@ -73,15 +73,9 @@ pub trait FrameDataTime {
     fn get_time(&self) -> f32;
 }
 
-/// Any structure implementing `TrajRead` can be used to read a trajectory file.
+/// Any structure implementing `TrajRead` can be used to read a trajectory file (or multiple trajectory files).
 pub trait TrajRead<'a> {
     type FrameData: FrameData;
-
-    /// Method specifying how to open the trajectory file.
-    /// This function should return structure implementing `TrajRead`.
-    fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<Self, ReadTrajError>
-    where
-        Self: Sized;
 
     /// Method specifying how to get a mutable pointer to the `System` structure.
     /// Mutable pointer to the `System` structure must be part of the trajectory reader.
@@ -95,9 +89,18 @@ pub trait TrajRead<'a> {
     ) -> &mut <<Self as TrajRead<'a>>::FrameData as FrameData>::TrajFile;
 }
 
+/// Any structure implementing `TrajReadFile` can be used to OPEN and read a trajectory file.
+pub trait TrajReadOpen<'a>: TrajRead<'a> {
+    /// Method specifying how to open the trajectory file.
+    /// This function should return structure implementing `TrajRead`.
+    fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<Self, ReadTrajError>
+    where
+        Self: Sized;
+}
+
 /// Wrapper for any structure implementing `TrajRead` so the `Iterator` trait can be implemented for it.
 pub struct TrajReader<'a, R: TrajRead<'a>> {
-    pub traj_reader: R,
+    traj_reader: R,
     progress_printer: Option<ProgressPrinter>,
     frame_number: usize,
     _phantom: &'a PhantomData<R>,
@@ -195,7 +198,6 @@ where
 
         let mut reader = TrajRangeReader {
             traj_reader: self.traj_reader,
-            start_time,
             end_time,
             frame_number: self.frame_number,
             progress_printer: self.progress_printer,
@@ -271,9 +273,8 @@ pub trait TrajRangeRead<'a>: TrajRead<'a> {
 
 /// Structure for partial reading of trajectory files using time ranges.
 pub struct TrajRangeReader<'a, R: TrajRangeRead<'a>> {
-    pub traj_reader: R,
-    pub start_time: f32,
-    pub end_time: f32,
+    traj_reader: R,
+    end_time: f32,
     progress_printer: Option<ProgressPrinter>,
     frame_number: usize,
     _phantom: &'a PhantomData<R>,
@@ -292,7 +293,7 @@ where
     /// ## Returns
     /// - `Some(Ok(&mut System))` if the frame has been succesfully read.
     /// - `Some(Err(ReadTrajError))` if the frame could not be read.
-    /// - `None` if the end of the range of the end of the trajectory file has been reached.
+    /// - `None` if the end of the range or the end of the trajectory file has been reached.
     fn next(&mut self) -> Option<Self::Item> {
         unsafe {
             let system = self.traj_reader.get_system();
@@ -340,7 +341,6 @@ where
 
         Ok(TrajRangeStepReader {
             traj_reader: self.traj_reader,
-            start_time: self.start_time,
             end_time: self.end_time,
             skip: step - 1,
             progress_printer: self.progress_printer,
@@ -358,19 +358,19 @@ pub trait TrajStepRead<'a>: TrajRead<'a> {
     /// Skip the next frame in the trajectory.
     ///
     /// The function should return:
-    /// - `Ok(true)` if the skip was successful and there is more to read,
-    /// - `Ok(false)` if the skip was successful but there is no more to read,
+    /// - `Ok(true)` if the skip was successful,
+    /// - `Ok(false)` if the skip was not performed since there is nothing more to read,
     /// - `Err(ReadTrajError)` if the skip was unsuccessful
     fn skip_frame(&mut self) -> Result<bool, ReadTrajError>;
 }
 
 /// Structure for reading of trajectory files with steps between frames.
 pub struct TrajStepReader<'a, R: TrajStepRead<'a>> {
-    pub traj_reader: R,
+    traj_reader: R,
     /// Corresponds to the number of frames that should be skipped after reading a frame.
     /// - `skip = 0` => all frames will be read
     /// - `skip = 1` => every other frame will be read
-    pub skip: usize,
+    skip: usize,
     progress_printer: Option<ProgressPrinter>,
     frame_number: usize,
     _phantom: &'a PhantomData<R>,
@@ -390,7 +390,7 @@ where
     /// ## Returns
     /// - `Some(Ok(&mut System))` if the frame has been succesfully read.
     /// - `Some(Err(ReadTrajError))` if the frame could not be read.
-    /// - `None` if the end of the range of the end of the trajectory file has been reached.
+    /// - `None` if the end of the trajectory file has been reached.
     fn next(&mut self) -> Option<Self::Item> {
         unsafe {
             let system = self.traj_reader.get_system();
@@ -457,7 +457,6 @@ where
 
         let mut reader = TrajRangeStepReader {
             traj_reader: self.traj_reader,
-            start_time,
             end_time,
             skip: self.skip,
             progress_printer: self.progress_printer,
@@ -487,10 +486,9 @@ where
 
 /// Structure for reading of trajectory files in target time range and with steps between frames.
 pub struct TrajRangeStepReader<'a, R: TrajRangeRead<'a> + TrajStepRead<'a>> {
-    pub traj_reader: R,
-    pub start_time: f32,
-    pub end_time: f32,
-    pub skip: usize,
+    traj_reader: R,
+    end_time: f32,
+    skip: usize,
     progress_printer: Option<ProgressPrinter>,
     frame_number: usize,
     _phantom: &'a PhantomData<R>,
@@ -558,6 +556,23 @@ where
             result
         }
     }
+}
+
+/***************************************/
+/*           TrajStepTimeRead          */
+/***************************************/
+
+/// This trait must be implemented for your trajectory reader if you want to concatenate trajectories
+/// using `TrajConcatenator` and use `with_step` method.
+/// Implementation of this trait allows the `TrajConcatenator` to skip frames across boundaries of the trajectory files.
+pub trait TrajStepTimeRead<'a>: TrajStepRead<'a> {
+    /// Skip the next frame in the trajectory but read the time of the skipped frame.
+    ///
+    /// The function should return:
+    /// - `Ok(Some(time))` if the skip was successful (`time` is the simulation time of the skipped-over frame),
+    /// - `Ok(None)` if the skip was not performed since there is nothing more to read,
+    /// - `Err(ReadTrajError)` if the skip was unsuccessful
+    fn skip_frame_time(&mut self) -> Result<Option<f32>, ReadTrajError>;
 }
 
 /***************************************/
@@ -743,8 +758,8 @@ where
 
 /// ## Generic methods for iterating over trajectory files.
 impl System {
-    /// Iterate over any trajectory file implementing a trajectory reader.
-    /// A 'trajectory reader' is any structure implementing the `TrajRead` trait.
+    /// Iterate over any trajectory file implementing an `openable` trajectory reader.
+    /// A 'trajectory reader' is any structure implementing the `TrajReadOpen` trait.
     ///
     /// ## Returns
     /// `TrajReader<TrajRead>` if the trajectory file has been successfully opened.
@@ -775,9 +790,6 @@ impl System {
     /// }
     /// ```
     ///
-    /// ## Warning
-    /// - `XtcReader` and `TrrReader` currently only support orthogonal simulation boxes!
-    ///
     /// ## Notes
     /// - The `System` structure is modified while iterating through the trajectory.
     /// - `xtc` and `trr` files also have their own specific functions implementing iteration.
@@ -787,7 +799,7 @@ impl System {
         filename: impl AsRef<Path>,
     ) -> Result<TrajReader<'a, Read>, ReadTrajError>
     where
-        Read: TrajRead<'a>,
+        Read: TrajReadOpen<'a>,
     {
         Ok(TrajReader::wrap_traj(Read::new(self, filename)?))
     }

@@ -1,6 +1,52 @@
 
 ## Changelog for the `groan_rs` library
 
+### Version 0.7.0
+#### Reading TPR files
+- Implemented basic reading of TPR files using the `minitpr` crate. The `System::from_file` function can now recognize and parse TPR files.
+- TPR files can also be explicitly read using the `tpr_io::read_tpr` function (import with `use groan_rs::io::tpr_io`).
+- Currently, only the system name, simulation box dimensions, and the topology of the system (atoms and bonds) are being parsed.
+- **Atom positions, velocities, and forces are not read from the TPR file by `groan_rs`.** All atoms in a system created by parsing a TPR file will have undefined positions and velocities.
+- Reading intermolecular bonds and groups from TPR files is not currently supported.
+
+#### Reading and writing PQR files
+- The `System::from_file` function now supports reading whitespace-delimited PQR files.
+- PQR files can also be explicitly read using the `pqr_io::read_pqr` function (import with `use groan_rs::io::pqr_io`).
+- PQR files can be written with user-specified precision using the `System::write_pqr` and `System::group_write_pqr` functions.
+
+#### `TrajConcatenator` structure
+- All trajectory readers implementing certain traits (refer to `trajectory_readers.md` for more information) can now be concatenated using the `System::traj_cat_iter`.
+- During concatenation, duplicate frames from trajectory boundaries are removed, allowing for simple iteration through simulation trajectories that directly follow each other.
+- The `System::xtc_cat_iter` and `System::trr_cat_iter` functions are provided for direct concatenation of XTC and TRR files, respectively.
+- Basic methods associated with trajectory readers, such as `with_range`, `with_step`, or `print_progress`, can be applied to the concatenation iterator.
+- The `TrajConcatenator` structure ensures that the trajectory range is correctly identified even if it spans multiple trajectory files and that step iteration properly handles trajectory boundaries.
+
+#### Replaced custom `Vector3D` implementation with faster `Vector3` from `nalgebra` crate
+- **Breaking change:** When `Vector3D::to_unit` is applied to a vector with a length (magnitude) of zero, its fields are now set to `NaN` instead of the previously used `0.0`.
+
+#### Restructuring of the module system
+- **Breaking change:** The `Select` structure is now located directly in the `groan_rs::select` module, not in `groan_rs::selections::select`.
+- **Breaking change:** The `System` structure is now located directly in the `groan_rs::system` module, not in `groan_rs::system::general`. This change does not affec users who utilize `groan_rs::prelude`.
+
+#### `serde` feature
+- Added a new feature, `serde`, which provides serialization and deserialization for several `groan_rs` structures, namely Vector3D, SimBox, Atom, AtomContainer, AtomBlock, Group, System, and Select.
+- Select can be deserialized from a valid Groan Selection Language (GSL) query and serialized into a valid GSL query.
+- This feature is not enabled by default and must be activated by using `cargo add groan_rs --features serde` or by adding `groan_rs = { version = "0.7.0", features = ["serde"] }` to your `Cargo.toml` file.
+- Note that automated tests for serialization and deserialization currently only use the YAML file format, but other formats supported by the `serde` crate should also work.
+
+#### `parallel` feature
+- Introduced a new feature, `parallel`, which contains functions that can run on multiple threads.
+- Activate with `cargo add groan_rs --features parallel` or by adding `groan_rs = { version = "0.7.0", features = ["parallel"] }`.
+- Currently, only a parallelized version of `System::guess_bonds`, called `System::guess_bonds_parallel`, has been introduced.
+
+#### Other changes
+- **Breaking change:** The `parse_query` function from `crate::selections::select` has been transformed into an associated function of the `Select` structure and should now be called as `Select::parse_query`.
+- Added a basic implementation of the `TriangularPrism` shape, which implements the `Shape` trait.
+- Added a method, `System::group_create_from_select`, allowing groups to be created directly from `Select` structures.
+- Clarified changes in the order of groups when removing or renaming a group from the System.
+
+***
+
 ### Version 0.6.2
 - Bug fix: `System::group_split_by_resid` and `System::group_split_by_resname` did not work correctly due to incorrect treatment of atom indices. This has now been fixed.
 

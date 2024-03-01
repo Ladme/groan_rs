@@ -7,7 +7,8 @@
 //! Currently in an early stage of development: anything can break, change or stop working at any time.
 //!
 //! ## What it can do
-//! - Read and write gro, pdb, ndx, xtc and trr files.
+//! - Read and write gro, pdb, pqr, ndx, xtc and trr files.
+//! - Read topology (atoms and connectivity) from tpr files.
 //! - Iterate over atoms and access their properties, including connectivity (bonds).
 //! - Select atoms using a selection language similar to VMD.
 //! - Calculate distances between atoms respecting periodic boundary conditions.
@@ -18,7 +19,7 @@
 //! - And some other, less relevant stuff.
 //!
 //! ## What it CAN'T do (at the moment)
-//! - Read tpr files.
+//! - Read atom positions, velocities, and forces from tpr files.
 //! - Work with non-orthogonal periodic boundary conditions.
 //! - Perform advanced analyses of structure and dynamics out of the box.
 //! (But `groan_rs` library tries to make it simple to implement your own!)
@@ -49,8 +50,8 @@
 //! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     // read a gro file
 //!     let mut system = System::from_file("system.gro")?;
-//!     // `groan_rs` also supports pdb files which can be read as:
-//!     // let mut system = System::from_file("system.pdb")?;
+//!     // `groan_rs` also fully supports pdb and pqr files which
+//!     // can be read using the same function as above
 //!
 //!     // read an ndx file
 //!     system.read_ndx("index.ndx")?;
@@ -528,6 +529,12 @@
 //!
 //! Note that `groan_rs` will still work correctly even if you do not explicitly include the error types.
 //!
+//! ## Features
+//! - **Serialization Support (`serde`)**: Enables the serialization and deserialization of `groan_rs` data structures through integration with the `serde` framework.
+//! - **Concurrency Enhancement (`parallel`)**: Expands the `groan_rs` library with functions designed for multi-threaded execution.
+//!
+//! Install the `groan_rs` crate with a specific feature using `cargo add groan_rs --features [FEATURE]`.
+//!
 //! ## Limitations
 //! - Currently, `groan_rs` library is not able to properly work with periodic simulation boxes that are **not orthogonal**.
 //! While it can read structures and trajectories with non-orthogonal boxes, calculated distances and similar properties may be incorrect!
@@ -544,41 +551,11 @@ pub const GROAN_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub mod errors;
 pub mod files;
-pub mod io {
-    pub mod gro_io;
-    mod ndx_io;
-    pub mod pdb_io;
-    pub mod traj_io;
-    pub mod trr_io;
-    mod xdrfile;
-    pub mod xtc_io;
-}
-mod selections {
-    mod name;
-    mod numbers;
-    pub mod select;
-}
+pub mod io;
+pub mod select;
 pub mod progress;
-pub mod structures {
-    pub mod atom;
-    mod container;
-    pub mod dimension;
-    pub mod element;
-    pub mod group;
-    pub mod iterators;
-    pub mod shape;
-    pub mod simbox;
-    pub mod vector3d;
-}
-pub mod system {
-    mod analysis;
-    pub mod general;
-    mod groups;
-    pub mod guess;
-    pub(crate) mod iterating;
-    mod modifying;
-    mod utility;
-}
+pub mod structures;
+pub mod system;
 mod test_utilities;
 
 /// Reexported basic `groan_rs` structures and traits.
@@ -586,7 +563,7 @@ pub mod prelude {
     pub use crate::io::traj_io::{
         FrameData, FrameDataTime, TrajFile, TrajGroupWrite, TrajMasterRead, TrajRangeRead,
         TrajRangeReader, TrajRangeStepReader, TrajRead, TrajReader, TrajStepRead, TrajStepReader,
-        TrajWrite,
+        TrajStepTimeRead, TrajWrite,
     };
     pub use crate::io::trr_io::{TrrGroupWriter, TrrReader, TrrWriter};
     pub use crate::io::xtc_io::{XtcGroupWriter, XtcReader, XtcWriter};
@@ -594,8 +571,8 @@ pub mod prelude {
     pub use crate::structures::atom::Atom;
     pub use crate::structures::dimension::Dimension;
     pub use crate::structures::element::Elements;
-    pub use crate::structures::shape::{Cylinder, Rectangular, Shape, Sphere};
+    pub use crate::structures::shape::{Cylinder, Rectangular, Shape, Sphere, TriangularPrism};
     pub use crate::structures::simbox::SimBox;
     pub use crate::structures::vector3d::Vector3D;
-    pub use crate::system::general::System;
+    pub use crate::system::System;
 }

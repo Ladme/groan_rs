@@ -1,0 +1,1493 @@
+name: Group `Protein` from INSANE! Membrane UpperLeaflet>POPC=1 LowerLeaflet>POPC=1
+atoms:
+- residue_number: 1
+  residue_name: GLY
+  atom_number: 1
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.497
+  - 1.989
+  - 7.498
+  velocity:
+  - -0.0683
+  - 0.1133
+  - 0.0005
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 2
+  residue_name: LYS
+  atom_number: 2
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.742
+  - 2.157
+  - 7.408
+  velocity:
+  - 0.0198
+  - -0.0124
+  - 0.0033
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 2
+  residue_name: LYS
+  atom_number: 3
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.965
+  - 2.376
+  - 7.609
+  velocity:
+  - -0.1105
+  - 0.0634
+  - 0.3217
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 2
+  residue_name: LYS
+  atom_number: 4
+  atom_name: SC2
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.864
+  - 2.692
+  - 7.668
+  velocity:
+  - -0.1303
+  - 0.0956
+  - -0.1852
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 3
+  residue_name: LYS
+  atom_number: 5
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.892
+  - 1.977
+  - 7.205
+  velocity:
+  - -0.0446
+  - -0.0002
+  - -0.0553
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 3
+  residue_name: LYS
+  atom_number: 6
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.927
+  - 1.711
+  - 7.335
+  velocity:
+  - -0.1118
+  - -0.0096
+  - 0.0039
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 3
+  residue_name: LYS
+  atom_number: 7
+  atom_name: SC2
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.858
+  - 1.404
+  - 7.54
+  velocity:
+  - -0.1923
+  - -0.0204
+  - -0.5923
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 4
+  residue_name: VAL
+  atom_number: 8
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.664
+  - 1.951
+  - 6.997
+  velocity:
+  - -0.0032
+  - 0.0159
+  - -0.1032
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 4
+  residue_name: VAL
+  atom_number: 9
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.652
+  - 1.662
+  - 6.957
+  velocity:
+  - -0.1631
+  - 0.0351
+  - -0.2038
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 5
+  residue_name: VAL
+  atom_number: 10
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.651
+  - 2.251
+  - 6.922
+  velocity:
+  - -0.29
+  - -0.0166
+  - -0.1956
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 5
+  residue_name: VAL
+  atom_number: 11
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.385
+  - 2.26
+  - 6.8
+  velocity:
+  - -0.3033
+  - 0.485
+  - -0.1532
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 6
+  residue_name: VAL
+  atom_number: 12
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.947
+  - 2.258
+  - 6.831
+  velocity:
+  - -0.2096
+  - 0.086
+  - 0.0665
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 6
+  residue_name: VAL
+  atom_number: 13
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 10.081
+  - 2.515
+  - 6.793
+  velocity:
+  - -0.1444
+  - 0.0329
+  - -0.0677
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 7
+  residue_name: VAL
+  atom_number: 14
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.878
+  - 2.082
+  - 6.586
+  velocity:
+  - 0.0024
+  - -0.0285
+  - 0.0866
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 7
+  residue_name: VAL
+  atom_number: 15
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.725
+  - 1.854
+  - 6.487
+  velocity:
+  - 0.0442
+  - 0.0296
+  - -0.1184
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 8
+  residue_name: VAL
+  atom_number: 16
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.655
+  - 2.257
+  - 6.461
+  velocity:
+  - -0.057
+  - -0.0845
+  - 0.1135
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 8
+  residue_name: VAL
+  atom_number: 17
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.392
+  - 2.15
+  - 6.394
+  velocity:
+  - -0.0691
+  - 0.0926
+  - -0.1369
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 9
+  residue_name: VAL
+  atom_number: 18
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.825
+  - 2.509
+  - 6.4
+  velocity:
+  - 0.0584
+  - -0.1453
+  - 0.1823
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 9
+  residue_name: VAL
+  atom_number: 19
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.798
+  - 2.749
+  - 6.565
+  velocity:
+  - 0.3758
+  - -0.1109
+  - 0.1912
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 10
+  residue_name: VAL
+  atom_number: 20
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 10.041
+  - 2.388
+  - 6.213
+  velocity:
+  - -0.0557
+  - -0.0916
+  - 0.0136
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 10
+  residue_name: VAL
+  atom_number: 21
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 10.189
+  - 2.64
+  - 6.219
+  velocity:
+  - -0.0283
+  - -0.0987
+  - -0.2597
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 11
+  residue_name: VAL
+  atom_number: 22
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.843
+  - 2.265
+  - 6.009
+  velocity:
+  - -0.1831
+  - 0.0503
+  - 0.0495
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 11
+  residue_name: VAL
+  atom_number: 23
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.683
+  - 2.022
+  - 6.033
+  velocity:
+  - 0.2725
+  - -0.2719
+  - -0.0353
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 12
+  residue_name: VAL
+  atom_number: 24
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.712
+  - 2.527
+  - 5.908
+  velocity:
+  - -0.2176
+  - -0.0581
+  - -0.1936
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 12
+  residue_name: VAL
+  atom_number: 25
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.443
+  - 2.505
+  - 6.02
+  velocity:
+  - -0.1517
+  - -0.2234
+  - -0.0626
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 13
+  residue_name: VAL
+  atom_number: 26
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.978
+  - 2.623
+  - 5.783
+  velocity:
+  - -0.1691
+  - 0.1417
+  - 0.0552
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 13
+  residue_name: VAL
+  atom_number: 27
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 10.253
+  - 2.693
+  - 5.715
+  velocity:
+  - -0.1018
+  - -0.1652
+  - 0.0013
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 14
+  residue_name: VAL
+  atom_number: 28
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 10.008
+  - 2.371
+  - 5.606
+  velocity:
+  - -0.0557
+  - 0.3277
+  - -0.1976
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 14
+  residue_name: VAL
+  atom_number: 29
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 10.251
+  - 2.291
+  - 5.747
+  velocity:
+  - -0.1889
+  - 0.2221
+  - -0.0242
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 15
+  residue_name: LEU
+  atom_number: 30
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.736
+  - 2.378
+  - 5.458
+  velocity:
+  - -0.1428
+  - 0.045
+  - -0.0591
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 15
+  residue_name: LEU
+  atom_number: 31
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.638
+  - 2.052
+  - 5.595
+  velocity:
+  - 0.0685
+  - 0.0634
+  - 0.1453
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 16
+  residue_name: ALA
+  atom_number: 32
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.744
+  - 2.667
+  - 5.345
+  velocity:
+  - -0.1231
+  - 0.0463
+  - -0.0541
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 16
+  residue_name: ALA
+  atom_number: 33
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.502
+  - 2.767
+  - 5.278
+  velocity:
+  - 0.1701
+  - 0.4558
+  - -0.574
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 17
+  residue_name: ALA
+  atom_number: 34
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 10.009
+  - 2.633
+  - 5.188
+  velocity:
+  - -0.0211
+  - -0.0723
+  - 0.1398
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 17
+  residue_name: ALA
+  atom_number: 35
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 10.222
+  - 2.668
+  - 5.351
+  velocity:
+  - 0.2731
+  - -0.5029
+  - -0.1303
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 18
+  residue_name: ALA
+  atom_number: 36
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.907
+  - 2.382
+  - 5.037
+  velocity:
+  - 0.2192
+  - 0.1018
+  - -0.3304
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 18
+  residue_name: ALA
+  atom_number: 37
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 10.057
+  - 2.245
+  - 5.215
+  velocity:
+  - -0.1183
+  - 0.3727
+  - 0.1901
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 19
+  residue_name: ALA
+  atom_number: 38
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.687
+  - 2.548
+  - 4.895
+  velocity:
+  - 0.0602
+  - 0.0136
+  - -0.1902
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 19
+  residue_name: ALA
+  atom_number: 39
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.457
+  - 2.496
+  - 5.027
+  velocity:
+  - 0.0733
+  - -0.2227
+  - -0.2563
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 20
+  residue_name: ALA
+  atom_number: 40
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.894
+  - 2.745
+  - 4.774
+  velocity:
+  - 0.0658
+  - 0.0924
+  - -0.0545
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 20
+  residue_name: ALA
+  atom_number: 41
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.928
+  - 3.007
+  - 4.832
+  velocity:
+  - 0.4429
+  - 0.0496
+  - -0.0614
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 21
+  residue_name: ALA
+  atom_number: 42
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 10.058
+  - 2.539
+  - 4.611
+  velocity:
+  - -0.0168
+  - -0.1256
+  - 0.1318
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 21
+  residue_name: ALA
+  atom_number: 43
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 10.222
+  - 2.464
+  - 4.811
+  velocity:
+  - 0.1824
+  - -0.3497
+  - -0.1083
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 22
+  residue_name: ALA
+  atom_number: 44
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.833
+  - 2.438
+  - 4.423
+  velocity:
+  - -0.2043
+  - 0.0433
+  - 0.2611
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 22
+  residue_name: ALA
+  atom_number: 45
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.758
+  - 2.218
+  - 4.56
+  velocity:
+  - -0.4383
+  - 0.2275
+  - 0.4379
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 23
+  residue_name: ALA
+  atom_number: 46
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.762
+  - 2.708
+  - 4.288
+  velocity:
+  - 0.1031
+  - -0.0096
+  - -0.0193
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 23
+  residue_name: ALA
+  atom_number: 47
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.497
+  - 2.735
+  - 4.333
+  velocity:
+  - 0.1792
+  - 0.0395
+  - 0.4434
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 24
+  residue_name: ALA
+  atom_number: 48
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 10.045
+  - 2.779
+  - 4.184
+  velocity:
+  - 0.1262
+  - -0.0907
+  - -0.0124
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 24
+  residue_name: ALA
+  atom_number: 49
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 10.144
+  - 2.96
+  - 4.359
+  velocity:
+  - 0.273
+  - 0.2299
+  - -0.4113
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 25
+  residue_name: ALA
+  atom_number: 50
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 10.045
+  - 2.524
+  - 4.007
+  velocity:
+  - 0.1693
+  - -0.0805
+  - -0.0273
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 25
+  residue_name: ALA
+  atom_number: 51
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 10.266
+  - 2.64
+  - 3.903
+  velocity:
+  - 0.0911
+  - 0.0491
+  - -0.0521
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 26
+  residue_name: ALA
+  atom_number: 52
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.773
+  - 2.597
+  - 3.877
+  velocity:
+  - 0.1061
+  - 0.2464
+  - 0.2717
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 26
+  residue_name: ALA
+  atom_number: 53
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.795
+  - 2.331
+  - 3.837
+  velocity:
+  - 0.69
+  - 0.2936
+  - 0.1957
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 27
+  residue_name: LYS
+  atom_number: 54
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.853
+  - 2.86
+  - 3.735
+  velocity:
+  - 0.0045
+  - 0.1307
+  - -0.0062
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 27
+  residue_name: LYS
+  atom_number: 55
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.698
+  - 3.087
+  - 3.523
+  velocity:
+  - 0.0692
+  - 0.2647
+  - 0.1041
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 27
+  residue_name: LYS
+  atom_number: 56
+  atom_name: SC2
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.517
+  - 3.396
+  - 3.41
+  velocity:
+  - -0.3546
+  - 0.2759
+  - 0.0729
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 28
+  residue_name: LYS
+  atom_number: 57
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 10.093
+  - 2.746
+  - 3.576
+  velocity:
+  - -0.1468
+  - 0.0171
+  - -0.1573
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 28
+  residue_name: LYS
+  atom_number: 58
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 10.282
+  - 2.989
+  - 3.598
+  velocity:
+  - 0.1731
+  - -0.5242
+  - 0.5453
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 28
+  residue_name: LYS
+  atom_number: 59
+  atom_name: SC2
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 10.464
+  - 3.266
+  - 3.608
+  velocity:
+  - 0.0642
+  - 0.2197
+  - -0.0564
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 29
+  residue_name: CYS
+  atom_number: 60
+  atom_name: BB
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.943
+  - 2.552
+  - 3.386
+  velocity:
+  - -0.1868
+  - 0.0942
+  - -0.2045
+  force: null
+  bonded:
+    atom_blocks: []
+- residue_number: 29
+  residue_name: CYS
+  atom_number: 61
+  atom_name: SC1
+  chain: null
+  charge: null
+  mass: null
+  vdw: null
+  expected_max_bonds: null
+  expected_min_bonds: null
+  element_name: null
+  element_symbol: null
+  position:
+  - 9.66
+  - 2.644
+  - 3.285
+  velocity:
+  - 0.2871
+  - -0.357
+  - -0.3707
+  force: null
+  bonded:
+    atom_blocks: []
+simulation_box:
+  v1x: 13.01331
+  v2y: 13.01331
+  v3z: 11.25347
+  v1y: 0.0
+  v1z: 0.0
+  v2x: 0.0
+  v2z: 0.0
+  v3x: 0.0
+  v3y: 0.0
+groups:
+  all:
+    atoms:
+      atom_blocks:
+      - start: 0
+        end: 60
+    print_ndx: false
+  All:
+    atoms:
+      atom_blocks:
+      - start: 0
+        end: 60
+    print_ndx: false
+  Sidechains:
+    atoms:
+      atom_blocks:
+      - start: 2
+        end: 3
+      - start: 5
+        end: 6
+      - start: 8
+        end: 8
+      - start: 10
+        end: 10
+      - start: 12
+        end: 12
+      - start: 14
+        end: 14
+      - start: 16
+        end: 16
+      - start: 18
+        end: 18
+      - start: 20
+        end: 20
+      - start: 22
+        end: 22
+      - start: 24
+        end: 24
+      - start: 26
+        end: 26
+      - start: 28
+        end: 28
+      - start: 30
+        end: 30
+      - start: 32
+        end: 32
+      - start: 34
+        end: 34
+      - start: 36
+        end: 36
+      - start: 38
+        end: 38
+      - start: 40
+        end: 40
+      - start: 42
+        end: 42
+      - start: 44
+        end: 44
+      - start: 46
+        end: 46
+      - start: 48
+        end: 48
+      - start: 50
+        end: 50
+      - start: 52
+        end: 52
+      - start: 54
+        end: 55
+      - start: 57
+        end: 58
+      - start: 60
+        end: 60
+    print_ndx: true
+simulation_step: 0
+simulation_time: 0.0
+coordinates_precision: 100
+lambda: 0.0
+mol_references: null

@@ -150,6 +150,54 @@ pub enum WritePdbError {
     ConectInvalidNumber(usize),
 }
 
+/// Errors that can occur when reading and parsing pqr file.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum ParsePqrError {
+    /// Used when the pqr file was not found (i.e. does not exist).
+    #[error("{} file '{}' was not found", "error:".red().bold(), path_to_yellow(.0))]
+    FileNotFound(Box<Path>),
+    /// Used when the pqr file ended unexpectedly.
+    #[error("{} file '{}' ended unexpectedly", "error:".red().bold(), path_to_yellow(.0))]
+    LineNotFound(Box<Path>),
+    /// Used when a generic line in the pqr file could not be parsed.
+    #[error("{} could not parse line '{}'", "error:".red().bold(), .0.yellow())]
+    ParseLineErr(String),
+    /// Used when an "ATOM" or "HETATM" line in the pqr file could not be parsed.
+    #[error("{} could not parse line '{}' as atom", "error:".red().bold(), .0.yellow())]
+    ParseAtomLineErr(String),
+    /// Used when a "CRYST1" line in the pqr file could not be parsed.
+    #[error("{} could not parse line '{}' as box dimensions", "error:".red().bold(), .0.yellow())]
+    ParseBoxLineErr(String),
+    /// Used when a "TITLE" line in the pqr file could not be parsed.
+    #[error("{} could not parse line '{}' as title", "error:".red().bold(), .0.yellow())]
+    ParseTitleLineErr(String),
+}
+
+/// Errors that can occur when writing a pqr file.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum WritePqrError {
+    /// Used when the pqr file could not be opened for writing (i.e. path is invalid).
+    #[error("{} file '{}' could not be created", "error:".red().bold(), path_to_yellow(.0))]
+    CouldNotCreate(Box<Path>),
+    /// Used when writing into the pqr file failed for any reason.
+    #[error("{} could not write line into file", "error:".red().bold())]
+    CouldNotWrite,
+    /// Used when the group of atoms selected to be written into the pqr file does not exist.
+    #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
+    GroupNotFound(String),
+}
+
+/// Errors that can occur when reading a tpr file.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum ParseTprError {
+    /// Used when the file could not be parsed. The inner `String` should be the error message passed by the `minitpr` library.
+    #[error("{}", .0)]
+    CouldNotRead(String),
+    /// Used when a bond specified in the tpr file could not be created when creating a `System` structure.
+    #[error("{} bond could not be created between atoms '{}' and '{}' (the same atom)", "error:".red().bold(), .0.to_string().yellow(), .1.to_string().yellow())]
+    InvalidBond(usize, usize),
+}
+
 /// Errors that can occur when working with Groups of atoms.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum GroupError {
@@ -191,7 +239,7 @@ pub enum AtomError {
     #[error("{} atom index '{}' is out of range", "error:".red().bold(), .0.to_string().yellow())]
     OutOfRange(usize),
     /// Used when attempting to create a bond that is invalid.
-    #[error("{} bond could not be created between atoms {} and {}", "error:".red().bold(), .0.to_string().yellow(), .1.to_string().yellow())]
+    #[error("{} bond could not be created between atoms '{}' and '{}'", "error:".red().bold(), .0.to_string().yellow(), .1.to_string().yellow())]
     InvalidBond(usize, usize),
     /// Used when there is an issue with simulation box of the system.
     #[error("{}", .0)]
@@ -283,6 +331,9 @@ pub enum ReadTrajError {
     /// Used when simulation box read from the trajectory is invalid.
     #[error("{} simulation box is invalid", "error:".red().bold())]
     InvalidSimBox,
+    /// Used when concatenation of trajectories is requested, but no trajectories are provided.
+    #[error("{} no trajectories provided for concatenation", "error:".red().bold())]
+    CatNoTrajectories,
 }
 
 /// Errors that can occur when writing a trajectory file.

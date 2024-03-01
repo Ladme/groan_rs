@@ -20,13 +20,9 @@ pub struct CXdrFile {
 
 extern "C" {
     pub fn xdrfile_open(path: *const c_char, mode: *const c_char) -> *mut CXdrFile;
-}
 
-extern "C" {
     pub fn xdrfile_close(xfp: *mut CXdrFile) -> c_int;
-}
 
-extern "C" {
     pub fn read_xtc(
         xd: *mut CXdrFile,
         natoms: c_int,
@@ -36,13 +32,9 @@ extern "C" {
         x: *mut [c_float; 3usize],
         prec: *mut c_float,
     ) -> c_int;
-}
 
-extern "C" {
     pub fn read_xtc_natoms(filename: *const c_char, natoms: *mut c_int) -> c_int;
-}
 
-extern "C" {
     pub fn write_xtc(
         xd: *mut CXdrFile,
         natoms: c_int,
@@ -52,29 +44,25 @@ extern "C" {
         x: *mut [c_float; 3usize],
         prec: c_float,
     ) -> c_int;
-}
 
-extern "C" {
     /// Jump to the frame which time is higher than or equal to `target_time`.
     pub fn xtc_jump_to_start(xd: *mut CXdrFile, target_time: c_float) -> c_int;
-}
 
-extern "C" {
     /// Jump to the frame which time is higher than or equal to `target_time`
     pub fn trr_jump_to_start(xd: *mut CXdrFile, target_time: c_float) -> c_int;
-}
 
-extern "C" {
     /// Skip to the next frame in the xtc file without reading it.
     pub fn xtc_skip_frame(xd: *mut CXdrFile) -> c_int;
-}
 
-extern "C" {
     /// Skip to the next frame in the trr file without reading it.
     pub fn trr_skip_frame(xd: *mut CXdrFile) -> c_int;
-}
 
-extern "C" {
+    /// Skip to the next frame in the xtc file without reading it. Read only information about the time of the frame.
+    pub fn xtc_skip_frame_with_time(xd: *mut CXdrFile, time: *mut c_float) -> c_int;
+
+    /// Skip to the next frame in the trr file without reading it. Read only information about the time of the frame.
+    pub fn trr_skip_frame_with_time(xd: *mut CXdrFile, time: *mut c_float) -> c_int;
+
     pub fn read_trr(
         xd: *mut CXdrFile,
         natoms: c_int,
@@ -86,13 +74,9 @@ extern "C" {
         v: *mut [c_float; 3usize],
         f: *mut [c_float; 3usize],
     ) -> c_int;
-}
 
-extern "C" {
     pub fn read_trr_natoms(filename: *const c_char, natoms: *mut c_int) -> c_int;
-}
 
-extern "C" {
     pub fn write_trr(
         xd: *mut CXdrFile,
         natoms: c_int,

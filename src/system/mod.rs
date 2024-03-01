@@ -1,7 +1,7 @@
 // Released under MIT License.
 // Copyright (c) 2023-2024 Ladislav Bartos
 
-//! Implementation of the `System` structure and methods for constructing the `System` and accessing its properties.
+//! Implementation of the System structure and its methods.
 
 use indexmap::IndexMap;
 use std::collections::HashSet;
@@ -10,11 +10,21 @@ use std::path::Path;
 
 use crate::errors::{AtomError, GroupError, ParseFileError, SimBoxError};
 use crate::files::FileType;
-use crate::io::gro_io;
-use crate::io::pdb_io;
+use crate::io::{gro_io, pqr_io};
+use crate::io::{pdb_io, tpr_io};
 use crate::structures::{atom::Atom, group::Group, simbox::SimBox, vector3d::Vector3D};
 
-#[derive(Debug)]
+mod analysis;
+mod groups;
+pub mod guess;
+pub(crate) mod iterating;
+mod modifying;
+#[cfg(feature = "parallel")]
+mod parallel;
+mod utility;
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct System {
     /// Name of the molecular system.
     name: String,
@@ -122,13 +132,15 @@ impl System {
     }
 
     /// Create a new System from gro file or pdb file.
-    /// The method will attempt to automatically recognize gro or pdb file based on the file extension.
+    /// The method will attempt to automatically recognize gro, pdb, tpr or a pqr file based on the file extension.
     ///
     /// ## Returns
     /// `System` structure if successful.
     /// `ParseFileError` if the file format is not supported.
     /// `ParseGroError` if parsing of the gro file fails.
     /// `ParsePdbError` if parsing of the pdb file fails.
+    /// `ParseTprError` if parsing of the tpr file fails.
+    /// `ParsePqrError` if parsing of the pqr file fails.
     ///
     /// ## Example
     /// Reading gro file.
@@ -146,10 +158,21 @@ impl System {
     /// ## Notes
     /// - The returned System structure will contain two default groups "all" and "All"
     /// consisting of all the atoms in the system.
+    /// - When reading a pdb file, no connectivity information (bonds) is read, even if it is provided. You can add
+    /// connectivity from a pdb file to your system using [`System::add_bonds_from_pdb`]. See more information
+    /// about parsing PDB files in [`pdb_io::read_pdb`](`crate::io::pdb_io::read_pdb`).
+    /// - Reading of the tpr files is currently rather limited. Only the following information are read:
+    /// system name, simulation box dimensions (if present), system topology (atoms + bonds).
+    /// Only the following information are read for each atom: atom name, atom number, residue name, residue number,
+    /// charge, mass, element name, and element symbol (if the element is identifiable). **No positions, velocities, or
+    /// forces are currently being read from a tpr file.**
+    /// - Intermolecular bonds and groups are also not read from tpr files.
     pub fn from_file(filename: impl AsRef<Path>) -> Result<Self, Box<dyn Error + Send + Sync>> {
         match FileType::from_name(&filename) {
             FileType::GRO => gro_io::read_gro(filename).map_err(Box::from),
             FileType::PDB => pdb_io::read_pdb(filename).map_err(Box::from),
+            FileType::TPR => tpr_io::read_tpr(filename).map_err(Box::from),
+            FileType::PQR => pqr_io::read_pqr(filename).map_err(Box::from),
             _ => Err(Box::from(ParseFileError::UnknownExtension(Box::from(
                 filename.as_ref(),
             )))),
@@ -180,11 +203,13 @@ impl System {
     }
 
     /// Get the name of the molecular system.
+    #[inline(always)]
     pub fn get_name(&self) -> &str {
         &self.name
     }
 
     /// Get immutable reference to the atoms in the system.
+    #[inline(always)]
     pub fn get_atoms_as_ref(&self) -> &Vec<Atom> {
         &self.atoms
     }
@@ -198,16 +223,19 @@ impl System {
     /// operation would make all the groups associated with the system invalid. The same goes
     /// for reordering the atoms.
     /// - The properties of the individual atoms can however be safely changed.
+    #[inline(always)]
     pub unsafe fn get_atoms_as_ref_mut(&mut self) -> &mut Vec<Atom> {
         &mut self.atoms
     }
 
     /// Get copy of the atoms in the system.
+    #[inline(always)]
     pub fn get_atoms_copy(&self) -> Vec<Atom> {
         self.atoms.clone()
     }
 
     /// Get immutable reference to the groups in the system.
+    #[inline(always)]
     pub fn get_groups_as_ref(&self) -> &IndexMap<String, Group> {
         &self.groups
     }
@@ -220,21 +248,25 @@ impl System {
     /// - Notably, it is forbidden to modify the default groups 'all' and 'All' as changing
     /// these groups may cause the behavior of many other functions associated with `System`
     /// to become incorrect.
+    #[inline(always)]
     pub unsafe fn get_groups_as_ref_mut(&mut self) -> &mut IndexMap<String, Group> {
         &mut self.groups
     }
 
     /// Get copy of the groups in the system.
+    #[inline(always)]
     pub fn get_groups_copy(&self) -> IndexMap<String, Group> {
         self.groups.clone()
     }
 
     /// Get immutable reference to the simulation box.
+    #[inline(always)]
     pub fn get_box_as_ref(&self) -> Option<&SimBox> {
         self.simulation_box.as_ref()
     }
 
     /// Check whether the system has a simulation box.
+    #[inline(always)]
     pub fn has_box(&self) -> bool {
         self.simulation_box.is_some()
     }
@@ -245,90 +277,106 @@ impl System {
     /// - `Vector3D` if successful.
     /// - `SimBoxError` if the system has no simulation box
     /// or if the simulation box is not orthogonal.
+    #[inline(always)]
     pub fn get_box_center(&self) -> Result<Vector3D, SimBoxError> {
         match &self.simulation_box {
-            Some(simbox) if simbox.is_orthogonal() => Ok(Vector3D {
-                x: simbox.x / 2.0f32,
-                y: simbox.y / 2.0f32,
-                z: simbox.z / 2.0f32,
-            }),
+            Some(simbox) if simbox.is_orthogonal() => Ok(Vector3D::new(
+                simbox.x / 2.0f32,
+                simbox.y / 2.0f32,
+                simbox.z / 2.0f32,
+            )),
             Some(_) => Err(SimBoxError::NotOrthogonal),
             None => Err(SimBoxError::DoesNotExist),
         }
     }
 
     /// Get mutable reference to the simulation box.
+    #[inline(always)]
     pub fn get_box_as_ref_mut(&mut self) -> Option<&mut SimBox> {
         self.simulation_box.as_mut()
     }
 
     /// Get copy of the simulation box.
+    #[inline(always)]
     pub fn get_box_copy(&self) -> Option<SimBox> {
         self.simulation_box.as_ref().cloned()
     }
 
     /// Get the number of atoms in the system.
+    #[inline(always)]
     pub fn get_n_atoms(&self) -> usize {
         self.atoms.len()
     }
 
     /// Get the number of groups in the system. This counts all groups, even the default ones.
+    #[inline(always)]
     pub fn get_n_groups(&self) -> usize {
         self.groups.len()
     }
 
     /// Get the current simulation time.
+    #[inline(always)]
     pub fn get_simulation_time(&self) -> f32 {
         self.simulation_time
     }
 
     /// Get the current simulation step.
+    #[inline(always)]
     pub fn get_simulation_step(&self) -> u64 {
         self.simulation_step
     }
 
     /// Get the precision of the coordinates.
+    #[inline(always)]
     pub fn get_precision(&self) -> u64 {
         self.coordinates_precision
     }
 
     /// Get the simulation lambda.
+    #[inline(always)]
     pub fn get_lambda(&self) -> f32 {
         self.lambda
     }
 
     /// Set the simulation time.
+    #[inline(always)]
     pub fn set_simulation_time(&mut self, time: f32) {
         self.simulation_time = time;
     }
 
     /// Set the simulation step.
+    #[inline(always)]
     pub fn set_simulation_step(&mut self, step: u64) {
         self.simulation_step = step;
     }
 
     /// Set simulation box.
+    #[inline(always)]
     pub fn set_box(&mut self, sim_box: SimBox) {
         self.simulation_box = Some(sim_box);
     }
 
     /// Set simulation box to `None`.
+    #[inline(always)]
     pub fn reset_box(&mut self) {
         self.simulation_box = None;
     }
 
     /// Set precision of the coordinates.
+    #[inline(always)]
     pub fn set_precision(&mut self, precision: u64) {
         self.coordinates_precision = precision;
     }
 
     /// Set the simulation lambda.
+    #[inline(always)]
     pub fn set_lambda(&mut self, lambda: f32) {
         self.lambda = lambda;
     }
 
     /// Get reference atoms of all polyatomic molecules.
     /// This is mostly for internal use of the `groan_rs` library.
+    #[inline(always)]
     pub fn get_mol_references(&self) -> Option<&Vec<usize>> {
         self.mol_references.as_ref()
     }
@@ -339,11 +387,13 @@ impl System {
     /// - **This function must be called every time topology
     /// of the system is changed**.
     /// - (Safe native groan library functions handle this for you.)
+    #[inline(always)]
     pub fn reset_mol_references(&mut self) {
         self.mol_references = None;
     }
 
     /// Set reference atoms of molecules.
+    #[inline(always)]
     pub(crate) unsafe fn set_mol_references(&mut self, indices: Vec<usize>) {
         self.mol_references = Some(indices);
     }
@@ -356,6 +406,7 @@ impl System {
     ///
     /// ## Notes
     /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
+    #[inline(always)]
     pub fn has_positions(&self) -> bool {
         self.atoms.iter().all(|atom| atom.has_position())
     }
@@ -368,6 +419,7 @@ impl System {
     ///
     /// ## Notes
     /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
+    #[inline(always)]
     pub fn has_velocities(&self) -> bool {
         self.atoms.iter().all(|atom| atom.has_velocity())
     }
@@ -380,6 +432,7 @@ impl System {
     ///
     /// ## Notes
     /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
+    #[inline(always)]
     pub fn has_forces(&self) -> bool {
         self.atoms.iter().all(|atom| atom.has_force())
     }
@@ -411,6 +464,7 @@ impl System {
     ///
     /// ## Notes
     /// - Complexity of this operation is O(n), where n is the number of atoms in the system.
+    #[inline(always)]
     pub fn has_bonds(&self) -> bool {
         self.atoms.iter().any(|atom| atom.get_n_bonded() > 0)
     }
@@ -426,6 +480,7 @@ impl System {
     /// let extracted: Vec<Atom> = system.atoms_extract();
     /// ```
     /// [`get_atoms_copy`]: System::get_atoms_copy
+    #[inline(always)]
     pub fn atoms_extract(&self) -> Vec<Atom> {
         self.atoms.clone()
     }
@@ -451,6 +506,7 @@ impl System {
     ///     }
     /// };
     /// ```
+    #[inline(always)]
     pub fn group_extract(&self, name: &str) -> Result<Vec<Atom>, GroupError> {
         Ok(self.group_iter(name)?.cloned().collect())
     }
@@ -459,6 +515,7 @@ impl System {
     ///
     /// ## Returns
     /// Reference to `Atom` structure or `AtomError::OutOfRange` if `index` is out of range.
+    #[inline(always)]
     pub fn get_atom_as_ref(&self, index: usize) -> Result<&Atom, AtomError> {
         if index >= self.atoms.len() {
             return Err(AtomError::OutOfRange(index));
@@ -471,6 +528,7 @@ impl System {
     ///
     /// ## Returns
     /// Mutable reference to `Atom` structure or `AtomError::OutOfRange` if `index` is out of range.
+    #[inline(always)]
     pub fn get_atom_as_ref_mut(&mut self, index: usize) -> Result<&mut Atom, AtomError> {
         if index >= self.atoms.len() {
             return Err(AtomError::OutOfRange(index));
@@ -483,6 +541,7 @@ impl System {
     ///
     /// ## Returns
     /// Copy of an `Atom` structure or `AtomError::OutOfRange` if `index` is out of range
+    #[inline(always)]
     pub fn get_atom_copy(&self, index: usize) -> Result<Atom, AtomError> {
         if index >= self.atoms.len() {
             return Err(AtomError::OutOfRange(index));
@@ -498,7 +557,11 @@ impl System {
 
 #[cfg(test)]
 mod tests {
-    use crate::errors::ParsePdbConnectivityError;
+    use crate::{
+        errors::ParsePdbConnectivityError,
+        structures::element::Elements,
+        test_utilities::utilities::{compare_atoms_tpr, compare_box},
+    };
 
     use super::*;
     use float_cmp::assert_approx_eq;
@@ -569,6 +632,23 @@ mod tests {
         assert_eq!(simbox.v3x, 0.0f32);
         assert_eq!(simbox.v3y, 0.0f32);
 
+        let system_pqr = System::from_file("test_files/example.pqr").unwrap();
+        assert_eq!(system_pqr.get_name(), "Buforin II peptide P11L");
+        assert_eq!(system_pqr.get_n_atoms(), 50);
+
+        let simbox = system_pqr.get_box_as_ref().unwrap();
+        assert_approx_eq!(f32, simbox.x, 6.0861);
+        assert_approx_eq!(f32, simbox.y, 6.0861);
+        assert_approx_eq!(f32, simbox.z, 6.0861);
+
+        assert_eq!(simbox.v1y, 0.0f32);
+        assert_eq!(simbox.v1z, 0.0f32);
+        assert_eq!(simbox.v2x, 0.0f32);
+
+        assert_eq!(simbox.v2z, 0.0f32);
+        assert_eq!(simbox.v3x, 0.0f32);
+        assert_eq!(simbox.v3y, 0.0f32);
+
         // compare atoms from PDB an GRO file
         for (groa, pdba) in system_gro.atoms_iter().zip(system_pdb.atoms_iter()) {
             assert_eq!(groa.get_residue_number(), pdba.get_residue_number());
@@ -594,6 +674,65 @@ mod tests {
             assert_eq!(groa.get_velocity(), pdba.get_velocity());
             assert_eq!(groa.get_force(), pdba.get_force());
         }
+
+        // compare atoms from PQR and PDB file
+        for (pqra, pdba) in system_pqr.atoms_iter().zip(system_pdb.atoms_iter()) {
+            assert_eq!(pqra.get_residue_number(), pdba.get_residue_number());
+            assert_eq!(pqra.get_residue_name(), pdba.get_residue_name());
+            assert_eq!(pqra.get_atom_number(), pdba.get_atom_number());
+            assert_eq!(pqra.get_atom_name(), pdba.get_atom_name());
+            assert_approx_eq!(
+                f32,
+                pqra.get_position().unwrap().x,
+                pdba.get_position().unwrap().x
+            );
+            assert_approx_eq!(
+                f32,
+                pqra.get_position().unwrap().y,
+                pdba.get_position().unwrap().y
+            );
+            assert_approx_eq!(
+                f32,
+                pqra.get_position().unwrap().z,
+                pdba.get_position().unwrap().z
+            );
+
+            assert_eq!(pqra.get_velocity(), pdba.get_velocity());
+            assert_eq!(pqra.get_force(), pdba.get_force());
+            assert_eq!(pqra.get_chain(), pdba.get_chain());
+        }
+    }
+
+    #[test]
+    fn from_file_tpr() {
+        let system_tpr = System::from_file("test_files/aa_for_testing_tpr.tpr").unwrap();
+        let mut system_pdb = System::from_file("test_files/aa_for_testing_tpr.pdb").unwrap();
+        system_pdb
+            .add_bonds_from_pdb("test_files/aa_for_testing_tpr.pdb")
+            .unwrap();
+        system_pdb.guess_elements(Elements::default()).unwrap();
+
+        assert_eq!(system_tpr.get_name(), system_pdb.get_name());
+        compare_box(
+            system_tpr.get_box_as_ref().unwrap(),
+            system_pdb.get_box_as_ref().unwrap(),
+        );
+
+        // compare atoms (and bonds)
+        for (atom1, atom2) in system_tpr.atoms_iter().zip(system_pdb.atoms_iter()) {
+            compare_atoms_tpr(atom1, atom2);
+        }
+    }
+
+    #[test]
+    fn from_file_tpr_triclinic() {
+        let system_tpr = System::from_file("test_files/triclinic.tpr").unwrap();
+        let system_gro = System::from_file("test_files/triclinic.gro").unwrap();
+
+        compare_box(
+            system_tpr.get_box_as_ref().unwrap(),
+            system_gro.get_box_as_ref().unwrap(),
+        );
     }
 
     #[test]
@@ -906,5 +1045,34 @@ mod tests {
                 e
             ),
         }
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "serde")]
+mod serde_tests {
+    use std::fs::read_to_string;
+
+    use super::*;
+
+    #[test]
+    fn system_to_yaml() {
+        let mut system = System::from_file("test_files/protein.gro").unwrap();
+        system.group_create("Sidechains", "name r'^SC.*'").unwrap();
+
+        let string = serde_yaml::to_string(&system).unwrap();
+        let expected = read_to_string("test_files/serde_system.yaml").unwrap();
+
+        assert_eq!(string, expected);
+    }
+
+    #[test]
+    fn system_from_yaml() {
+        let string = read_to_string("test_files/serde_system.yaml").unwrap();
+        let system: System = serde_yaml::from_str(&string).unwrap();
+
+        assert_eq!(system.get_n_atoms(), 61);
+        assert_eq!(system.get_n_groups(), 3);
+        assert!(system.get_box_as_ref().is_some());
     }
 }
