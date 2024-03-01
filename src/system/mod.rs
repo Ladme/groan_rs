@@ -1,7 +1,7 @@
 // Released under MIT License.
 // Copyright (c) 2023-2024 Ladislav Bartos
 
-//! Implementation of the `System` structure and its methods.
+//! Implementation of the System structure and its methods.
 
 use indexmap::IndexMap;
 use std::collections::HashSet;
@@ -19,6 +19,7 @@ mod groups;
 pub mod guess;
 pub(crate) mod iterating;
 mod modifying;
+#[cfg(feature = "parallel")]
 mod parallel;
 mod utility;
 

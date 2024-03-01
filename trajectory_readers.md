@@ -53,7 +53,7 @@ This guide shows you how to read custom trajectory formats in `groan_rs`. Check 
 
 use std::path::Path;
 
-use crate::{errors::ReadTrajError, system::general::System};
+use crate::{errors::ReadTrajError, system::System};
 
 use crate::io::traj_io::*;
 

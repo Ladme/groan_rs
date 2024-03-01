@@ -530,8 +530,10 @@
 //! Note that `groan_rs` will still work correctly even if you do not explicitly include the error types.
 //!
 //! ## Features
-//! Currently, `groan_rs` has one optional feature called `serde` which provides methods for serializing and deserializing various `groan_rs` structures using the `serde` crate.
-//! If you want to use this feature, include the `groan_rs` crate in your project by calling `cargo add groan_rs --features serde`.
+//! - **Serialization Support (`serde`)**: Enables the serialization and deserialization of `groan_rs` data structures through integration with the `serde` framework.
+//! - **Concurrency Enhancement (`parallel`)**: Expands the `groan_rs` library with functions designed for multi-threaded execution.
+//!
+//! Install the `groan_rs` crate with a specific feature using `cargo add groan_rs --features [FEATURE]`.
 //!
 //! ## Limitations
 //! - Currently, `groan_rs` library is not able to properly work with periodic simulation boxes that are **not orthogonal**.

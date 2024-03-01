@@ -3,7 +3,6 @@
 
 //! Implementation of System methods for guessing properties of atoms.
 
-use crossbeam_utils::thread;
 use std::fmt;
 
 use colored::Colorize;
@@ -13,6 +12,9 @@ use crate::errors::ElementError;
 use crate::structures::dimension::Dimension;
 use crate::structures::element::Elements;
 use crate::system::System;
+
+#[cfg(feature = "parallel")]
+use crossbeam_utils::thread;
 
 /// Default factor used to quess bonds between atoms.
 const DEFAULT_RADIUS_FACTOR: f32 = 0.55;
@@ -375,6 +377,7 @@ impl System {
     /// ## Notes
     /// - If the number of threads is higher than the number of atoms (`n_atoms`) in the system,
     /// only `n_atoms` threads will be used.
+    #[cfg(feature = "parallel")]
     pub fn guess_bonds_parallel(
         &mut self,
         radius_factor: Option<f32>,
@@ -443,6 +446,7 @@ impl System {
     /// ## Warning
     /// - `n_threads` must be non-zero and smaller than or equal to `n_atoms`
     /// - `n_atoms` must be non-zero
+    #[cfg(feature = "parallel")]
     #[inline]
     fn identify_bonds_parallel(
         &self,
@@ -1538,6 +1542,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "parallel")]
     fn guess_bonds_parallel() {
         let mut system = System::from_file("test_files/aa_peptide.pdb").unwrap();
 
@@ -1612,6 +1617,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "parallel")]
     fn guess_bonds_multithreaded() {
         let no_vdw = vec![2];
         let too_few_bonds = vec![
@@ -1679,7 +1685,11 @@ mod tests {
         );
         system.guess_bonds(None).unwrap();
         assert!(!system.has_bonds());
+    }
 
+    #[test]
+    #[cfg(feature = "parallel")]
+    fn guess_bonds_empty_system_parallel() {
         let mut system = System::new(
             "Empty system",
             vec![],
@@ -1693,6 +1703,7 @@ mod tests {
     #[should_panic(
         expected = "FATAL GROAN ERROR | System::guess_bonds_parallel | Number of threads should not be zero."
     )]
+    #[cfg(feature = "parallel")]
     fn guess_bonds_no_threads() {
         let mut system = System::from_file("test_files/aa_peptide.pdb").unwrap();
 
