@@ -8,7 +8,7 @@ use std::path::Path;
 use crate::{
     errors::{AtomError, ParseTprError},
     structures::{atom::Atom, simbox::SimBox},
-    system::general::System,
+    system::System,
 };
 
 /// Read topology from a tpr file. Construct a system.

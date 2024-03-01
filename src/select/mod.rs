@@ -1,15 +1,19 @@
 // Released under MIT License.
 // Copyright (c) 2023-2024 Ladislav Bartos
 
-//! Implementation of the Groan selection language.
+//! Implementation of the Groan Selection Language for selecting groups of atoms.
 
 use fancy_regex::Regex;
 use std::collections::HashMap;
 use std::fmt::{self, Write};
 
 use crate::errors::SelectError;
-use crate::selections::{name::Name, numbers};
-use crate::system::general::System;
+use crate::system::System;
+
+use self::name::Name;
+
+mod name;
+mod numbers;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Select {
@@ -851,7 +855,7 @@ mod serde {
     };
     use std::fmt;
 
-    use crate::selections::select::Select;
+    use crate::select::Select;
 
     impl Serialize for Select {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

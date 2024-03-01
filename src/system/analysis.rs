@@ -6,7 +6,7 @@
 use crate::errors::{AtomError, GroupError, MassError, PositionError};
 use crate::structures::simbox::{simbox_check, SimBox};
 use crate::structures::{dimension::Dimension, vector3d::Vector3D};
-use crate::system::general::System;
+use crate::system::System;
 
 use std::f32::consts;
 

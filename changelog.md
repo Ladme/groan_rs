@@ -24,13 +24,18 @@
 #### Replaced custom `Vector3D` implementation with faster `Vector3` from `nalgebra` crate
 - **Breaking change:** When `Vector3D::to_unit` is applied to a vector with a length (magnitude) of zero, its fields are set to `NaN` instead of the previously used `0.0`.
 
+#### Restructuring of the module system
+- **Breaking change**: The `Select` structure is now directly in the module `groan_rs::select`, not in `groan_rs::selections::select`.
+- **Breaking change**: The `System` structure is now directly in the module `groan_rs::system`, not in `groan_rs::system::general`.
+- None of the above changes concern you if you use `groan_rs::prelude`.
+
 #### `serde` feature
 - Added a new feature `serde` which provides deserialization and serialization for several `groan_rs` structures, namely: Vector3D, SimBox, Atom, AtomContainer, AtomBlock, Group, System, and Select.
 - Select can be deserialized from a valid Groan Selection Language (GSL) query. Select is serialized into a valid GSL query.
 - This feature is not provided by default and must be activated by using `cargo add groan_rs --features serde` or by adding `groan_rs = { version = "0.7.0", features = ["serde"] }` to your `Cargo.toml` file.
 - Note that the automated tests for (de)serialization only use the `yaml` file format but other formats supported by the `serde` crate should also work.
 
-#### Parallelization
+#### `parallel` features
 - Parallelized version of `System::guess_bonds`, called `System::guess_bonds_parallel`, has been introduced.
 
 #### Other changes

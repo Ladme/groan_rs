@@ -12,7 +12,7 @@ use std::collections::HashSet;
 
 use crate::errors::{GroupError, ParseNdxError, WriteNdxError};
 use crate::structures::atom::Atom;
-use crate::system::general::System;
+use crate::system::System;
 
 /// ## Methods for reading and writing ndx files.
 impl System {

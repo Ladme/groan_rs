@@ -1,7 +1,7 @@
 // Released under MIT License.
 // Copyright (c) 2023-2024 Ladislav Bartos
 
-//! Implementation of the `System` structure and methods for constructing the `System` and accessing its properties.
+//! Implementation of the `System` structure and its methods.
 
 use indexmap::IndexMap;
 use std::collections::HashSet;
@@ -13,6 +13,14 @@ use crate::files::FileType;
 use crate::io::{gro_io, pqr_io};
 use crate::io::{pdb_io, tpr_io};
 use crate::structures::{atom::Atom, group::Group, simbox::SimBox, vector3d::Vector3D};
+
+mod analysis;
+mod groups;
+pub mod guess;
+pub(crate) mod iterating;
+mod modifying;
+mod parallel;
+mod utility;
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

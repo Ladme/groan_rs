@@ -16,7 +16,7 @@ use crate::io::traj_io::{
 use crate::io::xdrfile::{self, CXdrFile, OpenMode, XdrFile};
 use crate::structures::iterators::AtomIterator;
 use crate::structures::{group::Group, simbox::SimBox, vector3d::Vector3D};
-use crate::system::general::System;
+use crate::system::System;
 
 /**************************/
 /*      READING TRR       */

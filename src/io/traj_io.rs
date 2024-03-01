@@ -6,7 +6,7 @@
 use crate::errors::{ReadTrajError, WriteTrajError};
 use crate::io::xdrfile::CXdrFile;
 use crate::progress::{ProgressPrinter, ProgressStatus};
-use crate::system::general::System;
+use crate::system::System;
 use std::marker::PhantomData;
 use std::path::Path;
 

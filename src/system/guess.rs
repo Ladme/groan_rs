@@ -12,7 +12,7 @@ use indexmap::IndexMap;
 use crate::errors::ElementError;
 use crate::structures::dimension::Dimension;
 use crate::structures::element::Elements;
-use crate::system::general::System;
+use crate::system::System;
 
 /// Default factor used to quess bonds between atoms.
 const DEFAULT_RADIUS_FACTOR: f32 = 0.55;

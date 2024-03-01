@@ -3,7 +3,7 @@
 
 //! Basic utilities for parallel implementations of functions.
 
-use crate::{structures::container::AtomContainer, system::general::System};
+use crate::{structures::container::AtomContainer, system::System};
 
 impl System {
     /// Distribute all atoms of the system between threads.
@@ -98,7 +98,7 @@ impl System {
 #[cfg(test)]
 mod tests {
 
-    use crate::system::general::System;
+    use crate::system::System;
 
     #[test]
     fn distribute_atoms() {

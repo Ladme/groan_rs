@@ -6,10 +6,10 @@
 use std::io::Write;
 
 use crate::errors::{SelectError, WriteNdxError};
-use crate::selections::select::Select;
+use crate::select::Select;
 use crate::structures::container::AtomContainer;
 use crate::structures::shape::Shape;
-use crate::system::general::System;
+use crate::system::System;
 use crate::system::iterating::get_molecule_indices;
 
 /******************************/

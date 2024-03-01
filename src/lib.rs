@@ -549,45 +549,11 @@ pub const GROAN_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub mod errors;
 pub mod files;
-pub mod io {
-    pub mod gro_io;
-    mod ndx_io;
-    pub mod pdb_io;
-    pub mod pqr_io;
-    pub mod tpr_io;
-    pub mod traj_cat;
-    pub mod traj_io;
-    pub mod trr_io;
-    mod xdrfile;
-    pub mod xtc_io;
-}
-pub mod selections {
-    mod name;
-    mod numbers;
-    pub mod select;
-}
+pub mod io;
+pub mod select;
 pub mod progress;
-pub mod structures {
-    pub mod atom;
-    pub(crate) mod container;
-    pub mod dimension;
-    pub mod element;
-    pub mod group;
-    pub mod iterators;
-    pub mod shape;
-    pub mod simbox;
-    pub mod vector3d;
-}
-pub mod system {
-    mod analysis;
-    pub mod general;
-    mod groups;
-    pub mod guess;
-    pub(crate) mod iterating;
-    mod modifying;
-    mod parallel;
-    mod utility;
-}
+pub mod structures;
+pub mod system;
 mod test_utilities;
 
 /// Reexported basic `groan_rs` structures and traits.
@@ -606,5 +572,5 @@ pub mod prelude {
     pub use crate::structures::shape::{Cylinder, Rectangular, Shape, Sphere, TriangularPrism};
     pub use crate::structures::simbox::SimBox;
     pub use crate::structures::vector3d::Vector3D;
-    pub use crate::system::general::System;
+    pub use crate::system::System;
 }

@@ -9,7 +9,7 @@ use std::path::Path;
 
 use crate::errors::{ParseGroError, WriteGroError};
 use crate::structures::{atom::Atom, simbox::SimBox};
-use crate::system::general::System;
+use crate::system::System;
 
 /// ## Methods for writing gro files.
 impl System {

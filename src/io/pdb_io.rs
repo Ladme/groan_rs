@@ -10,7 +10,7 @@ use std::path::Path;
 
 use crate::errors::{ParsePdbConnectivityError, ParsePdbError, WritePdbError};
 use crate::structures::{atom::Atom, simbox::SimBox};
-use crate::system::general::System;
+use crate::system::System;
 
 /// Read a pdb file and construct a System structure. Do not read connectivity.
 ///

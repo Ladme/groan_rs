@@ -6,7 +6,7 @@
 use std::marker::PhantomData;
 use std::path::Path;
 
-use crate::{errors::ReadTrajError, io::traj_io::TrajRead, system::general::System};
+use crate::{errors::ReadTrajError, io::traj_io::TrajRead, system::System};
 
 use crate::io::traj_io::{
     FrameData, FrameDataTime, TrajRangeRead, TrajReadOpen, TrajStepRead, TrajStepTimeRead,

@@ -10,7 +10,7 @@ use std::path::Path;
 use crate::structures::atom::Atom;
 use crate::structures::simbox::SimBox;
 use crate::structures::vector3d::Vector3D;
-use crate::system::general::System;
+use crate::system::System;
 
 use crate::errors::{ParsePdbError, ParsePqrError, WritePqrError};
 use crate::io::pdb_io;

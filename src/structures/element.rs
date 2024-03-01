@@ -13,8 +13,8 @@ use std::path::Path;
 
 use crate::errors::ElementError;
 use crate::{
-    errors::ParseElementError, selections::select::Select, structures::group::Group,
-    system::general::System,
+    errors::ParseElementError, select::Select, structures::group::Group,
+    system::System,
 };
 
 /// Contains information about all elements that can occur in the system.

@@ -4,7 +4,7 @@
 //! Implementation of the Name enum for the Groan selection language.
 
 use crate::errors::SelectError;
-use crate::system::general::System;
+use crate::system::System;
 use regex::Regex;
 use std::fmt;
 
@@ -96,7 +96,7 @@ impl PartialEq<str> for Name {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::selections::select::Select;
+    use crate::select::Select;
 
     #[test]
     fn match_groups() {

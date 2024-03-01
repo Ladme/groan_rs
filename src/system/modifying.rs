@@ -11,7 +11,7 @@ use crate::structures::{
     simbox::{simbox_check, SimBox},
     vector3d::Vector3D,
 };
-use crate::system::general::System;
+use crate::system::System;
 
 /// ## Methods for modifying the properties of the system.
 impl System {

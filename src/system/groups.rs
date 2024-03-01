@@ -8,10 +8,10 @@ use std::collections::HashSet;
 use indexmap::IndexMap;
 
 use crate::errors::{GroupError, SimBoxError};
-use crate::selections::select::Select;
+use crate::select::Select;
 use crate::structures::group::Group;
 use crate::structures::shape::Shape;
-use crate::system::general::System;
+use crate::system::System;
 
 /// ## Methods for working with groups of atoms.
 impl System {
@@ -301,7 +301,7 @@ impl System {
     /// # use groan_rs::prelude::*;
     /// // you have to specifically include the `Select` structure as it is not
     /// // provided in the `groan_rs::prelude`
-    /// use groan_rs::selections::select::Select;
+    /// use groan_rs::select::Select;
     ///
     /// let mut system = System::from_file("system.gro").unwrap();
     ///

@@ -11,7 +11,7 @@ use crate::structures::iterators::{
     AtomIterator, MoleculeIterator, MutAtomIterator, MutMoleculeIterator,
 };
 use crate::structures::simbox::SimBox;
-use crate::system::general::System;
+use crate::system::System;
 
 use crate::errors::{AtomError, GroupError};
 
