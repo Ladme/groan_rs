@@ -1,6 +1,12 @@
 
 ## Changelog for the `groan_rs` library
 
+### Version 0.7.1
+- Bug fix: GSL queries containing non-ASCII characters should no longer cause panic.
+- `tpr_io::read_tpr` is now a public function.
+- `TrajReadOpen` trait is now included in `groan_rs::prelude`.
+- Replaced the `crossbeam_utils` crate with features from standard library.
+
 ### Version 0.7.0
 #### Reading TPR files
 - Implemented basic reading of TPR files using the `minitpr` crate. The `System::from_file` function can now recognize and parse TPR files.

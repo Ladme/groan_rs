@@ -847,18 +847,25 @@ mod tests {
     fn cat_traj_duplicates() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        let times = [0.0, 100.0, 200.0, 300.0, 400.0, 0.0, 100.0, 200.0, 300.0, 400.0, 900.0, 1000.0, 0.0, 100.0, 200.0];
+        let times = [
+            0.0, 100.0, 200.0, 300.0, 400.0, 0.0, 100.0, 200.0, 300.0, 400.0, 900.0, 1000.0, 0.0,
+            100.0, 200.0,
+        ];
 
-        for (i, frame) in system.traj_cat_iter::<XtcReader>(
-            &vec!["test_files/split/traj1.xtc",
-            "test_files/split/traj2.xtc",
-            "test_files/split/traj3.xtc",
-            "test_files/split/traj1.xtc",
-            "test_files/split/traj3.xtc",
-            "test_files/split/traj6.xtc",
-            "test_files/split/traj1.xtc",
-            "test_files/split/traj2.xtc"]
-        ).unwrap().enumerate() {
+        for (i, frame) in system
+            .traj_cat_iter::<XtcReader>(&vec![
+                "test_files/split/traj1.xtc",
+                "test_files/split/traj2.xtc",
+                "test_files/split/traj3.xtc",
+                "test_files/split/traj1.xtc",
+                "test_files/split/traj3.xtc",
+                "test_files/split/traj6.xtc",
+                "test_files/split/traj1.xtc",
+                "test_files/split/traj2.xtc",
+            ])
+            .unwrap()
+            .enumerate()
+        {
             let frame = frame.unwrap();
             assert_approx_eq!(f32, frame.get_simulation_time(), times[i]);
         }
@@ -878,11 +885,18 @@ mod tests {
     #[test]
     fn cat_traj_nonexistent() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
-        let empty: Vec<&str> = vec!["test_files/split/traj1.trr", "test_files/split/traj_nonexistent.trr", "test_files/split/traj3.trr"];
+        let empty: Vec<&str> = vec![
+            "test_files/split/traj1.trr",
+            "test_files/split/traj_nonexistent.trr",
+            "test_files/split/traj3.trr",
+        ];
 
         match system.traj_cat_iter::<TrrReader>(&empty) {
             Ok(_) => panic!("Function should have failed."),
-            Err(ReadTrajError::FileNotFound(file)) => assert_eq!(file.to_str().unwrap(), "test_files/split/traj_nonexistent.trr"),
+            Err(ReadTrajError::FileNotFound(file)) => assert_eq!(
+                file.to_str().unwrap(),
+                "test_files/split/traj_nonexistent.trr"
+            ),
             Err(e) => panic!("Incorrect error type returned `{}`", e),
         }
     }

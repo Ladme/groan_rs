@@ -12,10 +12,7 @@ use std::io::Read;
 use std::path::Path;
 
 use crate::errors::ElementError;
-use crate::{
-    errors::ParseElementError, select::Select, structures::group::Group,
-    system::System,
-};
+use crate::{errors::ParseElementError, select::Select, structures::group::Group, system::System};
 
 /// Contains information about all elements that can occur in the system.
 /// For atomistic systems, construct with `Elements::default`.

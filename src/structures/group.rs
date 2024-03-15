@@ -9,8 +9,8 @@ use crate::errors::{SelectError, WriteNdxError};
 use crate::select::Select;
 use crate::structures::container::AtomContainer;
 use crate::structures::shape::Shape;
-use crate::system::System;
 use crate::system::iterating::get_molecule_indices;
+use crate::system::System;
 
 /******************************/
 /*       GROUP STRUCTURE      */

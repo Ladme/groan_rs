@@ -50,7 +50,7 @@
 //! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     // read a gro file
 //!     let mut system = System::from_file("system.gro")?;
-//!     // `groan_rs` also fully supports pdb and pqr files which
+//!     // `groan_rs` also supports pdb, pqr, and tpr files which
 //!     // can be read using the same function as above
 //!
 //!     // read an ndx file
@@ -509,7 +509,7 @@
 //! **Note on selecting elements**
 //!
 //! Note that the atoms of the system are not implicitly assigned elements by the `groan_rs` library. When using `element name` or `element symbol` keywords, the atoms will only be selected if they have been assigned an element.
-//! Inside the `groan_rs` library, you can achieve this by calling the `System::guess_elements` function.
+//! Inside the `groan_rs` library, you can achieve this either by creating the `System` structure from a tpr file or by calling the `System::guess_elements` function.
 //! If you are a user of a program employing the groan selection language, make sure that the program assigns elements to the atoms before relying on the `element` keyword.
 //!
 //! **Note on whitespace**
@@ -552,8 +552,8 @@ pub const GROAN_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub mod errors;
 pub mod files;
 pub mod io;
-pub mod select;
 pub mod progress;
+pub mod select;
 pub mod structures;
 pub mod system;
 mod test_utilities;
@@ -562,8 +562,8 @@ mod test_utilities;
 pub mod prelude {
     pub use crate::io::traj_io::{
         FrameData, FrameDataTime, TrajFile, TrajGroupWrite, TrajMasterRead, TrajRangeRead,
-        TrajRangeReader, TrajRangeStepReader, TrajRead, TrajReader, TrajStepRead, TrajStepReader,
-        TrajStepTimeRead, TrajWrite,
+        TrajRangeReader, TrajRangeStepReader, TrajRead, TrajReadOpen, TrajReader, TrajStepRead,
+        TrajStepReader, TrajStepTimeRead, TrajWrite,
     };
     pub use crate::io::trr_io::{TrrGroupWriter, TrrReader, TrrWriter};
     pub use crate::io::xtc_io::{XtcGroupWriter, XtcReader, XtcWriter};

@@ -75,7 +75,7 @@ impl Select {
         // replace word operators with their symbolic equivalents
         expression = replace_keywords(&expression);
 
-        match parse_subquery(&expression, 0, expression.len()) {
+        match parse_subquery(&expression, 0, expression.chars().count()) {
             Ok(x) => Ok(x),
             Err(SelectError::InvalidOperator(_)) => {
                 Err(SelectError::InvalidOperator(query.to_string()))
@@ -2390,6 +2390,27 @@ mod pass_tests {
             Name::new("r'^C.*'").unwrap(),
             Name::new("r'^[0-9]*H.*'").unwrap(),
             Name::new("r'.*'").unwrap()
+        ])
+    );
+
+    parsing_success!(
+        nonascii_group_1,
+        "'velmi česká řřř skupina, že jo?'",
+        Select::GroupName(vec![Name::new("velmi česká řřř skupina, že jo?").unwrap()])
+    );
+
+    parsing_success!(
+        nonascii_group_2,
+        "'這是一個中文名字，希望是對的'",
+        Select::GroupName(vec![Name::new("這是一個中文名字，希望是對的").unwrap()])
+    );
+
+    parsing_success!(
+        nonascii_atomname,
+        "name underhålls uppföljnings",
+        Select::AtomName(vec![
+            Name::new("underhålls").unwrap(),
+            Name::new("uppföljnings").unwrap()
         ])
     );
 

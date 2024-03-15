@@ -13,9 +13,6 @@ use crate::structures::dimension::Dimension;
 use crate::structures::element::Elements;
 use crate::system::System;
 
-#[cfg(feature = "parallel")]
-use crossbeam_utils::thread;
-
 /// Default factor used to quess bonds between atoms.
 const DEFAULT_RADIUS_FACTOR: f32 = 0.55;
 
@@ -460,11 +457,11 @@ impl System {
         let mut no_vdw = Vec::new();
         let mut bonds = Vec::new();
 
-        thread::scope(|s| {
+        std::thread::scope(|s| {
             let mut handles = Vec::new();
 
             for (start, end) in distribution {
-                let handle = s.spawn(move |_| -> (Vec<(usize, usize)>, Vec<usize>) {
+                let handle = s.spawn(move || -> (Vec<(usize, usize)>, Vec<usize>) {
                     self.identify_bonds(radius_factor, start, end)
                 });
 
@@ -478,10 +475,7 @@ impl System {
                 bonds.append(&mut b);
                 no_vdw.append(&mut vdw);
             }
-        })
-        .expect(
-            "FATAL GROAN ERROR | System::identify_bonds_parallel | Could not iterate in parallel.",
-        );
+        });
 
         (bonds, no_vdw)
     }

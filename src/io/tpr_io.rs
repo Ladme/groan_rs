@@ -16,7 +16,7 @@ use crate::{
 /// does not create groups (other than the default `all` and `All`).
 /// Note that the atoms and residues in the tpr file are numbered sequentially,
 /// no matter their original numbering in the gro/pdb file.
-pub(crate) fn read_tpr(filename: impl AsRef<Path>) -> Result<System, ParseTprError> {
+pub fn read_tpr(filename: impl AsRef<Path>) -> Result<System, ParseTprError> {
     let tpr = match minitpr::TprFile::parse(filename) {
         Ok(x) => x,
         Err(e) => return Err(ParseTprError::CouldNotRead(format!("{}", e))),
