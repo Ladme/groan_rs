@@ -281,7 +281,7 @@ impl System {
     /// ## Warning
     /// - Currently only works with orthogonal periodic boundary conditions!
     /// - This function is rather unreliable. If you require precise information
-    /// about the topology of your system, load in a PDB file with CONECT information,
+    /// about the topology of your system, load in a TPR file, a PDB file with CONECT information,
     /// or define the topology manually.
     ///
     /// ## Example
