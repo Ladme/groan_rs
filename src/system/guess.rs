@@ -612,10 +612,6 @@ impl System {
     }
 }
 
-struct SendSystemPtr(*mut System);
-
-unsafe impl Send for SendSystemPtr {}
-
 /******************************/
 /*  ADVANCED ERROR MESSAGES   */
 /******************************/
