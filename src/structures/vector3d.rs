@@ -272,17 +272,7 @@ impl Vector3D {
             panic!("FATAL GROAN ERROR | Vector3D::wrap_coordinate | Box len should not be zero.")
         }
 
-        let mut wrapped = coor;
-
-        while wrapped > box_len {
-            wrapped -= box_len;
-        }
-
-        while wrapped < 0.0f32 {
-            wrapped += box_len;
-        }
-
-        wrapped
+        coor - box_len * (coor / box_len).floor()
     }
 
     /// Calculate distance between two points in the specified dimensions.
@@ -848,7 +838,7 @@ mod tests {
         assert_approx_eq!(f32, vector1.z, 1.0);
 
         vector2.wrap(&simbox);
-        assert_approx_eq!(f32, vector2.x, 2.0);
+        assert_approx_eq!(f32, vector2.x, 0.0);
         assert_approx_eq!(f32, vector2.y, 0.2);
         assert_approx_eq!(f32, vector2.z, 1.7);
 
