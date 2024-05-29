@@ -113,7 +113,7 @@ mod tests {
                 let membrane = &v[0];
                 for atom_index in 0..system.get_n_atoms() {
                     let result = membrane.match_groups(&system, atom_index).unwrap();
-                    if atom_index >= 61 && atom_index <= 6204 {
+                    if (61..=6204).contains(&atom_index) {
                         assert!(result);
                     } else {
                         assert!(!result);

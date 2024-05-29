@@ -693,7 +693,7 @@ mod tests_read {
         assert_eq!(system.get_name(), "Buforin II peptide P11L");
         assert_eq!(system.get_n_atoms(), 17);
 
-        assert_eq!(system.atoms_iter().nth(0).unwrap().get_atom_number(), 1);
+        assert_eq!(system.atoms_iter().next().unwrap().get_atom_number(), 1);
         assert_eq!(system.atoms_iter().nth(16).unwrap().get_atom_number(), 17);
     }
 
@@ -704,7 +704,7 @@ mod tests_read {
         assert_eq!(system.get_name(), "Buforin II peptide P11L");
         assert_eq!(system.get_n_atoms(), 17);
 
-        assert_eq!(system.atoms_iter().nth(0).unwrap().get_atom_number(), 1);
+        assert_eq!(system.atoms_iter().next().unwrap().get_atom_number(), 1);
         assert_eq!(system.atoms_iter().nth(16).unwrap().get_atom_number(), 17);
     }
 
@@ -1268,7 +1268,7 @@ mod tests_write {
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();
 
-        if let Err(_) = system.write_pdb(path_to_output, false) {
+        if system.write_pdb(path_to_output, false).is_err() {
             panic!("Writing pdb file failed.");
         }
 
@@ -1298,7 +1298,7 @@ mod tests_write {
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();
 
-        if let Err(_) = system.write_pdb(path_to_output, false) {
+        if system.write_pdb(path_to_output, false).is_err() {
             panic!("Writing pdb file failed.");
         }
 
@@ -1328,7 +1328,7 @@ mod tests_write {
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();
 
-        if let Err(_) = system.write_pdb(path_to_output, false) {
+        if system.write_pdb(path_to_output, false).is_err() {
             panic!("Writing pdb file failed.");
         }
 
@@ -1347,7 +1347,7 @@ mod tests_write {
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();
 
-        if let Err(_) = system.group_write_pdb("Protein", path_to_output, false) {
+        if system.group_write_pdb("Protein", path_to_output, false).is_err() {
             panic!("Writing pdb file failed.");
         }
 

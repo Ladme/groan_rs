@@ -783,7 +783,7 @@ mod tests {
             system
                 .molecule_iter(49)
                 .unwrap()
-                .nth(0)
+                .next()
                 .unwrap()
                 .get_atom_number(),
             50

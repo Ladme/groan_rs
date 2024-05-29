@@ -963,7 +963,7 @@ mod tests {
         system.add_bond(0, 2).unwrap();
         system.make_molecules_whole().unwrap();
 
-        let atom1 = system.atoms_iter().nth(0).unwrap();
+        let atom1 = system.atoms_iter().next().unwrap();
         let atom2 = system.atoms_iter().nth(1).unwrap();
         let atom3 = system.atoms_iter().nth(2).unwrap();
 
@@ -984,7 +984,7 @@ mod tests {
         system.add_bond(1, 2).unwrap();
         system.make_molecules_whole().unwrap();
 
-        let atom1 = system.atoms_iter().nth(0).unwrap();
+        let atom1 = system.atoms_iter().next().unwrap();
         let atom2 = system.atoms_iter().nth(1).unwrap();
         let atom3 = system.atoms_iter().nth(2).unwrap();
 

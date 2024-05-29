@@ -1138,7 +1138,7 @@ mod tests {
         assert_approx_eq!(f32, simbox.v3z, 2.1743093);
         assert_approx_eq!(f32, simbox.v1y, 0.0000000);
         assert_approx_eq!(f32, simbox.v1z, 0.0000000);
-        assert_approx_eq!(f32, simbox.v2x, 0.8403500);
+        assert_approx_eq!(f32, simbox.v2x, 0.84035);
         assert_approx_eq!(f32, simbox.v2z, 0.0000000);
         assert_approx_eq!(f32, simbox.v3x, 1.0129081);
         assert_approx_eq!(f32, simbox.v3y, -1.6822226);
@@ -1159,8 +1159,8 @@ mod tests {
         assert_approx_eq!(f32, frame.get_simulation_time(), 100.0);
 
         let simbox = frame.get_box_as_ref().unwrap();
-        assert_approx_eq!(f32, simbox.v1x, 6.2666030);
-        assert_approx_eq!(f32, simbox.v2y, 5.9082110);
+        assert_approx_eq!(f32, simbox.v1x, 6.266603);
+        assert_approx_eq!(f32, simbox.v2y, 5.908211);
         assert_approx_eq!(f32, simbox.v3z, 5.1106043);
         assert_approx_eq!(f32, simbox.v1y, 0.0000000);
         assert_approx_eq!(f32, simbox.v1z, 0.0000000);
@@ -1185,9 +1185,9 @@ mod tests {
         assert_approx_eq!(f32, simbox.v3z, 5.0840497);
         assert_approx_eq!(f32, simbox.v1y, 0.0000000);
         assert_approx_eq!(f32, simbox.v1z, 0.0000000);
-        assert_approx_eq!(f32, simbox.v2x, 2.0668030);
+        assert_approx_eq!(f32, simbox.v2x, 2.066803);
         assert_approx_eq!(f32, simbox.v2z, 0.0000000);
-        assert_approx_eq!(f32, simbox.v3x, -2.0668030);
+        assert_approx_eq!(f32, simbox.v3x, -2.066803);
         assert_approx_eq!(f32, simbox.v3y, 2.9228961);
     }
 
@@ -1206,8 +1206,8 @@ mod tests {
         assert_approx_eq!(f32, frame.get_simulation_time(), 100.0);
 
         let simbox = frame.get_box_as_ref().unwrap();
-        assert_approx_eq!(f32, simbox.v1x, 6.2607090);
-        assert_approx_eq!(f32, simbox.v2y, 6.2607090);
+        assert_approx_eq!(f32, simbox.v1x, 6.260709);
+        assert_approx_eq!(f32, simbox.v2y, 6.260709);
         assert_approx_eq!(f32, simbox.v3z, 4.4316807);
         assert_approx_eq!(f32, simbox.v1y, 0.0000000);
         assert_approx_eq!(f32, simbox.v1z, 0.0000000);
@@ -1247,7 +1247,7 @@ mod tests {
             .xtc_iter("test_files/short_trajectory.xtc")
             .unwrap();
         let traj_cat = system_cat
-            .xtc_cat_iter(&vec![
+            .xtc_cat_iter(&[
                 "test_files/split/traj1.xtc",
                 "test_files/split/traj2.xtc",
                 "test_files/split/traj3.xtc",
@@ -1370,7 +1370,7 @@ mod tests {
         let mut writer = XtcGroupWriter::new(&system, "Protein", path_to_output).unwrap();
 
         // replace the protein group with something else; this should not change the output of the XtcGroupWriter
-        if let Ok(_) = system.group_create("Protein", "serial 1") {
+        if system.group_create("Protein", "serial 1").is_ok() {
             panic!("Function should return warning but it did not.");
         }
 

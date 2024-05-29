@@ -1113,7 +1113,7 @@ mod tests {
 
         assert_eq!(system.group_get_n_atoms("Molecule").unwrap(), 8);
 
-        let numbers = vec![5, 12, 22, 31, 36, 40, 47, 50];
+        let numbers = [5, 12, 22, 31, 36, 40, 47, 50];
         for (a, atom) in system.group_iter("Molecule").unwrap().enumerate() {
             assert_eq!(atom.get_atom_number(), numbers[a]);
         }
@@ -2005,7 +2005,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
         let (code, residues) = system.atoms_split_by_resid();
-        if let Err(_) = code {
+        if code.is_err() {
             panic!("Overlapping groups in atoms_split_by_resid.");
         }
 
@@ -2065,7 +2065,7 @@ mod tests {
         let mut system = System::from_file("test_files/example_shuffled_residues.gro").unwrap();
 
         let (code, residues) = system.atoms_split_by_resid();
-        if let Err(_) = code {
+        if code.is_err() {
             panic!("Overlapping groups in atoms_split_by_resid.");
         }
 
@@ -2075,7 +2075,7 @@ mod tests {
             assert!(system.group_get_n_atoms(groupname).unwrap() > 0);
         }
 
-        let expected_n = vec![
+        let expected_n = [
             2, 3, 2, 2, 3, 2, 1, 2, 2, 4, 2, 2, 1, 3, 2, 4, 3, 2, 2, 3, 3,
         ];
         for i in 1..=21 {
@@ -2099,7 +2099,7 @@ mod tests {
         system.read_ndx("test_files/index.ndx").unwrap();
 
         let (code, residues) = system.group_split_by_resid("Protein");
-        if let Err(_) = code {
+        if code.is_err() {
             panic!("Error occured when using `System::group_split_by_resid`");
         }
 
@@ -2128,7 +2128,7 @@ mod tests {
         system.read_ndx("test_files/index.ndx").unwrap();
 
         let (code, residues) = system.group_split_by_resid("Membrane");
-        if let Err(_) = code {
+        if code.is_err() {
             panic!("Error occured when using `System::group_split_by_resid`");
         }
 
@@ -2204,7 +2204,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
         let (code, residues) = system.atoms_split_by_resname();
-        if let Err(_) = code {
+        if code.is_err() {
             panic!("Overlapping groups in atoms_split_by_resname.");
         }
 
@@ -2271,7 +2271,7 @@ mod tests {
         system.read_ndx("test_files/index.ndx").unwrap();
 
         let (code, residues) = system.group_split_by_resname("Protein");
-        if let Err(_) = code {
+        if code.is_err() {
             panic!("Error occured when using `System::group_split_by_resname`");
         }
 
@@ -2300,7 +2300,7 @@ mod tests {
             .unwrap();
 
         let (code, residues) = system.group_split_by_resname("Membrane + Water");
-        if let Err(_) = code {
+        if code.is_err() {
             panic!("Error occured when using `System::group_split_by_resname`");
         }
 

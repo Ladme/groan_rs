@@ -351,7 +351,7 @@ mod tests {
 
         assert_eq!(printer.status, ProgressStatus::Running);
         assert_eq!(printer.print_freq.get(), 100);
-        assert_eq!(printer.colored, true);
+        assert!(printer.colored);
         assert_eq!(printer.step_msg, "Step".cyan());
         assert_eq!(printer.time_msg, "Time".bright_purple());
         assert_eq!(
@@ -375,7 +375,7 @@ mod tests {
 
         assert_eq!(printer.status, ProgressStatus::Running);
         assert_eq!(printer.print_freq.get(), 100);
-        assert_eq!(printer.colored, true);
+        assert!(printer.colored);
         assert_eq!(printer.step_msg, "Step".cyan());
         assert_eq!(printer.time_msg, "Time".bright_purple());
         assert_eq!(
@@ -428,7 +428,7 @@ mod tests {
 
         assert_eq!(printer.status, ProgressStatus::Jumping);
         assert_eq!(printer.print_freq.get(), 200);
-        assert_eq!(printer.colored, false);
+        assert!(!printer.colored);
         assert_eq!(printer.step_msg, "STEP".into());
         assert_eq!(printer.time_msg, "time".yellow());
         assert_eq!(printer.running_msg, ProgressMessage::new("ANALYZING".red()));

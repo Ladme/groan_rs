@@ -694,7 +694,7 @@ mod tests {
         let vector1 = Vector3D::new(2.0, 0.0, 0.0);
         let vector2 = Vector3D::new(0.0, 2.0, 0.0);
 
-        assert_approx_eq!(f32, vector1.angle(&vector2), 1.57079632);
+        assert_approx_eq!(f32, vector1.angle(&vector2), std::f32::consts::FRAC_PI_2);
     }
 
     #[test]
@@ -702,7 +702,7 @@ mod tests {
         let vector1 = Vector3D::new(2.0, 0.0, 0.0);
         let vector2 = Vector3D::new(0.0, -2.0, 0.0);
 
-        assert_approx_eq!(f32, vector1.angle(&vector2), 1.57079632);
+        assert_approx_eq!(f32, vector1.angle(&vector2), std::f32::consts::FRAC_PI_2);
     }
 
     #[test]
@@ -710,7 +710,7 @@ mod tests {
         let vector1 = Vector3D::new(1.0, 0.0, 0.0);
         let vector2 = Vector3D::new(0.0, 0.0, 7.0);
 
-        assert_approx_eq!(f32, vector1.angle(&vector2), 1.57079632);
+        assert_approx_eq!(f32, vector1.angle(&vector2), std::f32::consts::FRAC_PI_2);
     }
 
     #[test]
@@ -718,7 +718,7 @@ mod tests {
         let vector1 = Vector3D::new(1.0, 0.0, 0.0);
         let vector2 = Vector3D::new(3.0, 0.0, 3.0);
 
-        assert_approx_eq!(f32, vector1.angle(&vector2), 0.785398163);
+        assert_approx_eq!(f32, vector1.angle(&vector2), std::f32::consts::FRAC_PI_4);
     }
 
     #[test]
@@ -734,7 +734,7 @@ mod tests {
         let vector1 = Vector3D::new(1.0, 0.0, 0.0);
         let vector2 = Vector3D::new(-4.0, 0.0, 0.0);
 
-        assert_approx_eq!(f32, vector1.angle(&vector2), 3.14159265);
+        assert_approx_eq!(f32, vector1.angle(&vector2), std::f32::consts::PI);
     }
 
     #[test]
@@ -782,9 +782,9 @@ mod tests {
 
         vector.shift(orientation, 4.2);
 
-        assert_approx_eq!(f32, vector.x, -0.666970); // shifted by 1.833
+        assert_approx_eq!(f32, vector.x, -0.66697); // shifted by 1.833
         assert_approx_eq!(f32, vector.y, 1.216515); // shifted by 0.917
-        assert_approx_eq!(f32, vector.z, 8.766060); // shifted by 3.666
+        assert_approx_eq!(f32, vector.z, 8.76606); // shifted by 3.666
 
         assert_approx_eq!(
             f32,
@@ -800,9 +800,9 @@ mod tests {
 
         vector.shift(orientation, -4.2);
 
-        assert_approx_eq!(f32, vector.x, -4.333030); // shifted by -1.833
+        assert_approx_eq!(f32, vector.x, -4.33303); // shifted by -1.833
         assert_approx_eq!(f32, vector.y, -0.616515); // shifted by -0.917
-        assert_approx_eq!(f32, vector.z, 1.433940); // shifted by -3.666
+        assert_approx_eq!(f32, vector.z, 1.43394); // shifted by -3.666
 
         assert_approx_eq!(
             f32,
@@ -1107,13 +1107,13 @@ mod tests {
         assert_approx_eq!(
             f32,
             point1.distance_naive(&point2, Dimension::YZ),
-            4.390900,
+            4.3909,
             epsilon = 0.00001
         );
         assert_approx_eq!(
             f32,
             point2.distance_naive(&point1, Dimension::YZ),
-            4.390900,
+            4.3909,
             epsilon = 0.00001
         );
     }

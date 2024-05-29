@@ -395,7 +395,7 @@ mod tests_read {
         assert!(system.get_box_as_ref().is_none());
         assert_eq!(system.get_n_atoms(), 17);
 
-        assert_eq!(system.atoms_iter().nth(0).unwrap().get_atom_number(), 1);
+        assert_eq!(system.atoms_iter().next().unwrap().get_atom_number(), 1);
         assert_eq!(system.atoms_iter().nth(16).unwrap().get_atom_number(), 17);
     }
 
@@ -407,7 +407,7 @@ mod tests_read {
         assert!(system.get_box_as_ref().is_none());
         assert_eq!(system.get_n_atoms(), 17);
 
-        assert_eq!(system.atoms_iter().nth(0).unwrap().get_atom_number(), 1);
+        assert_eq!(system.atoms_iter().next().unwrap().get_atom_number(), 1);
         assert_eq!(system.atoms_iter().nth(16).unwrap().get_atom_number(), 17);
     }
 
@@ -584,7 +584,7 @@ mod tests_write {
         let pqr_output = NamedTempFile::new().unwrap();
         let path_to_output = pqr_output.path();
 
-        if let Err(_) = system.write_pqr(path_to_output, None) {
+        if system.write_pqr(path_to_output, None).is_err() {
             panic!("Writing pqr file failed.");
         }
 
@@ -605,7 +605,7 @@ mod tests_write {
         let pqr_output = NamedTempFile::new().unwrap();
         let path_to_output = pqr_output.path();
 
-        if let Err(_) = system.write_pqr(path_to_output, None) {
+        if system.write_pqr(path_to_output, None).is_err() {
             panic!("Writing pqr file failed.");
         }
 
@@ -622,7 +622,7 @@ mod tests_write {
         let pqr_output = NamedTempFile::new().unwrap();
         let path_to_output = pqr_output.path();
 
-        if let Err(_) = system.write_pqr(path_to_output, None) {
+        if system.write_pqr(path_to_output, None).is_err() {
             panic!("Writing pqr file failed.");
         }
 
@@ -643,7 +643,7 @@ mod tests_write {
         let pqr_output = NamedTempFile::new().unwrap();
         let path_to_output = pqr_output.path();
 
-        if let Err(_) = system.group_write_pqr("Selected", path_to_output, None) {
+        if system.group_write_pqr("Selected", path_to_output, None).is_err() {
             panic!("Writing pqr file failed.");
         }
 
@@ -662,7 +662,7 @@ mod tests_write {
 
         let precision = PqrPrecision::new(6, 0, 2);
 
-        if let Err(_) = system.write_pqr(path_to_output, Some(precision)) {
+        if system.write_pqr(path_to_output, Some(precision)).is_err() {
             panic!("Writing pqr file failed.");
         }
 
@@ -724,7 +724,7 @@ mod tests_write {
         let pqr_output = NamedTempFile::new().unwrap();
         let path_to_output = pqr_output.path();
 
-        if let Err(_) = system.write_pqr(path_to_output, None) {
+        if system.write_pqr(path_to_output, None).is_err() {
             panic!("Writing pqr file failed.");
         }
 
@@ -741,7 +741,7 @@ mod tests_write {
         let pqr_output = NamedTempFile::new().unwrap();
         let path_to_output = pqr_output.path();
 
-        if let Err(_) = system.write_pqr(path_to_output, None) {
+        if system.write_pqr(path_to_output, None).is_err() {
             panic!("Writing pqr file failed.");
         }
 

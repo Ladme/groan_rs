@@ -496,7 +496,7 @@ mod tests_read {
 
     #[test]
     fn read_nonexistent() {
-        if let Ok(_) = read_gro("test_files/nonexistent.gro") {
+        if read_gro("test_files/nonexistent.gro").is_ok() {
             panic!("Nonexistent file seems to exist.");
         }
     }
@@ -635,9 +635,8 @@ mod tests_read {
 
     #[test]
     fn from_file_fails() {
-        match System::from_file("test_files/example_invalid_position.gro") {
-            Ok(_) => panic!("Parsing should have failed, but it succeeded."),
-            Err(_) => (),
+        if System::from_file("test_files/example_invalid_position.gro").is_ok() {
+            panic!("Parsing should have failed, but it succeeded.")
         }
     }
 }
@@ -655,7 +654,7 @@ mod tests_write {
         let gro_output = NamedTempFile::new().unwrap();
         let path_to_output = gro_output.path();
 
-        if let Err(_) = system.write_gro(path_to_output, true) {
+        if system.write_gro(path_to_output, true).is_err() {
             panic!("Writing gro file failed.");
         }
 
@@ -672,7 +671,7 @@ mod tests_write {
         let gro_output = NamedTempFile::new().unwrap();
         let path_to_output = gro_output.path();
 
-        if let Err(_) = system.write_gro(path_to_output, false) {
+        if system.write_gro(path_to_output, false).is_err() {
             panic!("Writing gro file failed.");
         }
 
@@ -702,7 +701,7 @@ mod tests_write {
         let gro_output = NamedTempFile::new().unwrap();
         let path_to_output = gro_output.path();
 
-        if let Err(_) = system.write_gro(path_to_output, false) {
+        if system.write_gro(path_to_output, false).is_err() {
             panic!("Writing gro file failed.");
         }
 
@@ -732,7 +731,7 @@ mod tests_write {
         let gro_output = NamedTempFile::new().unwrap();
         let path_to_output = gro_output.path();
 
-        if let Err(_) = system.write_gro(path_to_output, false) {
+        if system.write_gro(path_to_output, false).is_err() {
             panic!("Writing gro file failed.");
         }
 
@@ -751,7 +750,7 @@ mod tests_write {
         let gro_output = NamedTempFile::new().unwrap();
         let path_to_output = gro_output.path();
 
-        if let Err(_) = system.group_write_gro("Protein", path_to_output, true) {
+        if system.group_write_gro("Protein", path_to_output, true).is_err() {
             panic!("Writing gro file failed.");
         }
 

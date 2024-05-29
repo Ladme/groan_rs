@@ -438,7 +438,7 @@ mod tests {
 
         assert_approx_eq!(f32, center.x, 2.634386, epsilon = 0.0001);
         assert_approx_eq!(f32, center.y, 9.775156, epsilon = 0.0001);
-        assert_approx_eq!(f32, center.z, 1.174800, epsilon = 0.0001);
+        assert_approx_eq!(f32, center.z, 1.1748, epsilon = 0.0001);
     }
 
     #[test]
@@ -463,7 +463,7 @@ mod tests {
 
         assert_approx_eq!(f32, center.x, 2.634386, epsilon = 0.0001);
         assert_approx_eq!(f32, center.y, 9.775156, epsilon = 0.0001);
-        assert_approx_eq!(f32, center.z, 1.174800, epsilon = 0.0001);
+        assert_approx_eq!(f32, center.z, 1.1748, epsilon = 0.0001);
     }
 
     #[test]
@@ -475,7 +475,7 @@ mod tests {
         let center_prot = system.group_get_center("Protein").unwrap();
 
         assert_approx_eq!(f32, center_mem.x, 3.575004, epsilon = 0.0001);
-        assert_approx_eq!(f32, center_mem.y, 8.009330, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_mem.y, 8.00933, epsilon = 0.0001);
         assert_approx_eq!(f32, center_mem.z, 5.779888, epsilon = 0.0001);
 
         assert_approx_eq!(f32, center_prot.x, 9.857101, epsilon = 0.0001);
@@ -612,7 +612,7 @@ mod tests {
             [8.7, 5.0, 2.4],
         ];
 
-        let masses = vec![10.3, 5.4, 3.8, 10.1, 7.6];
+        let masses = [10.3, 5.4, 3.8, 10.1, 7.6];
 
         let mut atoms = Vec::new();
         for (i, position) in atom_positions.into_iter().enumerate() {
@@ -642,7 +642,7 @@ mod tests {
             [-1.3, 5.0, 2.4],
         ];
 
-        let masses = vec![10.3, 5.4, 3.8, 10.1, 7.6];
+        let masses = [10.3, 5.4, 3.8, 10.1, 7.6];
 
         let mut atoms = Vec::new();
         for (i, position) in atom_positions.into_iter().enumerate() {
@@ -945,7 +945,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        let n_atoms = system.group_get_n_atoms("Protein").unwrap() as usize;
+        let n_atoms = system.group_get_n_atoms("Protein").unwrap();
         let distances = system
             .group_all_distances("Protein", "Protein", Dimension::XYZ)
             .unwrap();
@@ -980,7 +980,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        let n_atoms = system.group_get_n_atoms("Protein").unwrap() as usize;
+        let n_atoms = system.group_get_n_atoms("Protein").unwrap();
         let distances = system
             .group_all_distances("Protein", "Protein", Dimension::Z)
             .unwrap();
@@ -1027,8 +1027,8 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        let n_atoms_membrane = system.group_get_n_atoms("Membrane").unwrap() as usize;
-        let n_atoms_protein = system.group_get_n_atoms("Protein").unwrap() as usize;
+        let n_atoms_membrane = system.group_get_n_atoms("Membrane").unwrap();
+        let n_atoms_protein = system.group_get_n_atoms("Protein").unwrap();
         let distances = system
             .group_all_distances("Membrane", "Protein", Dimension::XY)
             .unwrap();
