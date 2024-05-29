@@ -252,21 +252,6 @@ impl Vector3D {
     ///
     /// ## Panics
     /// Panics if `box_len` is exactly equal to 0.
-    ///
-    /// ## Note on performance
-    /// You may think that the body of this function should look rather like this:
-    /// ```ignore
-    /// let wrapped = coor % box_len;
-    /// if wrapped < 0.0 {
-    ///    wrapped + box_len
-    /// } else {
-    ///    wrapped
-    /// }
-    /// ```
-    /// But, taking a remainder of floats is actually a very costly operation. As in almost all cases,
-    /// we will only perform AT MOST one iteration through one of the loops, the "loop" version of the wrapping
-    /// function is usually much faster.
-    /// This does not hold true, if the coordinate is VERY far away from the bounding box but that almost never happens.
     fn wrap_coordinate(coor: f32, box_len: f32) -> f32 {
         if box_len == 0.0 {
             panic!("FATAL GROAN ERROR | Vector3D::wrap_coordinate | Box len should not be zero.")
