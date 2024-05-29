@@ -241,7 +241,7 @@ impl Vector3D {
     /// assert_approx_eq!(f32, point.y, 2.0, epsilon = 0.00001);
     /// assert_approx_eq!(f32, point.z, 0.2, epsilon = 0.00001);
     /// ```
-    #[inline]
+    #[inline(always)]
     pub fn wrap(&mut self, sbox: &SimBox) {
         self.x = Vector3D::wrap_coordinate(self.0.x, sbox.x);
         self.y = Vector3D::wrap_coordinate(self.0.y, sbox.y);
@@ -252,6 +252,7 @@ impl Vector3D {
     ///
     /// ## Panics
     /// Panics if `box_len` is exactly equal to 0.
+    #[inline(always)]
     fn wrap_coordinate(coor: f32, box_len: f32) -> f32 {
         if box_len == 0.0 {
             panic!("FATAL GROAN ERROR | Vector3D::wrap_coordinate | Box len should not be zero.")
