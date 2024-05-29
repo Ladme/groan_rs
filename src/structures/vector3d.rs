@@ -10,7 +10,7 @@ use nalgebra::base::Vector3;
 
 /// Describes length and orientation of a vector in space or a position of a point in space.
 /// Since v0.7.0 implemented using `nalgebra`'s Vector3
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Vector3D(pub(crate) Vector3<f32>);
 
 /// Function replicating the behavior of Python '%'.
