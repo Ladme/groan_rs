@@ -252,13 +252,33 @@ impl Vector3D {
     ///
     /// ## Panics
     /// Panics if `box_len` is exactly equal to 0.
+    /// 
+    /// ## Note on performance
+    /// You may think that the body of this function should look rather like this:
+    /// ```ignore
+    /// coor - box_len * (coor / box_len).floor()
+    /// ```
+    /// 
+    /// However, applying `floor` to float is a surprisingly costly operation.
+    /// As in almost all cases, we will only perform AT MOST one iteration through one of the loops, 
+    /// the "loop" version of the wrapping function is usually much faster.
     #[inline(always)]
     fn wrap_coordinate(coor: f32, box_len: f32) -> f32 {
         if box_len == 0.0 {
             panic!("FATAL GROAN ERROR | Vector3D::wrap_coordinate | Box len should not be zero.")
         }
 
-        coor - box_len * (coor / box_len).floor()
+        let mut wrapped = coor;
+
+        while wrapped > box_len {
+            wrapped -= box_len;
+        }
+
+        while wrapped < 0.0f32 {
+            wrapped += box_len;
+        }
+
+        wrapped
     }
 
     /// Calculate distance between two points in the specified dimensions.
@@ -824,7 +844,7 @@ mod tests {
         assert_approx_eq!(f32, vector1.z, 1.0);
 
         vector2.wrap(&simbox);
-        assert_approx_eq!(f32, vector2.x, 0.0);
+        assert_approx_eq!(f32, vector2.x, 2.0);
         assert_approx_eq!(f32, vector2.y, 0.2);
         assert_approx_eq!(f32, vector2.z, 1.7);
 
