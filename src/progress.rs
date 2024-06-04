@@ -82,7 +82,7 @@ pub struct ProgressPrinter {
     colored: bool,
     /// String to be printed with the current simulation step. Default: "Step".cyan().
     step_msg: ColoredString,
-    /// String to be printed with the current simulation step. Default: "Time".bright_purple().
+    /// String to be printed with the current simulation time. Default: "Time".bright_purple().
     time_msg: ColoredString,
     /// String to be printed when the trajectory reading is in progress. Default: "RUNNING".yellow().
     running_msg: ProgressMessage,
