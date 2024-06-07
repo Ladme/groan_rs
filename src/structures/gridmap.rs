@@ -312,9 +312,30 @@ impl<RawValue: Default + Clone + std::fmt::Debug, VisValue: Display> GridMap<Raw
         self.tile_dim
     }
 
+    /// Get the coordinates of tile target point is located in.
+    ///
+    /// Returns `None` if the point is outside of the map.
+    #[inline(always)]
+    pub fn get_tile(&self, x: f32, y: f32) -> Option<(f32, f32)> {
+        if !self.is_inside(x, y) {
+            return None;
+        }
+
+        Some((self.index2x(self.x2index(x)), self.index2y(self.y2index(y))))
+    }
+
+    /// Check whether the point is inside the grid map.
+    ///
+    /// - Note that the actual span of the map is not `span.0` to
+    ///   `span.1`, but `(span.0 - tile_dim / 2.0)` to `(span.1 + tile_dim / 2.0)`.`
+    #[inline(always)]
+    pub fn is_inside(&self, x: f32, y: f32) -> bool {
+        self.get_at(x, y).is_some()
+    }
+
     /// Get the unconverted value of the map at target coordinates.
     ///
-    /// Returns `None` in case the coordinates are out of the span of the map.
+    /// Returns `None` in case the coordinates are outside of the span of the map.
     #[inline(always)]
     pub fn get_at(&self, x: f32, y: f32) -> Option<&RawValue> {
         self.values.get((self.x2index(x), self.y2index(y)))
@@ -322,7 +343,7 @@ impl<RawValue: Default + Clone + std::fmt::Debug, VisValue: Display> GridMap<Raw
 
     /// Get mutable reference to the unconverted value of the map at target coordinates.
     ///
-    /// Returns `None` in case the coordinates are out of the span of the map.
+    /// Returns `None` in case the coordinates are outside of the span of the map.
     #[inline(always)]
     pub fn get_mut_at(&mut self, x: f32, y: f32) -> Option<&mut RawValue> {
         self.values.get_mut((self.x2index(x), self.y2index(y)))
@@ -332,7 +353,7 @@ impl<RawValue: Default + Clone + std::fmt::Debug, VisValue: Display> GridMap<Raw
     /// and convert this value to `VisValue`.
     /// The original value inside the map is not modified.
     ///
-    /// Returns `None` in case the coordinates are out of the span of the map.
+    /// Returns `None` in case the coordinates are outside of the span of the map.
     #[inline(always)]
     pub fn get_at_convert(&self, x: f32, y: f32) -> Option<VisValue> {
         Some((self.converter)(self.get_at(x, y)?))
@@ -716,5 +737,29 @@ mod tests {
         let expected = "  0.000000   0.000000 10\n  1.000000   0.000000 9\n  2.000000   0.000000 87\n  0.000000   1.000000 24\n  1.000000   1.000000 7\n  2.000000   1.000000 0\n";
 
         assert_eq!(output_string, expected);
+    }
+
+    #[test]
+    fn is_inside() {
+        let gridmap =
+            GridMap::<Vec<f32>, f32>::new((-2.0, 7.0), (3.0, 6.0), (0.15, 0.20), sum).unwrap();
+
+        assert!(gridmap.is_inside(-1.8, 4.5));
+        assert!(gridmap.is_inside(-2.05, 3.09));
+        assert!(gridmap.is_inside(7.05, 6.09));
+        assert!(!gridmap.is_inside(7.11, 4.5));
+        assert!(!gridmap.is_inside(0.11, 2.8));
+    }
+
+    #[test]
+    fn get_tile() {
+        let gridmap =
+            GridMap::<Vec<f32>, f32>::new((-2.0, 7.0), (3.0, 6.0), (0.15, 0.20), sum).unwrap();
+
+        assert_eq!(gridmap.get_tile(-1.8, 4.5).unwrap(), (-1.85, 4.6));
+        assert_eq!(gridmap.get_tile(5.8, 4.2).unwrap(), (5.8, 4.2));
+        assert_eq!(gridmap.get_tile(5.7843, 4.12374).unwrap(), (5.8, 4.2));
+        assert!(gridmap.get_tile(7.11, 4.5).is_none());
+        assert!(gridmap.get_tile(0.11, 2.8).is_none());
     }
 }
