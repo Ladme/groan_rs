@@ -252,15 +252,15 @@ impl Vector3D {
     ///
     /// ## Panics
     /// Panics if `box_len` is exactly equal to 0.
-    /// 
+    ///
     /// ## Note on performance
     /// You may think that the body of this function should look rather like this:
     /// ```ignore
     /// coor - box_len * (coor / box_len).floor()
     /// ```
-    /// 
+    ///
     /// However, applying `floor` to float is a surprisingly costly operation.
-    /// As in almost all cases, we will only perform AT MOST one iteration through one of the loops, 
+    /// As in almost all cases, we will only perform AT MOST one iteration through one of the loops,
     /// the "loop" version of the wrapping function is usually much faster.
     #[inline(always)]
     fn wrap_coordinate(coor: f32, box_len: f32) -> f32 {

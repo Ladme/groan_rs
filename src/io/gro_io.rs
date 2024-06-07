@@ -750,7 +750,10 @@ mod tests_write {
         let gro_output = NamedTempFile::new().unwrap();
         let path_to_output = gro_output.path();
 
-        if system.group_write_gro("Protein", path_to_output, true).is_err() {
+        if system
+            .group_write_gro("Protein", path_to_output, true)
+            .is_err()
+        {
             panic!("Writing gro file failed.");
         }
 

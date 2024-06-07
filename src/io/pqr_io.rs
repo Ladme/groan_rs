@@ -643,7 +643,10 @@ mod tests_write {
         let pqr_output = NamedTempFile::new().unwrap();
         let path_to_output = pqr_output.path();
 
-        if system.group_write_pqr("Selected", path_to_output, None).is_err() {
+        if system
+            .group_write_pqr("Selected", path_to_output, None)
+            .is_err()
+        {
             panic!("Writing pqr file failed.");
         }
 

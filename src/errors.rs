@@ -471,3 +471,32 @@ pub enum MassError {
     #[error("{} atom with atom number '{}' has undefined mass", "error:".red().bold(), .0.to_string().yellow())]
     NoMass(usize),
 }
+
+/// Errors that can occur when working with a grid map.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum GridMapError {
+    /// Used when the grid map could not be constructed because the span is invalid.
+    #[error("{} grid map could not be created: invalid span", "error:".red().bold())]
+    InvalidSpan,
+    /// Used when the grid map could not be constructed because the grid tile dimensions are invalid.
+    #[error("{} grid map could not be created: invalid grid tile dimensions", "error:".red().bold())]
+    InvalidGridTile,
+    /// Used when the map could not be written into output stream.
+    #[error("{} grid map could not be written into output stream", "error:".red().bold())]
+    CouldNotWrite,
+    /// Used when the grid map is read from an input file and the file could not be opened.
+    #[error("{} could not find grid map input file '{}'", "error:".red().bold(), path_to_yellow(.0))]
+    FileNotFound(Box<Path>),
+    /// Used when a line in the input grid map file could not be read.
+    #[error("{} could not read line in grid map input file '{}'", "error:".red().bold(), path_to_yellow(.0))]
+    CouldNotReadLine(Box<Path>),
+    /// Used when a line could not be parsed as a grid map input line.
+    #[error("{} could not parse line ('{}') in grid map input file '{}'", "error:".red().bold(), .0.yellow(), path_to_yellow(.1))]
+    CouldNotParseLine(String, Box<Path>),
+    /// Used when a grid map contains no tiles.
+    #[error("{} grid map contains no grid tiles", "error:".red().bold())]
+    EmptyGridMap,
+    /// Used when constructing a grid map from a vector which length does not match the dimensions of the map.
+    #[error("{} grid map expected '{}' values, got '{}' values", "error:".red().bold(), .0.to_string().yellow(), .1.to_string().yellow())]
+    InvalidMapDimensions(usize, usize),
+}

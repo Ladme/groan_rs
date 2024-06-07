@@ -1347,7 +1347,10 @@ mod tests_write {
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();
 
-        if system.group_write_pdb("Protein", path_to_output, false).is_err() {
+        if system
+            .group_write_pdb("Protein", path_to_output, false)
+            .is_err()
+        {
             panic!("Writing pdb file failed.");
         }
 
