@@ -195,7 +195,7 @@ impl<
         filename: impl AsRef<Path>,
         converter: Converter,
         split: &[char],
-        parser: fn(&str) -> Option<RawValue>,
+        parser: impl Fn(&str) -> Option<RawValue>,
         comments: &[&str],
     ) -> Result<GridMap<RawValue, VisValue, Converter>, GridMapError> {
         let file = File::open(&filename)
