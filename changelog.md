@@ -1,6 +1,14 @@
 
 ## Changelog for the `groan_rs` library
 
+### Version 0.8.0
+
+#### GridMap structure
+ - Implemented `GridMap` structure for easier analysis of properties of planar surfaces such as membranes.
+ - `GridMap` is a generic 2D array that can be navigated using coordinates of the molecular system.
+
+***
+
 ### Version 0.7.1
 - Bug fix: GSL queries containing non-ASCII characters should no longer cause panic.
 - `tpr_io::read_tpr` is now a public function.
