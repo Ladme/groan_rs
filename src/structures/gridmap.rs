@@ -16,12 +16,11 @@ use crate::structures::simbox::SimBox;
 /// A map of values for tiles in the xy plane.
 /// Useful for analyzing membrane simulations.
 ///
-/// The structure requires two generic parameters:
+/// The structure requires three generic parameters:
 /// - `RawValue` is the type of the value that will actually be stored inside the grid map.
 /// - `VisValue` is the type of the value that will be written out after calling `write_map`.
-///
-/// The `converter` function handles the conversion from `RawValue` to `VisValue`.
-/// The function is automatically called inside `write_map`.
+/// - `Converter` is a function/closure that handles the conversion from `RawValue` to `VisValue`.
+///    The function is automatically called inside `write_map`, `get_at_convert`, and `extract_convert`.
 ///
 /// ## Notes
 /// - The actual span of the map is not `span.0` to
@@ -38,7 +37,11 @@ use crate::structures::simbox::SimBox;
 ///
 /// ```
 #[derive(Debug, Clone)]
-pub struct GridMap<RawValue: Default + Clone + std::fmt::Debug, VisValue: Display> {
+pub struct GridMap<
+    RawValue: Default + Clone + std::fmt::Debug,
+    VisValue: Display,
+    Converter: Fn(&RawValue) -> VisValue,
+> {
     /// Span of the map in the x-dimension.
     span_x: (f32, f32),
     /// Span of the map in the y-dimension.
@@ -47,18 +50,23 @@ pub struct GridMap<RawValue: Default + Clone + std::fmt::Debug, VisValue: Displa
     tile_dim: (f32, f32),
     /// All values of the individual grid tiles.
     values: Array2<RawValue>,
-    /// Function for converting from `RawValue` to `VisValue`.
-    converter: fn(&RawValue) -> VisValue,
+    /// Function or closure for converting from `RawValue` to `VisValue`.
+    converter: Converter,
 }
 
-impl<RawValue: Default + Clone + std::fmt::Debug, VisValue: Display> GridMap<RawValue, VisValue> {
-    /// Create an grid map structure of specified span with specified size of the grid tile.
+impl<
+        RawValue: Default + Clone + std::fmt::Debug,
+        VisValue: Display,
+        Converter: Fn(&RawValue) -> VisValue,
+    > GridMap<RawValue, VisValue, Converter>
+{
+    /// Create a grid map structure of specified span with specified size of the grid tile.
     /// The map will be filled with default values for the `RawValue`.
     ///
     /// The `converter` function handles conversion from internal data inside the map
     /// to data that should be written out in case `write_map` is called.
     ///
-    /// ## Example
+    /// ## Examples
     /// ```no_run
     /// # use groan_rs::prelude::*;
     /// #
@@ -80,12 +88,28 @@ impl<RawValue: Default + Clone + std::fmt::Debug, VisValue: Display> GridMap<Raw
     ///
     /// // the map vill be filled with empty vectors
     /// ```
+    ///
+    /// Converter function can also be a closure:
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut value = 10.0;
+    /// let sum_plus_value = move |raw: &Vec<f32>| {
+    ///     raw.iter().sum::<f32>() + value
+    /// };
+    ///
+    /// let map = GridMap::new(
+    ///     (-1.5, 12.5),
+    ///     (4.0, 5.0),
+    ///     (0.1, 0.02),
+    ///     sum_plus_value);
+    /// ```
     pub fn new(
         span_x: (f32, f32),
         span_y: (f32, f32),
         tile_dim: (f32, f32),
-        converter: fn(&RawValue) -> VisValue,
-    ) -> Result<GridMap<RawValue, VisValue>, GridMapError> {
+        converter: Converter,
+    ) -> Result<GridMap<RawValue, VisValue, Converter>, GridMapError> {
         let values = Array2::<RawValue>::default((
             Self::get_len(span_x, tile_dim.0)?,
             Self::get_len(span_y, tile_dim.1)?,
@@ -100,7 +124,8 @@ impl<RawValue: Default + Clone + std::fmt::Debug, VisValue: Display> GridMap<Raw
         })
     }
 
-    /// Get the width/height of the map from span and grid tile width/height.
+    /// Get the number of tiles in a particular dimension
+    /// of the map from span and grid tile width/height.
     ///
     /// Performs sanity checks.
     fn get_len(span: (f32, f32), tile: f32) -> Result<usize, GridMapError> {
@@ -124,8 +149,8 @@ impl<RawValue: Default + Clone + std::fmt::Debug, VisValue: Display> GridMap<Raw
     pub fn from_box(
         simbox: &SimBox,
         tile_dim: (f32, f32),
-        converter: fn(&RawValue) -> VisValue,
-    ) -> Result<GridMap<RawValue, VisValue>, GridMapError> {
+        converter: Converter,
+    ) -> Result<GridMap<RawValue, VisValue, Converter>, GridMapError> {
         let span_x = (0.0, simbox.x);
         let span_y = (0.0, simbox.y);
 
@@ -168,11 +193,11 @@ impl<RawValue: Default + Clone + std::fmt::Debug, VisValue: Display> GridMap<Raw
     /// - `comments` - List of strings, each of which initiates a comment line that will be skipped.
     pub fn from_file(
         filename: impl AsRef<Path>,
-        converter: fn(&RawValue) -> VisValue,
+        converter: Converter,
         split: &[char],
         parser: fn(&str) -> Option<RawValue>,
         comments: &[&str],
-    ) -> Result<GridMap<RawValue, VisValue>, GridMapError> {
+    ) -> Result<GridMap<RawValue, VisValue, Converter>, GridMapError> {
         let file = File::open(&filename)
             .map_err(|_| GridMapError::FileNotFound(Box::from(filename.as_ref())))?;
         let reader = BufReader::new(file);
@@ -231,7 +256,7 @@ impl<RawValue: Default + Clone + std::fmt::Debug, VisValue: Display> GridMap<Raw
         Ok(map)
     }
 
-    /// Get map span and grid tile height/width from coordinates.
+    /// Get map span and grid tile height/width from a vector coordinates.
     fn properties_from_coords(coords: &[f32]) -> Result<((f32, f32), f32), GridMapError> {
         let min = *coords.first().expect("FATAL GROAN ERROR | GridMap::properties_from_coords | First coordinate value should exist.");
         let second = *coords.get(1).expect("FATAL GROAN ERROR | GridMap::properties_from_coords | Second coordinate value should exist.");
@@ -254,8 +279,8 @@ impl<RawValue: Default + Clone + std::fmt::Debug, VisValue: Display> GridMap<Raw
         span_y: (f32, f32),
         tile_dim: (f32, f32),
         values: Vec<RawValue>,
-        converter: fn(&RawValue) -> VisValue,
-    ) -> Result<GridMap<RawValue, VisValue>, GridMapError> {
+        converter: Converter,
+    ) -> Result<GridMap<RawValue, VisValue, Converter>, GridMapError> {
         let len_x = Self::get_len(span_x, tile_dim.0)?;
         let len_y = Self::get_len(span_y, tile_dim.1)?;
         let n_values = values.len();
@@ -485,8 +510,7 @@ mod tests {
 
     #[test]
     fn new() {
-        let gridmap =
-            GridMap::<Vec<f32>, f32>::new((-2.0, 7.0), (3.0, 6.0), (0.15, 0.20), sum).unwrap();
+        let gridmap = GridMap::new((-2.0, 7.0), (3.0, 6.0), (0.15, 0.20), sum).unwrap();
 
         assert_eq!(gridmap.span_x, (-2.0, 7.0));
         assert_eq!(gridmap.span_y, (3.0, 6.0));
@@ -500,27 +524,57 @@ mod tests {
     #[test]
     fn new_failures() {
         assert!(matches!(
-            GridMap::<Vec<f32>, f32>::new((2.0, -2.0), (3.0, 6.0), (0.15, 0.20), sum),
+            GridMap::<Vec<f32>, f32, fn(&Vec<f32>) -> f32>::new(
+                (2.0, -2.0),
+                (3.0, 6.0),
+                (0.15, 0.20),
+                sum
+            ),
             Err(GridMapError::InvalidSpan)
         ));
         assert!(matches!(
-            GridMap::<Vec<f32>, f32>::new((-2.0, 7.0), (3.0, -6.0), (0.15, 0.20), sum),
+            GridMap::<Vec<f32>, f32, fn(&Vec<f32>) -> f32>::new(
+                (-2.0, 7.0),
+                (3.0, -6.0),
+                (0.15, 0.20),
+                sum
+            ),
             Err(GridMapError::InvalidSpan)
         ));
         assert!(matches!(
-            GridMap::<Vec<f32>, f32>::new((-2.0, 7.0), (3.0, 6.0), (0.0, 0.20), sum),
+            GridMap::<Vec<f32>, f32, fn(&Vec<f32>) -> f32>::new(
+                (-2.0, 7.0),
+                (3.0, 6.0),
+                (0.0, 0.20),
+                sum
+            ),
             Err(GridMapError::InvalidGridTile)
         ));
         assert!(matches!(
-            GridMap::<Vec<f32>, f32>::new((-2.0, 7.0), (3.0, 6.0), (0.15, 0.0), sum),
+            GridMap::<Vec<f32>, f32, fn(&Vec<f32>) -> f32>::new(
+                (-2.0, 7.0),
+                (3.0, 6.0),
+                (0.15, 0.0),
+                sum
+            ),
             Err(GridMapError::InvalidGridTile)
         ));
         assert!(matches!(
-            GridMap::<Vec<f32>, f32>::new((-2.0, 7.0), (3.0, 6.0), (10.5, 0.20), sum),
+            GridMap::<Vec<f32>, f32, fn(&Vec<f32>) -> f32>::new(
+                (-2.0, 7.0),
+                (3.0, 6.0),
+                (10.5, 0.20),
+                sum
+            ),
             Err(GridMapError::InvalidGridTile)
         ));
         assert!(matches!(
-            GridMap::<Vec<f32>, f32>::new((-2.0, 7.0), (3.0, 6.0), (0.15, 3.10), sum),
+            GridMap::<Vec<f32>, f32, fn(&Vec<f32>) -> f32>::new(
+                (-2.0, 7.0),
+                (3.0, 6.0),
+                (0.15, 3.10),
+                sum
+            ),
             Err(GridMapError::InvalidGridTile)
         ));
     }
@@ -528,7 +582,7 @@ mod tests {
     #[test]
     fn from_box() {
         let simbox = SimBox::from([10.0, 20.0, 14.0]);
-        let gridmap = GridMap::<Vec<f32>, f32>::from_box(&simbox, (0.15, 0.20), sum).unwrap();
+        let gridmap = GridMap::from_box(&simbox, (0.15, 0.20), sum).unwrap();
 
         assert_eq!(gridmap.span_x, (0.0, 10.0));
         assert_eq!(gridmap.span_y, (0.0, 20.0));
@@ -542,14 +596,8 @@ mod tests {
     #[test]
     fn from_vec() {
         let values = vec![1, 2, 3, 4, 5, 6, 7, 8];
-        let gridmap = GridMap::<usize, usize>::from_vec(
-            (1.0, 2.0),
-            (1.0, 2.5),
-            (1.0, 0.5),
-            values,
-            usize::to_owned,
-        )
-        .unwrap();
+        let gridmap =
+            GridMap::from_vec((1.0, 2.0), (1.0, 2.5), (1.0, 0.5), values, usize::to_owned).unwrap();
 
         assert_eq!(gridmap.n_tiles_x(), 2);
         assert_eq!(gridmap.n_tiles_y(), 4);
@@ -581,7 +629,7 @@ mod tests {
 
     #[test]
     fn from_file() {
-        let gridmap = GridMap::<Vec<usize>, usize>::from_file(
+        let gridmap = GridMap::from_file(
             "test_files/gridmaps/map.dat",
             sum_usize,
             &['|'],
@@ -600,8 +648,7 @@ mod tests {
 
     #[test]
     fn coord2index() {
-        let gridmap =
-            GridMap::<Vec<f32>, f32>::new((-2.0, 7.0), (3.0, 6.0), (0.15, 0.20), sum).unwrap();
+        let gridmap = GridMap::new((-2.0, 7.0), (3.0, 6.0), (0.15, 0.20), sum).unwrap();
 
         assert_eq!(gridmap.x2index(-2.0), 0);
         assert_approx_eq!(f32, gridmap.index2x(0), -2.0);
@@ -634,8 +681,7 @@ mod tests {
 
     #[test]
     fn get_at() {
-        let mut gridmap =
-            GridMap::<Vec<f32>, f32>::new((-2.0, 7.0), (3.0, 6.0), (0.15, 0.20), sum).unwrap();
+        let mut gridmap = GridMap::new((-2.0, 7.0), (3.0, 6.0), (0.15, 0.20), sum).unwrap();
 
         let val = gridmap.get_mut_at(0.45, 3.57).unwrap();
         val.push(10.4);
@@ -655,7 +701,7 @@ mod tests {
 
     #[test]
     fn extract_raw() {
-        let gridmap = GridMap::<Vec<usize>, usize>::from_file(
+        let gridmap = GridMap::from_file(
             "test_files/gridmaps/map.dat",
             sum_usize,
             &['|'],
@@ -678,7 +724,7 @@ mod tests {
 
     #[test]
     fn extract_convert() {
-        let gridmap = GridMap::<Vec<usize>, usize>::from_file(
+        let gridmap = GridMap::from_file(
             "test_files/gridmaps/map.dat",
             sum_usize,
             &['|'],
@@ -701,7 +747,7 @@ mod tests {
 
     #[test]
     fn write_raw() {
-        let gridmap = GridMap::<Vec<usize>, usize>::from_file(
+        let gridmap = GridMap::from_file(
             "test_files/gridmaps/map.dat",
             sum_usize,
             &['|'],
@@ -721,7 +767,7 @@ mod tests {
 
     #[test]
     fn write() {
-        let gridmap = GridMap::<Vec<usize>, usize>::from_file(
+        let gridmap = GridMap::from_file(
             "test_files/gridmaps/map.dat",
             sum_usize,
             &['|'],
@@ -741,8 +787,7 @@ mod tests {
 
     #[test]
     fn is_inside() {
-        let gridmap =
-            GridMap::<Vec<f32>, f32>::new((-2.0, 7.0), (3.0, 6.0), (0.15, 0.20), sum).unwrap();
+        let gridmap = GridMap::new((-2.0, 7.0), (3.0, 6.0), (0.15, 0.20), sum).unwrap();
 
         assert!(gridmap.is_inside(-1.8, 4.5));
         assert!(gridmap.is_inside(-2.05, 3.09));
@@ -753,13 +798,37 @@ mod tests {
 
     #[test]
     fn get_tile() {
-        let gridmap =
-            GridMap::<Vec<f32>, f32>::new((-2.0, 7.0), (3.0, 6.0), (0.15, 0.20), sum).unwrap();
+        let gridmap = GridMap::new((-2.0, 7.0), (3.0, 6.0), (0.15, 0.20), sum).unwrap();
 
         assert_eq!(gridmap.get_tile(-1.8, 4.5).unwrap(), (-1.85, 4.6));
         assert_eq!(gridmap.get_tile(5.8, 4.2).unwrap(), (5.8, 4.2));
         assert_eq!(gridmap.get_tile(5.7843, 4.12374).unwrap(), (5.8, 4.2));
         assert!(gridmap.get_tile(7.11, 4.5).is_none());
         assert!(gridmap.get_tile(0.11, 2.8).is_none());
+    }
+
+    #[test]
+    fn using_closure_as_converter() {
+        let number = 17;
+        let sum_and_add_number = move |raw: &Vec<usize>| raw.iter().sum::<usize>() + number;
+
+        let gridmap = GridMap::from_file(
+            "test_files/gridmaps/map.dat",
+            sum_and_add_number,
+            &['|'],
+            parse_vec,
+            &["@", "#"],
+        )
+        .unwrap();
+
+        let vec = gridmap
+            .extract_convert()
+            .collect::<Vec<(f32, f32, usize)>>();
+        assert_eq!(vec[0], (0.0, 0.0, 27));
+        assert_eq!(vec[1], (1.0, 0.0, 26));
+        assert_eq!(vec[2], (2.0, 0.0, 104));
+        assert_eq!(vec[3], (0.0, 1.0, 41));
+        assert_eq!(vec[4], (1.0, 1.0, 24));
+        assert_eq!(vec[5], (2.0, 1.0, 17));
     }
 }
