@@ -294,6 +294,24 @@ impl<RawValue: Default + Clone + std::fmt::Debug, VisValue: Display> GridMap<Raw
         self.values.ncols()
     }
 
+    /// Get the span of the map along the x-dimension.
+    #[inline(always)]
+    pub fn span_x(&self) -> (f32, f32) {
+        self.span_x
+    }
+
+    /// Get the span of the map along the y-dimension.
+    #[inline(always)]
+    pub fn span_y(&self) -> (f32, f32) {
+        self.span_y
+    }
+
+    /// Get the grid tile dimensions.
+    #[inline(always)]
+    pub fn tile_dim(&self) -> (f32, f32) {
+        self.tile_dim
+    }
+
     /// Get the unconverted value of the map at target coordinates.
     ///
     /// Returns `None` in case the coordinates are out of the span of the map.
