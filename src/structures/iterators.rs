@@ -91,8 +91,9 @@ impl<'a> AtomIterator<'a> {
     }
 }
 
-/// Immutable iterator over atoms. Some as `AtomIterator` but can be constructed for the system
-/// without having to create a group.
+/// Immutable iterator over atoms. Same as `AtomIterator` but can be constructed for the system
+/// without having to create a group. Constructed using `System::selection_iter()`.
+/// Note that the `OwnedAtomIterator` still does NOT own the atoms of the system.
 pub struct OwnedAtomIterator<'a> {
     atoms: &'a [Atom],
     container_iterator: OwnedAtomContainerIterator,
@@ -332,6 +333,67 @@ impl<'a> MutAtomIterator<'a> {
 }
 
 impl<'a> Iterator for MutAtomIterator<'a> {
+    type Item = &'a mut Atom;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(index) = self.container_iterator.next() {
+            unsafe { Some((*self.atoms).get_unchecked_mut(index)) }
+        } else {
+            None
+        }
+    }
+}
+
+/// Mutable iterator over atoms. Same as `MutAtomIterator` but can be constructed for the system
+/// without having to create a group. Constructed using `System::selection_iter_mut()`.
+/// Note that the `OwnedMutAtomIterator` still does NOT own the atoms of the system.
+pub struct OwnedMutAtomIterator<'a> {
+    atoms: *mut [Atom],
+    container_iterator: OwnedAtomContainerIterator,
+    simbox: Option<&'a SimBox>,
+}
+
+impl<'a> OwnedMutAtomIterator<'a> {
+    /// Create a new `MutOwnedAtomIterator`.
+    ///
+    /// ## Parameters
+    /// - `atoms`: mutable reference to the atoms of the `System`
+    /// - `atom_container`: `AtomContainer` specifying the atoms to iterate through
+    /// - `simbox`: current dimensions of the simulation box (required only for geometric filtering)
+    pub fn new(
+        atoms: &'a mut [Atom],
+        atom_container: AtomContainer,
+        simbox: Option<&'a SimBox>,
+    ) -> Self {
+        OwnedMutAtomIterator {
+            atoms: atoms as *mut [Atom],
+            container_iterator: atom_container.into_iter(),
+            simbox,
+        }
+    }
+
+    /// Filter atoms located inside the specified geometric shape.
+    ///
+    /// ## Panics
+    /// Panics if the `OwnedMutAtomIterator` has no associated simulation box.
+    pub fn filter_geometry(
+        self,
+        geometry: impl Shape,
+    ) -> MutFilterAtomIterator<'a, OwnedMutAtomIterator<'a>, impl Shape> {
+        let simbox = match self.simbox {
+            Some(x) => x,
+            None => panic!("FATAL GROAN ERROR | OwnedMutAtomIterator::filter_geometry | No simulation box associated with atom iterator."),
+        };
+
+        MutFilterAtomIterator {
+            iterator: self,
+            geometry,
+            simbox,
+        }
+    }
+}
+
+impl<'a> Iterator for OwnedMutAtomIterator<'a> {
     type Item = &'a mut Atom;
 
     fn next(&mut self) -> Option<Self::Item> {

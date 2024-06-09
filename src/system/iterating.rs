@@ -9,6 +9,7 @@ use crate::structures::atom::Atom;
 use crate::structures::group::Group;
 use crate::structures::iterators::{
     AtomIterator, MoleculeIterator, MutAtomIterator, MutMoleculeIterator, OwnedAtomIterator,
+    OwnedMutAtomIterator,
 };
 use crate::structures::simbox::SimBox;
 use crate::system::System;
@@ -110,6 +111,7 @@ impl System {
     /// ## Note on performance
     /// It might be slightly faster to iterate using `system.get_atoms_as_ref().iter()` if you do
     /// not care about the additional methods `AtomIterator` implements.
+    #[inline(always)]
     pub fn atoms_iter(&self) -> AtomIterator {
         self.group_iter("all")
             .expect("FATAL GROAN ERROR | System::atoms_iter | Default group `all` does not exist.")
@@ -130,6 +132,7 @@ impl System {
     ///     atom.translate(&[1.0, -1.0, 2.5].into(), &simulation_box);
     /// }
     /// ```
+    #[inline(always)]
     pub fn atoms_iter_mut(&mut self) -> MutAtomIterator {
         self.group_iter_mut("all").expect(
             "FATAL GROAN ERROR | System::atoms_iter_mut | Default group `all` does not exist.",
@@ -297,7 +300,6 @@ impl System {
     /// for atom in system.selection_iter("name CA or resname LYS").unwrap() {
     ///     // perform some operation with the atom
     /// }
-    ///
     /// ```
     pub fn selection_iter(&self, query: &str) -> Result<OwnedAtomIterator, SelectError> {
         let group = crate::structures::group::Group::from_query(query, self)?;
@@ -307,6 +309,37 @@ impl System {
             group.get_atoms().to_owned(),
             self.get_box_as_ref(),
         ))
+    }
+
+    /// Create a mutable iterator over atoms specified using a Groan Selection Language query.
+    /// This allows selecting atoms without adding a group into the system.
+    ///
+    /// ## Returns
+    /// `OwnedMutAtomIterator` if the query is valid. Otherwise `SelectError`.
+    ///
+    /// ## Example
+    /// Iterate over atoms with name `CA` or residue name `LYS`.
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    ///
+    /// for atom in system.selection_iter_mut("name CA or resname LYS").unwrap() {
+    ///     // perform some operation with the atom
+    /// }
+    /// ```
+    pub fn selection_iter_mut(&mut self, query: &str) -> Result<OwnedMutAtomIterator, SelectError> {
+        let group = crate::structures::group::Group::from_query(query, self)?;
+
+        let simbox = self.get_box_as_ref().map(|x| x as *const SimBox);
+
+        unsafe {
+            Ok(OwnedMutAtomIterator::new(
+                self.get_atoms_as_ref_mut(),
+                group.get_atoms().to_owned(),
+                simbox.map(|x| &*x),
+            ))
+        }
     }
 }
 
@@ -994,5 +1027,56 @@ mod tests {
         }
 
         assert_eq!(count, 29);
+    }
+
+    #[test]
+    fn selection_iter_mut() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let mut count = 0;
+        for atom in system.selection_iter_mut("@protein").unwrap() {
+            atom.set_position(Vector3D::new(1.0, 2.0, 3.0));
+            count += 1;
+        }
+        assert_eq!(count, 61);
+
+        for atom in system.group_iter("Protein").unwrap() {
+            let pos = atom.get_position().unwrap();
+            assert_approx_eq!(f32, pos.x, 1.0);
+            assert_approx_eq!(f32, pos.y, 2.0);
+            assert_approx_eq!(f32, pos.z, 3.0);
+        }
+    }
+
+    #[test]
+    fn selection_iter_mut_filter_geometry() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let cylinder = Cylinder::new(
+            system.group_get_center("Protein").unwrap(),
+            2.0,
+            3.0,
+            Dimension::X,
+        );
+
+        let mut count = 0;
+        for atom in system
+            .selection_iter_mut("resname W")
+            .unwrap()
+            .filter_geometry(cylinder.clone())
+        {
+            atom.set_velocity(Vector3D::new(1.0, 2.0, 3.0));
+            count += 1;
+        }
+        assert_eq!(count, 29);
+
+        for atom in system.group_iter("W").unwrap().filter_geometry(cylinder) {
+            let vel = atom.get_velocity().unwrap();
+            assert_approx_eq!(f32, vel.x, 1.0);
+            assert_approx_eq!(f32, vel.y, 2.0);
+            assert_approx_eq!(f32, vel.z, 3.0);
+        }
     }
 }
