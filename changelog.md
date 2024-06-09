@@ -3,6 +3,12 @@
 
 ### Version 0.8.0
 
+#### Calculating center of geometry/mass using Atom iterators
+ - It is now possible to calculate center of geometry and center of mass for atoms from an arbitrary Atom iterator.
+ - Use `System::iterator_get_center` and `System::iterator_get_com` to calculate the center of geometry and the center of mass,
+   respectively, for the provided iterator.
+ - This is useful for the calculation of local center of mass in the system.
+
 #### GridMap structure
  - Implemented `GridMap` structure for easier analysis of properties of planar surfaces such as membranes.
  - `GridMap` is a generic 2D array that can be navigated using coordinates of the molecular system.
