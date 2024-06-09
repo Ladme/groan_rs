@@ -18,9 +18,9 @@
  *
  * \param 	xdp				pointer to the XDRFILE
  * \param	target_time		time that is to be reached (in ps)
- * 
+ *
  * \return	zero if successful, nonzero in case of an error
- * 
+ *
  * \note - If the function returns 0, XDRFILE is now set to read the frame corresponding to the provided or closest higher time.
  * \note - This function was written for the `groan_rs` library.
  */
@@ -31,12 +31,12 @@ int xtc_jump_to_start(XDRFILE *xdp, float target_time);
  *
  * \param 	xdp				pointer to the XDRFILE
  * \param	target_time		time that is to be reached (in ps)
- * 
+ *
  * \return	zero if successful, nonzero in case of an error
- * 
+ *
  * \note - If the function returns 0, XDRFILE is now set to read the frame corresponding to the provided or closest higher time.
  * \note - Jumping through trr files is much slower than jumping through xtc files as we need to read more information from the header.
- * 
+ *
  * \note - This function was written for the `groan_rs` library.
  */
 int trr_jump_to_start(XDRFILE *xdp, float target_time);
@@ -45,9 +45,9 @@ int trr_jump_to_start(XDRFILE *xdp, float target_time);
  * \brief Skip one frame of the xtc trajectory.
  *
  * \param 	xdp				pointer to the XDRFILE
- * 
+ *
  * \return	zero if successful, one in case of an error, two if the end of file has been reached
- * 
+ *
  * \note - If the function returns 0, XDRFILE is now set to read the next frame after the skipped frame.
  * \note - This function was written for the `groan_rs` library.
  */
@@ -58,9 +58,9 @@ int xtc_skip_frame(XDRFILE *xdp);
  *
  * \param 	xdp				pointer to the XDRFILE
  * \param   time            pointer to float for storing the simulation time
- * 
+ *
  * \return	zero if successful, one in case of an error, two if the end of file has been reached
- * 
+ *
  * \note - If the function returns 0, XDRFILE is now set to read the next frame after the skipped frame.
  * \note - This function was written for the `groan_rs` library.
  */
@@ -70,9 +70,9 @@ int xtc_skip_frame_with_time(XDRFILE *xdp, float *time);
  * \brief Skip one frame of the trr trajectory.
  *
  * \param 	xdp				pointer to the XDRFILE
- * 
+ *
  * \return	zero if successful, one in case of an error, two if the end of file has been reached
- * 
+ *
  * \note - If the function returns 0, XDRFILE is now set to read the next frame after the skipped frame.
  * \note - This function was written for the `groan_rs` library.
  */
@@ -83,9 +83,9 @@ int trr_skip_frame(XDRFILE *xdp);
  *
  * \param 	xdp				pointer to the XDRFILE
  * \param   time            pointer to float for storing the simulation time
- * 
+ *
  * \return	zero if successful, one in case of an error, two if the end of file has been reached
- * 
+ *
  * \note - If the function returns 0, XDRFILE is now set to read the next frame after the skipped frame.
  * \note - This function was written for the `groan_rs` library.
  */

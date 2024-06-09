@@ -1,4 +1,4 @@
- /* -*- mode: c; tab-width: 4; indent-tabs-mode: t; c-basic-offset: 4 -*-
+/* -*- mode: c; tab-width: 4; indent-tabs-mode: t; c-basic-offset: 4 -*-
  *
  * $Id$
  *
@@ -31,27 +31,28 @@
 #define _xdrfile_xtc_h
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
 #include "xdrfile.h"
-  
-  /* All functions return exdrOK if succesfull. 
+
+  /* All functions return exdrOK if succesfull.
    * (error codes defined in xdrfile.h).
-   */  
-   
+   */
+
   /* This function returns the number of atoms in the xtc file in *natoms */
-  extern int read_xtc_natoms(const char *fn,int *natoms);
-  
+  extern int read_xtc_natoms(const char *fn, int *natoms);
+
   /* Read one frame of an open xtc file */
-  extern int read_xtc(XDRFILE *xd,int natoms,int *step,float *time,
-		      matrix box,rvec *x,float *prec);
-  
+  extern int read_xtc(XDRFILE *xd, int natoms, int *step, float *time,
+                      matrix box, rvec *x, float *prec);
+
   /* Write a frame to xtc file */
   extern int write_xtc(XDRFILE *xd,
-		       int natoms,int step,float time,
-		       matrix box,rvec *x,float prec);
-  
+                       int natoms, int step, float time,
+                       matrix box, rvec *x, float prec);
+
 #ifdef __cplusplus
 }
 #endif
