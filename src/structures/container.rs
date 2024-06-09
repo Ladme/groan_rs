@@ -221,6 +221,15 @@ impl AtomContainer {
         }
     }
 
+    /// Convert `AtomContainer` into `OwnedAtomContainerIterator`.
+    pub fn into_iter(self) -> OwnedAtomContainerIterator {
+        OwnedAtomContainerIterator {
+            container: self,
+            current_block_index: 0,
+            current_atom_index: 0,
+        }
+    }
+
     /// Get the index of the last atom in the `AtomContainer`.
     /// Returns `None` if the `AtomContainer` is empty.
     pub fn last(&self) -> Option<usize> {
@@ -342,6 +351,29 @@ impl cmp::PartialOrd for AtomBlock {
     }
 }
 
+// Private helper function to handle the iteration logic
+fn next_index(
+    container: &AtomContainer,
+    current_block_index: &mut usize,
+    current_atom_index: &mut usize,
+) -> Option<usize> {
+    while let Some(block) = container.atom_blocks.get(*current_block_index) {
+        if *current_atom_index < block.start {
+            *current_atom_index = block.start;
+        }
+
+        if *current_atom_index <= block.end {
+            let index_to_return = *current_atom_index;
+            *current_atom_index += 1;
+            return Some(index_to_return);
+        }
+
+        *current_block_index += 1;
+    }
+
+    None
+}
+
 /// Iterator over the atom indices in the `AtomContainer`.
 pub struct AtomContainerIterator<'a> {
     container: &'a AtomContainer,
@@ -354,21 +386,32 @@ impl<'a> Iterator for AtomContainerIterator<'a> {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(block) = self.container.atom_blocks.get(self.current_block_index) {
-            if self.current_atom_index < block.start {
-                self.current_atom_index = block.start
-            }
+        next_index(
+            self.container,
+            &mut self.current_block_index,
+            &mut self.current_atom_index,
+        )
+    }
+}
 
-            if self.current_atom_index <= block.end {
-                let index_to_return = self.current_atom_index;
-                self.current_atom_index += 1;
-                return Some(index_to_return);
-            }
+/// Iterator over the atom indicies in the `AtomContainer`
+/// which owns the `AtomContainer`.
+pub struct OwnedAtomContainerIterator {
+    container: AtomContainer,
+    current_block_index: usize,
+    current_atom_index: usize,
+}
 
-            self.current_block_index += 1;
-        }
+/// Implementation of the iteration over the indicies of the `AtomContainer`.
+impl Iterator for OwnedAtomContainerIterator {
+    type Item = usize;
 
-        None
+    fn next(&mut self) -> Option<Self::Item> {
+        next_index(
+            &self.container,
+            &mut self.current_block_index,
+            &mut self.current_atom_index,
+        )
     }
 }
 
@@ -716,6 +759,17 @@ mod tests_container {
 
         let expected_indices = vec![0, 1, 2, 3, 4, 5, 6, 11, 13, 18, 19];
         let observed_indices: Vec<usize> = container.iter().collect();
+
+        assert_eq!(expected_indices, observed_indices);
+    }
+
+    #[test]
+    fn into_iter() {
+        let indices = vec![11, 1, 2, 3, 20, 5, 0, 5, 4, 18, 6, 19, 1, 13, 20, 27];
+        let container = AtomContainer::from_indices(indices, 20);
+
+        let expected_indices = vec![0, 1, 2, 3, 4, 5, 6, 11, 13, 18, 19];
+        let observed_indices: Vec<usize> = container.into_iter().collect();
 
         assert_eq!(expected_indices, observed_indices);
     }

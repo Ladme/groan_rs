@@ -5,7 +5,7 @@
 
 use crate::structures::{
     atom::Atom,
-    container::{AtomContainer, AtomContainerIterator},
+    container::{AtomContainer, AtomContainerIterator, OwnedAtomContainerIterator},
     shape::Shape,
     simbox::SimBox,
 };
@@ -81,6 +81,67 @@ impl<'a> AtomIterator<'a> {
         let simbox = match self.simbox {
             Some(x) => x,
             None => panic!("FATAL GROAN ERROR | AtomIterator::filter_geometry | No simulation box associated with atom iterator."),
+        };
+
+        FilterAtomIterator {
+            iterator: self,
+            geometry,
+            simbox,
+        }
+    }
+}
+
+/// Immutable iterator over atoms. Some as `AtomIterator` but can be constructed for the system
+/// without having to create a group.
+pub struct OwnedAtomIterator<'a> {
+    atoms: &'a [Atom],
+    container_iterator: OwnedAtomContainerIterator,
+    simbox: Option<&'a SimBox>,
+}
+
+/// Iteration over atoms.
+impl<'a> Iterator for OwnedAtomIterator<'a> {
+    type Item = &'a Atom;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(index) = self.container_iterator.next() {
+            unsafe { Some(self.atoms.get_unchecked(index)) }
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a> OwnedAtomIterator<'a> {
+    /// Create a new `OwnedAtomIterator`.
+    ///
+    /// ## Parameters
+    /// - `atoms`: reference to the atoms of the `System`
+    /// - `atom_container`: `AtomContainer` specifying the atoms to iterate through
+    /// - `simbox`: current dimensions of the simulation box (required only for geometric filtering)
+    pub fn new(
+        atoms: &'a [Atom],
+        atom_container: AtomContainer,
+        simbox: Option<&'a SimBox>,
+    ) -> Self {
+        OwnedAtomIterator {
+            atoms,
+            container_iterator: atom_container.into_iter(),
+            simbox,
+        }
+    }
+
+    /// Filter atoms located inside the specified geometric shape.
+    ///
+    /// ## Panics
+    /// Panics if the `OwnedAtomIterator` has no associated simulation box.
+    pub fn filter_geometry(
+        self,
+        geometry: impl Shape,
+    ) -> FilterAtomIterator<'a, OwnedAtomIterator<'a>, impl Shape> {
+        let simbox = match self.simbox {
+            Some(x) => x,
+            None => panic!("FATAL GROAN ERROR | OwnedAtomIterator::filter_geometry | No simulation box associated with atom iterator."),
         };
 
         FilterAtomIterator {
