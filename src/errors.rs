@@ -247,6 +247,9 @@ pub enum AtomError {
     /// Used when there is an issue with position of an atom.
     #[error("{}", .0)]
     InvalidPosition(PositionError),
+    /// Used when there is an issue with masses of atoms in the system.
+    #[error("{}", .0)]
+    InvalidMass(MassError),
 }
 
 /// Errors that can occur when reading and parsing ndx file.

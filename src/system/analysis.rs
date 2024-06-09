@@ -4,6 +4,7 @@
 //! Implementation of various methods for analysis of `System`.
 
 use crate::errors::{AtomError, GroupError, MassError, PositionError};
+use crate::structures::atom::Atom;
 use crate::structures::simbox::{simbox_check, SimBox};
 use crate::structures::{dimension::Dimension, vector3d::Vector3D};
 use crate::system::System;
@@ -48,40 +49,20 @@ impl System {
     /// };
     /// ```
     pub fn group_get_center(&self, name: &str) -> Result<Vector3D, GroupError> {
-        // we can't work with a nonexistent or empty group
         if self.group_isempty(name)? {
-            return Err(GroupError::EmptyGroup(name.to_string()));
+            return Err(GroupError::EmptyGroup(name.to_owned()));
         }
 
-        let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?;
+        let iterator = self
+            .group_iter(name)
+            .expect("FATAL GROAN ERROR | System::group_get_center | Group does not exist but this should have been handled before.");
 
-        let scaling = Vector3D::new(PI_X2 / simbox.x, PI_X2 / simbox.y, PI_X2 / simbox.z);
-
-        let mut sum_xi = Vector3D::default();
-        let mut sum_zeta = Vector3D::default();
-
-        for atom in self.group_iter(name)
-            .expect("FATAL GROAN ERROR | System::group_get_center | Group not found but this should have already been checked.") 
-        {
-            match atom.get_position() {
-                Some(x) => center_atom_contribution(
-                    x.clone(),
-                    &scaling,
-                    simbox,
-                    1.0, // use 1 as mass since we are calculating center of geometry
-                    &mut sum_xi,
-                    &mut sum_zeta,
-                ),
-                None => {
-                    return Err(GroupError::InvalidPosition(PositionError::NoPosition(
-                        atom.get_atom_number(),
-                    )));
-                }
-            }
+        match self.iterator_get_center(iterator) {
+            Ok(x) => Ok(x),
+            Err(AtomError::InvalidSimBox(e)) => Err(GroupError::InvalidSimBox(e)),
+            Err(AtomError::InvalidPosition(e)) => Err(GroupError::InvalidPosition(e)),
+            _ => panic!("FATAL GROAN ERROR | System::group_get_center | Invalid error type returned from `System::iterator_get_center`."),
         }
-
-        // convert to real coordinates
-        Ok(from_circle_to_line(sum_zeta, sum_xi, &scaling))
     }
 
     /// Calculate center of mass of a group in `System`.
@@ -120,24 +101,162 @@ impl System {
     /// };
     /// ```
     pub fn group_get_com(&self, name: &str) -> Result<Vector3D, GroupError> {
-        // we can't work with a nonexistent or empty group
         if self.group_isempty(name)? {
-            return Err(GroupError::EmptyGroup(name.to_string()));
+            return Err(GroupError::EmptyGroup(name.to_owned()));
         }
 
-        let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?;
+        let iterator = self
+            .group_iter(name)
+            .expect("FATAL GROAN ERROR | System::group_get_com | Group does not exist but this should have been handled before.");
+
+        match self.iterator_get_com(iterator) {
+            Ok(x) => Ok(x),
+            Err(AtomError::InvalidSimBox(e)) => Err(GroupError::InvalidSimBox(e)),
+            Err(AtomError::InvalidPosition(e)) => Err(GroupError::InvalidPosition(e)),
+            Err(AtomError::InvalidMass(e)) => Err(GroupError::InvalidMass(e)),
+            _ => panic!("FATAL GROAN ERROR | System::group_get_com | Invalid error type returned from `System::iterator_get_com`."),
+        }
+    }
+
+    /// Calculate center of geometry of a group of atoms selected by an iterator.
+    /// Takes periodic boundary conditions into consideration.
+    /// Useful for the calculation of local center of geometry.
+    ///
+    /// ## Returns
+    /// - `Vector3D` corresponding to the geometric center of the selected atoms.
+    /// - `AtomError::InvalidSimBox` if the system has no simulation box
+    /// or the simulation box is not orthogonal.
+    /// - `AtomError::InvalidPosition` if any of the atoms in the group has no position.
+    ///
+    /// ## Notes
+    /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
+    /// - It is able to calculate correct center of geometry for any distribution of atoms
+    /// that is not completely homogeneous.
+    /// - In case the iterator is empty, the center of geometry is NaN.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.read_ndx("index.ndx").unwrap();
+    ///
+    /// let sphere = Sphere::new(Vector3D::new(1.0, 2.0, 3.0), 2.5);
+    ///
+    /// // select atoms of the group "Group" located inside a sphere with
+    /// // a radius of 2.5 nm centered at [1.0, 2.0, 3.0]
+    /// let atoms = system
+    ///     .group_iter("Group")
+    ///     .unwrap()
+    ///     .filter_geometry(sphere);
+    ///
+    /// // calculate center of geometry of "atoms"
+    /// let center = match system.iterator_get_center(atoms) {
+    ///     Ok(x) => x,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;    
+    ///     }
+    /// };
+    /// ```
+    pub fn iterator_get_center<'a>(
+        &'a self,
+        iterator: impl Iterator<Item = &'a Atom>,
+    ) -> Result<Vector3D, AtomError> {
+        let simbox = simbox_check(self.get_box_as_ref()).map_err(AtomError::InvalidSimBox)?;
 
         let scaling = Vector3D::new(PI_X2 / simbox.x, PI_X2 / simbox.y, PI_X2 / simbox.z);
 
         let mut sum_xi = Vector3D::default();
         let mut sum_zeta = Vector3D::default();
 
-        for atom in self.group_iter(name)
-            .expect("FATAL GROAN ERROR | System::group_get_com | Group not found but this should have already been checked.") 
-        {
+        let mut empty = true;
+        for atom in iterator {
+            match atom.get_position() {
+                Some(x) => center_atom_contribution(
+                    x.clone(),
+                    &scaling,
+                    simbox,
+                    1.0, // use 1 as mass since we are calculating center of geometry
+                    &mut sum_xi,
+                    &mut sum_zeta,
+                ),
+                None => {
+                    return Err(AtomError::InvalidPosition(PositionError::NoPosition(
+                        atom.get_atom_number(),
+                    )));
+                }
+            }
+
+            empty = false;
+        }
+
+        if empty {
+            return Ok(Vector3D::new(f32::NAN, f32::NAN, f32::NAN));
+        }
+
+        // convert to real coordinates
+        Ok(from_circle_to_line(sum_zeta, sum_xi, &scaling))
+    }
+
+    /// Calculate center of mass of a group of atoms selected by an iterator.
+    /// Takes periodic boundary conditions into consideration.
+    /// Useful for the calculation of local center of geometry.
+    ///
+    /// ## Returns
+    /// - `Vector3D` corresponding to the center of mass of the group.
+    /// - `AtomError::InvalidSimBox` if the system has no simulation box
+    /// or the simulation box is not orthogonal.
+    /// - `AtomError::InvalidPosition` if any of the atoms in the group has no position.
+    /// - `AtomError::InvalidMass` if any of the atoms in the group has no mass.
+    ///
+    /// ## Notes
+    /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
+    /// - It is able to calculate correct center of mass for any distribution of atoms
+    /// that is not completely homogeneous.
+    /// - In case the iterator is empty, the center of mass is NaN.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.read_ndx("index.ndx").unwrap();
+    ///
+    /// let sphere = Sphere::new(Vector3D::new(1.0, 2.0, 3.0), 2.5);
+    ///
+    /// // select atoms of the group "Group" located inside a sphere with
+    /// // a radius of 2.5 nm centered at [1.0, 2.0, 3.0]
+    /// let atoms = system
+    ///     .group_iter("Group")
+    ///     .unwrap()
+    ///     .filter_geometry(sphere);
+    ///
+    /// // calculate center of mass of "atoms"
+    /// let center = match system.iterator_get_com(atoms) {
+    ///     Ok(x) => x,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;    
+    ///     }
+    /// };
+    /// ```
+    pub fn iterator_get_com<'a>(
+        &'a self,
+        iterator: impl Iterator<Item = &'a Atom>,
+    ) -> Result<Vector3D, AtomError> {
+        let simbox = simbox_check(self.get_box_as_ref()).map_err(AtomError::InvalidSimBox)?;
+
+        let scaling = Vector3D::new(PI_X2 / simbox.x, PI_X2 / simbox.y, PI_X2 / simbox.z);
+
+        let mut sum_xi = Vector3D::default();
+        let mut sum_zeta = Vector3D::default();
+
+        let mut empty = true;
+        for atom in iterator {
             let mass = atom
                 .get_mass()
-                .ok_or(GroupError::InvalidMass(MassError::NoMass(
+                .ok_or(AtomError::InvalidMass(MassError::NoMass(
                     atom.get_atom_number(),
                 )))?;
 
@@ -151,11 +270,17 @@ impl System {
                     &mut sum_zeta,
                 ),
                 None => {
-                    return Err(GroupError::InvalidPosition(PositionError::NoPosition(
+                    return Err(AtomError::InvalidPosition(PositionError::NoPosition(
                         atom.get_atom_number(),
                     )));
                 }
             }
+
+            empty = false;
+        }
+
+        if empty {
+            return Ok(Vector3D::new(f32::NAN, f32::NAN, f32::NAN));
         }
 
         Ok(from_circle_to_line(sum_zeta, sum_xi, &scaling))
@@ -369,6 +494,7 @@ mod tests {
     use crate::errors::SimBoxError;
     use crate::structures::atom::Atom;
     use crate::structures::element::Elements;
+    use crate::structures::shape::Sphere;
 
     #[test]
     fn center_single_atom() {
@@ -1197,5 +1323,76 @@ mod tests {
                 e
             ),
         }
+    }
+
+    #[test]
+    fn iterator_get_center() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let sphere_pos = system.group_get_center("Protein").unwrap();
+        let sphere = Sphere::new(sphere_pos.clone(), 2.0);
+
+        let iterator = system
+            .group_iter("Membrane")
+            .unwrap()
+            .filter_geometry(sphere);
+        let center = system.iterator_get_center(iterator).unwrap();
+
+        assert_approx_eq!(f32, center.x, 9.8453);
+        assert_approx_eq!(f32, center.y, 2.4803874);
+        assert_approx_eq!(f32, center.z, 5.434977);
+    }
+
+    #[test]
+    fn iterator_get_center_empty() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("EmptyGroup", "not all").unwrap();
+
+        let iterator = system.group_iter("EmptyGroup").unwrap();
+        let center = system.iterator_get_center(iterator).unwrap();
+
+        assert!(center.x.is_nan());
+        assert!(center.y.is_nan());
+        assert!(center.z.is_nan());
+    }
+
+    #[test]
+    fn iterator_get_com() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+
+        system.group_create("Peptide", "@protein").unwrap();
+        system.group_create("Membrane", "@membrane").unwrap();
+
+        system.guess_elements(Elements::default()).unwrap();
+
+        let sphere_pos = system.group_get_center("Peptide").unwrap();
+        let sphere = Sphere::new(sphere_pos.clone(), 1.0);
+
+        let iterator = system
+            .group_iter("Membrane")
+            .unwrap()
+            .filter_geometry(sphere);
+
+        let com = system.iterator_get_com(iterator).unwrap();
+
+        assert_approx_eq!(f32, com.x, 4.0072813);
+        assert_approx_eq!(f32, com.y, 3.7480402);
+        assert_approx_eq!(f32, com.z, 3.3228612);
+    }
+
+    #[test]
+    fn iterator_get_com_empty() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+        system.group_create("EmptyGroup", "not all").unwrap();
+
+        system.guess_elements(Elements::default()).unwrap();
+
+        let iterator = system.group_iter("EmptyGroup").unwrap();
+        let center = system.iterator_get_center(iterator).unwrap();
+
+        assert!(center.x.is_nan());
+        assert!(center.y.is_nan());
+        assert!(center.z.is_nan());
     }
 }
