@@ -17,6 +17,9 @@
 - Implemented `GridMap` structure for easier analysis of properties of planar surfaces such as membranes.
 - `GridMap` is a generic 2D array that can be navigated using coordinates of the molecular system.
 
+#### Other changes
+- Implemented `System::group_intersection` allowing to directly create groups that are intersections of other groups.
+
 ***
 
 ### Version 0.7.1

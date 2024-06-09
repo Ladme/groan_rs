@@ -776,6 +776,44 @@ impl System {
         }
     }
 
+    /// Create a new group that is the intersection of the provided groups.
+    ///
+    /// ## Returns
+    /// `GroupError::NotFound` if any of the input groups does not exist.
+    /// `GroupError::AlreadyExistsWarning` if a group with the name `intersection` already exists and is overwritten.
+    /// `Ok` otherwise.
+    ///
+    /// ## Notes
+    /// - If a group with the name `intersection` already exists, it is overwritten.
+    /// - `group1` and `group2` are unchanged.
+    pub fn group_intersection(
+        &mut self,
+        group1: &str,
+        group2: &str,
+        intersection: &str,
+    ) -> Result<(), GroupError> {
+        let group1 = self
+            .get_groups_as_ref()
+            .get(group1)
+            .ok_or(GroupError::NotFound(group1.to_string()))?;
+        let group2 = self
+            .get_groups_as_ref()
+            .get(group2)
+            .ok_or(GroupError::NotFound(group2.to_string()))?;
+
+        let group = Group::intersection(group1, group2);
+
+        unsafe {
+            match self
+                .get_groups_as_ref_mut()
+                .insert(intersection.to_string(), group)
+            {
+                None => Ok(()),
+                Some(_) => Err(GroupError::AlreadyExistsWarning(intersection.to_string())),
+            }
+        }
+    }
+
     /// Extend the group `group` by the group `extend`.
     ///
     /// ## Returns
@@ -2465,6 +2503,86 @@ mod tests {
         match system.group_union("ION", "Nonexistent", "Test") {
             Err(GroupError::NotFound(e)) => assert_eq!(e, "Nonexistent"),
             Ok(_) => panic!("Creating union should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+
+        assert!(!system.group_exists("Test"));
+    }
+
+    #[test]
+    fn group_intersection_simple() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        system
+            .group_intersection("Protein", "Transmembrane", "Protein X Transmembrane")
+            .unwrap();
+
+        assert!(system.group_exists("Protein X Transmembrane"));
+        assert_eq!(
+            system.group_get_n_atoms("Protein X Transmembrane").unwrap(),
+            system.group_get_n_atoms("Transmembrane").unwrap()
+        );
+    }
+
+    #[test]
+    fn group_intersection_empty() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        system
+            .group_intersection("Protein", "W", "Protein X W")
+            .unwrap();
+
+        assert!(system.group_exists("Protein X W"));
+        assert_eq!(system.group_get_n_atoms("Protein X W").unwrap(), 0);
+    }
+
+    #[test]
+    fn group_intersection_already_exists() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.group_intersection("Protein", "Transmembrane", "Other") {
+            Err(GroupError::AlreadyExistsWarning(e)) => assert_eq!(e, "Other"),
+            Ok(_) => panic!("Warning should have been returned, but it was not."),
+            Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
+        }
+
+        assert_eq!(
+            system.group_get_n_atoms("Other").unwrap(),
+            system.group_get_n_atoms("Transmembrane").unwrap()
+        );
+    }
+
+    #[test]
+    fn group_intersection_invalid_group1() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.group_intersection("Nonexistent", "ION", "Test") {
+            Err(GroupError::NotFound(e)) => assert_eq!(e, "Nonexistent"),
+            Ok(_) => panic!("Creating intersection should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+
+        assert!(!system.group_exists("Test"));
+    }
+
+    #[test]
+    fn group_intersection_invalid_group2() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.group_intersection("ION", "Nonexistent", "Test") {
+            Err(GroupError::NotFound(e)) => assert_eq!(e, "Nonexistent"),
+            Ok(_) => panic!("Creating intersection should have failed, but it was successful."),
             Err(e) => panic!(
                 "Failed successfully but incorrect error type `{:?}` was returned.",
                 e

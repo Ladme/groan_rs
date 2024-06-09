@@ -17,7 +17,7 @@ use crate::system::System;
 /******************************/
 
 /// Group of atoms in target system.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Group {
     atoms: AtomContainer,
@@ -328,6 +328,16 @@ impl Group {
             print_ndx: true,
         }
     }
+
+    /// Create a new valid `Group` as an interaction of two other groups.
+    pub fn intersection(group1: &Group, group2: &Group) -> Group {
+        let container = AtomContainer::intersection(group1.get_atoms(), group2.get_atoms());
+
+        Group {
+            atoms: container,
+            print_ndx: true,
+        }
+    }
 }
 
 /******************************/
@@ -394,6 +404,33 @@ mod tests {
         let group = Group::from_ranges(atom_ranges, 1028);
 
         assert_eq!(group.get_n_atoms(), 198);
+    }
+
+    #[test]
+    fn union() {
+        let indices1 = vec![11, 1, 2, 3, 20, 5, 0, 5, 4, 18, 6, 19, 1, 13, 20, 27];
+        let group1 = Group::from_indices(indices1, 20);
+
+        let indices2 = vec![13, 1, 2, 7, 5, 19, 21, 1, 9, 10, 11];
+        let group2 = Group::from_indices(indices2, 15);
+
+        let union = Group::union(&group1, &group2);
+        assert_eq!(
+            union,
+            Group::from_indices(vec![0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 13, 14, 18, 19], 20)
+        );
+    }
+
+    #[test]
+    fn intersection() {
+        let indices1 = vec![11, 1, 2, 3, 20, 5, 0, 5, 4, 18, 6, 19, 1, 13, 20, 27];
+        let group1 = Group::from_indices(indices1, 20);
+
+        let indices2 = vec![13, 1, 2, 7, 5, 19, 21, 1, 9, 10, 11];
+        let group2 = Group::from_indices(indices2, 15);
+
+        let union = Group::intersection(&group1, &group2);
+        assert_eq!(union, Group::from_indices(vec![1, 2, 5, 11, 13], 20));
     }
 }
 

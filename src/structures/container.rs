@@ -7,7 +7,7 @@ use std::cmp;
 
 /// Structure describing a group of atoms.
 /// Guaranteed to only contain valid atom indices.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AtomContainer {
     /// Vector of atom blocks capturing the indices of atoms included in the container.
@@ -267,6 +267,21 @@ impl AtomContainer {
             .chain(container2.atom_blocks.iter().cloned())
             .collect();
         AtomContainer::from_blocks(blocks)
+    }
+
+    /// Create a new `AtomContainer` that is the intersection of the provided `AtomContainers`.
+    pub fn intersection(container1: &AtomContainer, container2: &AtomContainer) -> AtomContainer {
+        let indices: Vec<usize> = container1
+            .iter()
+            .filter(|&index| container2.isin(index))
+            .collect();
+
+        let n_atoms = match indices.iter().max() {
+            Some(x) => x + 1,
+            None => return AtomContainer::empty(),
+        };
+
+        AtomContainer::from_indices(indices, n_atoms)
     }
 
     /// Add index to the `AtomContainer`.
@@ -844,6 +859,50 @@ mod tests_container {
         assert_eq!(union.atom_blocks.len(), 2);
         cmp_block_tuple(&union.atom_blocks[0], (0, 6));
         cmp_block_tuple(&union.atom_blocks[1], (9, 19));
+    }
+
+    #[test]
+    fn intersection() {
+        let indices = vec![11, 1, 2, 3, 20, 5, 0, 5, 4, 18, 6, 19, 1, 13, 20, 27];
+        let container1 = AtomContainer::from_indices(indices, 20);
+        let container2 =
+            AtomContainer::from_indices(vec![13, 1, 2, 7, 5, 19, 21, 1, 9, 10, 11], 15);
+
+        let intersect1 = AtomContainer::intersection(&container1, &container2);
+        let intersect2 = AtomContainer::intersection(&container2, &container1);
+
+        assert_eq!(intersect1.atom_blocks.len(), 4);
+        cmp_block_tuple(&intersect1.atom_blocks[0], (1, 2));
+        cmp_block_tuple(&intersect1.atom_blocks[1], (5, 5));
+        cmp_block_tuple(&intersect1.atom_blocks[2], (11, 11));
+        cmp_block_tuple(&intersect1.atom_blocks[3], (13, 13));
+        assert_eq!(intersect1, intersect2);
+    }
+
+    #[test]
+    fn intersection_empty() {
+        let indices = vec![11, 1, 2, 3, 20, 5, 0, 5, 4, 18, 6, 19, 1, 13, 20, 27];
+        let container1 = AtomContainer::from_indices(indices, 20);
+        let container2 = AtomContainer::empty();
+
+        let intersect1 = AtomContainer::intersection(&container1, &container2);
+        let intersect2 = AtomContainer::intersection(&container2, &container1);
+
+        assert_eq!(intersect1, AtomContainer::empty());
+        assert_eq!(intersect1, intersect2);
+    }
+
+    #[test]
+    fn intersection_disjunct() {
+        let indices = vec![11, 1, 2, 3, 20, 5, 0, 5, 4, 18, 6, 19, 1, 13, 20, 27];
+        let container1 = AtomContainer::from_indices(indices, 20);
+        let container2 = AtomContainer::from_indices(vec![7, 8, 9, 10, 12, 14], 15);
+
+        let intersect1 = AtomContainer::intersection(&container1, &container2);
+        let intersect2 = AtomContainer::intersection(&container2, &container1);
+
+        assert_eq!(intersect1, AtomContainer::empty());
+        assert_eq!(intersect1, intersect2);
     }
 
     #[test]
