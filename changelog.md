@@ -4,8 +4,7 @@
 ### Version 0.8.0
 
 #### Creating Atom iterators directly from selection queries
-- Iterators over atoms of the system can be now constructed directly using `System::selection_iter` (for iteration over immutable atoms)
-  and using `System::selection_iter_mut` (for iteration over mutable atoms).
+- Iterators over atoms of the system can be now constructed directly from selection queries using `System::selection_iter` (for iteration over immutable atoms) and using `System::selection_iter_mut` (for iteration over mutable atoms).
 - This allows selecting atoms without adding groups into the system.
 
 #### Calculating center of geometry/mass using Atom iterators
