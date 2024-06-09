@@ -22,7 +22,7 @@ use crate::io::pdb_io;
 /// All other lines are ignored.
 ///
 /// ## Notes
-/// - TITLE and CRYST1 are expected to have the same format is in PDB files and are optional.
+/// - TITLE and CRYST1 are expected to have the same format as in PDB files and are optional.
 ///
 /// - The fields of each ATOM and HETATM line must be separated by whitespace. The expected format is this:
 ///
