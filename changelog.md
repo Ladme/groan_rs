@@ -18,6 +18,7 @@
 - `GridMap` is a generic 2D array that can be navigated using coordinates of the molecular system.
 
 #### Other changes
+- Implemented `System::traj_iter_map_reduce` for simple embarrassingly parallel iteration through simulation trajectories.
 - Implemented `System::group_intersection` allowing to directly create groups that are intersections of other groups.
 
 ***

@@ -337,6 +337,9 @@ pub enum ReadTrajError {
     /// Used when concatenation of trajectories is requested, but no trajectories are provided.
     #[error("{} no trajectories provided for concatenation", "error:".red().bold())]
     CatNoTrajectories,
+    /// Used when a trajectory iterator for parallel reading could not be constructed.
+    #[error("{} could not construct a parallel trajectory iterator for file '{}'", "error:".red().bold(), path_to_yellow(.0))]
+    InvalidParallelIteration(Box<Path>),
 }
 
 /// Errors that can occur when writing a trajectory file.

@@ -3,9 +3,261 @@
 
 //! Basic utilities for parallel implementations of functions.
 
-use crate::{structures::container::AtomContainer, system::System};
+use std::{ops::Add, path::Path};
+
+use crate::{
+    errors::ReadTrajError,
+    io::traj_io::{
+        FrameDataTime, TrajMasterRead, TrajRangeRead, TrajRead, TrajReadOpen, TrajStepRead,
+    },
+    progress::ProgressPrinter,
+    structures::container::AtomContainer,
+    system::System,
+};
 
 impl System {
+    // TODO: make `progress_printer` work
+
+    /// This method performs embarrassingly parallel iteration over a trajectory (xtc or trr) file,
+    /// using the MapReduce parallel scheme.
+    ///
+    /// The trajectory is divided into `n_thread` threads, each analyzing a portion of the data independently (`map` phase).
+    /// The results from each thread are subsequently merged to produce a single result (`reduce` phase).
+    ///
+    /// ## Panics
+    /// Panics if `n_threads` is set to zero.
+    ///
+    /// ## Generic Parameters
+    /// The method uses the following generic parameters:
+    /// - `Reader`: The type of trajectory reader to utilize (e.g., `XtcReader`, `TrrReader`).
+    /// - `Data`: The data structure for storing analysis results, which must implement `Add` and `Default`.
+    ///   The `Add` trait defines how `Data` instances are combined. `Default` defined the initial state of the data structure.
+    /// - `Error`: The error type that the `body` function may return if an error occurs.
+    ///
+    /// ## Arguments
+    /// - `trajectory_file`: The path to the trajectory file to read.
+    /// - `n_threads`: The number of threads to spawn.
+    /// - `body`: A function or closure to apply to each trajectory frame, storing results in the `Data` structure.
+    /// - `start_time`: The starting time for the iteration.
+    /// - `end_time`: The ending time for the iteration.
+    /// - `step`: The step interval for frame analysis (i.e., analyze every `step`th frame).
+    /// - `progress_printer`: A specification for printing the progress of trajectory reading, used only by the master thread.
+    ///
+    /// ## Example
+    /// Calculating the average number of phosphorus atoms above and below the global membrane center of geometry.
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// # use std::ops::Add;
+    /// # use groan_rs::errors::GroupError;
+    /// #
+    /// // definition of the `Data` structure
+    /// // we derive `Default` which will correspond to an empty structure
+    /// #[derive(Debug, Clone, Default)]
+    /// struct LeafletComposition {
+    ///     // number of phosphorus atoms in the upper leaflet for each trajectory frame
+    ///     upper: Vec<usize>,
+    ///     // number of phosphorus atoms in the lower leaflet for each trajectory frame
+    ///     lower: Vec<usize>,
+    /// }
+    ///
+    /// // implementation of the Add operator allowing us to merge the results from different threads
+    /// impl Add for LeafletComposition {
+    ///     type Output = LeafletComposition;
+    ///
+    ///     fn add(self, rhs: Self) -> Self::Output {
+    ///         let mut new = self.clone();
+    ///
+    ///         new.upper.extend(rhs.upper.iter());
+    ///         new.lower.extend(rhs.lower.iter());
+    ///
+    ///         new
+    ///     }
+    /// }
+    ///
+    /// // assignment function that will be performed for each trajectory frame
+    /// fn assign_lipids(
+    ///     frame: &System,
+    ///     composition: &mut LeafletComposition,
+    /// ) -> Result<(), GroupError> {
+    ///     let mut upper = 0;
+    ///     let mut lower = 0;
+    ///
+    ///     let membrane_com = frame.group_get_center("Membrane")?;
+    ///     for atom in frame.group_iter("Phosphori")? {
+    ///         let z = atom
+    ///             .distance_from_point(
+    ///                 &membrane_com,
+    ///                 Dimension::Z,
+    ///                 frame.get_box_as_ref().unwrap(),
+    ///             )
+    ///             .unwrap();
+    ///
+    ///         // increase the upper leaflet counter if above membrane center
+    ///         if z > 0.0 {
+    ///             upper += 1;
+    ///         // increase the lower leaflet counter if below membrane center
+    ///         } else {
+    ///             lower += 1;
+    ///         }
+    ///     }
+    ///
+    ///     composition.upper.push(upper);
+    ///     composition.lower.push(lower);
+    ///
+    ///     Ok(())
+    /// }
+    ///
+    /// // preparing the system to use
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.group_create("Membrane", "@membrane").unwrap();
+    /// system
+    ///     .group_create("Phosphori", "Membrane and name P")
+    ///     .unwrap();
+    ///
+    /// // performing the parallel iteration using 4 threads
+    /// // we are only interested in a time range of 200-500 ns
+    /// // and we want to analyze every 5th trajectory frame
+    /// let result = system
+    ///     .traj_iter_map_reduce::<XtcReader, LeafletComposition, GroupError>(
+    ///         "md.xtc",
+    ///         4,
+    ///         assign_lipids,
+    ///         Some(200_000.0),
+    ///         Some(500_000.0),
+    ///         Some(5),
+    ///         None,
+    ///     )
+    ///     .unwrap();
+    ///
+    /// // post-processing the result (collected from all threads)
+    /// let av_upper_leaflet =
+    ///     result.upper.iter().sum::<usize>() as f32 / result.upper.len() as f32;
+    /// let av_lower_leaflet =
+    ///     result.lower.iter().sum::<usize>() as f32 / result.lower.len() as f32;
+    ///
+    /// ```
+    ///
+    /// ## Notes
+    /// - The order of iteration through trajectory frames is completely undefined!
+    /// - The original `System` structure is not modified and remains in the same state as at the start of the iteration.
+    /// That is different from the standard (serial) iteration over trajectories.
+    /// - If a single thread encounters an error during the iteration, the entire function returns an error.
+    pub fn traj_iter_map_reduce<'a, Reader, Data, Error>(
+        &self,
+        trajectory_file: impl AsRef<Path> + Send + Clone,
+        n_threads: usize,
+        body: impl Fn(&System, &mut Data) -> Result<(), Error> + Send + Clone,
+        start_time: Option<f32>,
+        end_time: Option<f32>,
+        step: Option<usize>,
+        _progress_printer: Option<ProgressPrinter>,
+    ) -> Result<Data, Box<dyn std::error::Error + Send + Sync>>
+    where
+        Reader: TrajReadOpen<'a> + TrajRangeRead<'a> + TrajStepRead<'a> + TrajRead<'a> + 'a,
+        <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
+        Data: Add<Output = Data> + Default + Send,
+        Error: std::error::Error + Send + Sync + 'static,
+    {
+        if n_threads == 0 {
+            panic!("FATAL GROAN ERROR | System::traj_iter_map_reduce | Number of threads to spawn must be > 0.");
+        }
+
+        std::thread::scope(
+            |s| -> Result<Data, Box<dyn std::error::Error + Send + Sync>> {
+                let mut handles = Vec::new();
+
+                for n in 0..n_threads {
+                    let system_clone = self.clone();
+                    let body_clone = body.clone();
+                    let filename = trajectory_file.clone();
+                    let mut data = Data::default();
+
+                    let handle = s.spawn(
+                        move || -> Result<Data, Box<dyn std::error::Error + Send + Sync>> {
+                            system_clone.thread_iter::<Reader, Data, Error>(
+                                &mut data, filename, n, n_threads, body_clone, start_time,
+                                end_time, step, None,
+                            )?;
+
+                            Ok(data)
+                        },
+                    );
+                    handles.push(handle);
+                }
+
+                let mut data = Vec::new();
+                for handle in handles {
+                    data.push(handle.join().expect(
+                        "FATAL GROAN ERROR | System::traj_iter_map_reduce | A thread panicked!",
+                    )?)
+                }
+
+                // reduce data
+                // TODO! implement parallel reduction
+                Ok(data.into_iter().fold(Data::default(), |acc, x| acc + x))
+            },
+        )
+    }
+
+    /// Iterate over the system in a single thread.
+    fn thread_iter<'a, Reader, Data, Error>(
+        mut self,
+        data: &mut Data,
+        filename: impl AsRef<Path>,
+        thread_number: usize,
+        n_threads: usize,
+        body: impl Fn(&System, &mut Data) -> Result<(), Error>,
+        start_time: Option<f32>,
+        end_time: Option<f32>,
+        step: Option<usize>,
+        progress_printer: Option<ProgressPrinter>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
+    where
+        Reader: TrajReadOpen<'a> + TrajRangeRead<'a> + TrajStepRead<'a> + TrajRead<'a> + 'a,
+        <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
+        Data: Add<Output = Data> + Default,
+        Error: std::error::Error + Send + Sync + 'static,
+    {
+        let start = start_time.unwrap_or(0.0);
+        let end = end_time.unwrap_or(f32::MAX);
+        let step = step.unwrap_or(1);
+
+        // prepare the iterator
+        // TODO! remove this unsafe
+        let mut iterator = unsafe { (*(&mut self as *mut Self)).traj_iter::<Reader>(&filename)? };
+        if let Some(progress) = progress_printer {
+            if thread_number == 0 {
+                iterator = iterator.print_progress(progress);
+            }
+        }
+        // find the start of the reading
+        let mut iterator = iterator.with_range(start, end)?;
+
+        // prepare the iterator for reading (skip N frames)
+        // TODO! the iteration should not fail if there is too few frames, but a smaller number of threads should be used
+        for _ in 0..(thread_number * step) {
+            match iterator.next() {
+                Some(Ok(_)) => (),
+                Some(Err(e)) => return Err(Box::from(e)),
+                None => {
+                    return Err(Box::from(ReadTrajError::InvalidParallelIteration(
+                        Box::from(filename.as_ref()),
+                    )))
+                }
+            }
+        }
+
+        // the iterator should step by N * n_threads frames
+        let iterator = iterator.with_step(step * n_threads)?;
+
+        for frame in iterator {
+            let frame = frame?;
+            body(&frame, data)?;
+        }
+
+        Ok(())
+    }
+
     /// Distribute all atoms of the system between threads.
     ///
     /// `n_atoms` must be >= `n_threads`.
@@ -98,7 +350,7 @@ impl System {
 #[cfg(test)]
 mod tests {
 
-    use crate::system::System;
+    use super::*;
 
     #[test]
     fn distribute_atoms() {
