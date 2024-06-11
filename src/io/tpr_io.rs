@@ -22,14 +22,9 @@ pub fn read_tpr(filename: impl AsRef<Path>) -> Result<System, ParseTprError> {
         Err(e) => return Err(ParseTprError::CouldNotRead(format!("{}", e))),
     };
 
-    let atoms: Vec<Atom> = tpr
-        .topology
-        .atoms
-        .into_iter()
-        .map(|x| -> Atom { Atom::from_minitpr_atom(x) })
-        .collect();
+    let atoms: Vec<Atom> = tpr.topology.atoms.into_iter().map(Into::into).collect();
 
-    let simbox = tpr.simbox.map(SimBox::from_minitpr_simbox);
+    let simbox = tpr.simbox.map(minitpr::SimBox::into);
 
     let mut system = System::new(&tpr.system_name, atoms, simbox);
 
@@ -47,19 +42,19 @@ pub fn read_tpr(filename: impl AsRef<Path>) -> Result<System, ParseTprError> {
     Ok(system)
 }
 
-impl Atom {
-    /// Convert Atom from `minitpr` to native groan_rs Atom.
-    fn from_minitpr_atom(tpr_atom: minitpr::Atom) -> Atom {
-        let atom = Atom::new(
-            tpr_atom.residue_number as usize,
-            &tpr_atom.residue_name,
-            tpr_atom.atom_number as usize,
-            &tpr_atom.atom_name,
+impl From<minitpr::Atom> for Atom {
+    /// Convert `Atom` from `minitpr` crate to native `groan_rs` Atom.
+    fn from(value: minitpr::Atom) -> Self {
+        let atom = Self::new(
+            value.residue_number as usize,
+            &value.residue_name,
+            value.atom_number as usize,
+            &value.atom_name,
         )
-        .with_mass(tpr_atom.mass as f32)
-        .with_charge(tpr_atom.charge as f32);
+        .with_mass(value.mass as f32)
+        .with_charge(value.charge as f32);
 
-        match tpr_atom.element {
+        match value.element {
             None => atom,
             Some(x) => atom
                 .with_element_name(&x.name().to_string().to_lowercase())
@@ -68,19 +63,19 @@ impl Atom {
     }
 }
 
-impl SimBox {
-    /// Convert SimBox from `minitpr` to native groan_rs Simbox.
-    fn from_minitpr_simbox(tpr_simbox: minitpr::SimBox) -> SimBox {
-        SimBox::from([
-            tpr_simbox.simbox[0][0] as f32,
-            tpr_simbox.simbox[1][1] as f32,
-            tpr_simbox.simbox[2][2] as f32,
-            tpr_simbox.simbox[0][1] as f32,
-            tpr_simbox.simbox[0][2] as f32,
-            tpr_simbox.simbox[1][0] as f32,
-            tpr_simbox.simbox[1][2] as f32,
-            tpr_simbox.simbox[2][0] as f32,
-            tpr_simbox.simbox[2][1] as f32,
+impl From<minitpr::SimBox> for SimBox {
+    /// Convert SimBox from `minitpr` crate to native `groan_rs` Simbox.
+    fn from(value: minitpr::SimBox) -> Self {
+        Self::from([
+            value.simbox[0][0] as f32,
+            value.simbox[1][1] as f32,
+            value.simbox[2][2] as f32,
+            value.simbox[0][1] as f32,
+            value.simbox[0][2] as f32,
+            value.simbox[1][0] as f32,
+            value.simbox[1][2] as f32,
+            value.simbox[2][0] as f32,
+            value.simbox[2][1] as f32,
         ])
     }
 }
@@ -113,8 +108,8 @@ mod tests {
             element: None,
         };
 
-        let converted1 = Atom::from_minitpr_atom(atom1);
-        let converted2 = Atom::from_minitpr_atom(atom2);
+        let converted1: Atom = atom1.into();
+        let converted2: Atom = atom2.into();
 
         assert_eq!(converted1.get_atom_name(), "BB");
         assert_eq!(converted1.get_atom_number(), 1);
@@ -149,7 +144,7 @@ mod tests {
             simbox_v: [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
         };
 
-        let converted = SimBox::from_minitpr_simbox(tpr_simbox);
+        let converted: SimBox = tpr_simbox.into();
 
         assert_approx_eq!(f32, converted.x, 13.452);
         assert_approx_eq!(f32, converted.y, 13.452);
