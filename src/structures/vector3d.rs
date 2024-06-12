@@ -25,9 +25,16 @@ const REC_SQRT2: f32 = std::f32::consts::FRAC_1_SQRT_2;
 const REC_SQRT3: f32 = 0.577_350_3_f32;
 
 impl From<[f32; 3]> for Vector3D {
-    #[inline]
+    #[inline(always)]
     fn from(arr: [f32; 3]) -> Self {
         Vector3D(Vector3::new(arr[0], arr[1], arr[2]))
+    }
+}
+
+impl From<[f64; 3]> for Vector3D {
+    #[inline(always)]
+    fn from(arr: [f64; 3]) -> Self {
+        Vector3D(Vector3::new(arr[0] as f32, arr[1] as f32, arr[2] as f32))
     }
 }
 

@@ -560,7 +560,7 @@ mod tests {
     use crate::{
         errors::ParsePdbConnectivityError,
         structures::element::Elements,
-        test_utilities::utilities::{compare_atoms_tpr, compare_box},
+        test_utilities::utilities::{compare_atoms_tpr_with_pdb, compare_box},
     };
 
     use super::*;
@@ -720,7 +720,7 @@ mod tests {
 
         // compare atoms (and bonds)
         for (atom1, atom2) in system_tpr.atoms_iter().zip(system_pdb.atoms_iter()) {
-            compare_atoms_tpr(atom1, atom2);
+            compare_atoms_tpr_with_pdb(atom1, atom2);
         }
     }
 
