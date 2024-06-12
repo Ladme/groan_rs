@@ -87,9 +87,9 @@ impl System {
     /// ## Warning
     /// - If you construct the group and then iterate through a trajectory, the group will still contain
     /// the same atoms as initially. In other words, the group is NOT dynamically updated.
-    /// - If you want to choose atoms dynamically, it is better to use `AtomIterator` and `filter_geometry` function
-    /// while iterating through the trajectory.
-    /// - Atoms that have undefiend positions will never be selected.
+    /// - If you want to choose atoms dynamically, it is better to use [`AtomIterator`](`crate::system::System::atoms_iter`)
+    /// and [`filter_geometry`](`crate::structures::iterators::AtomIterator::filter_geometry`) function while iterating through the trajectory.
+    /// - Atoms with undefined positions will never be selected.
     ///
     /// ## Notes
     /// - In case a group with the given name already exists, it is replaced with the new group.
@@ -164,7 +164,7 @@ impl System {
     /// the same atoms as initially. In other words, the group is NOT dynamically updated.
     /// - If you want to choose atoms dynamically, it is better to use `AtomIterator` and `filter_geometry` function
     /// while iterating through the trajectory.
-    /// - Atoms that have undefiend positions will never be selected.
+    /// - Atoms with undefined positions will never be selected.
     ///
     /// ## Notes
     /// - In case a group with the given name already exists, it is replaced with the new group.
