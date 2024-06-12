@@ -1,0 +1,11 @@
+# This is an example GridMap in row-major order.
+@   x   |   y   |   values
+   0.0  |  0.0  |   10
+   
+   0.0  |  1.0  |   4  8  12
+   1.0  |  0.0  |   5  4 
+   1.0  |  1.0  |   2  5
+
+
+   2.0  |  0.0  |   43  23  21
+   2.0  |  1.0  |   

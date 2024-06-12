@@ -3,7 +3,7 @@
 
 //! Implementation of a higher-level utility GridMap structure for use in `groan_rs` programs.
 
-use ndarray::Array2;
+use ndarray::{Array2, ShapeBuilder};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::num::Wrapping;
@@ -12,6 +12,16 @@ use std::{fmt::Display, io::Write};
 
 use crate::errors::GridMapError;
 use crate::structures::simbox::SimBox;
+
+/// Describes whether the data is written or should be written
+/// in row-major order or column-major order.
+/// Since Rust uses row-major ordering, using `RowMajor` is generally advised.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DataOrder {
+    #[default]
+    RowMajor,
+    ColumnMajor,
+}
 
 /// A map of values for tiles in the xy plane.
 /// Useful for analyzing membrane simulations.
@@ -165,11 +175,25 @@ impl<
     /// 2. The y-coordinate value
     /// 3. The serialized `RawValue`
     ///
-    /// All possible x-coordinate values must be listed before the y-coordinate changes.
+    /// Elements can be provided in row-major or in column-major order, the function can recognize the order used.
     /// The spacing between coordinates must be consistent. The coordinates should
     /// be ordered and going from the lowest to the highest.
     ///
-    /// ### Example:
+    /// ### Examples
+    /// Row-major order: (faster)
+    /// ```text
+    /// 0.0 0.0 1.784562
+    /// 0.0 1.0 0.432224
+    /// 0.0 2.0 4.347842
+    /// 1.0 0.0 2.943324
+    /// 1.0 1.0 2.434545
+    /// 1.0 2.0 0.432443
+    /// 2.0 0.0 4.213443
+    /// 2.0 1.0 3.947432
+    /// 2.0 2.0 3.024943
+    /// ```
+    ///
+    /// Column-major order:
     /// ```text
     /// 0.0 0.0 1.784562
     /// 1.0 0.0 2.943324
@@ -206,6 +230,7 @@ impl<
         let mut y_coords = Vec::new();
         let mut values = Vec::new();
 
+        let mut data_order = DataOrder::RowMajor;
         for line in reader.lines() {
             let line =
                 line.map_err(|_| GridMapError::CouldNotReadLine(Box::from(filename.as_ref())))?;
@@ -238,6 +263,10 @@ impl<
 
             if !x_coords.contains(&x) {
                 x_coords.push(x);
+                // check for column-major order
+                if x_coords.len() == 2 && y_coords.len() == 1 {
+                    data_order = DataOrder::ColumnMajor;
+                }
             }
             if !y_coords.contains(&y) {
                 y_coords.push(y);
@@ -251,9 +280,14 @@ impl<
         let (span_x, tile_x) = Self::properties_from_coords(&x_coords)?;
         let (span_y, tile_y) = Self::properties_from_coords(&y_coords)?;
 
-        let mut map = GridMap::from_vec(span_y, span_x, (tile_y, tile_x), values, converter)?;
-        map.transpose();
-        Ok(map)
+        GridMap::from_vec(
+            span_x,
+            span_y,
+            (tile_x, tile_y),
+            values,
+            data_order,
+            converter,
+        )
     }
 
     /// Get map span and grid tile height/width from a vector coordinates.
@@ -268,7 +302,7 @@ impl<
     }
 
     /// Creates a new grid map from grid map span, grid tile dimensions, and a vector of values.
-    /// The values are mapped in the same way as in `Array2::from_shape_vec`.
+    /// `data_order` specifies whether the elements provided in the `values` are row-major or column-major ordered.
     ///
     /// The `converter` function handles conversion from internal data inside the map
     /// to data that should be written out in case `write_map` is called.
@@ -279,6 +313,7 @@ impl<
         span_y: (f32, f32),
         tile_dim: (f32, f32),
         values: Vec<RawValue>,
+        data_order: DataOrder,
         converter: Converter,
     ) -> Result<GridMap<RawValue, VisValue, Converter>, GridMapError> {
         let len_x = Self::get_len(span_x, tile_dim.0)?;
@@ -288,9 +323,13 @@ impl<
             return Err(GridMapError::InvalidMapDimensions(len_x * len_y, n_values));
         }
 
-        let values = Array2::<RawValue>::from_shape_vec((len_x, len_y), values).expect(
-            "FATAL GROAN ERROR | GridMap::from_vec | Could not construct 2D array of values.",
-        );
+        let values = match data_order {
+            DataOrder::RowMajor => Array2::<RawValue>::from_shape_vec((len_x, len_y), values),
+            DataOrder::ColumnMajor => {
+                Array2::<RawValue>::from_shape_vec((len_x, len_y).f(), values)
+            }
+        }
+        .expect("FATAL GROAN ERROR | GridMap::from_vec | Could not construct 2D array of values.");
 
         Ok(GridMap {
             span_x,
@@ -385,6 +424,8 @@ impl<
     }
 
     /// Write the map with RAW UNCONVERTED values into the provided writer structure.
+    ///
+    /// The map is written in row-major order. For column-major order, see [`write_map_raw_column_major`](`GridMap::write_map_raw_column_major`).
     pub fn write_map_raw(&self, writer: &mut impl Write) -> Result<(), GridMapError> {
         self.extract_raw().try_for_each(|x| {
             writeln!(writer, "{:10.6} {:10.6} {:?}", x.0, x.1, x.2)
@@ -394,9 +435,35 @@ impl<
         Ok(())
     }
 
+    /// Write the map with RAW UNCONVERTED values into the provided writer structure.
+    ///
+    /// The map is written in column-major order. For raw-major order, see [`write_map_raw`](`GridMap::write_map_raw`).
+    pub fn write_map_raw_column_major(&self, writer: &mut impl Write) -> Result<(), GridMapError> {
+        self.extract_raw_column_major().try_for_each(|x| {
+            writeln!(writer, "{:10.6} {:10.6} {:?}", x.0, x.1, x.2)
+                .map_err(|_| GridMapError::CouldNotWrite)
+        })?;
+
+        Ok(())
+    }
+
     /// Write the map into the provided writer structure. Convert the values of the map.
+    ///
+    /// The map is written in row-major order. For column-major order, see [`write_map_column_major`](`GridMap::write_map_column_major`).
     pub fn write_map(&self, writer: &mut impl Write) -> Result<(), GridMapError> {
         self.extract_convert().try_for_each(|x| {
+            writeln!(writer, "{:10.6} {:10.6} {}", x.0, x.1, x.2)
+                .map_err(|_| GridMapError::CouldNotWrite)
+        })?;
+
+        Ok(())
+    }
+
+    /// Write the map into the provided writer structure. Convert the values of the map.
+    ///
+    /// The map is written in column-major order. For raw-major order, see [`write_map`](`GridMap::write_map`).
+    pub fn write_map_column_major(&self, writer: &mut impl Write) -> Result<(), GridMapError> {
+        self.extract_convert_column_major().try_for_each(|x| {
             writeln!(writer, "{:10.6} {:10.6} {}", x.0, x.1, x.2)
                 .map_err(|_| GridMapError::CouldNotWrite)
         })?;
@@ -410,18 +477,38 @@ impl<
     /// a grid tile of the map with its associated value.
     /// In other words, each element is a tuple of x-coordinate, y-coordinate and the value.
     ///
-    /// ## Notes
-    /// - The iterator first loops through all x-coordinates before the y-coordinate is changed.
+    /// The data are exported in row-major order. For column-major order, see [`extract_raw_column_major`](`GridMap::extract_raw_column_major`).
     pub fn extract_raw(&self) -> impl Iterator<Item = (f32, f32, &RawValue)> + '_ {
+        (0..self.n_tiles_x())
+            .flat_map(move |x| {
+                let x_coord = self.index2x(x);
+                (0..self.n_tiles_y()).map(move |y| {
+                    let y_coord = self.index2y(y);
+                    (x_coord, y_coord, self.get_at(x_coord, y_coord)
+                        .expect("FATAL GROAN ERROR | GridMap::extract_raw | Value at target coordinates must exist."))
+                })
+            }
+        )
+    }
+
+    /// Extract the map into an iterator over (f32, f32, &RawValue).
+    ///
+    /// Each element of the returned iterator corresponds to
+    /// a grid tile of the map with its associated value.
+    /// In other words, each element is a tuple of x-coordinate, y-coordinate and the value.
+    ///
+    /// The data are exported in column-major order. For row-major order, see [`extract_raw`](`GridMap::extract_raw`).
+    pub fn extract_raw_column_major(&self) -> impl Iterator<Item = (f32, f32, &RawValue)> + '_ {
         (0..self.n_tiles_y())
             .flat_map(move |y| {
                 let y_coord = self.index2y(y);
                 (0..self.n_tiles_x()).map(move |x| {
-                    let x_coord = self.index2x(x);
+                    let x_coord = self.index2y(x);
                     (x_coord, y_coord, self.get_at(x_coord, y_coord)
-                        .expect("FATAL GROAN ERROR | GridMap::extract_raw | Value at target coordinates must exist."))
+                        .expect("FATAL GROAN ERROR | GridMap::extract_raw_column_major | Value at target coordinates must exist."))
                 })
-            })
+            }
+        )
     }
 
     /// Extract the map into an iterator over (f32, f32, VisValue).
@@ -430,18 +517,24 @@ impl<
     /// of the map with its associated CONVERTED value.
     /// In other words, each element is a tuple of x-coordinate, y-coordinate and the converted value.
     ///
-    /// ## Notes
-    /// - The iterator first loops through all x-coordinates before the y-coordinate is changed.
+    /// The data are exported in row-major order.
+    /// For column-major order, see [`extract_convert_column_major`](`GridMap::extract_convert_column_major`).
     pub fn extract_convert(&self) -> impl Iterator<Item = (f32, f32, VisValue)> + '_ {
         self.extract_raw()
             .map(|x| (x.0, x.1, (self.converter)(x.2)))
     }
 
-    /// Transpose (rotate) the map. Used for reading gridmap files.
-    fn transpose(&mut self) {
-        (self.span_x, self.span_y) = (self.span_y, self.span_x);
-        (self.tile_dim.0, self.tile_dim.1) = (self.tile_dim.1, self.tile_dim.0);
-        self.values = self.values.t().to_owned();
+    /// Extract the map into an iterator over (f32, f32, VisValue).
+    ///
+    /// Each element of the returned iterator corresponds to a grid tile
+    /// of the map with its associated CONVERTED value.
+    /// In other words, each element is a tuple of x-coordinate, y-coordinate and the converted value.
+    ///
+    /// The data are exported in column-major order.
+    /// For row-major order, see [`extract_convert`](`GridMap::extract_convert`).
+    pub fn extract_convert_column_major(&self) -> impl Iterator<Item = (f32, f32, VisValue)> + '_ {
+        self.extract_raw_column_major()
+            .map(|x| (x.0, x.1, (self.converter)(x.2)))
     }
 
     /// Convert an x-coordinate to an index in the map.
@@ -594,10 +687,44 @@ mod tests {
     }
 
     #[test]
-    fn from_vec() {
+    fn from_vec_column_major() {
         let values = vec![1, 2, 3, 4, 5, 6, 7, 8];
-        let gridmap =
-            GridMap::from_vec((1.0, 2.0), (1.0, 2.5), (1.0, 0.5), values, usize::to_owned).unwrap();
+        let gridmap = GridMap::from_vec(
+            (1.0, 2.0),
+            (1.0, 2.5),
+            (1.0, 0.5),
+            values,
+            DataOrder::ColumnMajor,
+            usize::to_owned,
+        )
+        .unwrap();
+
+        assert_eq!(gridmap.n_tiles_x(), 2);
+        assert_eq!(gridmap.n_tiles_y(), 4);
+        assert_eq!(gridmap.n_tiles(), 8);
+
+        assert_eq!(*gridmap.get_at(1.0, 1.0).unwrap(), 1);
+        assert_eq!(*gridmap.get_at(2.0, 1.0).unwrap(), 2);
+        assert_eq!(*gridmap.get_at(1.0, 1.5).unwrap(), 3);
+        assert_eq!(*gridmap.get_at(2.0, 1.5).unwrap(), 4);
+        assert_eq!(*gridmap.get_at(1.0, 2.0).unwrap(), 5);
+        assert_eq!(*gridmap.get_at(2.0, 2.0).unwrap(), 6);
+        assert_eq!(*gridmap.get_at(1.0, 2.5).unwrap(), 7);
+        assert_eq!(*gridmap.get_at(2.0, 2.5).unwrap(), 8);
+    }
+
+    #[test]
+    fn from_vec_row_major() {
+        let values = vec![1, 2, 3, 4, 5, 6, 7, 8];
+        let gridmap = GridMap::from_vec(
+            (1.0, 2.0),
+            (1.0, 2.5),
+            (1.0, 0.5),
+            values,
+            DataOrder::RowMajor,
+            usize::to_owned,
+        )
+        .unwrap();
 
         assert_eq!(gridmap.n_tiles_x(), 2);
         assert_eq!(gridmap.n_tiles_y(), 4);
@@ -628,9 +755,28 @@ mod tests {
     }
 
     #[test]
-    fn from_file() {
+    fn from_file_column_major() {
         let gridmap = GridMap::from_file(
-            "test_files/gridmaps/map.dat",
+            "test_files/gridmaps/map_column_major.dat",
+            sum_usize,
+            &['|'],
+            parse_vec,
+            &["@", "#"],
+        )
+        .unwrap();
+
+        assert_eq!(*gridmap.get_at(0.0, 0.0).unwrap(), vec![10]);
+        assert_eq!(*gridmap.get_at(1.0, 0.0).unwrap(), vec![5, 4]);
+        assert_eq!(*gridmap.get_at(2.0, 0.0).unwrap(), vec![43, 23, 21]);
+        assert_eq!(*gridmap.get_at(0.0, 1.0).unwrap(), vec![4, 8, 12]);
+        assert_eq!(*gridmap.get_at(1.0, 1.0).unwrap(), vec![2, 5]);
+        assert_eq!(*gridmap.get_at(2.0, 1.0).unwrap(), vec![]);
+    }
+
+    #[test]
+    fn from_file_row_major() {
+        let gridmap = GridMap::from_file(
+            "test_files/gridmaps/map_row_major.dat",
             sum_usize,
             &['|'],
             parse_vec,
@@ -702,7 +848,7 @@ mod tests {
     #[test]
     fn extract_raw() {
         let gridmap = GridMap::from_file(
-            "test_files/gridmaps/map.dat",
+            "test_files/gridmaps/map_row_major.dat",
             sum_usize,
             &['|'],
             parse_vec,
@@ -712,6 +858,29 @@ mod tests {
 
         let vec = gridmap
             .extract_raw()
+            .collect::<Vec<(f32, f32, &Vec<usize>)>>();
+
+        assert_eq!(vec[0], (0.0, 0.0, &vec![10]));
+        assert_eq!(vec[1], (0.0, 1.0, &vec![4, 8, 12]));
+        assert_eq!(vec[2], (1.0, 0.0, &vec![5, 4]));
+        assert_eq!(vec[3], (1.0, 1.0, &vec![2, 5]));
+        assert_eq!(vec[4], (2.0, 0.0, &vec![43, 23, 21]));
+        assert_eq!(vec[5], (2.0, 1.0, &vec![]));
+    }
+
+    #[test]
+    fn extract_raw_column_major() {
+        let gridmap = GridMap::from_file(
+            "test_files/gridmaps/map_column_major.dat",
+            sum_usize,
+            &['|'],
+            parse_vec,
+            &["@", "#"],
+        )
+        .unwrap();
+
+        let vec = gridmap
+            .extract_raw_column_major()
             .collect::<Vec<(f32, f32, &Vec<usize>)>>();
 
         assert_eq!(vec[0], (0.0, 0.0, &vec![10]));
@@ -725,7 +894,7 @@ mod tests {
     #[test]
     fn extract_convert() {
         let gridmap = GridMap::from_file(
-            "test_files/gridmaps/map.dat",
+            "test_files/gridmaps/map_column_major.dat",
             sum_usize,
             &['|'],
             parse_vec,
@@ -735,6 +904,29 @@ mod tests {
 
         let vec = gridmap
             .extract_convert()
+            .collect::<Vec<(f32, f32, usize)>>();
+
+        assert_eq!(vec[0], (0.0, 0.0, 10));
+        assert_eq!(vec[1], (0.0, 1.0, 24));
+        assert_eq!(vec[2], (1.0, 0.0, 9));
+        assert_eq!(vec[3], (1.0, 1.0, 7));
+        assert_eq!(vec[4], (2.0, 0.0, 87));
+        assert_eq!(vec[5], (2.0, 1.0, 0));
+    }
+
+    #[test]
+    fn extract_convert_column_major() {
+        let gridmap = GridMap::from_file(
+            "test_files/gridmaps/map_row_major.dat",
+            sum_usize,
+            &['|'],
+            parse_vec,
+            &["@", "#"],
+        )
+        .unwrap();
+
+        let vec = gridmap
+            .extract_convert_column_major()
             .collect::<Vec<(f32, f32, usize)>>();
 
         assert_eq!(vec[0], (0.0, 0.0, 10));
@@ -748,7 +940,7 @@ mod tests {
     #[test]
     fn write_raw() {
         let gridmap = GridMap::from_file(
-            "test_files/gridmaps/map.dat",
+            "test_files/gridmaps/map_row_major.dat",
             sum_usize,
             &['|'],
             parse_vec,
@@ -760,6 +952,26 @@ mod tests {
         gridmap.write_map_raw(&mut output).unwrap();
         let output_string = String::from_utf8(output.into_inner().unwrap()).unwrap();
 
+        let expected = "  0.000000   0.000000 [10]\n  0.000000   1.000000 [4, 8, 12]\n  1.000000   0.000000 [5, 4]\n  1.000000   1.000000 [2, 5]\n  2.000000   0.000000 [43, 23, 21]\n  2.000000   1.000000 []\n";
+
+        assert_eq!(output_string, expected);
+    }
+
+    #[test]
+    fn write_raw_column_major() {
+        let gridmap = GridMap::from_file(
+            "test_files/gridmaps/map_column_major.dat",
+            sum_usize,
+            &['|'],
+            parse_vec,
+            &["@", "#"],
+        )
+        .unwrap();
+
+        let mut output = BufWriter::new(Vec::new());
+        gridmap.write_map_raw_column_major(&mut output).unwrap();
+        let output_string = String::from_utf8(output.into_inner().unwrap()).unwrap();
+
         let expected = "  0.000000   0.000000 [10]\n  1.000000   0.000000 [5, 4]\n  2.000000   0.000000 [43, 23, 21]\n  0.000000   1.000000 [4, 8, 12]\n  1.000000   1.000000 [2, 5]\n  2.000000   1.000000 []\n";
 
         assert_eq!(output_string, expected);
@@ -768,7 +980,7 @@ mod tests {
     #[test]
     fn write() {
         let gridmap = GridMap::from_file(
-            "test_files/gridmaps/map.dat",
+            "test_files/gridmaps/map_column_major.dat",
             sum_usize,
             &['|'],
             parse_vec,
@@ -778,6 +990,26 @@ mod tests {
 
         let mut output = BufWriter::new(Vec::new());
         gridmap.write_map(&mut output).unwrap();
+        let output_string = String::from_utf8(output.into_inner().unwrap()).unwrap();
+
+        let expected = "  0.000000   0.000000 10\n  0.000000   1.000000 24\n  1.000000   0.000000 9\n  1.000000   1.000000 7\n  2.000000   0.000000 87\n  2.000000   1.000000 0\n";
+
+        assert_eq!(output_string, expected);
+    }
+
+    #[test]
+    fn write_column_major() {
+        let gridmap = GridMap::from_file(
+            "test_files/gridmaps/map_row_major.dat",
+            sum_usize,
+            &['|'],
+            parse_vec,
+            &["@", "#"],
+        )
+        .unwrap();
+
+        let mut output = BufWriter::new(Vec::new());
+        gridmap.write_map_column_major(&mut output).unwrap();
         let output_string = String::from_utf8(output.into_inner().unwrap()).unwrap();
 
         let expected = "  0.000000   0.000000 10\n  1.000000   0.000000 9\n  2.000000   0.000000 87\n  0.000000   1.000000 24\n  1.000000   1.000000 7\n  2.000000   1.000000 0\n";
@@ -813,7 +1045,7 @@ mod tests {
         let sum_and_add_number = move |raw: &Vec<usize>| raw.iter().sum::<usize>() + number;
 
         let gridmap = GridMap::from_file(
-            "test_files/gridmaps/map.dat",
+            "test_files/gridmaps/map_row_major.dat",
             sum_and_add_number,
             &['|'],
             parse_vec,
@@ -825,10 +1057,10 @@ mod tests {
             .extract_convert()
             .collect::<Vec<(f32, f32, usize)>>();
         assert_eq!(vec[0], (0.0, 0.0, 27));
-        assert_eq!(vec[1], (1.0, 0.0, 26));
-        assert_eq!(vec[2], (2.0, 0.0, 104));
-        assert_eq!(vec[3], (0.0, 1.0, 41));
-        assert_eq!(vec[4], (1.0, 1.0, 24));
+        assert_eq!(vec[1], (0.0, 1.0, 41));
+        assert_eq!(vec[2], (1.0, 0.0, 26));
+        assert_eq!(vec[3], (1.0, 1.0, 24));
+        assert_eq!(vec[4], (2.0, 0.0, 104));
         assert_eq!(vec[5], (2.0, 1.0, 17));
     }
 }
