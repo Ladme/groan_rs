@@ -597,6 +597,7 @@ mod tests {
 
     use super::*;
 
+    #[allow(clippy::ptr_arg)]
     fn sum(vec: &Vec<f32>) -> f32 {
         vec.iter().sum()
     }
@@ -740,6 +741,7 @@ mod tests {
         assert_eq!(*gridmap.get_at(2.0, 2.5).unwrap(), 8);
     }
 
+    #[allow(clippy::ptr_arg)]
     fn sum_usize(vec: &Vec<usize>) -> usize {
         vec.iter().sum()
     }
