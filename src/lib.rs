@@ -7,19 +7,19 @@
 //! Currently in an early stage of development: anything can break, change or stop working at any time.
 //!
 //! ## What it can do
-//! - Read and write gro, pdb, pqr, ndx, xtc and trr files.
-//! - Read topology (atoms and connectivity) from tpr files.
-//! - Iterate over atoms and access their properties, including connectivity (bonds).
-//! - Select atoms using a selection language similar to VMD.
-//! - Calculate distances between atoms respecting periodic boundary conditions.
-//! - Select atoms based on geometric conditions.
-//! - Assign elements to atoms and guess connectivity between the atoms.
-//! - Calculate center of geometry for *any* group of atoms.
-//! - Center a group of atoms in a simulation box.
-//! - And some other, less relevant stuff.
+//! - Read and write [gro](`crate::io::gro_io::read_gro`), [pdb](`crate::io::pdb_io::read_pdb`), [pqr](`crate::io::pqr_io::read_pqr`), [ndx](`crate::system::System::read_ndx`), [xtc](`crate::system::System::xtc_iter`) and [trr](`crate::system::System::trr_iter`) files.
+//! - Read topology and structure of the system from [tpr](`crate::io::tpr_io::read_tpr`) files (using the [`minitpr`](`minitpr`) crate).
+//! - [Iterate over atoms](`crate::system::System::atoms_iter`) and access their [properties](`crate::structures::atom::Atom`), including connectivity (bonds).
+//! - Select atoms using a [selection language](#groan-selection-language) similar to VMD.
+//! - [Calculate distances between atoms](`crate::system::System::atoms_distance`) respecting periodic boundary conditions.
+//! - [Select atoms based on geometric conditions.](`crate::system::System::group_create_from_geometry`)
+//! - [Assign elements](`crate::system::System::guess_elements`) to atoms and [guess connectivity](`crate::system::System::guess_bonds`) between the atoms.
+//! - Calculate [center of geometry](`crate::system::System::group_get_center`) or [mass](`crate::system::System::group_get_com`) for *any* group of atoms.
+//! - [Center a group of atoms](`crate::system::System::atoms_center`) in a simulation box.
+//! - Help with specific analyses by providing utility data structures (e.g., [`GridMaps`](`crate::structures::gridmap::GridMap`)).
+//! - Some other minor stuff...
 //!
 //! ## What it CAN'T do (at the moment)
-//! - Read atom positions, velocities, and forces from tpr files.
 //! - Work with non-orthogonal periodic boundary conditions.
 //! - Perform advanced analyses of structure and dynamics out of the box.
 //! (But `groan_rs` library tries to make it simple to implement your own!)
@@ -540,7 +540,7 @@
 //! While it can read structures and trajectories with non-orthogonal boxes, calculated distances and similar properties may be incorrect!
 //! Tread very carefully!
 //!
-//! - While `groan_rs` can read double-precision trr files, it uses single-precision floating point numbers everywhere in its code.
+//! - While `groan_rs` can read double-precision trr and tpr files, it uses single-precision floating point numbers everywhere in its code.
 //! If you require double-precision for your analyses, look elsewhere.
 //!
 //! ## License

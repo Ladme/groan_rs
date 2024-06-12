@@ -161,12 +161,7 @@ impl System {
     /// - When reading a pdb file, no connectivity information (bonds) is read, even if it is provided. You can add
     /// connectivity from a pdb file to your system using [`System::add_bonds_from_pdb`]. See more information
     /// about parsing PDB files in [`pdb_io::read_pdb`](`crate::io::pdb_io::read_pdb`).
-    /// - Reading of the tpr files is currently rather limited. Only the following information are read:
-    /// system name, simulation box dimensions (if present), system topology (atoms + bonds).
-    /// Only the following information are read for each atom: atom name, atom number, residue name, residue number,
-    /// charge, mass, element name, and element symbol (if the element is identifiable). **No positions, velocities, or
-    /// forces are currently being read from a tpr file.**
-    /// - Intermolecular bonds and groups are also not read from tpr files.
+    /// - Groups are not read from tpr files.
     pub fn from_file(filename: impl AsRef<Path>) -> Result<Self, Box<dyn Error + Send + Sync>> {
         match FileType::from_name(&filename) {
             FileType::GRO => gro_io::read_gro(filename).map_err(Box::from),

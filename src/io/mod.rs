@@ -4,7 +4,7 @@
 //! Implementation of functions for reading and writing various structure, trajectory, and auxiliary files.
 
 pub mod gro_io;
-mod ndx_io;
+pub mod ndx_io;
 pub mod pdb_io;
 pub mod pqr_io;
 pub mod tpr_io;

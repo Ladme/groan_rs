@@ -154,7 +154,7 @@ impl System {
 }
 
 /// Read a gro file and construct a System structure.
-pub(crate) fn read_gro(filename: impl AsRef<Path>) -> Result<System, ParseGroError> {
+pub fn read_gro(filename: impl AsRef<Path>) -> Result<System, ParseGroError> {
     let file = match File::open(filename.as_ref()) {
         Ok(x) => x,
         Err(_) => return Err(ParseGroError::FileNotFound(Box::from(filename.as_ref()))),
