@@ -31,7 +31,7 @@ impl System {
     /// The method uses the following generic parameters:
     /// - `Reader`: The type of trajectory reader to utilize (e.g., `XtcReader`, `TrrReader`).
     /// - `Data`: The data structure for storing analysis results, which must implement `Add` and `Default`.
-    ///   The `Add` trait defines how `Data` instances are combined. `Default` defined the initial state of the data structure.
+    ///   The `Add` trait defines how `Data` instances are combined. `Default` defines the initial state of the data structure.
     /// - `Error`: The error type that the `body` function may return if an error occurs.
     ///
     /// ## Arguments
@@ -142,6 +142,7 @@ impl System {
     /// - The original `System` structure is not modified and remains in the same state as at the start of the iteration.
     /// That is different from the standard (serial) iteration over trajectories.
     /// - If a single thread encounters an error during the iteration, the entire function returns an error.
+    /// However, this error is propagated only after all the other threads finish their work.
     pub fn traj_iter_map_reduce<'a, Reader, Data, Error>(
         &self,
         trajectory_file: impl AsRef<Path> + Send + Clone,
