@@ -1169,7 +1169,7 @@ mod tests {
 
         assert_eq!(system.group_get_n_atoms("Molecule").unwrap(), 49);
         for (a, atom) in system.group_iter("Molecule").unwrap().enumerate() {
-            if a >= 9 && a < 27 {
+            if (9..27).contains(&a) {
                 assert_eq!(atom.get_atom_number(), a + 2);
             } else if a == 27 {
                 assert_eq!(atom.get_atom_number(), 10);
