@@ -1787,6 +1787,23 @@ mod pass_tests {
             Name::new("Membrane").unwrap()
         ])
     );
+    parsing_success!(
+        molwith_label_1,
+        "molecule with label MyAtom",
+        Select::Molecule(Box::new(Select::LabeledAtom(vec![
+            Name::new("MyAtom").unwrap()
+        ])))
+    );
+
+    parsing_success!(
+        molwith_label_2,
+        "molwith  label MyAtom  MyAtom2 'Interesting atom '",
+        Select::Molecule(Box::new(Select::LabeledAtom(vec![
+            Name::new("MyAtom").unwrap(),
+            Name::new("MyAtom2").unwrap(),
+            Name::new("Interesting atom ").unwrap(),
+        ])))
+    );
 
     parsing_success!(
         hyphen_group,

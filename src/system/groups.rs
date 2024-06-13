@@ -1155,6 +1155,31 @@ mod tests {
     }
 
     #[test]
+    fn group_create_molwith_label() {
+        let mut system = System::from_file("test_files/conect.pdb").unwrap();
+        system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
+
+        system
+            .select_and_label("ReferenceAtom", "serial 17")
+            .unwrap();
+
+        system
+            .group_create("Molecule", "molecule with label ReferenceAtom")
+            .unwrap();
+
+        assert_eq!(system.group_get_n_atoms("Molecule").unwrap(), 49);
+        for (a, atom) in system.group_iter("Molecule").unwrap().enumerate() {
+            if a >= 9 && a < 27 {
+                assert_eq!(atom.get_atom_number(), a + 2);
+            } else if a == 27 {
+                assert_eq!(atom.get_atom_number(), 10);
+            } else {
+                assert_eq!(atom.get_atom_number(), a + 1);
+            }
+        }
+    }
+
+    #[test]
     fn group_create_macro_protein() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
