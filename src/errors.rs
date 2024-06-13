@@ -232,6 +232,35 @@ pub enum GroupError {
     EmptyGroup(String),
 }
 
+/// Errors that can occur when working with labeled atoms.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum AtomLabelError {
+    /// Used when the atom could not be labeled because its index is out of range.
+    #[error("{} atom with index '{}' could not be labeled: index out of range", "error:".red().bold(), .0.to_string().yellow())]
+    IndexOutOfRange(usize),
+    /// Used when the label already exists. This is a warning and does not indicate failure.
+    #[error("{} label '{}' already existed and has been reassigned from atom '{}' to atom '{}'", 
+        "warning:".yellow().bold(), 
+        .0.yellow(), 
+        .1.to_string().yellow(), 
+        .2.to_string().yellow())
+    ]
+    AlreadyExistsWarning(String, usize, usize),
+    /// Used when the label contains invalid character(s).
+    #[error("{} label '{}' contains invalid characters", "error:".red().bold(), .0.yellow())]
+    InvalidLabel(String),
+    /// Used when the label was not assigned to any atom.
+    #[error("{} label '{}' does not exist", "error:".red().bold(), .0.yellow())]
+    NotFound(String),
+    /// Used when the groan selection language query provided to select the atom is invalid.
+    /// Encapsulates the `SelectError` providing more information about the type of the error.
+    #[error("{}", .0)]
+    InvalidQuery(SelectError),
+    /// Used when the groan selection language query selects a different number of atoms than 1.
+    #[error("{} invalid number of atoms selected for labeling: expected '{}', got '{}'", "error:".red().bold(), 1.to_string().yellow(), .0.to_string().yellow())]
+    InvalidNumberOfAtoms(usize),
+}
+
 /// Errors that can occur when working with atoms in a system.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum AtomError {

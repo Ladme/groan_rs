@@ -645,7 +645,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+        system.get_atom_as_mut(15).unwrap().reset_position();
 
         match system.group_get_center("Protein") {
             Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
@@ -873,7 +873,7 @@ mod tests {
             atom.set_mass(10.3);
         }
 
-        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+        system.get_atom_as_mut(15).unwrap().reset_position();
 
         match system.group_get_com("Protein") {
             Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
@@ -1054,7 +1054,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+        system.get_atom_as_mut(15).unwrap().reset_position();
 
         match system.group_distance("Protein", "Membrane", Dimension::XYZ) {
             Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
@@ -1232,7 +1232,7 @@ mod tests {
     fn group_all_distances_fail_position() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
-        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+        system.get_atom_as_mut(15).unwrap().reset_position();
 
         match system.group_all_distances("Membrane", "Protein", Dimension::XYZ) {
             Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
@@ -1313,7 +1313,7 @@ mod tests {
     fn atoms_distance_fail_position() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+        system.get_atom_as_mut(15).unwrap().reset_position();
 
         match system.atoms_distance(12, 15, Dimension::XYZ) {
             Ok(_) => panic!("Function should have failed but it succeeded."),

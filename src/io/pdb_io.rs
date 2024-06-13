@@ -1173,7 +1173,7 @@ mod tests_read {
     #[test]
     fn pdb_bonds_duplicate_numbers() {
         let mut system = read_pdb("test_files/example.pdb").unwrap();
-        system.get_atom_as_ref_mut(10).unwrap().set_atom_number(25);
+        system.get_atom_as_mut(10).unwrap().set_atom_number(25);
 
         match system.add_bonds_from_pdb("test_files/bonds_inconsistency.pdb") {
             Err(ParsePdbConnectivityError::DuplicateAtomNumbers) => (),
@@ -1458,7 +1458,7 @@ mod tests_write {
         let mut system = System::from_file("test_files/conect.pdb").unwrap();
         system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
 
-        system.get_atom_as_ref_mut(10).unwrap().set_atom_number(4);
+        system.get_atom_as_mut(10).unwrap().set_atom_number(4);
 
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();
@@ -1478,10 +1478,7 @@ mod tests_write {
         let mut system = System::from_file("test_files/conect.pdb").unwrap();
         system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
 
-        system
-            .get_atom_as_ref_mut(10)
-            .unwrap()
-            .set_atom_number(100_000);
+        system.get_atom_as_mut(10).unwrap().set_atom_number(100_000);
 
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();

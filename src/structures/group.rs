@@ -301,24 +301,6 @@ impl Group {
         Ok(())
     }
 
-    /// Check whether the name for the group is a valid group name.
-    /// Characters '"&|!@()<>= are not allowed. Names containing whitespace only are also not allowed.
-    pub fn name_is_valid(string: &str) -> bool {
-        if string.trim().is_empty() {
-            return false;
-        }
-
-        let forbidden_chars = "'\"&|!@()<>=";
-
-        for c in string.chars() {
-            if forbidden_chars.contains(c) {
-                return false;
-            }
-        }
-
-        true
-    }
-
     /// Create a new valid `Group` as a union of two other groups.
     pub fn union(group1: &Group, group2: &Group) -> Group {
         let container = AtomContainer::union(group1.get_atoms(), group2.get_atoms());

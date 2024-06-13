@@ -428,7 +428,7 @@ impl System {
         // safety: only safe if bonds vector contains valid indices
         // we apply `System::reset_mol_references` at the end of the function
         unsafe {
-            let atoms = self.get_atoms_as_ref_mut();
+            let atoms = self.get_atoms_as_mut();
             for (index1, index2) in bonds {
                 atoms[index1].add_bonded(index2);
                 atoms[index2].add_bonded(index1);
@@ -572,7 +572,7 @@ impl System {
     /// Panics if the atom or the element does not exist.
     fn set_atom_properties(&mut self, atom_index: usize, element_name: &str, elements: &Elements) {
         let atom = self
-            .get_atom_as_ref_mut(atom_index)
+            .get_atom_as_mut(atom_index)
             .expect("FATAL GROAN ERROR | System::set_atom_properties | Atom should exist.");
 
         let element = elements
@@ -939,20 +939,17 @@ mod tests {
     fn guess_elements_prefilled() {
         let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
 
-        system.get_atom_as_ref_mut(0).unwrap().set_mass(19.1);
+        system.get_atom_as_mut(0).unwrap().set_mass(19.1);
+        system.get_atom_as_mut(0).unwrap().set_element_symbol("Uk");
+        system.get_atom_as_mut(0).unwrap().set_vdw(0.24);
         system
-            .get_atom_as_ref_mut(0)
-            .unwrap()
-            .set_element_symbol("Uk");
-        system.get_atom_as_ref_mut(0).unwrap().set_vdw(0.24);
-        system
-            .get_atom_as_ref_mut(360)
+            .get_atom_as_mut(360)
             .unwrap()
             .set_expected_max_bonds(7);
-        system.get_atom_as_ref_mut(14184).unwrap().set_vdw(0.20);
-        system.get_atom_as_ref_mut(32795).unwrap().set_mass(19.1);
+        system.get_atom_as_mut(14184).unwrap().set_vdw(0.20);
+        system.get_atom_as_mut(32795).unwrap().set_mass(19.1);
         system
-            .get_atom_as_ref_mut(32795)
+            .get_atom_as_mut(32795)
             .unwrap()
             .set_element_name("Unknown");
 
@@ -1372,7 +1369,7 @@ mod tests {
         let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
         system.guess_elements(Elements::default()).unwrap();
 
-        system.get_atom_as_ref_mut(1).unwrap().reset_element_name();
+        system.get_atom_as_mut(1).unwrap().reset_element_name();
 
         let no_element: Vec<usize> = vec![2];
         let not_recognized: Vec<usize> = vec![
@@ -1564,7 +1561,7 @@ mod tests {
             Ok(_) | Err(_) => (),
         }
 
-        system.get_atom_as_ref_mut(1).unwrap().reset_vdw();
+        system.get_atom_as_mut(1).unwrap().reset_vdw();
 
         let no_vdw = vec![2];
         let too_few_bonds = vec![
@@ -1633,7 +1630,7 @@ mod tests {
                 Ok(_) | Err(_) => (),
             }
 
-            system.get_atom_as_ref_mut(1).unwrap().reset_vdw();
+            system.get_atom_as_mut(1).unwrap().reset_vdw();
 
             match system.guess_bonds_parallel(None, n_threads) {
                 Ok(_) => panic!("Function should have returned a warning."),

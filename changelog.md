@@ -21,6 +21,12 @@
 - `GridMap` is a generic 2D array that can be navigated using coordinates of the molecular system.
 
 #### Other changes
+- **Breaking change:** `Group::name_is_valid` function has been moved to the `aux` module and is no longer public.
+- **Breadking change:** Renamed several functions for consistency with the general terminology:
+  - `System::get_atoms_as_ref_mut` -> `System::get_atoms_as_mut`,
+  - `System::get_groups_as_ref_mut` -> `System::get_groups_as_mut`,
+  - `System::get_box_as_ref_mut` -> `System::get_box_as_mut`,
+  - `System::get_atom_as_ref_mut` -> `System::get_atom_as_mut`.
 - Implemented `System::traj_iter_map_reduce` for simple embarrassingly parallel iteration through simulation trajectories.
 - Implemented `System::group_intersection` allowing to directly create groups that are intersections of other groups.
 

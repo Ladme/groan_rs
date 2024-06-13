@@ -40,7 +40,7 @@ impl System {
     /// - The following characters are not allowed in group names: '"&|!@()<>=
     /// - The group will be created even if the query selects no atoms.
     pub fn group_create(&mut self, name: &str, query: &str) -> Result<(), GroupError> {
-        if !Group::name_is_valid(name) {
+        if !crate::aux::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
         }
 
@@ -50,7 +50,7 @@ impl System {
         };
 
         unsafe {
-            match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
+            match self.get_groups_as_mut().insert(name.to_string(), group) {
                 None => Ok(()),
                 Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
             }
@@ -101,7 +101,7 @@ impl System {
         query: &str,
         geometry: impl Shape,
     ) -> Result<(), GroupError> {
-        if !Group::name_is_valid(name) {
+        if !crate::aux::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
         }
 
@@ -119,7 +119,7 @@ impl System {
         };
 
         unsafe {
-            match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
+            match self.get_groups_as_mut().insert(name.to_string(), group) {
                 None => Ok(()),
                 Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
             }
@@ -176,7 +176,7 @@ impl System {
         query: &str,
         geometries: Vec<Box<dyn Shape>>,
     ) -> Result<(), GroupError> {
-        if !Group::name_is_valid(name) {
+        if !crate::aux::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
         }
 
@@ -194,7 +194,7 @@ impl System {
         };
 
         unsafe {
-            match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
+            match self.get_groups_as_mut().insert(name.to_string(), group) {
                 None => Ok(()),
                 Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
             }
@@ -230,13 +230,13 @@ impl System {
         name: &str,
         atom_indices: Vec<usize>,
     ) -> Result<(), GroupError> {
-        if !Group::name_is_valid(name) {
+        if !crate::aux::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
         }
 
         let group = Group::from_indices(atom_indices, self.get_n_atoms());
         unsafe {
-            match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
+            match self.get_groups_as_mut().insert(name.to_string(), group) {
                 None => Ok(()),
                 Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
             }
@@ -272,14 +272,14 @@ impl System {
         name: &str,
         atom_ranges: Vec<(usize, usize)>,
     ) -> Result<(), GroupError> {
-        if !Group::name_is_valid(name) {
+        if !crate::aux::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
         }
 
         let group = Group::from_ranges(atom_ranges, self.get_n_atoms());
 
         unsafe {
-            match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
+            match self.get_groups_as_mut().insert(name.to_string(), group) {
                 None => Ok(()),
                 Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
             }
@@ -328,7 +328,7 @@ impl System {
         name: &str,
         select: Select,
     ) -> Result<(), GroupError> {
-        if !Group::name_is_valid(name) {
+        if !crate::aux::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
         }
 
@@ -338,7 +338,7 @@ impl System {
         };
 
         unsafe {
-            match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
+            match self.get_groups_as_mut().insert(name.to_string(), group) {
                 None => Ok(()),
                 Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
             }
@@ -607,7 +607,7 @@ impl System {
     /// `Ok` if successful, `GroupError::NotFound` in case the group does not exist.
     pub fn group_make_writable(&mut self, name: &str) -> Result<(), GroupError> {
         unsafe {
-            match self.get_groups_as_ref_mut().get_mut(name) {
+            match self.get_groups_as_mut().get_mut(name) {
                 None => return Err(GroupError::NotFound(name.to_owned())),
                 Some(group) => group.print_ndx = true,
             }
@@ -622,7 +622,7 @@ impl System {
     /// `Ok` if successful, `GroupError::NotFound` in case the group does not exist.
     pub fn group_make_nonwritable(&mut self, name: &str) -> Result<(), GroupError> {
         unsafe {
-            match self.get_groups_as_ref_mut().get_mut(name) {
+            match self.get_groups_as_mut().get_mut(name) {
                 None => return Err(GroupError::NotFound(name.to_owned())),
                 Some(group) => group.print_ndx = false,
             }
@@ -645,7 +645,7 @@ impl System {
     /// - This function maintains the order of the groups in the system.
     /// - Time complexity is O(n).
     pub unsafe fn group_remove(&mut self, name: &str) -> Result<(), GroupError> {
-        if self.get_groups_as_ref_mut().shift_remove(name).is_none() {
+        if self.get_groups_as_mut().shift_remove(name).is_none() {
             Err(GroupError::NotFound(name.to_owned()))
         } else {
             Ok(())
@@ -671,13 +671,13 @@ impl System {
     /// - Time complexity is O(n).
     pub unsafe fn group_rename(&mut self, old: &str, new: &str) -> Result<(), GroupError> {
         // get the old group
-        let group = match self.get_groups_as_ref_mut().shift_remove(old) {
+        let group = match self.get_groups_as_mut().shift_remove(old) {
             Some(x) => x,
             None => return Err(GroupError::NotFound(old.to_owned())),
         };
 
         // reinsert the group with the new name
-        match self.get_groups_as_ref_mut().insert(new.to_owned(), group) {
+        match self.get_groups_as_mut().insert(new.to_owned(), group) {
             Some(_) => Err(GroupError::AlreadyExistsWarning(new.to_owned())),
             None => Ok(()),
         }
@@ -766,10 +766,7 @@ impl System {
         let group = Group::union(group1, group2);
 
         unsafe {
-            match self
-                .get_groups_as_ref_mut()
-                .insert(union.to_string(), group)
-            {
+            match self.get_groups_as_mut().insert(union.to_string(), group) {
                 None => Ok(()),
                 Some(_) => Err(GroupError::AlreadyExistsWarning(union.to_string())),
             }
@@ -805,7 +802,7 @@ impl System {
 
         unsafe {
             match self
-                .get_groups_as_ref_mut()
+                .get_groups_as_mut()
                 .insert(intersection.to_string(), group)
             {
                 None => Ok(()),

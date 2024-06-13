@@ -679,50 +679,29 @@ mod tests_write {
     fn write_large() {
         let mut system = System::from_file("test_files/example.pqr").unwrap();
 
+        system.get_atom_as_mut(3).unwrap().set_atom_number(12753);
         system
-            .get_atom_as_ref_mut(3)
-            .unwrap()
-            .set_atom_number(12753);
-        system
-            .get_atom_as_ref_mut(28)
+            .get_atom_as_mut(28)
             .unwrap()
             .set_atom_number(127533497463);
+        system.get_atom_as_mut(29).unwrap().set_atom_number(999999);
+        system.get_atom_as_mut(31).unwrap().set_atom_name("SC1234");
+        system.get_atom_as_mut(2).unwrap().set_residue_name("ARGG");
+        system.get_atom_as_mut(17).unwrap().reset_chain();
         system
-            .get_atom_as_ref_mut(29)
-            .unwrap()
-            .set_atom_number(999999);
-        system
-            .get_atom_as_ref_mut(31)
-            .unwrap()
-            .set_atom_name("SC1234");
-        system
-            .get_atom_as_ref_mut(2)
-            .unwrap()
-            .set_residue_name("ARGG");
-        system.get_atom_as_ref_mut(17).unwrap().reset_chain();
-        system
-            .get_atom_as_ref_mut(17)
+            .get_atom_as_mut(17)
             .unwrap()
             .set_residue_number(29345);
+        system.get_atom_as_mut(13).unwrap().set_position_x(14.32);
         system
-            .get_atom_as_ref_mut(13)
-            .unwrap()
-            .set_position_x(14.32);
-        system
-            .get_atom_as_ref_mut(12)
+            .get_atom_as_mut(12)
             .unwrap()
             .set_position_x(214.32134);
-        system
-            .get_atom_as_ref_mut(12)
-            .unwrap()
-            .set_position_y(16.21);
-        system
-            .get_atom_as_ref_mut(11)
-            .unwrap()
-            .set_position_z(9423.32);
-        system.get_atom_as_ref_mut(42).unwrap().set_charge(11.32);
-        system.get_atom_as_ref_mut(43).unwrap().set_charge(-11.32);
-        system.get_atom_as_ref_mut(45).unwrap().set_vdw(1.477);
+        system.get_atom_as_mut(12).unwrap().set_position_y(16.21);
+        system.get_atom_as_mut(11).unwrap().set_position_z(9423.32);
+        system.get_atom_as_mut(42).unwrap().set_charge(11.32);
+        system.get_atom_as_mut(43).unwrap().set_charge(-11.32);
+        system.get_atom_as_mut(45).unwrap().set_vdw(1.477);
 
         let pqr_output = NamedTempFile::new().unwrap();
         let path_to_output = pqr_output.path();

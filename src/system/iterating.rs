@@ -81,14 +81,14 @@ impl System {
         let simbox = self.get_box_as_ref().map(|x| x as *const SimBox);
 
         let group = unsafe {
-            self.get_groups_as_ref_mut()
+            self.get_groups_as_mut()
                 .get_mut(name)
                 .ok_or(GroupError::NotFound(name.to_string()))? as *mut Group
         };
 
         unsafe {
             Ok(MutAtomIterator::new(
-                self.get_atoms_as_ref_mut(),
+                self.get_atoms_as_mut(),
                 (*group).get_atoms(),
                 simbox.map(|x| &*x),
             ))
@@ -212,10 +212,10 @@ impl System {
         let simbox = self.get_box_as_ref().map(|x| x as *const SimBox);
 
         unsafe {
-            let atom = self.get_atom_as_ref_mut(index)? as *mut Atom;
+            let atom = self.get_atom_as_mut(index)? as *mut Atom;
 
             Ok(MutAtomIterator::new(
-                self.get_atoms_as_ref_mut(),
+                self.get_atoms_as_mut(),
                 (*atom).get_bonded(),
                 simbox.map(|x| &*x),
             ))
@@ -277,7 +277,7 @@ impl System {
 
         unsafe {
             Ok(MutMoleculeIterator::new(
-                self.get_atoms_as_ref_mut(),
+                self.get_atoms_as_mut(),
                 indices,
                 simbox.map(|x| &*x),
             ))
@@ -335,7 +335,7 @@ impl System {
 
         unsafe {
             Ok(OwnedMutAtomIterator::new(
-                self.get_atoms_as_ref_mut(),
+                self.get_atoms_as_mut(),
                 group.get_atoms().to_owned(),
                 simbox.map(|x| &*x),
             ))

@@ -90,7 +90,7 @@ impl FrameData for XtcFrameData {
     /// Update the `System` structure based on data from `XtcFrameData`.
     fn update_system(self, system: &mut System) {
         unsafe {
-            for (i, atom) in system.get_atoms_as_ref_mut().iter_mut().enumerate() {
+            for (i, atom) in system.get_atoms_as_mut().iter_mut().enumerate() {
                 atom.set_position(Vector3D::from(*self.coordinates.get_unchecked(i)));
                 atom.reset_velocity();
                 atom.reset_force();
@@ -1399,10 +1399,7 @@ mod tests {
 
         // remove the protein group from the system; this should not change the output of the XtcGroupWriter
         unsafe {
-            let val = system
-                .get_groups_as_ref_mut()
-                .swap_remove("Protein")
-                .unwrap();
+            let val = system.get_groups_as_mut().swap_remove("Protein").unwrap();
             assert_eq!(val.get_atoms(), writer.group.get_atoms());
             assert!(!system.group_exists("Protein"));
         }

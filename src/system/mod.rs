@@ -3,6 +3,7 @@
 
 //! Implementation of the System structure and its methods.
 
+use hashbrown::HashMap;
 use indexmap::IndexMap;
 use std::collections::HashSet;
 use std::error::Error;
@@ -18,6 +19,7 @@ mod analysis;
 mod groups;
 pub mod guess;
 pub(crate) mod iterating;
+mod labeled_atoms;
 mod modifying;
 #[cfg(feature = "parallel")]
 mod parallel;
@@ -34,13 +36,16 @@ pub struct System {
     simulation_box: Option<SimBox>,
     /// Groups of atoms associated with the system.
     groups: IndexMap<String, Group>,
+    /// Atoms that have been specifically labeled with a string.
+    /// Each atom can have multiple labels, but one label specifies a single atom.
+    labeled_atoms: HashMap<String, usize>,
     /// Current simulation step.
     simulation_step: u64,
     /// Current simulation time in picoseconds.
     simulation_time: f32,
     /// Precision of the coordinates.
     coordinates_precision: u64,
-    /// Lambda
+    /// Lambda.
     lambda: f32,
     /// Reference atoms for all polyatomic molecules.
     /// (Index of the first atom of each polyatomic molecule.)
@@ -116,6 +121,7 @@ impl System {
             atoms,
             simulation_box,
             groups: IndexMap::new(),
+            labeled_atoms: HashMap::new(),
             simulation_step: 0u64,
             simulation_time: 0.0f32,
             coordinates_precision: 100u64,
@@ -183,12 +189,12 @@ impl System {
         self.group_create_from_ranges("All", vec![(0, self.get_n_atoms())])?;
 
         unsafe {
-            self.get_groups_as_ref_mut()
+            self.get_groups_as_mut()
                 .get_mut("all")
                 .expect("FATAL GROAN ERROR | System::group_create_all | Group 'all' is not available immediately after its construction.")
                 .print_ndx = false;
 
-            self.get_groups_as_ref_mut()
+            self.get_groups_as_mut()
                 .get_mut("All")
                 .expect("FATAL GROAN ERROR | System::group_create_all | Group 'All' is not available immediately after its construction.")
                 .print_ndx = false;
@@ -219,7 +225,7 @@ impl System {
     /// for reordering the atoms.
     /// - The properties of the individual atoms can however be safely changed.
     #[inline(always)]
-    pub unsafe fn get_atoms_as_ref_mut(&mut self) -> &mut Vec<Atom> {
+    pub unsafe fn get_atoms_as_mut(&mut self) -> &mut Vec<Atom> {
         &mut self.atoms
     }
 
@@ -244,7 +250,7 @@ impl System {
     /// these groups may cause the behavior of many other functions associated with `System`
     /// to become incorrect.
     #[inline(always)]
-    pub unsafe fn get_groups_as_ref_mut(&mut self) -> &mut IndexMap<String, Group> {
+    pub unsafe fn get_groups_as_mut(&mut self) -> &mut IndexMap<String, Group> {
         &mut self.groups
     }
 
@@ -287,7 +293,7 @@ impl System {
 
     /// Get mutable reference to the simulation box.
     #[inline(always)]
-    pub fn get_box_as_ref_mut(&mut self) -> Option<&mut SimBox> {
+    pub fn get_box_as_mut(&mut self) -> Option<&mut SimBox> {
         self.simulation_box.as_mut()
     }
 
@@ -524,7 +530,7 @@ impl System {
     /// ## Returns
     /// Mutable reference to `Atom` structure or `AtomError::OutOfRange` if `index` is out of range.
     #[inline(always)]
-    pub fn get_atom_as_ref_mut(&mut self, index: usize) -> Result<&mut Atom, AtomError> {
+    pub fn get_atom_as_mut(&mut self, index: usize) -> Result<&mut Atom, AtomError> {
         if index >= self.atoms.len() {
             return Err(AtomError::OutOfRange(index));
         }
@@ -880,7 +886,7 @@ mod tests {
 
         unsafe {
             system
-                .get_atoms_as_ref_mut()
+                .get_atoms_as_mut()
                 .get_mut(10)
                 .unwrap()
                 .set_atom_number(44);
@@ -978,15 +984,15 @@ mod tests {
     }
 
     #[test]
-    fn get_atom_as_ref_mut() {
+    fn get_atom_as_mut() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        assert!(system.get_atom_as_ref_mut(16844).is_err());
+        assert!(system.get_atom_as_mut(16844).is_err());
 
-        let atom = system.get_atom_as_ref_mut(0).unwrap();
+        let atom = system.get_atom_as_mut(0).unwrap();
         assert_eq!(atom.get_atom_number(), 1);
 
-        let atom = system.get_atom_as_ref_mut(16843).unwrap();
+        let atom = system.get_atom_as_mut(16843).unwrap();
         assert_eq!(atom.get_atom_number(), 16844);
     }
 
