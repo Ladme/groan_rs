@@ -19,6 +19,7 @@
 #### Labeled atoms
 - Individual atoms can be now labeled with strings (`System::label_atom` and `System::select_and_label`).
 - Labeled atoms can be accessed using their labels (`System::get_labeled_atom_as_ref`, `System::get_labeled_atom_as_mut`, `System::get_labeled_atom_copy`).
+- You can iterate through labeled atoms using `System::labeled_atoms_iter` and `System::labeled_atoms_iter_mut`.
 - Labeled atoms can be selected using the Groan Selection Language (`label 'atom X'`).
 
 #### GridMap structure

@@ -133,6 +133,37 @@ impl System {
         }
     }
 
+    /// Iterate over all labeled atoms. The atoms are immutable.
+    ///
+    /// ## Returns
+    /// An iterator over pairs of label : reference to `Atom`.
+    ///
+    /// ## Notes
+    /// - The order of iteration through the pairs is undefined.
+    pub fn labeled_atoms_iter(&self) -> impl Iterator<Item = (&str, &Atom)> {
+        self.labeled_atoms
+            .iter()
+            // safety: all labels are checked at construction that they point to a valid atom
+            // and atoms cannot be removed from the system
+            .map(|(label, &index)| unsafe { (label.as_str(), self.atoms.get_unchecked(index)) })
+    }
+
+    /// Iterate over all labeled atoms. The atoms are mutable.
+    ///
+    /// ## Returns
+    /// An iterator over pairs of label : mutable reference to `Atom`.
+    ///
+    /// ## Notes
+    /// - The order of iteration through the pairs is undefined.
+    pub fn labeled_atoms_iter_mut(&mut self) -> impl Iterator<Item = (&str, &mut Atom)> {
+        let atoms_ptr = self.atoms.as_mut_ptr();
+        self.labeled_atoms.iter().map(move |(label, &index)| {
+            // safety: all labels are checked at construction that they point to a valid atom
+            // and atoms cannot be removed from the system
+            unsafe { (label.as_str(), &mut *atoms_ptr.add(index)) }
+        })
+    }
+
     /// Get the reference to labeled atoms in a raw form.
     pub(crate) fn get_labeled_atoms(&self) -> &HashMap<String, usize> {
         &self.labeled_atoms
@@ -145,6 +176,8 @@ impl System {
 
 #[cfg(test)]
 mod tests {
+    use float_cmp::assert_approx_eq;
+
     use crate::{errors::SelectError, test_utilities::utilities::compare_atoms};
 
     use super::*;
@@ -363,5 +396,50 @@ mod tests {
             Ok(_) => panic!("Error should have been returned but it was not."),
             Err(e) => panic!("Incorrect error type '{}' returned.", e),
         }
+    }
+
+    #[test]
+    fn labeled_atoms_iter() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.label_atom("labeled atom", 174).unwrap();
+        system.label_atom("first atom", 0).unwrap();
+        system.label_atom("last atom", 16843).unwrap();
+
+        let mut collection = system.labeled_atoms_iter().collect::<Vec<(&str, &Atom)>>();
+        collection.sort_by_key(|x| x.0);
+
+        assert_eq!(collection.len(), 3);
+
+        assert_eq!(collection[0].0, "first atom");
+        compare_atoms(collection[0].1, system.get_atom_as_ref(0).unwrap());
+        assert_eq!(collection[1].0, "labeled atom");
+        compare_atoms(collection[1].1, system.get_atom_as_ref(174).unwrap());
+        assert_eq!(collection[2].0, "last atom");
+        compare_atoms(collection[2].1, system.get_atom_as_ref(16843).unwrap());
+
+        system.label_atom("one more", 1144).unwrap();
+
+        let collection = system.labeled_atoms_iter().collect::<Vec<(&str, &Atom)>>();
+        assert_eq!(collection.len(), 4);
+    }
+
+    #[test]
+    fn labeled_atoms_iter_mut() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.label_atom("labeled atom", 174).unwrap();
+        system.label_atom("first atom", 0).unwrap();
+        system.label_atom("last atom", 16843).unwrap();
+
+        let mut counter = 0;
+        system.labeled_atoms_iter_mut().for_each(|x| {
+            x.1.set_mass(10.5);
+            counter += 1;
+        });
+
+        assert_eq!(counter, 3);
+
+        system
+            .labeled_atoms_iter()
+            .for_each(|x| assert_approx_eq!(f32, x.1.get_mass().unwrap(), 10.5));
     }
 }
