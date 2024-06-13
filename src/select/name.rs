@@ -56,6 +56,32 @@ impl Name {
             }
         }
     }
+
+    /// Check whether `atom_index` corresponds to target labeled atom.
+    pub fn match_labels(&self, system: &System, atom_index: usize) -> Result<bool, SelectError> {
+        let labeled = system.get_labeled_atoms();
+
+        match self {
+            Name::String(s) => match labeled.get(s) {
+                Some(&x) => Ok(x == atom_index),
+                None => Err(SelectError::LabelNotFound(s.to_string())),
+            },
+            // in most cases, the regular expressions should already be expanded to actually labels
+            Name::Regex(r) => {
+                let label_names = labeled.keys();
+
+                for name in label_names {
+                    if r.is_match(name) {
+                        return Ok(*labeled.get(name).expect(
+                            "FATAL GROAN ERROR | Name::match_labels | Regex arm: label must exist.",
+                        ) == atom_index);
+                    }
+                }
+
+                Ok(false)
+            }
+        }
+    }
 }
 
 impl fmt::Display for Name {

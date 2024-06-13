@@ -91,8 +91,8 @@ impl Group {
 
     /// Create a new valid Group structure using Select tree.
     pub(crate) fn from_select(select: Select, system: &System) -> Result<Self, SelectError> {
-        // expand regex group names
-        let select = Box::new(select.expand_regex_group(system)?);
+        // expand regex group names and labels
+        let select = Box::new(select.expand_regex_group_label(system)?);
 
         let indices: Vec<usize> = (0usize..system.get_n_atoms())
             .filter_map(|i| {
@@ -226,6 +226,18 @@ impl Group {
             Select::GroupName(names) => {
                 for name in names.iter() {
                     match name.match_groups(system, atom_index) {
+                        Ok(true) => return Ok(true),
+                        Ok(false) => (),
+                        Err(e) => return Err(e),
+                    }
+                }
+
+                Ok(false)
+            }
+
+            Select::LabeledAtom(names) => {
+                for name in names.iter() {
+                    match name.match_labels(system, atom_index) {
                         Ok(true) => return Ok(true),
                         Ok(false) => (),
                         Err(e) => return Err(e),

@@ -419,15 +419,18 @@ pub enum SelectError {
     /// Used when a group specified in the groan selection language query does not exist.
     #[error("{} group '{}' does not exist", "error:".red().bold(), .0.to_string().yellow())]
     GroupNotFound(String),
+    /// Used when a label specified in the groan selection language query does not exist.
+    #[error("{} label '{} does not exist", "error:".red().bold(), .0.to_string().yellow())]
+    LabelNotFound(String),
     /// Used when an invalid identifier of a chain (i.e. longer than one character) is used in the groan selection language query.
     #[error("{} invalid chain identifier(s) in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
     InvalidChainId(String),
     /// Used when the groan selection language query contains a regular expression that is invalid.
     #[error("{} string '{}' is not a valid regular expression", "error:".red().bold(), .0.to_string().yellow())]
     InvalidRegex(String),
-    /// Used when the regular expression is used to select groups but corresponds to no groups in the system.
-    /// This is currently only used when no regular expression in the entire subquery corresponds to any groups of atoms.
-    #[error("{} regular expression '{}' matches no atom groups in the system", "error:".red().bold(), .0.to_string().yellow())]
+    /// Used when the regular expression is used to select groups/labels but corresponds to no groups/labels in the system.
+    /// This is currently only used when no regular expression in the entire subquery corresponds to any group of atoms or labeled atom.
+    #[error("{} regular expression '{}' matches no atom groups/labels in the system", "error:".red().bold(), .0.to_string().yellow())]
     NoRegexMatch(String),
     /// Used when an unknown error which does not have a specific `SelectError` variant occurs while parsing the groan selection language query.
     #[error("{} the provided query '{}' could not be understood for unknown reason", "error:".red().bold(), .0.to_string().yellow())]

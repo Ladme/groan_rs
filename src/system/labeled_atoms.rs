@@ -3,6 +3,8 @@
 
 //! Implementation of labeled atoms.
 
+use hashbrown::HashMap;
+
 use crate::{
     errors::AtomLabelError,
     structures::{atom::Atom, group::Group},
@@ -88,7 +90,7 @@ impl System {
     /// ## Returns
     /// - `true` if the label exists and is associated to an atom.
     /// - `false` otherwise.
-    pub fn has_label(&self, label: &str) -> bool {
+    pub fn label_exists(&self, label: &str) -> bool {
         self.labeled_atoms.contains_key(label)
     }
 
@@ -130,6 +132,11 @@ impl System {
             None => Err(AtomLabelError::NotFound(label.to_owned())),
         }
     }
+
+    /// Get the reference to labeled atoms in a raw form.
+    pub(crate) fn get_labeled_atoms(&self) -> &HashMap<String, usize> {
+        &self.labeled_atoms
+    }
 }
 
 /******************************/
@@ -150,11 +157,11 @@ mod tests {
         system.label_atom("last atom", 16843).unwrap();
 
         assert_eq!(*system.labeled_atoms.get("labeled atom").unwrap(), 174);
-        assert!(system.has_label("labeled atom"));
+        assert!(system.label_exists("labeled atom"));
         assert_eq!(*system.labeled_atoms.get("first atom").unwrap(), 0);
-        assert!(system.has_label("first atom"));
+        assert!(system.label_exists("first atom"));
         assert_eq!(*system.labeled_atoms.get("last atom").unwrap(), 16843);
-        assert!(system.has_label("last atom"));
+        assert!(system.label_exists("last atom"));
     }
 
     #[test]
@@ -172,7 +179,7 @@ mod tests {
             Err(e) => panic!("Incorrect error type '{}' returned.", e),
         }
         assert_eq!(*system.labeled_atoms.get("labeled atom").unwrap(), 7564);
-        assert!(system.has_label("labeled atom"));
+        assert!(system.label_exists("labeled atom"));
 
         // does not overwrite
         assert!(system.label_atom("labeled atom", 7564).is_ok());
@@ -189,7 +196,7 @@ mod tests {
             Err(e) => panic!("Incorrect error type '{}' returned.", e),
         }
 
-        assert!(!system.has_label("labeled at>m"));
+        assert!(!system.label_exists("labeled at>m"));
     }
 
     #[test]
@@ -202,7 +209,7 @@ mod tests {
             Err(e) => panic!("Incorrect error type '{}' returned.", e),
         }
 
-        assert!(!system.has_label("labeled atom"));
+        assert!(!system.label_exists("labeled atom"));
     }
 
     #[test]
@@ -217,11 +224,11 @@ mod tests {
         system.select_and_label("last atom", "resid 11180").unwrap();
 
         assert_eq!(*system.labeled_atoms.get("labeled atom").unwrap(), 174);
-        assert!(system.has_label("labeled atom"));
+        assert!(system.label_exists("labeled atom"));
         assert_eq!(*system.labeled_atoms.get("first atom").unwrap(), 0);
-        assert!(system.has_label("first atom"));
+        assert!(system.label_exists("first atom"));
         assert_eq!(*system.labeled_atoms.get("last atom").unwrap(), 16843);
-        assert!(system.has_label("last atom"));
+        assert!(system.label_exists("last atom"));
     }
 
     #[test]
@@ -239,7 +246,7 @@ mod tests {
             Err(e) => panic!("Incorrect error type '{}' returned.", e),
         }
         assert_eq!(*system.labeled_atoms.get("labeled atom").unwrap(), 7564);
-        assert!(system.has_label("labeled atom"));
+        assert!(system.label_exists("labeled atom"));
 
         // does not overwrite
         assert!(system
@@ -258,7 +265,7 @@ mod tests {
             Err(e) => panic!("Incorrect error type '{}' returned.", e),
         }
 
-        assert!(!system.has_label("labeled at>m"));
+        assert!(!system.label_exists("labeled at>m"));
     }
 
     #[test]
@@ -273,7 +280,7 @@ mod tests {
             Err(e) => panic!("Incorrect error type '{}' returned.", e),
         }
 
-        assert!(!system.has_label("labeled atom"));
+        assert!(!system.label_exists("labeled atom"));
     }
 
     #[test]
@@ -286,7 +293,7 @@ mod tests {
             Err(e) => panic!("Incorrect error type '{}' returned.", e),
         }
 
-        assert!(!system.has_label("labeled atom"));
+        assert!(!system.label_exists("labeled atom"));
     }
 
     #[test]
@@ -299,7 +306,7 @@ mod tests {
             Err(e) => panic!("Incorrect error type '{}' returned.", e),
         }
 
-        assert!(!system.has_label("labeled atom"));
+        assert!(!system.label_exists("labeled atom"));
     }
 
     #[test]

@@ -16,6 +16,11 @@
    respectively, for the provided iterator.
 - This is useful for the calculation of local center of mass in the system.
 
+#### Labeled atoms
+- Individual atoms can be now labeled with strings (`System::label_atom` and `System::select_and_label`).
+- Labeled atoms can be accessed using their labels (`System::get_labeled_atom_as_ref`, `System::get_labeled_atom_as_mut`, `System::get_labeled_atom_copy`).
+- Labeled atoms can be selected using the Groan Selection Language (`label 'atom X'`).
+
 #### GridMap structure
 - Implemented `GridMap` structure for easier analysis of properties of planar surfaces such as membranes.
 - `GridMap` is a generic 2D array that can be navigated using coordinates of the molecular system.
