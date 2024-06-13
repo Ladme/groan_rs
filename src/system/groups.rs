@@ -1318,6 +1318,40 @@ mod tests {
     }
 
     #[test]
+    fn group_create_labeled_atoms() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.label_atom("MyAtom 1", 654).unwrap();
+        system.label_atom("AtomX", 2464).unwrap();
+        system.label_atom("Different one", 52).unwrap();
+
+        system
+            .group_create("group 1", "label 'MyAtom 1' AtomX 'Different one'")
+            .unwrap();
+
+        let mut group1_iterator = system.group_iter("group 1").unwrap();
+        assert_eq!(group1_iterator.next().unwrap().get_atom_number(), 53);
+        assert_eq!(group1_iterator.next().unwrap().get_atom_number(), 655);
+        assert_eq!(group1_iterator.next().unwrap().get_atom_number(), 2465);
+        assert!(group1_iterator.next().is_none());
+
+        system.group_create("group 2", "label r'Atom'").unwrap();
+        let mut group2_iterator = system.group_iter("group 2").unwrap();
+        assert_eq!(group2_iterator.next().unwrap().get_atom_number(), 655);
+        assert_eq!(group2_iterator.next().unwrap().get_atom_number(), 2465);
+        assert!(group2_iterator.next().is_none());
+
+        system.group_create("water", "resname W").unwrap();
+        system
+            .group_create("group 3", "water or label 'MyAtom 1'")
+            .unwrap();
+        assert_eq!(
+            system.group_get_n_atoms("water").unwrap() + 1,
+            system.group_get_n_atoms("group 3").unwrap()
+        );
+    }
+
+    #[test]
     fn group_create_from_geometry_cylinder() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
