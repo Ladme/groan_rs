@@ -27,7 +27,7 @@
 
 #### Other changes
 - **Breaking change:** `Group::name_is_valid` function has been moved to the `aux` module and is no longer public.
-- **Breadking change:** Renamed several functions for consistency with the general terminology:
+- **Breaking change:** Renamed several functions for consistency with the commonly used terminology:
   - `System::get_atoms_as_ref_mut` -> `System::get_atoms_as_mut`,
   - `System::get_groups_as_ref_mut` -> `System::get_groups_as_mut`,
   - `System::get_box_as_ref_mut` -> `System::get_box_as_mut`,
