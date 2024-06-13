@@ -28,6 +28,7 @@ pub fn read_tpr(filename: impl AsRef<Path>) -> Result<System, ParseTprError> {
     let simbox = tpr.simbox.map(minitpr::SimBox::into);
 
     let mut system = System::new(&tpr.system_name, atoms, simbox);
+    system.set_lambda(tpr.header.lambda as f32);
 
     for bond in tpr.topology.bonds {
         match system.add_bond(bond.atom1, bond.atom2) {
@@ -196,6 +197,7 @@ mod tests {
         let system_gro = read_gro("test_files/example.gro").unwrap();
 
         assert_eq!(system_tpr.get_n_atoms(), system_gro.get_n_atoms());
+        assert_eq!(system_tpr.get_lambda(), 0.0);
 
         for (a1, a2) in system_tpr.atoms_iter().zip(system_gro.atoms_iter()) {
             crate::test_utilities::utilities::compare_atoms_tpr_with_gro(a1, a2);
