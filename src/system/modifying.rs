@@ -6,6 +6,7 @@
 use std::collections::HashSet;
 
 use crate::errors::{AtomError, GroupError, PositionError};
+use crate::structures::iterators::MasterMutAtomIterator;
 use crate::structures::{
     atom::Atom,
     simbox::{simbox_check, SimBox},
@@ -38,21 +39,14 @@ impl System {
     ///     Ok(_) => (),   
     /// }
     /// ```
+    #[inline(always)]
     pub fn group_translate(&mut self, name: &str, vector: &Vector3D) -> Result<(), GroupError> {
-        let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?
-            as *const SimBox;
-
-        unsafe {
-            for atom in self.group_iter_mut(name)? {
-                match atom.translate(vector, &*simbox) {
-                    Ok(_) => (),
-                    Err(AtomError::InvalidPosition(e)) => return Err(GroupError::InvalidPosition(e)),
-                    _ => panic!("FATAL GROAN ERROR | System::group_translate | Invalid error type returned from `Atom::translate`."), 
-                }
-            }
+        match self.group_iter_mut(name)?.translate(vector) {
+            Ok(_) => Ok(()),
+            Err(AtomError::InvalidPosition(e)) => Err(GroupError::InvalidPosition(e)),
+            Err(AtomError::InvalidSimBox(e)) => Err(GroupError::InvalidSimBox(e)),
+            _ => panic!("FATAL GROAN ERROR | System::group_translate | Invalid error type returned from `MasterMutAtomIterator::translate`.")
         }
-
-        Ok(())
     }
 
     /// Translate all atoms in the system by target vector.
@@ -72,17 +66,9 @@ impl System {
     ///
     /// system.atoms_translate(&[1.0, 2.0, -1.0].into());
     /// ```
+    #[inline(always)]
     pub fn atoms_translate(&mut self, vector: &Vector3D) -> Result<(), AtomError> {
-        let simbox =
-            simbox_check(self.get_box_as_ref()).map_err(AtomError::InvalidSimBox)? as *const SimBox;
-
-        unsafe {
-            for atom in self.get_atoms_as_mut().iter_mut() {
-                atom.translate(vector, &*simbox)?;
-            }
-        }
-
-        Ok(())
+        self.atoms_iter_mut().translate(vector)
     }
 
     /// Renumber all atoms of the system. This function will give a new atom number
@@ -210,14 +196,9 @@ impl System {
     /// or the simulation box is not orthogonal.
     /// `AtomError::InvalidPosition` if any of the atoms in the system
     /// has an undefined position.
+    #[inline(always)]
     pub fn atoms_wrap(&mut self) -> Result<(), AtomError> {
-        match self.group_wrap("all") {
-            Ok(_) => Ok(()),
-            Err(GroupError::NotFound(_)) => panic!("FATAL GROAN ERROR | System::atoms_wrap | Default group 'all' does not exist."),
-            Err(GroupError::InvalidSimBox(e)) => Err(AtomError::InvalidSimBox(e)),
-            Err(GroupError::InvalidPosition(e)) => Err(AtomError::InvalidPosition(e)),
-            Err(_) => panic!("FATAL GROAN ERROR | System::atoms_wrap | Invalid error type returned from `System::group_wrap`."),
-        }
+        self.atoms_iter_mut().wrap()
     }
 
     /// Wrap atoms of a given group into the simulation box.
@@ -229,21 +210,14 @@ impl System {
     /// or the simulation box is not orthogonal.
     /// - `GroupError::InvalidPosition` if any of the atoms of the group
     /// has an undefined position.
+    #[inline(always)]
     pub fn group_wrap(&mut self, name: &str) -> Result<(), GroupError> {
-        let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?
-            as *const SimBox;
-
-        unsafe {
-            for atom in self.group_iter_mut(name)? {
-                match atom.wrap(&*simbox) {
-                    Ok(_) => (),
-                    Err(AtomError::InvalidPosition(e)) => return Err(GroupError::InvalidPosition(e)),
-                    _ => panic!("FATAL GROAN ERROR | System::group_wrap | Invalid error type returned from `Atom::wrap`."),
-                }
-            }
+        match self.group_iter_mut(name)?.wrap() {
+            Ok(_) => Ok(()),
+            Err(AtomError::InvalidPosition(e)) => Err(GroupError::InvalidPosition(e)),
+            Err(AtomError::InvalidSimBox(e)) => Err(GroupError::InvalidSimBox(e)),
+            _ => panic!("FATAL GROAN ERROR | System::group_wrap | Invalid error type returned from `MasterMutAtomIterator::wrap`.")
         }
-
-        Ok(())
     }
 
     /// Add bond connecting two atoms with target indices. Atoms are indexed from 0.

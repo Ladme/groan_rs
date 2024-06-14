@@ -392,7 +392,12 @@ pub(crate) fn get_molecule_indices(system: &System, index: usize) -> Result<Vec<
 mod tests {
     use super::*;
     use crate::{
-        structures::{dimension::Dimension, shape::*, vector3d::Vector3D},
+        structures::{
+            dimension::Dimension,
+            iterators::{MasterAtomIterator, MasterMutAtomIterator},
+            shape::*,
+            vector3d::Vector3D,
+        },
         test_utilities::utilities::compare_atoms,
     };
 

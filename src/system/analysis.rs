@@ -494,6 +494,7 @@ mod tests {
     use crate::errors::SimBoxError;
     use crate::structures::atom::Atom;
     use crate::structures::element::Elements;
+    use crate::structures::iterators::MasterAtomIterator;
     use crate::structures::shape::Sphere;
 
     #[test]
