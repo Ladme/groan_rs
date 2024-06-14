@@ -32,6 +32,7 @@ pub struct AtomIterator<'a> {
 impl<'a> Iterator for AtomIterator<'a> {
     type Item = &'a Atom;
 
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(index) = self.container_iterator.next() {
             unsafe { Some(self.atoms.get_unchecked(index)) }
@@ -62,6 +63,7 @@ impl<'a> AtomIterator<'a> {
 }
 
 impl<'a> MasterAtomIterator<'a> for AtomIterator<'a> {
+    #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
         self.simbox
     }
@@ -80,6 +82,7 @@ pub struct OwnedAtomIterator<'a> {
 impl<'a> Iterator for OwnedAtomIterator<'a> {
     type Item = &'a Atom;
 
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(index) = self.container_iterator.next() {
             unsafe { Some(self.atoms.get_unchecked(index)) }
@@ -110,6 +113,7 @@ impl<'a> OwnedAtomIterator<'a> {
 }
 
 impl<'a> MasterAtomIterator<'a> for OwnedAtomIterator<'a> {
+    #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
         self.simbox
     }
@@ -135,6 +139,7 @@ where
     I: Iterator<Item = &'a Atom>,
     S: Shape,
 {
+    #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
         Some(&self.simbox)
     }
@@ -147,13 +152,17 @@ where
 {
     type Item = &'a Atom;
 
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
-        self.iterator
-            .find(|atom| atom.has_position() &&
-                self.geometry.inside(atom
-                    .get_position()
-                    .expect("FATAL GROAN ERROR | MutFilterAtomIterator::next | Atom should have position."), 
-                &self.simbox))
+        self.iterator.find(|atom| {
+            atom.has_position()
+                && self.geometry.inside(
+                    atom.get_position().expect(
+                        "FATAL GROAN ERROR | FilterAtomIterator::next | Atom should have position.",
+                    ),
+                    &self.simbox,
+                )
+        })
     }
 }
 
@@ -184,6 +193,7 @@ impl<'a> MoleculeIterator<'a> {
 }
 
 impl<'a> MasterAtomIterator<'a> for MoleculeIterator<'a> {
+    #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
         self.simbox
     }
@@ -193,6 +203,7 @@ impl<'a> MasterAtomIterator<'a> for MoleculeIterator<'a> {
 impl<'a> Iterator for MoleculeIterator<'a> {
     type Item = &'a Atom;
 
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(index) = self.container.get(self.current_index) {
             self.current_index += 1;
@@ -236,6 +247,7 @@ impl<'a> MutAtomIterator<'a> {
 }
 
 impl<'a> MasterMutAtomIterator<'a> for MutAtomIterator<'a> {
+    #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
         self.simbox
     }
@@ -244,6 +256,7 @@ impl<'a> MasterMutAtomIterator<'a> for MutAtomIterator<'a> {
 impl<'a> Iterator for MutAtomIterator<'a> {
     type Item = &'a mut Atom;
 
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(index) = self.container_iterator.next() {
             unsafe { Some((*self.atoms).get_unchecked_mut(index)) }
@@ -283,6 +296,7 @@ impl<'a> OwnedMutAtomIterator<'a> {
 }
 
 impl<'a> MasterMutAtomIterator<'a> for OwnedMutAtomIterator<'a> {
+    #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
         self.simbox
     }
@@ -291,6 +305,7 @@ impl<'a> MasterMutAtomIterator<'a> for OwnedMutAtomIterator<'a> {
 impl<'a> Iterator for OwnedMutAtomIterator<'a> {
     type Item = &'a mut Atom;
 
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(index) = self.container_iterator.next() {
             unsafe { Some((*self.atoms).get_unchecked_mut(index)) }
@@ -320,6 +335,7 @@ where
     I: Iterator<Item = &'a mut Atom>,
     S: Shape,
 {
+    #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
         Some(&self.simbox)
     }
@@ -332,6 +348,7 @@ where
 {
     type Item = &'a mut Atom;
 
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         self.iterator
             .find(|atom| atom.has_position() &&
@@ -369,6 +386,7 @@ impl<'a> MutMoleculeIterator<'a> {
 }
 
 impl<'a> MasterMutAtomIterator<'a> for MutMoleculeIterator<'a> {
+    #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
         self.simbox
     }
@@ -378,6 +396,7 @@ impl<'a> MasterMutAtomIterator<'a> for MutMoleculeIterator<'a> {
 impl<'a> Iterator for MutMoleculeIterator<'a> {
     type Item = &'a mut Atom;
 
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(index) = self.container.get(self.current_index) {
             self.current_index += 1;
@@ -402,6 +421,7 @@ pub trait MasterAtomIterator<'a>: Iterator<Item = &'a Atom> + Sized {
     ///
     /// ## Panics
     /// Panics if the simulation box is undefined.
+    #[inline(always)]
     fn get_simbox_unwrap(&self) -> &SimBox {
         match self.get_simbox() {
             Some(x) => x,

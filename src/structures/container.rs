@@ -366,7 +366,7 @@ impl cmp::PartialOrd for AtomBlock {
     }
 }
 
-// Private helper function to handle the iteration logic
+// Private helper function to handle the iteration logic.
 fn next_index(
     container: &AtomContainer,
     current_block_index: &mut usize,
@@ -400,6 +400,7 @@ pub struct AtomContainerIterator<'a> {
 impl<'a> Iterator for AtomContainerIterator<'a> {
     type Item = usize;
 
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         next_index(
             self.container,
@@ -421,6 +422,7 @@ pub struct OwnedAtomContainerIterator {
 impl Iterator for OwnedAtomContainerIterator {
     type Item = usize;
 
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         next_index(
             &self.container,
