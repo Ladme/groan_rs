@@ -8,6 +8,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use thiserror::Error;
 
+use crate::aux::{GRO_MAX_COORDINATE, GRO_MIN_COORDINATE, PDB_MAX_COORDINATE, PDB_MIN_COORDINATE};
 use crate::system::guess::{BondsGuessInfo, ElementGuessInfo, PropertiesGuessInfo};
 use crate::files::FileType;
 
@@ -131,7 +132,7 @@ pub enum WriteGroError {
     #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
     GroupNotFound(String),
     /// Used when a coordinate of an atom is too large to fit into the GRO format.
-    #[error("{} coordinate is too large to be written in GRO format (supported range: -999 to 9999 nm)", "error".red().bold())]
+    #[error("{} a coordinate is too large to be written in GRO format (supported range: {} to {} nm)", "error:".red().bold(), GRO_MIN_COORDINATE, GRO_MAX_COORDINATE)]
     CoordinateTooLarge,
 }
 
@@ -157,7 +158,7 @@ pub enum WritePdbError {
     #[error("{} atom number '{}' is too high for PDB connectivity section and can not be wrapped", "error:".red().bold(), .0.to_string().yellow())]
     ConectInvalidNumber(usize),
     /// Used when a coordinate of an atom is too large to fit into the PDB format.
-    #[error("{} coordinate is too large to be written in PDB format (supported range: -99 to 999 nm)", "error".red().bold())]
+    #[error("{} a coordinate is too large to be written in PDB format (supported range: {} to {} nm)", "error:".red().bold(), PDB_MIN_COORDINATE, PDB_MAX_COORDINATE)]
     CoordinateTooLarge,
 }
 
@@ -268,7 +269,7 @@ pub enum AtomLabelError {
     #[error("{}", .0)]
     InvalidQuery(SelectError),
     /// Used when the groan selection language query selects a different number of atoms than 1.
-    #[error("{} invalid number of atoms selected for labeling: expected '{}', got '{}'", "error:".red().bold(), 1.to_string().yellow(), .0.to_string().yellow())]
+    #[error("{} invalid number of atoms selected for labeling: expected '{}', got '{}'", "error:".red().bold(), "1".yellow(), .0.to_string().yellow())]
     InvalidNumberOfAtoms(usize),
 }
 
