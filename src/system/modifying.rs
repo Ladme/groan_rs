@@ -274,9 +274,7 @@ impl System {
             }
         }
 
-        unsafe {
-            self.set_mol_references(new_mol_refs);
-        }
+        self.set_mol_references(new_mol_refs);
     }
 
     /// Make molecules whole in the simulation box.

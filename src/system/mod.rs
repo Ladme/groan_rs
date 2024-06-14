@@ -188,17 +188,15 @@ impl System {
         self.group_create_from_ranges("all", vec![(0, self.get_n_atoms())])?;
         self.group_create_from_ranges("All", vec![(0, self.get_n_atoms())])?;
 
-        unsafe {
-            self.get_groups_as_mut()
-                .get_mut("all")
-                .expect("FATAL GROAN ERROR | System::group_create_all | Group 'all' is not available immediately after its construction.")
-                .print_ndx = false;
+        self.get_groups_as_mut()
+            .get_mut("all")
+            .expect("FATAL GROAN ERROR | System::group_create_all | Group 'all' is not available immediately after its construction.")
+            .print_ndx = false;
 
-            self.get_groups_as_mut()
-                .get_mut("All")
-                .expect("FATAL GROAN ERROR | System::group_create_all | Group 'All' is not available immediately after its construction.")
-                .print_ndx = false;
-        }
+        self.get_groups_as_mut()
+            .get_mut("All")
+            .expect("FATAL GROAN ERROR | System::group_create_all | Group 'All' is not available immediately after its construction.")
+            .print_ndx = false;
 
         Ok(())
     }
@@ -217,15 +215,15 @@ impl System {
 
     /// Get mutable reference to the atoms in the system.
     ///
-    /// ## Safety
-    /// - This function is unsafe as manually changing the `atoms` of the system
+    /// ## Warning
+    /// - Note that manually changing the `atoms` of the system
     /// can cause the system to become invalid. Other functions may then not work correctly.
     /// - Notably, no atoms can be added or removed from the `atoms` vector as such
     /// operation would make all the groups associated with the system invalid. The same goes
     /// for reordering the atoms.
     /// - The properties of the individual atoms can however be safely changed.
     #[inline(always)]
-    pub unsafe fn get_atoms_as_mut(&mut self) -> &mut Vec<Atom> {
+    pub(crate) fn get_atoms_as_mut(&mut self) -> &mut Vec<Atom> {
         &mut self.atoms
     }
 
@@ -250,7 +248,7 @@ impl System {
     /// these groups may cause the behavior of many other functions associated with `System`
     /// to become incorrect.
     #[inline(always)]
-    pub unsafe fn get_groups_as_mut(&mut self) -> &mut IndexMap<String, Group> {
+    pub(crate) fn get_groups_as_mut(&mut self) -> &mut IndexMap<String, Group> {
         &mut self.groups
     }
 
@@ -395,7 +393,7 @@ impl System {
 
     /// Set reference atoms of molecules.
     #[inline(always)]
-    pub(crate) unsafe fn set_mol_references(&mut self, indices: Vec<usize>) {
+    pub(crate) fn set_mol_references(&mut self, indices: Vec<usize>) {
         self.mol_references = Some(indices);
     }
 
@@ -884,13 +882,11 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         assert!(!system.has_duplicate_atom_numbers());
 
-        unsafe {
-            system
-                .get_atoms_as_mut()
-                .get_mut(10)
-                .unwrap()
-                .set_atom_number(44);
-        }
+        system
+            .get_atoms_as_mut()
+            .get_mut(10)
+            .unwrap()
+            .set_atom_number(44);
 
         assert!(system.has_duplicate_atom_numbers());
     }

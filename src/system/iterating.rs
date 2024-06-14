@@ -80,7 +80,7 @@ impl System {
     pub fn group_iter_mut(&mut self, name: &str) -> Result<MutAtomIterator, GroupError> {
         let simbox = self.get_box_as_ref().map(|x| x as *const SimBox);
 
-        let group = unsafe {
+        let group = {
             self.get_groups_as_mut()
                 .get_mut(name)
                 .ok_or(GroupError::NotFound(name.to_string()))? as *mut Group

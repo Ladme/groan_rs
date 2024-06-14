@@ -49,11 +49,9 @@ impl System {
             Err(e) => return Err(GroupError::InvalidQuery(e)),
         };
 
-        unsafe {
-            match self.get_groups_as_mut().insert(name.to_string(), group) {
-                None => Ok(()),
-                Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
-            }
+        match self.get_groups_as_mut().insert(name.to_string(), group) {
+            None => Ok(()),
+            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
     }
 
@@ -118,11 +116,9 @@ impl System {
             Err(e) => return Err(GroupError::InvalidQuery(e)),
         };
 
-        unsafe {
-            match self.get_groups_as_mut().insert(name.to_string(), group) {
-                None => Ok(()),
-                Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
-            }
+        match self.get_groups_as_mut().insert(name.to_string(), group) {
+            None => Ok(()),
+            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
     }
 
@@ -193,11 +189,9 @@ impl System {
             Err(e) => return Err(GroupError::InvalidQuery(e)),
         };
 
-        unsafe {
-            match self.get_groups_as_mut().insert(name.to_string(), group) {
-                None => Ok(()),
-                Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
-            }
+        match self.get_groups_as_mut().insert(name.to_string(), group) {
+            None => Ok(()),
+            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
     }
 
@@ -235,11 +229,9 @@ impl System {
         }
 
         let group = Group::from_indices(atom_indices, self.get_n_atoms());
-        unsafe {
-            match self.get_groups_as_mut().insert(name.to_string(), group) {
-                None => Ok(()),
-                Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
-            }
+        match self.get_groups_as_mut().insert(name.to_string(), group) {
+            None => Ok(()),
+            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
     }
 
@@ -278,11 +270,9 @@ impl System {
 
         let group = Group::from_ranges(atom_ranges, self.get_n_atoms());
 
-        unsafe {
-            match self.get_groups_as_mut().insert(name.to_string(), group) {
-                None => Ok(()),
-                Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
-            }
+        match self.get_groups_as_mut().insert(name.to_string(), group) {
+            None => Ok(()),
+            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
     }
 
@@ -337,11 +327,9 @@ impl System {
             Err(e) => return Err(GroupError::InvalidQuery(e)),
         };
 
-        unsafe {
-            match self.get_groups_as_mut().insert(name.to_string(), group) {
-                None => Ok(()),
-                Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
-            }
+        match self.get_groups_as_mut().insert(name.to_string(), group) {
+            None => Ok(()),
+            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
     }
 
@@ -606,11 +594,9 @@ impl System {
     /// ## Returns
     /// `Ok` if successful, `GroupError::NotFound` in case the group does not exist.
     pub fn group_make_writable(&mut self, name: &str) -> Result<(), GroupError> {
-        unsafe {
-            match self.get_groups_as_mut().get_mut(name) {
-                None => return Err(GroupError::NotFound(name.to_owned())),
-                Some(group) => group.print_ndx = true,
-            }
+        match self.get_groups_as_mut().get_mut(name) {
+            None => return Err(GroupError::NotFound(name.to_owned())),
+            Some(group) => group.print_ndx = true,
         }
 
         Ok(())
@@ -621,11 +607,9 @@ impl System {
     /// ## Returns
     /// `Ok` if successful, `GroupError::NotFound` in case the group does not exist.
     pub fn group_make_nonwritable(&mut self, name: &str) -> Result<(), GroupError> {
-        unsafe {
-            match self.get_groups_as_mut().get_mut(name) {
-                None => return Err(GroupError::NotFound(name.to_owned())),
-                Some(group) => group.print_ndx = false,
-            }
+        match self.get_groups_as_mut().get_mut(name) {
+            None => return Err(GroupError::NotFound(name.to_owned())),
+            Some(group) => group.print_ndx = false,
         }
 
         Ok(())
@@ -636,7 +620,7 @@ impl System {
     /// ## Returns
     /// `Ok` if successful, `GroupError::NotFound` in case the group does not exist.
     ///
-    /// ## Safety
+    /// ## Warning
     /// Do not use this function to remove any of the default groups ('all' or 'All').
     /// Doing so would make many functions associated with the `System` structure invalid.
     /// Removing other groups is generally safe to do.
@@ -644,7 +628,8 @@ impl System {
     /// ## Notes
     /// - This function maintains the order of the groups in the system.
     /// - Time complexity is O(n).
-    pub unsafe fn group_remove(&mut self, name: &str) -> Result<(), GroupError> {
+    #[allow(dead_code)]
+    pub(crate) fn group_remove(&mut self, name: &str) -> Result<(), GroupError> {
         if self.get_groups_as_mut().shift_remove(name).is_none() {
             Err(GroupError::NotFound(name.to_owned()))
         } else {
@@ -658,7 +643,7 @@ impl System {
     /// `Ok` if successful, `GroupError::NotFound` in case the old name of the group does not exist,
     /// `GroupError::AlreadyExistsWarning` in case the new name already exists (it is overwritten).
     ///
-    /// ## Safety
+    /// ## Warning
     /// Do not use this function to rename any of the default groups ('all' or 'All').
     /// Doing so would make many functions associated with the `System` structure invalid.
     /// Renaming other groups is generally safe to do.
@@ -669,7 +654,8 @@ impl System {
     /// - This function maintains the order of the groups in the system, except for the renamed group
     /// which is placed to the last position.
     /// - Time complexity is O(n).
-    pub unsafe fn group_rename(&mut self, old: &str, new: &str) -> Result<(), GroupError> {
+    #[allow(dead_code)]
+    pub(crate) fn group_rename(&mut self, old: &str, new: &str) -> Result<(), GroupError> {
         // get the old group
         let group = match self.get_groups_as_mut().shift_remove(old) {
             Some(x) => x,
@@ -765,11 +751,9 @@ impl System {
 
         let group = Group::union(group1, group2);
 
-        unsafe {
-            match self.get_groups_as_mut().insert(union.to_string(), group) {
-                None => Ok(()),
-                Some(_) => Err(GroupError::AlreadyExistsWarning(union.to_string())),
-            }
+        match self.get_groups_as_mut().insert(union.to_string(), group) {
+            None => Ok(()),
+            Some(_) => Err(GroupError::AlreadyExistsWarning(union.to_string())),
         }
     }
 
@@ -800,14 +784,12 @@ impl System {
 
         let group = Group::intersection(group1, group2);
 
-        unsafe {
-            match self
-                .get_groups_as_mut()
-                .insert(intersection.to_string(), group)
-            {
-                None => Ok(()),
-                Some(_) => Err(GroupError::AlreadyExistsWarning(intersection.to_string())),
-            }
+        match self
+            .get_groups_as_mut()
+            .insert(intersection.to_string(), group)
+        {
+            None => Ok(()),
+            Some(_) => Err(GroupError::AlreadyExistsWarning(intersection.to_string())),
         }
     }
 
@@ -2724,9 +2706,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        unsafe {
-            system.group_remove("Protein").unwrap();
-        }
+        system.group_remove("Protein").unwrap();
 
         assert!(!system.group_exists("Protein"));
     }
@@ -2736,12 +2716,10 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        unsafe {
-            match system.group_remove("Proin") {
-                Err(GroupError::NotFound(e)) => assert_eq!("Proin", e),
-                Ok(_) => panic!("Function should have failed, but it was successful."),
-                Err(e) => panic!("Incorrect error type returned: {:?}", e),
-            }
+        match system.group_remove("Proin") {
+            Err(GroupError::NotFound(e)) => assert_eq!("Proin", e),
+            Ok(_) => panic!("Function should have failed, but it was successful."),
+            Err(e) => panic!("Incorrect error type returned: {:?}", e),
         }
     }
 
@@ -2750,9 +2728,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        unsafe {
-            system.group_rename("Protein", "My Protein Group").unwrap();
-        }
+        system.group_rename("Protein", "My Protein Group").unwrap();
 
         assert!(!system.group_exists("Protein"));
         assert!(system.group_exists("My Protein Group"));
@@ -2767,12 +2743,10 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        unsafe {
-            match system.group_rename("Proin", "Protein") {
-                Err(GroupError::NotFound(e)) => assert_eq!("Proin", e),
-                Ok(_) => panic!("Function should have failed, but it was successful."),
-                Err(e) => panic!("Incorrect error type returned: {:?}", e),
-            }
+        match system.group_rename("Proin", "Protein") {
+            Err(GroupError::NotFound(e)) => assert_eq!("Proin", e),
+            Ok(_) => panic!("Function should have failed, but it was successful."),
+            Err(e) => panic!("Incorrect error type returned: {:?}", e),
         }
     }
 
@@ -2781,12 +2755,10 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        unsafe {
-            match system.group_rename("Protein", "Membrane") {
-                Err(GroupError::AlreadyExistsWarning(e)) => assert_eq!("Membrane", e),
-                Ok(_) => panic!("Function should have raised warning, but it did not."),
-                Err(e) => panic!("Incorrect error type returned: {:?}", e),
-            }
+        match system.group_rename("Protein", "Membrane") {
+            Err(GroupError::AlreadyExistsWarning(e)) => assert_eq!("Membrane", e),
+            Ok(_) => panic!("Function should have raised warning, but it did not."),
+            Err(e) => panic!("Incorrect error type returned: {:?}", e),
         }
 
         assert!(!system.group_exists("Protein"));

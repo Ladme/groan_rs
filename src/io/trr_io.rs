@@ -1966,11 +1966,9 @@ mod tests {
         let mut writer = TrrGroupWriter::new(&system, "Protein", path_to_output).unwrap();
 
         // remove the protein group from the system; this should not change the output of the XtcGroupWriter
-        unsafe {
-            let val = system.get_groups_as_mut().swap_remove("Protein").unwrap();
-            assert_eq!(val.get_atoms(), writer.group.get_atoms());
-            assert!(!system.group_exists("Protein"));
-        }
+        let val = system.get_groups_as_mut().swap_remove("Protein").unwrap();
+        assert_eq!(val.get_atoms(), writer.group.get_atoms());
+        assert!(!system.group_exists("Protein"));
 
         for _ in system.xtc_iter("test_files/short_trajectory.xtc").unwrap() {
             writer.write_frame().unwrap();
