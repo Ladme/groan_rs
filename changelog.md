@@ -8,9 +8,9 @@
 
 #### Reworked and expanded Atom iterators
 - All iterators over atoms now implement one of two traits: `MasterAtomIterator` and `MasterMutAtomIterator`, depending on whether they provide references or *mutable* references to atoms.
-- All mutable atom iterators can now call `MasterMutAtomIterator::translate` and `MasterMutAtomIterator::wrap` method which translate and wrap, respectively, the atoms of the iterator.
+- All mutable atom iterators can now call `MasterMutAtomIterator::translate` and `MasterMutAtomIterator::wrap` methods which translate and wrap, respectively, the atoms of the iterator.
+- All immutable atom iterators can now call `MasterAtomIterator::get_center` and `MasterAtomIterator::get_com` methods to calculate center of geometry and center of mass, respectively, of the atoms of the iterator. This is useful for the calculation of local center of mass in the system.
 - Iterators over atoms of the system can be now constructed directly from selection queries using `System::selection_iter` (for iteration over immutable atoms) and using `System::selection_iter_mut` (for iteration over mutable atoms). This allows selecting atoms without adding groups into the system.
-- It is now possible to calculate center of geometry and center of mass for atoms from an arbitrary Atom iterator. Use `System::iterator_get_center` and `System::iterator_get_com` to calculate the center of geometry and the center of mass, respectively, for the provided iterator. This is useful for the calculation of local center of mass in the system.
 
 #### Labeled atoms
 - Individual atoms can be now labeled with strings (`System::label_atom` and `System::select_and_label`).
