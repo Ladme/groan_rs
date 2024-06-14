@@ -819,4 +819,54 @@ mod tests {
         assert!(center.y.is_nan());
         assert!(center.z.is_nan());
     }
+
+    #[test]
+    fn iterator_translate() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system
+            .selection_iter_mut("resname ALA")
+            .unwrap()
+            .translate(&Vector3D::new(3.5, -1.1, 5.4))
+            .unwrap();
+
+        let first = system.get_atom_as_ref(31).unwrap().get_position().unwrap();
+        let last = system.get_atom_as_ref(52).unwrap().get_position().unwrap();
+
+        assert_approx_eq!(f32, first.x, 0.23069);
+        assert_approx_eq!(f32, first.y, 1.567);
+        assert_approx_eq!(f32, first.z, 10.745);
+
+        assert_approx_eq!(f32, last.x, 0.28168964);
+        assert_approx_eq!(f32, last.y, 1.231);
+        assert_approx_eq!(f32, last.z, 9.237);
+    }
+
+    #[test]
+    fn iterator_wrap() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.atoms_iter_mut().for_each(|atom| {
+            atom.translate_nopbc(&Vector3D::new(1000.0, 1000.0, 1000.0))
+                .unwrap()
+        });
+
+        system.group_create("Alanines", "resname ALA").unwrap();
+        system.group_iter_mut("Alanines").unwrap().wrap().unwrap();
+
+        let simbox = system.get_box_as_ref().unwrap();
+        for (a, atom) in system.atoms_iter().enumerate() {
+            let pos = atom.get_position().unwrap();
+
+            if system.group_isin("Alanines", a).unwrap() {
+                assert!(pos.x <= simbox.x);
+                assert!(pos.y <= simbox.y);
+                assert!(pos.z <= simbox.z);
+            } else {
+                assert!(pos.x >= 1000.0);
+                assert!(pos.y >= 1000.0);
+                assert!(pos.z >= 1000.0);
+            }
+        }
+    }
 }
