@@ -22,7 +22,7 @@ fancy-regex = "0.13.0"
 nalgebra = "0.32.3"
 minitpr = "0.2.1"
 ndarray = "0.15.6"
-hashbrown = { version = "0.14.5", features = ["serde"] }
+hashbrown = "0.14.5"
 
 [dev-dependencies]
 file_diff = "1.0.0"
@@ -34,7 +34,7 @@ criterion = "0.5.1"
 cc = { version = "1.0", features = ["parallel"] }
 
 [features]
-serde = []
+serde = ["ndarray/serde", "hashbrown/serde"]
 parallel = []
 
 [[bench]]

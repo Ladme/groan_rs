@@ -5,7 +5,13 @@
 
 use std::fmt;
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(rename_all = "lowercase", deny_unknown_fields)
+)]
+/// Specifies dimensions in which to perform an operation. Default `Dimension` is XYZ.
 pub enum Dimension {
     None,
     X,
@@ -14,6 +20,7 @@ pub enum Dimension {
     XY,
     XZ,
     YZ,
+    #[default]
     XYZ,
 }
 
@@ -216,5 +223,65 @@ mod tests_dimension {
     fn to_array_none() {
         let dim: [bool; 3] = Dimension::None.into();
         assert_eq!(dim, [false, false, false]);
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "serde")]
+mod serde_tests {
+    use super::*;
+
+    #[test]
+    fn dimension_to_yaml() {
+        let dimensions = vec![
+            Dimension::None,
+            Dimension::X,
+            Dimension::Y,
+            Dimension::Z,
+            Dimension::XY,
+            Dimension::XZ,
+            Dimension::YZ,
+            Dimension::XYZ,
+        ];
+
+        let string = serde_yaml::to_string(&dimensions).unwrap();
+        let expected = "- none
+- x
+- y
+- z
+- xy
+- xz
+- yz
+- xyz
+";
+        assert_eq!(string, expected);
+    }
+
+    #[test]
+    fn filetype_from_yaml() {
+        let string = "- none
+- x
+- y
+- z
+- xy
+- xz
+- yz
+- xyz
+";
+
+        let dimensions: Vec<Dimension> = serde_yaml::from_str(string).unwrap();
+
+        let expected = vec![
+            Dimension::None,
+            Dimension::X,
+            Dimension::Y,
+            Dimension::Z,
+            Dimension::XY,
+            Dimension::XZ,
+            Dimension::YZ,
+            Dimension::XYZ,
+        ];
+
+        assert_eq!(dimensions, expected);
     }
 }

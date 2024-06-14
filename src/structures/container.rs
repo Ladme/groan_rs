@@ -9,6 +9,7 @@ use std::cmp;
 /// Guaranteed to only contain valid atom indices.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct AtomContainer {
     /// Vector of atom blocks capturing the indices of atoms included in the container.
     atom_blocks: Vec<AtomBlock>,
@@ -18,6 +19,7 @@ pub struct AtomContainer {
 /// Guaranteed to only contain valid atom indices.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 struct AtomBlock {
     /// Index of the first atom in the `AtomBlock`.
     /// Atoms are indexed starting from 0.

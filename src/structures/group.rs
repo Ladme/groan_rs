@@ -19,6 +19,7 @@ use crate::system::System;
 /// Group of atoms in target system.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct Group {
     atoms: AtomContainer,
     pub print_ndx: bool,

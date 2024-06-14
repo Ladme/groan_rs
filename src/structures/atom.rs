@@ -13,6 +13,7 @@ use crate::structures::{
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct Atom {
     /// Number (index) of the residue this atom is part of.
     residue_number: usize,
@@ -2020,5 +2021,12 @@ mod serde_tests {
         assert!(atom.get_element_symbol().is_none());
 
         assert_eq!(atom.get_bonded(), &AtomContainer::from_indices(vec![], 100));
+    }
+
+    #[test]
+    fn atom_from_yaml_unknown_field() {
+        let string = read_to_string("test_files/serde_atom_unknown_field.yaml").unwrap();
+        let err = serde_yaml::from_str::<Atom>(&string).unwrap_err();
+        assert!(err.to_string().contains("unknown field"));
     }
 }
