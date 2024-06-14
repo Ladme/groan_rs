@@ -8,7 +8,7 @@ repository = "https://github.com/Ladme/groan_rs"
 keywords = ["gromacs", "molecular-dynamics"]
 categories = ["command-line-utilities", "science"]
 build = "build.rs"
-exclude = ["/test_files"]
+exclude = ["/test_files", "/benches"]
 
 [dependencies]
 colored = "2.0.4"
@@ -28,6 +28,7 @@ hashbrown = { version = "0.14.5", features = ["serde"] }
 file_diff = "1.0.0"
 tempfile = "3.8.0"
 rand = "0.8.5"
+criterion = "0.5.1"
 
 [build-dependencies]
 cc = { version = "1.0", features = ["parallel"] }
@@ -35,3 +36,7 @@ cc = { version = "1.0", features = ["parallel"] }
 [features]
 serde = []
 parallel = []
+
+[[bench]]
+name = "main"
+harness = false

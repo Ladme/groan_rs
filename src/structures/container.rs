@@ -366,23 +366,34 @@ impl cmp::PartialOrd for AtomBlock {
     }
 }
 
-// Private helper function to handle the iteration logic.
+// Private helper function to handle the iteration logic
+#[inline(always)]
 fn next_index(
     container: &AtomContainer,
     current_block_index: &mut usize,
     current_atom_index: &mut usize,
 ) -> Option<usize> {
-    while let Some(block) = container.atom_blocks.get(*current_block_index) {
+    while *current_block_index < container.atom_blocks.len() {
+        let block = unsafe { &container.atom_blocks.get_unchecked(*current_block_index) };
+
+        // move current_atom_index to the start of the block if it's not there yet
         if *current_atom_index < block.start {
-            *current_atom_index = block.start;
+            // immediately move to the start + 1 position
+            *current_atom_index = block.start + 1;
+            // and return the start position
+            return Some(block.start);
         }
 
+        // check if current_atom_index is within the block range
         if *current_atom_index <= block.end {
             let index_to_return = *current_atom_index;
             *current_atom_index += 1;
+
+            // return the current index
             return Some(index_to_return);
         }
 
+        // move to the next block
         *current_block_index += 1;
     }
 
