@@ -3,6 +3,8 @@
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use groan_rs::{
+    prelude::TrajMasterRead,
+    progress::ProgressPrinter,
     structures::{dimension::Dimension, vector3d::Vector3D},
     system::System,
 };
@@ -100,6 +102,23 @@ fn benchmark(c: &mut Criterion) {
     c.bench_function("System::atoms_translate (long)", |b| {
         b.iter(|| {
             std::hint::black_box(system.atoms_translate(&translate).unwrap());
+        })
+    });
+
+    c.bench_function("System::xtc_iter (no progress printing)", |b| {
+        b.iter(|| {
+            std::hint::black_box(system.xtc_iter("test_files/short_trajectory.xtc").unwrap());
+        })
+    });
+
+    c.bench_function("System::xtc_iter (with progress printing)", |b| {
+        b.iter(|| {
+            std::hint::black_box(
+                system
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .print_progress(ProgressPrinter::new().with_print_freq(1)),
+            );
         })
     });
 }

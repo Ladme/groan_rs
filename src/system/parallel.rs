@@ -6,7 +6,6 @@
 use std::{ops::Add, path::Path};
 
 use crate::{
-    errors::ReadTrajError,
     io::traj_io::{
         FrameDataTime, TrajMasterRead, TrajRangeRead, TrajRead, TrajReadOpen, TrajStepRead,
     },
@@ -16,8 +15,6 @@ use crate::{
 };
 
 impl System {
-    // TODO: make `progress_printer` work
-
     /// This method performs embarrassingly parallel iteration over a trajectory (xtc or trr) file,
     /// using the MapReduce parallel scheme.
     ///
@@ -151,7 +148,7 @@ impl System {
         start_time: Option<f32>,
         end_time: Option<f32>,
         step: Option<usize>,
-        _progress_printer: Option<ProgressPrinter>,
+        progress_printer: Option<ProgressPrinter>,
     ) -> Result<Data, Box<dyn std::error::Error + Send + Sync>>
     where
         Reader: TrajReadOpen<'a> + TrajRangeRead<'a> + TrajStepRead<'a> + TrajRead<'a> + 'a,
@@ -171,13 +168,21 @@ impl System {
                     let system_clone = self.clone();
                     let body_clone = body.clone();
                     let filename = trajectory_file.clone();
+                    let progress_clone = progress_printer.clone();
                     let mut data = Data::default();
 
                     let handle = s.spawn(
                         move || -> Result<Data, Box<dyn std::error::Error + Send + Sync>> {
                             system_clone.thread_iter::<Reader, Data, Error>(
-                                &mut data, filename, n, n_threads, body_clone, start_time,
-                                end_time, step, None,
+                                &mut data,
+                                filename,
+                                n,
+                                n_threads,
+                                body_clone,
+                                start_time,
+                                end_time,
+                                step,
+                                progress_clone,
                             )?;
 
                             Ok(data)
@@ -200,7 +205,7 @@ impl System {
         )
     }
 
-    /// Iterate over the system in a single thread.
+    /// Iterate over a part of the trajectory in a single thread.
     fn thread_iter<'a, Reader, Data, Error>(
         mut self,
         data: &mut Data,
@@ -226,25 +231,24 @@ impl System {
         // prepare the iterator
         // TODO! remove this unsafe
         let mut iterator = unsafe { (*(&mut self as *mut Self)).traj_iter::<Reader>(&filename)? };
-        if let Some(progress) = progress_printer {
-            if thread_number == 0 {
-                iterator = iterator.print_progress(progress);
+
+        // associate the progress printer with the iterator only in the master thread
+        if thread_number == 0 {
+            if let Some(printer) = progress_printer {
+                iterator = iterator.print_progress(printer.clone());
             }
         }
+
         // find the start of the reading
         let mut iterator = iterator.with_range(start, end)?;
 
         // prepare the iterator for reading (skip N frames)
-        // TODO! the iteration should not fail if there is too few frames, but a smaller number of threads should be used
         for _ in 0..(thread_number * step) {
             match iterator.next() {
                 Some(Ok(_)) => (),
                 Some(Err(e)) => return Err(Box::from(e)),
-                None => {
-                    return Err(Box::from(ReadTrajError::InvalidParallelIteration(
-                        Box::from(filename.as_ref()),
-                    )))
-                }
+                // if the iterator has nothing to read, then just finish with Ok
+                None => return Ok(()),
             }
         }
 

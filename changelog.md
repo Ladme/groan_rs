@@ -38,6 +38,7 @@
 - Implemented `System::group_intersection` allowing to directly create groups that are intersections of other groups.
 - Implemented `System::from_file_with_format` allowing to directly specify the format of the input file.
 - When writing 'gro' and 'pdb' files, large coordinates can no longer 'overflow' the space allocated for them in the file format and instead an error is returned.
+- Internal changes in the `ProgressPrinter` which potentially allow it to be used in multithreaded environment (untested!).
 
 ***
 
