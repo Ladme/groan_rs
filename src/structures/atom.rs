@@ -5,6 +5,7 @@
 
 use std::io::Write;
 
+use crate::aux::{GRO_MAX_COORDINATE, GRO_MIN_COORDINATE, PDB_MAX_COORDINATE, PDB_MIN_COORDINATE};
 use crate::errors::{AtomError, PositionError, WriteGroError, WritePdbError, WritePqrError};
 use crate::io::pqr_io::PqrPrecision;
 use crate::structures::{
@@ -520,6 +521,8 @@ impl Atom {
     /// - Allows for 0 to 5-letter atom names, 0 to 5-letter residue names, 1 to 5-digit atom numbers, and 1 to 5-digit residue numbers.
     /// - Longer names are shortened, longer numbers are wrapped to 0.
     /// - If atom has no position (or velocity, if requested), 0 is printed out for all dimensions.
+    /// - No coordinate of the atom can be higher than [`GRO_MAX_COORDINATE`] or lower than [`GRO_MIN_COORDINATE`] nm.
+    /// Otherwise the function returns an error.
     pub fn write_gro(
         &self,
         stream: &mut impl Write,
@@ -543,6 +546,14 @@ impl Atom {
                 self.get_residue_name().chars().take(5).collect::<String>()
             ),
         };
+
+        // make sure that the coordinate is in range
+        if [position.x, position.y, position.z]
+            .into_iter()
+            .any(|coor| !(GRO_MIN_COORDINATE..=GRO_MAX_COORDINATE).contains(&coor))
+        {
+            return Err(WriteGroError::CoordinateTooLarge);
+        }
 
         if write_velocities {
             let velocity = self.get_velocity().unwrap_or(&binding);
@@ -587,6 +598,8 @@ impl Atom {
     /// - Allows for 0 to 4-letter atom names, 0 to 4-letter residue names, 1 to 5-digit atom numbers and 1 to 4-digit residue numbers.
     /// - Longer names are shortened, longer numbers are wrapped to 0.
     /// - If atom has no position, 0 is printed out for all dimensions.
+    /// - No coordinate of the atom can be higher than [`PDB_MAX_COORDINATE`] or lower than [`PDB_MIN_COORDINATE`] nm.
+    /// Otherwise the function returns an error.
     pub fn write_pdb(&self, stream: &mut impl Write) -> Result<(), WritePdbError> {
         let binding = Vector3D::default();
         let position = self.get_position().unwrap_or(&binding);
@@ -610,6 +623,14 @@ impl Atom {
         };
 
         let format_chain = self.get_chain().unwrap_or(' ');
+
+        // make sure that the coordinate is in range
+        if [position.x, position.y, position.z]
+            .into_iter()
+            .any(|coor| !(PDB_MIN_COORDINATE..=PDB_MAX_COORDINATE).contains(&coor))
+        {
+            return Err(WritePdbError::CoordinateTooLarge);
+        }
 
         writeln!(
             stream,

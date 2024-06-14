@@ -8,9 +8,12 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 
+use crate::aux::{PDB_MAX_COORDINATE, PDB_MIN_COORDINATE};
 use crate::errors::{ParsePdbConnectivityError, ParsePdbError, WritePdbError};
 use crate::structures::{atom::Atom, simbox::SimBox};
 use crate::system::System;
+
+use super::check_coordinate_sizes;
 
 /// Read a pdb file and construct a System structure. Do not read connectivity.
 ///
@@ -283,6 +286,16 @@ impl System {
     ) -> Result<(), WritePdbError> {
         if !self.group_exists(group_name) {
             return Err(WritePdbError::GroupNotFound(group_name.to_string()));
+        }
+
+        // check that coordinates of the atoms are in the range supported by the data format
+        // this has to be done before the file is even created
+        if !check_coordinate_sizes(
+            self.group_iter(group_name).unwrap(),
+            PDB_MIN_COORDINATE,
+            PDB_MAX_COORDINATE,
+        ) {
+            return Err(WritePdbError::CoordinateTooLarge);
         }
 
         if write_connectivity {
@@ -1552,5 +1565,31 @@ mod tests_write {
         let mut expected = File::open("test_files/example_nobox.pdb").unwrap();
 
         assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_too_large_coordinate_1() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.get_atom_as_mut(16).unwrap().set_position_x(1000.0);
+
+        match system.write_pdb("will_not_be_created_1.pdb", false) {
+            Err(WritePdbError::CoordinateTooLarge) => (),
+            Ok(_) => panic!("Writing should have failed, but it did not."),
+            Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
+        }
+    }
+
+    #[test]
+    fn write_too_large_coordinate_2() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.get_atom_as_mut(16).unwrap().set_position_y(-999.0);
+
+        match system.group_write_pdb("all", "will_not_be_created_2.pdb", false) {
+            Err(WritePdbError::CoordinateTooLarge) => (),
+            Ok(_) => panic!("Writing should have failed, but it did not."),
+            Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
+        }
     }
 }

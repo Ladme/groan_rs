@@ -130,6 +130,9 @@ pub enum WriteGroError {
     /// Used when the group of atoms selected to be written into the gro file does not exist.
     #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
     GroupNotFound(String),
+    /// Used when a coordinate of an atom is too large to fit into the GRO format.
+    #[error("{} coordinate is too large to be written in GRO format (supported range: -999 to 9999 nm)", "error".red().bold())]
+    CoordinateTooLarge,
 }
 
 /// Errors that can occur when writing a pdb file.
@@ -153,6 +156,9 @@ pub enum WritePdbError {
     /// Used when the atom number to be printed in the connectivity section is higher than 99,999.
     #[error("{} atom number '{}' is too high for PDB connectivity section and can not be wrapped", "error:".red().bold(), .0.to_string().yellow())]
     ConectInvalidNumber(usize),
+    /// Used when a coordinate of an atom is too large to fit into the PDB format.
+    #[error("{} coordinate is too large to be written in PDB format (supported range: -99 to 999 nm)", "error".red().bold())]
+    CoordinateTooLarge,
 }
 
 /// Errors that can occur when reading and parsing pqr file.

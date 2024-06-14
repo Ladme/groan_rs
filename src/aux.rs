@@ -7,8 +7,30 @@ use std::f32::consts;
 
 use crate::structures::{simbox::SimBox, vector3d::Vector3D};
 
-// PI times 2.
+/******************************/
+/*         CONSTANTS          */
+/******************************/
+
+/// PI times 2.
 pub(crate) const PI_X2: f32 = consts::PI * 2.0f32;
+
+/// Smallest coordinate supported by PDB. The actual minimal supported coordinate is
+/// -99.9999 nm but due to floating point shenanigans, we are slightly more restrictive to be safe.
+pub(crate) const PDB_MIN_COORDINATE: f32 = -99.0;
+/// Largest coordinate supported by PDB. The actual maximal supported coordinate is
+/// 999.9999 nm but due to floating point shenanigans, we are slightly more restrictive to be safe.
+pub(crate) const PDB_MAX_COORDINATE: f32 = 999.0;
+
+/// Smallest coordinate supported by GRO. The actual minimal supported coordinate is
+/// -999.999 nm but due to floating point shenanigans, we are slightly more restrictive to be safe.
+pub(crate) const GRO_MIN_COORDINATE: f32 = -999.0;
+/// Largest coordinate supported by GRO. The actual maximal supported coordinate is
+/// 9999.999 nm but due to floating point shenanigans, we are slightly more restrictive to be safe.
+pub(crate) const GRO_MAX_COORDINATE: f32 = 9999.0;
+
+/******************************/
+/*      GROUP/LABEL NAMES     */
+/******************************/
 
 /// Check whether the name for the group is a valid group name or a label name.
 /// Characters '"&|!@()<>= are not allowed. Names containing whitespace only are also not allowed.
