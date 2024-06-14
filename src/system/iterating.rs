@@ -109,8 +109,8 @@ impl System {
     /// ```
     ///
     /// ## Note on performance
-    /// It might be slightly faster to iterate using `system.get_atoms_as_ref().iter()` if you do
-    /// not care about the additional methods `AtomIterator` implements.
+    /// It might be slightly faster to get reference to the atoms [`System::get_atoms_as_ref`](`crate::system::System::get_atoms_as_ref`)
+    /// and iterate through it if you do not care about the additional methods [`AtomIterator`](`crate::structures::iterators::AtomIterator`) implements.
     #[inline(always)]
     pub fn atoms_iter(&self) -> AtomIterator {
         self.group_iter("all")
@@ -121,7 +121,7 @@ impl System {
     ///
     /// ## Example
     /// Translating all the atoms in the system by a specified vector.
-    /// Note that using `system.atoms_translate()` may be faster.
+    /// Note that using [`System::atoms_translate`](`crate::system::System::atoms_translate`) might be faster.
     /// ```no_run
     /// # use groan_rs::prelude::*;
     /// #
