@@ -521,7 +521,7 @@ impl Atom {
     /// - Allows for 0 to 5-letter atom names, 0 to 5-letter residue names, 1 to 5-digit atom numbers, and 1 to 5-digit residue numbers.
     /// - Longer names are shortened, longer numbers are wrapped to 0.
     /// - If atom has no position (or velocity, if requested), 0 is printed out for all dimensions.
-    /// - No coordinate of the atom can be higher than [`GRO_MAX_COORDINATE`] or lower than [`GRO_MIN_COORDINATE`] nm.
+    /// - No coordinate of the atom can be higher than 9999 or lower than -999 nm.
     /// Otherwise the function returns an error.
     pub fn write_gro(
         &self,
@@ -598,7 +598,7 @@ impl Atom {
     /// - Allows for 0 to 4-letter atom names, 0 to 4-letter residue names, 1 to 5-digit atom numbers and 1 to 4-digit residue numbers.
     /// - Longer names are shortened, longer numbers are wrapped to 0.
     /// - If atom has no position, 0 is printed out for all dimensions.
-    /// - No coordinate of the atom can be higher than [`PDB_MAX_COORDINATE`] or lower than [`PDB_MIN_COORDINATE`] nm.
+    /// - No coordinate of the atom can be higher than 999 or lower than -99 nm.
     /// Otherwise the function returns an error.
     pub fn write_pdb(&self, stream: &mut impl Write) -> Result<(), WritePdbError> {
         let binding = Vector3D::default();
