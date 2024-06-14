@@ -109,10 +109,8 @@ impl System {
     /// new_system.write_gro("output.gro", true).unwrap();
     /// ```
     pub fn atoms_renumber(&mut self) {
-        unsafe {
-            for (i, atom) in self.get_atoms_as_mut().iter_mut().enumerate() {
-                atom.set_atom_number(i + 1);
-            }
+        for (i, atom) in self.atoms_iter_mut().enumerate() {
+            atom.set_atom_number(i + 1);
         }
     }
 
@@ -172,18 +170,16 @@ impl System {
     /// After renumbering, atoms 1-3 will have a residue number 1, atoms 4-5 will have a residue number 2,
     /// and atoms 6-8 will have a residue number 3.
     pub fn residues_renumber(&mut self) {
-        unsafe {
-            let mut current_res = 0;
-            let mut renumbered_res = 0;
+        let mut current_res = 0;
+        let mut renumbered_res = 0;
 
-            for atom in self.get_atoms_as_mut().iter_mut() {
-                if atom.get_residue_number() != current_res {
-                    current_res = atom.get_residue_number();
-                    renumbered_res += 1;
-                    atom.set_residue_number(renumbered_res);
-                } else {
-                    atom.set_residue_number(renumbered_res);
-                }
+        for atom in self.atoms_iter_mut() {
+            if atom.get_residue_number() != current_res {
+                current_res = atom.get_residue_number();
+                renumbered_res += 1;
+                atom.set_residue_number(renumbered_res);
+            } else {
+                atom.set_residue_number(renumbered_res);
             }
         }
     }
