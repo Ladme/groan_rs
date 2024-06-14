@@ -22,7 +22,7 @@ impl System {
     /// - `AtomLabelError::IndexOutOfRange` if the atom index does not exist.
     ///
     /// ## Example
-    /// Assign a label `Reference Atom` to atom with an index of 17.
+    /// Assign a label 'Reference Atom' to atom with an index of 17.
     /// ```no_run
     /// # use groan_rs::prelude::*;
     /// #
@@ -61,7 +61,7 @@ impl System {
     /// - `AtomLabelError::InvalidNumberOfAtoms` if the query selects any other number of atoms than 1.
     ///
     /// ## Example
-    /// Assign a label `Reference Atom` to atom with an atom name CA.
+    /// Assign a label 'Reference Atom' to atom with an atom name CA.
     /// The atom will be selected and labeled only if there is only one atom
     /// named CA in the system. Otherwise an error is returned.
     /// ```no_run
@@ -138,7 +138,7 @@ impl System {
     /// Reference to the `Atom` if successful. Otherwise `AtomLabelError::NotFound`.
     ///
     /// ## Example
-    /// Assign a label `Reference Atom` to atom with an index of 17.
+    /// Assign a label 'Reference Atom' to atom with an index of 17.
     /// Then get a reference to the labeled atom.
     /// ```no_run
     /// # use groan_rs::prelude::*;
@@ -163,7 +163,7 @@ impl System {
     /// Mutable reference to the `Atom` if successful. Otherwise `AtomLabelError::NotFound`.
     ///
     /// ## Example
-    /// Assign a label `Reference Atom` to atom with an index of 17.
+    /// Assign a label 'Reference Atom' to atom with an index of 17.
     /// Then get a mutable reference to the labeled atom.
     /// ```no_run
     /// # use groan_rs::prelude::*;
