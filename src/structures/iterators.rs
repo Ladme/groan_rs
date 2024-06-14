@@ -48,7 +48,7 @@ impl<'a> AtomIterator<'a> {
     /// ## Parameters
     /// - `atoms`: reference to the atoms of the `System`
     /// - `atom_container`: `AtomContainer` specifying the atoms to iterate through
-    /// - `simbox`: current dimensions of the simulation box (required only for geometric filtering)
+    /// - `simbox`: current dimensions of the simulation box
     pub fn new(
         atoms: &'a [Atom],
         atom_container: &'a AtomContainer,
@@ -98,7 +98,7 @@ impl<'a> OwnedAtomIterator<'a> {
     /// ## Parameters
     /// - `atoms`: reference to the atoms of the `System`
     /// - `atom_container`: `AtomContainer` specifying the atoms to iterate through
-    /// - `simbox`: current dimensions of the simulation box (required only for geometric filtering)
+    /// - `simbox`: current dimensions of the simulation box
     pub fn new(
         atoms: &'a [Atom],
         atom_container: AtomContainer,
@@ -181,7 +181,7 @@ impl<'a> MoleculeIterator<'a> {
     /// ## Parameters
     /// - `atoms`: reference to the atoms of the `System`
     /// - `container`: vector specifying indices of the atoms to iterate through
-    /// - `simbox`: current dimensions of the simulation box (required only for geometric filtering)
+    /// - `simbox`: current dimensions of the simulation box
     pub fn new(atoms: &'a [Atom], container: Vec<usize>, simbox: Option<&'a SimBox>) -> Self {
         MoleculeIterator {
             atoms,
@@ -232,7 +232,7 @@ impl<'a> MutAtomIterator<'a> {
     /// ## Parameters
     /// - `atoms`: mutable reference to the atoms of the `System`
     /// - `atom_container`: `AtomContainer` specifying the atoms to iterate through
-    /// - `simbox`: current dimensions of the simulation box (required only for geometric filtering)
+    /// - `simbox`: current dimensions of the simulation box
     pub fn new(
         atoms: &'a mut [Atom],
         atom_container: &'a AtomContainer,
@@ -281,7 +281,7 @@ impl<'a> OwnedMutAtomIterator<'a> {
     /// ## Parameters
     /// - `atoms`: mutable reference to the atoms of the `System`
     /// - `atom_container`: `AtomContainer` specifying the atoms to iterate through
-    /// - `simbox`: current dimensions of the simulation box (required only for geometric filtering)
+    /// - `simbox`: current dimensions of the simulation box
     pub fn new(
         atoms: &'a mut [Atom],
         atom_container: AtomContainer,
