@@ -162,6 +162,7 @@ impl System {
     ///     }
     /// };
     /// ```
+    ///
     /// ## Notes
     /// - The returned System structure will contain two default groups "all" and "All"
     /// consisting of all the atoms in the system.

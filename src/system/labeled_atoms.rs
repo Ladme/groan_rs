@@ -21,6 +21,19 @@ impl System {
     /// - `AtomLabelError::InvalidLabel` if the label is invalid (no label assigned).
     /// - `AtomLabelError::IndexOutOfRange` if the atom index does not exist.
     ///
+    /// ## Example
+    /// Assign a label `Reference Atom` to atom with an index of 17.
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    ///
+    /// if let Err(e) = system.label_atom("Reference Atom", 17) {
+    ///     eprintln!("{}", e);
+    ///     return;
+    /// }
+    /// ```
+    ///
     /// ## Notes
     /// - Atoms are indexed starting from 0.
     /// - In case the same label is already assigned, it is reassigned to the new atom and a warning is raised.
@@ -46,6 +59,21 @@ impl System {
     /// - `AtomLabelError::InvalidLabel` if the label is invalid (no label assigned).
     /// - `AtomLabelError::InvalidQuery` if the query could not be understood.
     /// - `AtomLabelError::InvalidNumberOfAtoms` if the query selects any other number of atoms than 1.
+    ///
+    /// ## Example
+    /// Assign a label `Reference Atom` to atom with an atom name CA.
+    /// The atom will be selected and labeled only if there is only one atom
+    /// named CA in the system. Otherwise an error is returned.
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    ///
+    /// if let Err(e) = system.select_and_label("Reference Atom", "name CA") {
+    ///     eprintln!("{}", e);
+    ///     return;
+    /// }
+    /// ```
     ///
     /// ## Notes
     /// - In case the same label is already assigned, it is reassigned to the new atom and a warning is raised.
@@ -90,6 +118,16 @@ impl System {
     /// ## Returns
     /// - `true` if the label exists and is associated to an atom.
     /// - `false` otherwise.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.label_atom("Reference Atom", 17).unwrap();
+    ///  
+    /// assert!(system.label_exists("Reference Atom"));
+    /// ```
     pub fn label_exists(&self, label: &str) -> bool {
         self.labeled_atoms.contains_key(label)
     }
@@ -98,6 +136,18 @@ impl System {
     ///
     /// ## Returns
     /// Reference to the `Atom` if successful. Otherwise `AtomLabelError::NotFound`.
+    ///
+    /// ## Example
+    /// Assign a label `Reference Atom` to atom with an index of 17.
+    /// Then get a reference to the labeled atom.
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.label_atom("Reference Atom", 17).unwrap();
+    ///
+    /// let atom = system.get_labeled_atom_as_ref("Reference Atom").unwrap();
+    /// ```
     pub fn get_labeled_atom_as_ref(&self, label: &str) -> Result<&Atom, AtomLabelError> {
         match self.labeled_atoms.get(label) {
             // safety: all labels are checked at construction that they point to a valid atom
@@ -111,6 +161,18 @@ impl System {
     ///
     /// ## Returns
     /// Mutable reference to the `Atom` if successful. Otherwise `AtomLabelError::NotFound`.
+    ///
+    /// ## Example
+    /// Assign a label `Reference Atom` to atom with an index of 17.
+    /// Then get a mutable reference to the labeled atom.
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.label_atom("Reference Atom", 17).unwrap();
+    ///
+    /// let atom = system.get_labeled_atom_as_mut("Reference Atom").unwrap();
+    /// ```
     pub fn get_labeled_atom_as_mut(&mut self, label: &str) -> Result<&mut Atom, AtomLabelError> {
         match self.labeled_atoms.get(label) {
             // safety: all labels are checked at construction that they point to a valid atom
@@ -137,6 +199,20 @@ impl System {
     ///
     /// ## Returns
     /// An iterator over pairs of label : reference to `Atom`.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    ///
+    /// system.label_atom("Reference Atom", 17).unwrap();
+    /// // ...assign more labels to atoms...
+    ///
+    /// for (label, atom) in system.labeled_atoms_iter() {
+    ///     // perform some operation with the atom and/or label
+    /// }
+    /// ```
     ///
     /// ## Notes
     /// - The order of iteration through the pairs is undefined.
