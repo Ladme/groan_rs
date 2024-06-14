@@ -137,7 +137,7 @@ impl System {
         }
     }
 
-    /// Create a new System from gro file or pdb file.
+    /// Create a new System by reading a gro, pdb, pqr, or tpr file.
     /// The method will attempt to automatically recognize gro, pdb, tpr or a pqr file based on the file extension.
     ///
     /// ## Returns
@@ -149,7 +149,7 @@ impl System {
     /// `ParsePqrError` if parsing of the pqr file fails.
     ///
     /// ## Example
-    /// Reading gro file.
+    /// Reading a gro file.
     /// ```no_run
     /// # use groan_rs::prelude::*;
     /// #
@@ -168,15 +168,46 @@ impl System {
     /// connectivity from a pdb file to your system using [`System::add_bonds_from_pdb`]. See more information
     /// about parsing PDB files in [`pdb_io::read_pdb`](`crate::io::pdb_io::read_pdb`).
     /// - Groups are not read from tpr files.
+    #[inline(always)]
     pub fn from_file(filename: impl AsRef<Path>) -> Result<Self, Box<dyn Error + Send + Sync>> {
-        match FileType::from_name(&filename) {
+        let format = FileType::from_name(&filename);
+        match format {
+            FileType::GRO | FileType::PDB | FileType::TPR | FileType::PQR => {
+                Self::from_file_with_format(filename, format)
+            }
+            _ => Err(Box::from(ParseFileError::UnknownExtension(Box::from(
+                filename.as_ref(),
+            )))),
+        }
+    }
+
+    /// Create a new System by reading a file with the specified format.
+    /// Same as [`System::from_file`](`crate::system::System::from_file`), but no automatic recognition of the file type is performed.
+    ///
+    /// ## Example
+    /// Reading a file without an extension as a tpr file.
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// # use groan_rs::files::FileType;
+    /// #
+    /// let system = match System::from_file_with_format("system", FileType::TPR) {
+    ///     Ok(x) => x,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;
+    ///     }
+    /// };
+    /// ```
+    pub fn from_file_with_format(
+        filename: impl AsRef<Path>,
+        filetype: FileType,
+    ) -> Result<Self, Box<dyn Error + Send + Sync>> {
+        match filetype {
             FileType::GRO => gro_io::read_gro(filename).map_err(Box::from),
             FileType::PDB => pdb_io::read_pdb(filename).map_err(Box::from),
             FileType::TPR => tpr_io::read_tpr(filename).map_err(Box::from),
             FileType::PQR => pqr_io::read_pqr(filename).map_err(Box::from),
-            _ => Err(Box::from(ParseFileError::UnknownExtension(Box::from(
-                filename.as_ref(),
-            )))),
+            _ => Err(Box::from(ParseFileError::UnsupportedFileType(filetype))),
         }
     }
 
@@ -747,6 +778,30 @@ mod tests {
         match System::from_file("LICENSE") {
             Ok(_) => panic!("Parsing should have failed."),
             Err(e) => assert!(e.to_string().contains("LICENSE")),
+        }
+    }
+
+    #[test]
+    fn from_file_with_format() {
+        let system_with_format =
+            System::from_file_with_format("test_files/example.gro", FileType::GRO).unwrap();
+        let system_auto = System::from_file("test_files/example.gro").unwrap();
+
+        assert_eq!(system_with_format.get_n_atoms(), system_auto.get_n_atoms());
+
+        for (a1, a2) in system_with_format
+            .atoms_iter()
+            .zip(system_auto.atoms_iter())
+        {
+            crate::test_utilities::utilities::compare_atoms(a1, a2)
+        }
+    }
+
+    #[test]
+    fn from_file_with_format_unsupported() {
+        match System::from_file_with_format("test_files/example.gro", FileType::XTC) {
+            Ok(_) => panic!("Parsing should have failed."),
+            Err(e) => assert!(e.to_string().contains("xtc")),
         }
     }
 

@@ -32,6 +32,7 @@
 - **Breaking Change:** `System::get_atoms_as_mut`, `System::get_groups_as_mut`, `System::group_remove`, and `System::group_rename` are no longer public (and also no longer unsafe).Users should not be able to add/remove atoms or groups or change the properties and names of groups. Changing properties of atoms is obviously still allowed but that is better done using `System::atoms_iter_mut`.
 - Implemented `System::traj_iter_map_reduce` for simple embarrassingly parallel iteration through simulation trajectories.
 - Implemented `System::group_intersection` allowing to directly create groups that are intersections of other groups.
+- Implemented `System::from_file_with_format` allowing to directly specify the format of the input file.
 
 ***
 

@@ -9,6 +9,7 @@ use std::path::Path;
 use thiserror::Error;
 
 use crate::system::guess::{BondsGuessInfo, ElementGuessInfo, PropertiesGuessInfo};
+use crate::files::FileType;
 
 fn path_to_yellow(path: &Path) -> ColoredString {
     path.to_str().unwrap().yellow()
@@ -40,6 +41,10 @@ pub enum ParseFileError {
     /// and therefore the file type/format can not be identified.
     #[error("{} file '{}' has an unknown or unsupported file extension", "error:".red().bold(), path_to_yellow(.0))]
     UnknownExtension(Box<Path>),
+    /// Used when the user specifically wants the file to be used as a specific type but this type is not supported
+    /// for the requested operation.
+    #[error("{} the requested operation is not supported for file type '{}'", "error:".red().bold(), .0.to_string().yellow())]
+    UnsupportedFileType(FileType),
 }
 
 /// Errors that can occur when reading and parsing gro file.
