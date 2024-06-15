@@ -403,6 +403,7 @@ fn next_index(
 }
 
 /// Iterator over the atom indices in the `AtomContainer`.
+#[derive(Debug, Clone)]
 pub struct AtomContainerIterator<'a> {
     container: &'a AtomContainer,
     current_block_index: usize,
@@ -423,8 +424,9 @@ impl<'a> Iterator for AtomContainerIterator<'a> {
     }
 }
 
-/// Iterator over the atom indicies in the `AtomContainer`
+/// Iterator over the atom indices in the `AtomContainer`
 /// which owns the `AtomContainer`.
+#[derive(Debug, Clone)]
 pub struct OwnedAtomContainerIterator {
     container: AtomContainer,
     current_block_index: usize,

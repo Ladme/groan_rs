@@ -22,6 +22,7 @@ use super::{simbox::simbox_check, vector3d::Vector3D};
 
 /// Immutable iterator over atoms. Constructed using `System::atoms_iter()` or `System::group_iter()`.
 /// Is guaranteed to iterate over atoms in the same order in which they are defined in the `System` structure.
+#[derive(Debug, Clone)]
 pub struct AtomIterator<'a> {
     atoms: &'a [Atom],
     container_iterator: AtomContainerIterator<'a>,
@@ -72,6 +73,7 @@ impl<'a> MasterAtomIterator<'a> for AtomIterator<'a> {
 /// Immutable iterator over atoms. Same as `AtomIterator` but can be constructed for the system
 /// without having to create a group. Constructed using `System::selection_iter()`.
 /// Note that the `OwnedAtomIterator` still does NOT own the atoms of the system.
+#[derive(Debug, Clone)]
 pub struct OwnedAtomIterator<'a> {
     atoms: &'a [Atom],
     container_iterator: OwnedAtomContainerIterator,
@@ -124,6 +126,7 @@ impl<'a> MasterAtomIterator<'a> for OwnedAtomIterator<'a> {
 ///
 /// ## Notes
 /// - Atoms with no positions set are never inside any geometric shape.
+#[derive(Debug, Clone)]
 pub struct FilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a Atom>,
@@ -168,6 +171,7 @@ where
 
 /// Immutable iterator over atoms of a molecule.
 /// Iterates over atoms respecting the topology of the molecule.
+#[derive(Debug, Clone)]
 pub struct MoleculeIterator<'a> {
     atoms: &'a [Atom],
     container: Vec<usize>,
@@ -220,6 +224,7 @@ impl<'a> Iterator for MoleculeIterator<'a> {
 
 /// Mutable iterator over atoms. Constructed using `System::atoms_iter_mut()` or `System::group_iter_mut()`.
 /// Is guaranteed to iterate over atoms in the same order in which they are defined in the `System` structure.
+#[derive(Debug, Clone)]
 pub struct MutAtomIterator<'a> {
     atoms: *mut [Atom],
     container_iterator: AtomContainerIterator<'a>,
@@ -269,6 +274,7 @@ impl<'a> Iterator for MutAtomIterator<'a> {
 /// Mutable iterator over atoms. Same as `MutAtomIterator` but can be constructed for the system
 /// without having to create a group. Constructed using `System::selection_iter_mut()`.
 /// Note that the `OwnedMutAtomIterator` still does NOT own the atoms of the system.
+#[derive(Debug, Clone)]
 pub struct OwnedMutAtomIterator<'a> {
     atoms: *mut [Atom],
     container_iterator: OwnedAtomContainerIterator,
@@ -320,6 +326,7 @@ impl<'a> Iterator for OwnedMutAtomIterator<'a> {
 ///
 /// ## Notes
 /// - Atoms with no positions set are never inside any geometric shape.
+#[derive(Debug, Clone)]
 pub struct MutFilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a mut Atom>,
@@ -361,6 +368,7 @@ where
 
 /// Mutable iterator over atoms of a molecule.
 /// Iterates over atoms respecting the topology of the molecule.
+#[derive(Debug, Clone)]
 pub struct MutMoleculeIterator<'a> {
     atoms: *mut [Atom],
     container: Vec<usize>,
