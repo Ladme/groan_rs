@@ -243,18 +243,10 @@ impl<
                 continue;
             }
 
-            // split the line and remove all empty substrings before the second coordinate
-            let mut n_nonempty = 0;
+            // split the line and remove all empty substrings
             let split: Vec<&str> = line
                 .split(split)
-                .filter(|substring| {
-                    if substring.trim().is_empty() && n_nonempty < 2 {
-                        false
-                    } else {
-                        n_nonempty += 1;
-                        true
-                    }
-                })
+                .filter(|substring| !substring.trim().is_empty())
                 .collect();
 
             let x = Self::parse_coordinate(&split, 0, &line, &filename)?;
@@ -264,12 +256,10 @@ impl<
                     line.to_owned(),
                     Box::from(filename.as_ref()),
                 ))?,
-                None => {
-                    return Err(GridMapError::CouldNotParseLine(
-                        line.to_owned(),
-                        Box::from(filename.as_ref()),
-                    ))
-                }
+                None => parser(" ").ok_or(GridMapError::CouldNotParseLine(
+                    line.to_owned(),
+                    Box::from(filename.as_ref()),
+                ))?,
             };
 
             values.push(z);
