@@ -243,7 +243,20 @@ impl<
                 continue;
             }
 
-            let split: Vec<&str> = line.split(split).collect();
+            // split the line and remove all empty substrings before the second coordinate
+            let mut n_nonempty = 0;
+            let split: Vec<&str> = line
+                .split(split)
+                .filter(|substring| {
+                    if substring.trim().is_empty() && n_nonempty < 2 {
+                        false
+                    } else {
+                        n_nonempty += 1;
+                        true
+                    }
+                })
+                .collect();
+
             let x = Self::parse_coordinate(&split, 0, &line, &filename)?;
             let y = Self::parse_coordinate(&split, 1, &line, &filename)?;
             let z = match split.get(2) {
