@@ -858,7 +858,7 @@ fn fix_ranges(mut ranges: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
     ranges.sort_unstable();
 
     let mut merged_indices = Vec::new();
-    let mut current_start = std::usize::MAX;
+    let mut current_start = usize::MAX;
     let mut current_end = 0usize;
 
     for (start, end) in &ranges {
@@ -869,7 +869,7 @@ fn fix_ranges(mut ranges: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
 
         // current range does not overlap with the previous one nor is adjacent to it
         if *start > current_end + 1 || (current_end == 0usize && current_start != 0usize) {
-            if current_start != std::usize::MAX {
+            if current_start != usize::MAX {
                 merged_indices.push((current_start, current_end));
             }
             current_start = *start;
@@ -880,7 +880,7 @@ fn fix_ranges(mut ranges: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
         }
     }
 
-    if current_start != std::usize::MAX {
+    if current_start != usize::MAX {
         // add the last merged range to the result if it exists
         merged_indices.push((current_start, current_end));
     }

@@ -184,12 +184,12 @@ impl System {
     /// let max = distances
     ///     .iter()
     ///     .flatten()
-    ///     .fold(std::f32::NEG_INFINITY, |max, &current| max.max(current));
+    ///     .fold(f32::NEG_INFINITY, |max, &current| max.max(current));
     /// // get the minimal distance between the atoms
     /// let min = distances
     ///     .iter()
     ///     .flatten()
-    ///     .fold(std::f32::INFINITY, |min, &current| min.min(current));
+    ///     .fold(f32::INFINITY, |min, &current| min.min(current));
     /// ```
     pub fn group_all_distances(
         &self,
@@ -875,7 +875,7 @@ mod tests {
         let max = distances
             .iter()
             .flatten()
-            .fold(std::f32::NEG_INFINITY, |max, &current| max.max(current));
+            .fold(f32::NEG_INFINITY, |max, &current| max.max(current));
         assert_approx_eq!(f32, max, 4.597961);
 
         assert_approx_eq!(f32, distances[0][1], 0.31040135);
@@ -910,14 +910,14 @@ mod tests {
         let max = distances
             .iter()
             .flatten()
-            .fold(std::f32::NEG_INFINITY, |max, &current| max.max(current));
+            .fold(f32::NEG_INFINITY, |max, &current| max.max(current));
         assert_approx_eq!(f32, max, 4.383, epsilon = 0.00001);
 
         // get the minimal value
         let min = distances
             .iter()
             .flatten()
-            .fold(std::f32::INFINITY, |min, &current| min.min(current));
+            .fold(f32::INFINITY, |min, &current| min.min(current));
         assert_approx_eq!(f32, min, -4.383, epsilon = 0.00001);
 
         assert_approx_eq!(f32, distances[0][1], 0.0900, epsilon = 0.00001);
@@ -948,14 +948,14 @@ mod tests {
         let max = distances
             .iter()
             .flatten()
-            .fold(std::f32::NEG_INFINITY, |max, &current| max.max(current));
+            .fold(f32::NEG_INFINITY, |max, &current| max.max(current));
         assert_approx_eq!(f32, max, 9.190487, epsilon = 0.00001);
 
         // get the minimal value
         let min = distances
             .iter()
             .flatten()
-            .fold(std::f32::INFINITY, |min, &current| min.min(current));
+            .fold(f32::INFINITY, |min, &current| min.min(current));
         assert_approx_eq!(f32, min, 0.02607, epsilon = 0.00001);
 
         assert_approx_eq!(f32, distances[0][0], 3.747651);

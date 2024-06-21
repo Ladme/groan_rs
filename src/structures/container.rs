@@ -177,7 +177,7 @@ impl AtomContainer {
         atom_blocks.sort_unstable();
 
         let mut new_blocks = Vec::new();
-        let mut current_start = std::usize::MAX;
+        let mut current_start = usize::MAX;
         let mut current_end = 0usize;
 
         for block in atom_blocks {
@@ -186,7 +186,7 @@ impl AtomContainer {
 
             // current block does not overlap with the previous one nor is adjacent to it
             if block.start > current_end + 1 || (current_end == 0 && current_start != 0) {
-                if current_start != std::usize::MAX {
+                if current_start != usize::MAX {
                     unsafe {
                         // safety: each `block` is guaranteed to be valid; therefore, new `AtomBlock` must be valid as well
                         new_blocks.push(AtomBlock::new_unchecked(current_start, current_end));
@@ -202,7 +202,7 @@ impl AtomContainer {
         }
 
         // add the last merged block to the result if it exists
-        if current_start != std::usize::MAX {
+        if current_start != usize::MAX {
             unsafe {
                 // safety: each `block` is guaranteed to be valid; therefore, new `AtomBlock` must be valid as well
                 new_blocks.push(AtomBlock::new_unchecked(current_start, current_end));
