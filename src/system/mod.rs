@@ -3,6 +3,7 @@
 
 //! Implementation of the System structure and its methods.
 
+use hashbrown::HashMap;
 use indexmap::IndexMap;
 use std::collections::HashSet;
 use std::error::Error;
@@ -18,6 +19,7 @@ mod analysis;
 mod groups;
 pub mod guess;
 pub(crate) mod iterating;
+mod labeled_atoms;
 mod modifying;
 #[cfg(feature = "parallel")]
 mod parallel;
@@ -25,6 +27,7 @@ mod utility;
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct System {
     /// Name of the molecular system.
     name: String,
@@ -34,13 +37,16 @@ pub struct System {
     simulation_box: Option<SimBox>,
     /// Groups of atoms associated with the system.
     groups: IndexMap<String, Group>,
+    /// Atoms that have been specifically labeled with a string.
+    /// Each atom can have multiple labels, but one label specifies a single atom.
+    labeled_atoms: HashMap<String, usize>,
     /// Current simulation step.
     simulation_step: u64,
     /// Current simulation time in picoseconds.
     simulation_time: f32,
     /// Precision of the coordinates.
     coordinates_precision: u64,
-    /// Lambda
+    /// Lambda.
     lambda: f32,
     /// Reference atoms for all polyatomic molecules.
     /// (Index of the first atom of each polyatomic molecule.)
@@ -116,6 +122,7 @@ impl System {
             atoms,
             simulation_box,
             groups: IndexMap::new(),
+            labeled_atoms: HashMap::new(),
             simulation_step: 0u64,
             simulation_time: 0.0f32,
             coordinates_precision: 100u64,
@@ -131,7 +138,7 @@ impl System {
         }
     }
 
-    /// Create a new System from gro file or pdb file.
+    /// Create a new System by reading a gro, pdb, pqr, or tpr file.
     /// The method will attempt to automatically recognize gro, pdb, tpr or a pqr file based on the file extension.
     ///
     /// ## Returns
@@ -143,7 +150,7 @@ impl System {
     /// `ParsePqrError` if parsing of the pqr file fails.
     ///
     /// ## Example
-    /// Reading gro file.
+    /// Reading a gro file.
     /// ```no_run
     /// # use groan_rs::prelude::*;
     /// #
@@ -155,27 +162,54 @@ impl System {
     ///     }
     /// };
     /// ```
+    ///
     /// ## Notes
     /// - The returned System structure will contain two default groups "all" and "All"
     /// consisting of all the atoms in the system.
     /// - When reading a pdb file, no connectivity information (bonds) is read, even if it is provided. You can add
     /// connectivity from a pdb file to your system using [`System::add_bonds_from_pdb`]. See more information
     /// about parsing PDB files in [`pdb_io::read_pdb`](`crate::io::pdb_io::read_pdb`).
-    /// - Reading of the tpr files is currently rather limited. Only the following information are read:
-    /// system name, simulation box dimensions (if present), system topology (atoms + bonds).
-    /// Only the following information are read for each atom: atom name, atom number, residue name, residue number,
-    /// charge, mass, element name, and element symbol (if the element is identifiable). **No positions, velocities, or
-    /// forces are currently being read from a tpr file.**
-    /// - Intermolecular bonds and groups are also not read from tpr files.
+    /// - Groups are not read from tpr files.
+    #[inline(always)]
     pub fn from_file(filename: impl AsRef<Path>) -> Result<Self, Box<dyn Error + Send + Sync>> {
-        match FileType::from_name(&filename) {
+        let format = FileType::from_name(&filename);
+        match format {
+            FileType::GRO | FileType::PDB | FileType::TPR | FileType::PQR => {
+                Self::from_file_with_format(filename, format)
+            }
+            _ => Err(Box::from(ParseFileError::UnknownExtension(Box::from(
+                filename.as_ref(),
+            )))),
+        }
+    }
+
+    /// Create a new System by reading a file with the specified format.
+    /// Same as [`System::from_file`](`crate::system::System::from_file`), but no automatic recognition of the file type is performed.
+    ///
+    /// ## Example
+    /// Reading a file without an extension as a tpr file.
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// # use groan_rs::files::FileType;
+    /// #
+    /// let system = match System::from_file_with_format("system", FileType::TPR) {
+    ///     Ok(x) => x,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;
+    ///     }
+    /// };
+    /// ```
+    pub fn from_file_with_format(
+        filename: impl AsRef<Path>,
+        filetype: FileType,
+    ) -> Result<Self, Box<dyn Error + Send + Sync>> {
+        match filetype {
             FileType::GRO => gro_io::read_gro(filename).map_err(Box::from),
             FileType::PDB => pdb_io::read_pdb(filename).map_err(Box::from),
             FileType::TPR => tpr_io::read_tpr(filename).map_err(Box::from),
             FileType::PQR => pqr_io::read_pqr(filename).map_err(Box::from),
-            _ => Err(Box::from(ParseFileError::UnknownExtension(Box::from(
-                filename.as_ref(),
-            )))),
+            _ => Err(Box::from(ParseFileError::UnsupportedFileType(filetype))),
         }
     }
 
@@ -187,17 +221,15 @@ impl System {
         self.group_create_from_ranges("all", vec![(0, self.get_n_atoms())])?;
         self.group_create_from_ranges("All", vec![(0, self.get_n_atoms())])?;
 
-        unsafe {
-            self.get_groups_as_ref_mut()
-                .get_mut("all")
-                .expect("FATAL GROAN ERROR | System::group_create_all | Group 'all' is not available immediately after its construction.")
-                .print_ndx = false;
+        self.get_groups_as_mut()
+            .get_mut("all")
+            .expect("FATAL GROAN ERROR | System::group_create_all | Group 'all' is not available immediately after its construction.")
+            .print_ndx = false;
 
-            self.get_groups_as_ref_mut()
-                .get_mut("All")
-                .expect("FATAL GROAN ERROR | System::group_create_all | Group 'All' is not available immediately after its construction.")
-                .print_ndx = false;
-        }
+        self.get_groups_as_mut()
+            .get_mut("All")
+            .expect("FATAL GROAN ERROR | System::group_create_all | Group 'All' is not available immediately after its construction.")
+            .print_ndx = false;
 
         Ok(())
     }
@@ -216,15 +248,15 @@ impl System {
 
     /// Get mutable reference to the atoms in the system.
     ///
-    /// ## Safety
-    /// - This function is unsafe as manually changing the `atoms` of the system
+    /// ## Warning
+    /// - Note that manually changing the `atoms` of the system
     /// can cause the system to become invalid. Other functions may then not work correctly.
     /// - Notably, no atoms can be added or removed from the `atoms` vector as such
     /// operation would make all the groups associated with the system invalid. The same goes
     /// for reordering the atoms.
     /// - The properties of the individual atoms can however be safely changed.
     #[inline(always)]
-    pub unsafe fn get_atoms_as_ref_mut(&mut self) -> &mut Vec<Atom> {
+    pub(crate) fn get_atoms_as_mut(&mut self) -> &mut Vec<Atom> {
         &mut self.atoms
     }
 
@@ -249,7 +281,7 @@ impl System {
     /// these groups may cause the behavior of many other functions associated with `System`
     /// to become incorrect.
     #[inline(always)]
-    pub unsafe fn get_groups_as_ref_mut(&mut self) -> &mut IndexMap<String, Group> {
+    pub(crate) fn get_groups_as_mut(&mut self) -> &mut IndexMap<String, Group> {
         &mut self.groups
     }
 
@@ -292,7 +324,7 @@ impl System {
 
     /// Get mutable reference to the simulation box.
     #[inline(always)]
-    pub fn get_box_as_ref_mut(&mut self) -> Option<&mut SimBox> {
+    pub fn get_box_as_mut(&mut self) -> Option<&mut SimBox> {
         self.simulation_box.as_mut()
     }
 
@@ -394,7 +426,7 @@ impl System {
 
     /// Set reference atoms of molecules.
     #[inline(always)]
-    pub(crate) unsafe fn set_mol_references(&mut self, indices: Vec<usize>) {
+    pub(crate) fn set_mol_references(&mut self, indices: Vec<usize>) {
         self.mol_references = Some(indices);
     }
 
@@ -517,24 +549,18 @@ impl System {
     /// Reference to `Atom` structure or `AtomError::OutOfRange` if `index` is out of range.
     #[inline(always)]
     pub fn get_atom_as_ref(&self, index: usize) -> Result<&Atom, AtomError> {
-        if index >= self.atoms.len() {
-            return Err(AtomError::OutOfRange(index));
-        }
-
-        Ok(&self.atoms[index])
+        self.atoms.get(index).ok_or(AtomError::OutOfRange(index))
     }
 
-    /// Get mutable reference to an atom with target index. Atoms are indexed starting from 0.
+    /// Get mutable reference to an atom at target index. Atoms are indexed starting from 0.
     ///
     /// ## Returns
     /// Mutable reference to `Atom` structure or `AtomError::OutOfRange` if `index` is out of range.
     #[inline(always)]
-    pub fn get_atom_as_ref_mut(&mut self, index: usize) -> Result<&mut Atom, AtomError> {
-        if index >= self.atoms.len() {
-            return Err(AtomError::OutOfRange(index));
-        }
-
-        Ok(&mut self.atoms[index])
+    pub fn get_atom_as_mut(&mut self, index: usize) -> Result<&mut Atom, AtomError> {
+        self.atoms
+            .get_mut(index)
+            .ok_or(AtomError::OutOfRange(index))
     }
 
     /// Get copy of an atom with target index. Atoms are indexed starting from 0.
@@ -543,11 +569,52 @@ impl System {
     /// Copy of an `Atom` structure or `AtomError::OutOfRange` if `index` is out of range
     #[inline(always)]
     pub fn get_atom_copy(&self, index: usize) -> Result<Atom, AtomError> {
-        if index >= self.atoms.len() {
-            return Err(AtomError::OutOfRange(index));
-        }
+        self.atoms
+            .get(index)
+            .cloned()
+            .ok_or(AtomError::OutOfRange(index))
+    }
 
-        Ok(self.atoms[index].clone())
+    /// Get immutable reference to an atom at taget index WITHOUT performing boundary checks.
+    /// Atoms are indexed starting from 0.
+    ///
+    /// ## Safety
+    /// `index` must be lower than the number of atoms in the system.
+    ///
+    /// ## Notes
+    /// - Always prefer to use [`System::get_atom_as_ref`], unless you are sure that the
+    /// boundary checks measurably slow down your application.
+    #[inline(always)]
+    pub unsafe fn get_atom_unchecked_as_ref(&self, index: usize) -> &Atom {
+        self.atoms.get_unchecked(index)
+    }
+
+    /// Get mutable reference to an atom at target index WITHOUT performing boundary checks.
+    /// Atoms are indexed starting from 0.
+    ///
+    /// ## Safety
+    /// `index` must be lower than the number of atoms in the system.
+    ///
+    /// ## Notes
+    /// - Always prefer to use [`System::get_atom_as_mut`], unless you are sure that the
+    /// boundary checks measurably slow down your application.
+    #[inline(always)]
+    pub unsafe fn get_atom_unchecked_as_mut(&mut self, index: usize) -> &mut Atom {
+        self.atoms.get_unchecked_mut(index)
+    }
+
+    /// Get copy of an atom with target index WITHOUT performing boundary checks.
+    /// Atoms are indexed starting from 0.
+    ///
+    /// ## Safety
+    /// `index` must be lower than the number of atoms in the system.
+    ///
+    /// ## Notes
+    /// - Always prefer to use [`System::get_atom_copy`], unless you are sure that the
+    /// boundary checks measurably slow down your application.
+    #[inline(always)]
+    pub unsafe fn get_atom_unchecked_copy(&self, index: usize) -> Atom {
+        self.atoms.get_unchecked(index).clone()
     }
 }
 
@@ -560,7 +627,7 @@ mod tests {
     use crate::{
         errors::ParsePdbConnectivityError,
         structures::element::Elements,
-        test_utilities::utilities::{compare_atoms_tpr, compare_box},
+        test_utilities::utilities::{compare_atoms, compare_atoms_tpr_with_pdb, compare_box},
     };
 
     use super::*;
@@ -720,7 +787,7 @@ mod tests {
 
         // compare atoms (and bonds)
         for (atom1, atom2) in system_tpr.atoms_iter().zip(system_pdb.atoms_iter()) {
-            compare_atoms_tpr(atom1, atom2);
+            compare_atoms_tpr_with_pdb(atom1, atom2);
         }
     }
 
@@ -748,6 +815,30 @@ mod tests {
         match System::from_file("LICENSE") {
             Ok(_) => panic!("Parsing should have failed."),
             Err(e) => assert!(e.to_string().contains("LICENSE")),
+        }
+    }
+
+    #[test]
+    fn from_file_with_format() {
+        let system_with_format =
+            System::from_file_with_format("test_files/example.gro", FileType::GRO).unwrap();
+        let system_auto = System::from_file("test_files/example.gro").unwrap();
+
+        assert_eq!(system_with_format.get_n_atoms(), system_auto.get_n_atoms());
+
+        for (a1, a2) in system_with_format
+            .atoms_iter()
+            .zip(system_auto.atoms_iter())
+        {
+            crate::test_utilities::utilities::compare_atoms(a1, a2)
+        }
+    }
+
+    #[test]
+    fn from_file_with_format_unsupported() {
+        match System::from_file_with_format("test_files/example.gro", FileType::XTC) {
+            Ok(_) => panic!("Parsing should have failed."),
+            Err(e) => assert!(e.to_string().contains("xtc")),
         }
     }
 
@@ -883,13 +974,11 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         assert!(!system.has_duplicate_atom_numbers());
 
-        unsafe {
-            system
-                .get_atoms_as_ref_mut()
-                .get_mut(10)
-                .unwrap()
-                .set_atom_number(44);
-        }
+        system
+            .get_atoms_as_mut()
+            .get_mut(10)
+            .unwrap()
+            .set_atom_number(44);
 
         assert!(system.has_duplicate_atom_numbers());
     }
@@ -983,16 +1072,41 @@ mod tests {
     }
 
     #[test]
-    fn get_atom_as_ref_mut() {
+    fn get_atom_unchecked_as_ref() {
+        let system = System::from_file("test_files/example.gro").unwrap();
+
+        let indices = [0, 329, 4938, 16843];
+        for i in indices {
+            let atom_safe = system.get_atom_as_ref(i).unwrap();
+            let atom_unsafe = unsafe { system.get_atom_unchecked_as_ref(i) };
+
+            compare_atoms(atom_safe, atom_unsafe);
+        }
+    }
+
+    #[test]
+    fn get_atom_as_mut() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        assert!(system.get_atom_as_ref_mut(16844).is_err());
+        assert!(system.get_atom_as_mut(16844).is_err());
 
-        let atom = system.get_atom_as_ref_mut(0).unwrap();
+        let atom = system.get_atom_as_mut(0).unwrap();
         assert_eq!(atom.get_atom_number(), 1);
 
-        let atom = system.get_atom_as_ref_mut(16843).unwrap();
+        let atom = system.get_atom_as_mut(16843).unwrap();
         assert_eq!(atom.get_atom_number(), 16844);
+    }
+
+    #[test]
+    fn get_atom_unchecked_as_mut() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        let indices = [0, 329, 4938, 16843];
+        for i in indices {
+            let atom_unsafe = unsafe { system.get_atom_unchecked_as_mut(i) as *mut Atom };
+            let atom_safe = system.get_atom_as_mut(i).unwrap();
+            compare_atoms(atom_safe, unsafe { &*atom_unsafe });
+        }
     }
 
     #[test]
@@ -1006,6 +1120,19 @@ mod tests {
 
         let atom = system.get_atom_copy(16843).unwrap();
         assert_eq!(atom.get_atom_number(), 16844);
+    }
+
+    #[test]
+    fn get_atom_unchecked_copy() {
+        let system = System::from_file("test_files/example.gro").unwrap();
+
+        let indices = [0, 329, 4938, 16843];
+        for i in indices {
+            let atom_safe = system.get_atom_copy(i).unwrap();
+            let atom_unsafe = unsafe { system.get_atom_unchecked_copy(i) };
+
+            compare_atoms(&atom_safe, &atom_unsafe);
+        }
     }
 
     #[test]

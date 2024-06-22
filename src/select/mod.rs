@@ -24,6 +24,7 @@ pub enum Select {
     AtomNumber(Vec<(usize, usize)>),
     Chain(Vec<char>),
     GroupName(Vec<Name>),
+    LabeledAtom(Vec<Name>),
     ElementName(Vec<Name>),
     ElementSymbol(Vec<Name>),
     And(Box<Select>, Box<Select>),
@@ -103,61 +104,90 @@ impl Select {
         }
     }
 
-    /// Expand each `Name::Regex` for `GroupName` into all actual group names matching the regex.
-    /// Check whether all `String` groups actually exist and ensure that at least one group is present in each `Select::GroupName`.
+    /// Expand regular expressions for `GroupName` and `LabeledAtom` into actuall group names
+    /// and labeled atoms matching the regex.
+    ///
+    /// Checks that all `String` groups actually exist and ensures that at least one group is present in each `Select::GroupName`.
+    /// Checks that all `String` labeled atoms actually exist and ensures that at least one label is present in each `Select::LabeledAtom`.
     ///
     /// Performing this expansion once before applying the `Select` operation
     /// is more efficient than performing similar expansion for each individual atom.
-    pub(crate) fn expand_regex_group(self, system: &System) -> Result<Self, SelectError> {
+    pub(crate) fn expand_regex_group_label(self, system: &System) -> Result<Self, SelectError> {
         match self {
             Select::GroupName(vector) => {
-                let mut new_vector = Vec::new();
+                let new_vector = Self::expand_vector(
+                    &vector,
+                    system,
+                    |s| system.group_exists(s),
+                    |system| system.get_groups_as_ref().keys(),
+                    SelectError::GroupNotFound,
+                )?;
+                Ok(Select::GroupName(new_vector))
+            }
+            Select::LabeledAtom(vector) => {
+                let new_vector = Self::expand_vector(
+                    &vector,
+                    system,
+                    |s| system.label_exists(s),
+                    |system| system.get_labeled_atoms().keys(),
+                    SelectError::LabelNotFound,
+                )?;
+                Ok(Select::LabeledAtom(new_vector))
+            }
+            Select::And(left, right) => Ok(Select::And(
+                Box::from(left.expand_regex_group_label(system)?),
+                Box::from(right.expand_regex_group_label(system)?),
+            )),
+            Select::Or(left, right) => Ok(Select::Or(
+                Box::from(left.expand_regex_group_label(system)?),
+                Box::from(right.expand_regex_group_label(system)?),
+            )),
+            Select::Not(op) => Ok(Select::Not(Box::from(op.expand_regex_group_label(system)?))),
+            Select::Molecule(op) => Ok(Select::Molecule(Box::from(
+                op.expand_regex_group_label(system)?,
+            ))),
+            other => Ok(other),
+        }
+    }
 
-                for name in &vector {
-                    match name {
-                        Name::String(s) => {
-                            // check that the explicitly provided group exists
-                            if !system.group_exists(s) {
-                                return Err(SelectError::GroupNotFound(s.clone()));
-                            }
+    /// Helper function for expanding regular expressions for groups and labeled atoms.
+    fn expand_vector<'a, F, I, E>(
+        vector: &'a [Name],
+        system: &'a System,
+        exists_fn: F,
+        keys_fn: fn(&'a System) -> I,
+        error_fn: fn(String) -> E,
+    ) -> Result<Vec<Name>, SelectError>
+    where
+        F: Fn(&str) -> bool,
+        I: Iterator<Item = &'a String>,
+        E: Into<SelectError>,
+    {
+        let mut new_vector = Vec::new();
 
-                            new_vector.push(Name::String(s.to_string()));
-                        }
-                        Name::Regex(r) => {
-                            for group in system.get_groups_as_ref().keys() {
-                                if r.is_match(group) {
-                                    new_vector.push(Name::String(group.to_owned()))
-                                }
-                            }
+        for name in vector {
+            match name {
+                Name::String(s) => {
+                    if !exists_fn(s) {
+                        return Err(error_fn(s.clone()).into());
+                    }
+                    new_vector.push(Name::String(s.to_string()));
+                }
+                Name::Regex(r) => {
+                    for key in keys_fn(system) {
+                        if r.is_match(key) {
+                            new_vector.push(Name::String(key.to_owned()))
                         }
                     }
                 }
-
-                // check that at least one group was selected
-                if new_vector.is_empty() {
-                    // we can provide the first element of the vector as it must be an empty regular expression
-                    return Err(SelectError::NoRegexMatch(vector[0].to_string()));
-                }
-
-                Ok(Select::GroupName(new_vector))
             }
-
-            Select::And(left, right) => Ok(Select::And(
-                Box::from(left.expand_regex_group(system)?),
-                Box::from(right.expand_regex_group(system)?),
-            )),
-
-            Select::Or(left, right) => Ok(Select::Or(
-                Box::from(left.expand_regex_group(system)?),
-                Box::from(right.expand_regex_group(system)?),
-            )),
-
-            Select::Not(op) => Ok(Select::Not(Box::from(op.expand_regex_group(system)?))),
-
-            Select::Molecule(op) => Ok(Select::Molecule(Box::from(op.expand_regex_group(system)?))),
-
-            other => Ok(other),
         }
+
+        if new_vector.is_empty() {
+            return Err(SelectError::NoRegexMatch(vector[0].to_string()));
+        }
+
+        Ok(new_vector)
     }
 
     /// Validate that all groups specified in the `Select` structure actually exist in the system.
@@ -220,6 +250,7 @@ impl Select {
             Select::ResidueName(v)
             | Select::AtomName(v)
             | Select::GroupName(v)
+            | Select::LabeledAtom(v)
             | Select::ElementName(v)
             | Select::ElementSymbol(v) => v.is_empty(),
 
@@ -299,6 +330,13 @@ impl fmt::Display for Select {
 
             Self::GroupName(vector) => {
                 write!(&mut string, "group ").unwrap();
+                for name in vector {
+                    Select::write_name(&mut string, name);
+                }
+            }
+
+            Self::LabeledAtom(vector) => {
+                write!(&mut string, "label ").unwrap();
                 for name in vector {
                     Select::write_name(&mut string, name);
                 }
@@ -766,6 +804,14 @@ fn parse_token(string: &str) -> Result<Select, SelectError> {
             Ok(Select::GroupName(collect_words(&token[1..])?))
         }
 
+        "label" => {
+            if token.len() <= 1 {
+                return Err(SelectError::EmptyArgument("".to_string()));
+            }
+
+            Ok(Select::LabeledAtom(collect_words(&token[1..])?))
+        }
+
         "element" if token.len() >= 2 && token[1] == "name" => {
             if token.len() <= 2 {
                 return Err(SelectError::EmptyArgument("".to_string()));
@@ -812,7 +858,7 @@ fn fix_ranges(mut ranges: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
     ranges.sort_unstable();
 
     let mut merged_indices = Vec::new();
-    let mut current_start = std::usize::MAX;
+    let mut current_start = usize::MAX;
     let mut current_end = 0usize;
 
     for (start, end) in &ranges {
@@ -823,7 +869,7 @@ fn fix_ranges(mut ranges: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
 
         // current range does not overlap with the previous one nor is adjacent to it
         if *start > current_end + 1 || (current_end == 0usize && current_start != 0usize) {
-            if current_start != std::usize::MAX {
+            if current_start != usize::MAX {
                 merged_indices.push((current_start, current_end));
             }
             current_start = *start;
@@ -834,7 +880,7 @@ fn fix_ranges(mut ranges: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
         }
     }
 
-    if current_start != std::usize::MAX {
+    if current_start != usize::MAX {
         // add the last merged range to the result if it exists
         merged_indices.push((current_start, current_end));
     }
@@ -1473,6 +1519,58 @@ mod pass_tests {
             Name::new(" ION with  Water").unwrap()
         ])
     );
+
+    parsing_success!(
+        simple_label,
+        "label  atom1   atom2   atomX",
+        Select::LabeledAtom(vec![
+            Name::new("atom1").unwrap(),
+            Name::new("atom2").unwrap(),
+            Name::new("atomX").unwrap()
+        ])
+    );
+    parsing_success!(
+        multiword_label_1,
+        "label   'this is a labeled Atom'",
+        Select::LabeledAtom(vec![Name::new("this is a labeled Atom").unwrap()])
+    );
+    parsing_success!(
+        multiword_label_2,
+        "label \"this is a labeled Atom\"",
+        Select::LabeledAtom(vec![Name::new("this is a labeled Atom").unwrap()])
+    );
+    parsing_success!(
+        multiple_multiword_labels,
+        "label 'Atom 1  ' \"  another atom\"   'atom X'",
+        Select::LabeledAtom(vec![
+            Name::new("Atom 1  ").unwrap(),
+            Name::new("  another atom").unwrap(),
+            Name::new("atom X").unwrap()
+        ])
+    );
+    parsing_success!(
+        complex_label,
+        "label 'Atom 1 ' MyAtom   &&!label 'atom X'",
+        Select::And(
+            Box::new(Select::LabeledAtom(vec![
+                Name::new("Atom 1 ").unwrap(),
+                Name::new("MyAtom").unwrap()
+            ])),
+            Box::new(Select::Not(Box::new(Select::LabeledAtom(vec![Name::new(
+                "atom X"
+            )
+            .unwrap()]))))
+        )
+    );
+    parsing_success!(
+        label_regex,
+        "label r'^A' other_atom",
+        Select::LabeledAtom(vec![
+            Name::new("r'^A'").unwrap(),
+            Name::new("other_atom").unwrap()
+        ])
+    );
+
     parsing_success!(
         element_symbol_1,
         "element symbol C",
@@ -1688,6 +1786,23 @@ mod pass_tests {
             Name::new("molecule with serial 17").unwrap(),
             Name::new("Membrane").unwrap()
         ])
+    );
+    parsing_success!(
+        molwith_label_1,
+        "molecule with label MyAtom",
+        Select::Molecule(Box::new(Select::LabeledAtom(vec![
+            Name::new("MyAtom").unwrap()
+        ])))
+    );
+
+    parsing_success!(
+        molwith_label_2,
+        "molwith  label MyAtom  MyAtom2 'Interesting atom '",
+        Select::Molecule(Box::new(Select::LabeledAtom(vec![
+            Name::new("MyAtom").unwrap(),
+            Name::new("MyAtom2").unwrap(),
+            Name::new("Interesting atom ").unwrap(),
+        ])))
     );
 
     parsing_success!(
@@ -2081,6 +2196,22 @@ mod pass_tests {
         ))
     ));
 
+    // residue names with labeled atom regexes
+    parsing_success!(complex_resnames_label_regex, "(resname 'POPE'  LYS LEU and(label   MyAtom r'^A.*m$') || label Atom ) ||(resname ION&& label ' another atom') ", 
+    Select::Or(
+        Box::from(Select::Or(
+            Box::from(Select::And(
+                Box::from(Select::ResidueName(vec![Name::new("POPE").unwrap(), Name::new("LYS").unwrap(), Name::new("LEU").unwrap()])),
+                Box::from(Select::LabeledAtom(vec![Name::new("MyAtom").unwrap(), Name::new("r'^A.*m$'").unwrap()]))
+            )),
+            Box::from(Select::LabeledAtom(vec![Name::new("Atom").unwrap()]))
+        )),
+        Box::from(Select::And(
+            Box::from(Select::ResidueName(vec![Name::new("ION").unwrap()])),
+            Box::from(Select::LabeledAtom(vec![Name::new(" another atom").unwrap()]))
+        ))
+    ));
+
     // residue names with residue numbers
     parsing_success!(complex_resnames_resid, "(resname 'POPE'  LYS LEU && (resid   15 22-25 33)or(resid 5 to 10) ) or(resname ION&& resnum 6) ", 
     Select::Or(
@@ -2177,6 +2308,22 @@ mod pass_tests {
         ))
     ));
 
+    // atom names with labeled atoms
+    parsing_success!(complex_names_label, "(name 'BB'  PO4 D2A and(label MyAtom)|| label 'Atom with    long space'   This   )or(atomname NA&& label MyAtom) ", 
+    Select::Or(
+        Box::from(Select::Or(
+            Box::from(Select::And(
+                Box::from(Select::AtomName(vec![Name::new("BB").unwrap(), Name::new("PO4").unwrap(), Name::new("D2A").unwrap()])),
+                Box::from(Select::LabeledAtom(vec![Name::new("MyAtom").unwrap()]))
+            )),
+            Box::from(Select::LabeledAtom(vec![Name::new("Atom with    long space").unwrap(), Name::new("This").unwrap()]))
+        )),
+        Box::from(Select::And(
+            Box::from(Select::AtomName(vec![Name::new("NA").unwrap()])),
+            Box::from(Select::LabeledAtom(vec![Name::new("MyAtom").unwrap()]))
+        ))
+    ));
+
     // residue numbers with atom numbers
     parsing_success!(complex_resid_serial, "(serial 4 to 8- 12 && (resid   15 22-25 33) || resid 5 to 10 ) ||(atomid 9 10 11 12&& resnum 6) ", 
     Select::Or(
@@ -2205,6 +2352,22 @@ mod pass_tests {
         )),
         Box::from(Select::And(
             Box::from(Select::GroupName(vec![Name::new("Water with Ions").unwrap()])),
+            Box::from(Select::ResidueNumber(vec![(6, 6)]))
+        ))
+    ));
+
+    // residue numbers with labeled atoms
+    parsing_success!(complex_resid_label, "(label MyAtom 'selected atom' && (resid   15 22-25 33) || resid 5 to 10 ) ||(label 'My favorite atom' && resnum 6) ", 
+    Select::Or(
+        Box::from(Select::Or(
+            Box::from(Select::And(
+                Box::from(Select::LabeledAtom(vec![Name::new("MyAtom").unwrap(), Name::new("selected atom").unwrap()])),
+                Box::from(Select::ResidueNumber(vec![(15, 15), (22, 25), (33, 33)]))
+            )),
+            Box::from(Select::ResidueNumber(vec![(5, 10)]))
+        )),
+        Box::from(Select::And(
+            Box::from(Select::LabeledAtom(vec![Name::new("My favorite atom").unwrap()])),
             Box::from(Select::ResidueNumber(vec![(6, 6)]))
         ))
     ));
@@ -2689,10 +2852,46 @@ mod select_impl {
         let selection =
             Select::parse_query("(Protein r'membrane$' or r'^P' ION r'-') and !r'C'").unwrap();
 
-        let selection = selection.expand_regex_group(&system).unwrap();
+        let selection = selection.expand_regex_group_label(&system).unwrap();
 
         let string = format!("{:?}", selection);
         assert_eq!(string, "And(Or(GroupName([String(\"Protein\"), String(\"Transmembrane\")]), GroupName([String(\"Protein\"), String(\"Protein-H\"), String(\"Prot-Masses\"), String(\"POPC\"), String(\"Protein_Membrane\"), String(\"ION\"), String(\"Protein-H\"), String(\"C-alpha\"), String(\"SideChain-H\"), String(\"Prot-Masses\"), String(\"non-Protein\")])), Not(GroupName([String(\"C-alpha\"), String(\"MainChain\"), String(\"MainChain+Cb\"), String(\"MainChain+H\"), String(\"SideChain\"), String(\"SideChain-H\"), String(\"POPC\")])))");
+    }
+
+    #[test]
+    fn expand_regex_label() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.label_atom("atom", 174).unwrap();
+        system.label_atom("atom2", 184).unwrap();
+        system.label_atom("atom_new", 1923).unwrap();
+        system.label_atom("different", 438).unwrap();
+
+        let selection = Select::parse_query("resname ION and label different r'a'").unwrap();
+        let selection = selection.expand_regex_group_label(&system).unwrap();
+
+        let string = format!("{:?}", selection);
+        assert_eq!(string, "And(ResidueName([String(\"ION\")]), LabeledAtom([String(\"different\"), String(\"atom_new\"), String(\"atom\"), String(\"atom2\")]))");
+    }
+
+    #[test]
+    fn expand_regex_group_label() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.read_ndx("test_files/index.ndx").unwrap();
+        system.label_atom("atom", 174).unwrap();
+        system.label_atom("atom2", 184).unwrap();
+        system.label_atom("atom_new", 1923).unwrap();
+        system.label_atom("different", 438).unwrap();
+
+        let selection = Select::parse_query(
+            "((Protein r'membrane$' or r'^P' ION r'-') and !r'C') or label r'a.*_new' different",
+        )
+        .unwrap();
+
+        let selection = selection.expand_regex_group_label(&system).unwrap();
+        let string = format!("{:?}", selection);
+        assert_eq!(string, "Or(And(Or(GroupName([String(\"Protein\"), String(\"Transmembrane\")]), GroupName([String(\"Protein\"), String(\"Protein-H\"), String(\"Prot-Masses\"), String(\"POPC\"), String(\"Protein_Membrane\"), String(\"ION\"), String(\"Protein-H\"), String(\"C-alpha\"), String(\"SideChain-H\"), String(\"Prot-Masses\"), String(\"non-Protein\")])), Not(GroupName([String(\"C-alpha\"), String(\"MainChain\"), String(\"MainChain+Cb\"), String(\"MainChain+H\"), String(\"SideChain\"), String(\"SideChain-H\"), String(\"POPC\")]))), LabeledAtom([String(\"atom_new\"), String(\"different\")]))");
     }
 
     #[test]
@@ -2705,9 +2904,25 @@ mod select_impl {
             Select::parse_query("(Protein r'membrane$' or r'^P' Nonexistent r'-') and !r'C'")
                 .unwrap();
 
-        match selection.expand_regex_group(&system) {
+        match selection.expand_regex_group_label(&system) {
             Ok(_) => panic!("Expansion should have failed."),
             Err(SelectError::GroupNotFound(e)) => assert_eq!(e, "Nonexistent"),
+            Err(e) => panic!("Incorrect error '{}' returned.", e),
+        }
+    }
+
+    #[test]
+    fn expand_regex_label_nonexistent() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.label_atom("atom", 174).unwrap();
+        system.label_atom("atom2", 184).unwrap();
+        system.label_atom("atom_new", 1923).unwrap();
+
+        let selection = Select::parse_query("resname ION and label different r'a'").unwrap();
+        match selection.expand_regex_group_label(&system) {
+            Ok(_) => panic!("Expansion should have failed."),
+            Err(SelectError::LabelNotFound(e)) => assert_eq!(e, "different"),
             Err(e) => panic!("Incorrect error '{}' returned.", e),
         }
     }
@@ -2720,9 +2935,25 @@ mod select_impl {
 
         let selection = Select::parse_query("r'^x'").unwrap();
 
-        match selection.expand_regex_group(&system) {
+        match selection.expand_regex_group_label(&system) {
             Ok(_) => panic!("Expansion should have failed."),
             Err(SelectError::NoRegexMatch(e)) => assert_eq!(e, "^x"),
+            Err(e) => panic!("Incorrect error '{}' returned.", e),
+        }
+    }
+
+    #[test]
+    fn expand_regex_label_nomatch() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.label_atom("atom", 174).unwrap();
+        system.label_atom("atom2", 184).unwrap();
+        system.label_atom("atom_new", 1923).unwrap();
+
+        let selection = Select::parse_query("resname ION and label r'atx'").unwrap();
+        match selection.expand_regex_group_label(&system) {
+            Ok(_) => panic!("Expansion should have failed."),
+            Err(SelectError::NoRegexMatch(e)) => assert_eq!(e, "atx"),
             Err(e) => panic!("Incorrect error '{}' returned.", e),
         }
     }
@@ -2735,7 +2966,7 @@ mod select_impl {
 
         let selection = Select::parse_query("r'^x' r'^P'").unwrap();
 
-        let selection = selection.expand_regex_group(&system).unwrap();
+        let selection = selection.expand_regex_group_label(&system).unwrap();
 
         let string = format!("{:?}", selection);
         assert_eq!(string, "GroupName([String(\"Protein\"), String(\"Protein-H\"), String(\"Prot-Masses\"), String(\"POPC\"), String(\"Protein_Membrane\")])")

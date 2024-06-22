@@ -17,8 +17,9 @@ use crate::system::System;
 /******************************/
 
 /// Group of atoms in target system.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct Group {
     atoms: AtomContainer,
     pub print_ndx: bool,
@@ -91,8 +92,8 @@ impl Group {
 
     /// Create a new valid Group structure using Select tree.
     pub(crate) fn from_select(select: Select, system: &System) -> Result<Self, SelectError> {
-        // expand regex group names
-        let select = Box::new(select.expand_regex_group(system)?);
+        // expand regex group names and labels
+        let select = Box::new(select.expand_regex_group_label(system)?);
 
         let indices: Vec<usize> = (0usize..system.get_n_atoms())
             .filter_map(|i| {
@@ -235,6 +236,18 @@ impl Group {
                 Ok(false)
             }
 
+            Select::LabeledAtom(names) => {
+                for name in names.iter() {
+                    match name.match_labels(system, atom_index) {
+                        Ok(true) => return Ok(true),
+                        Ok(false) => (),
+                        Err(e) => return Err(e),
+                    }
+                }
+
+                Ok(false)
+            }
+
             Select::ElementName(names) => {
                 let elname = match system.get_atoms_as_ref()[atom_index].get_element_name() {
                     None => return Ok(false),
@@ -301,27 +314,19 @@ impl Group {
         Ok(())
     }
 
-    /// Check whether the name for the group is a valid group name.
-    /// Characters '"&|!@()<>= are not allowed. Names containing whitespace only are also not allowed.
-    pub fn name_is_valid(string: &str) -> bool {
-        if string.trim().is_empty() {
-            return false;
-        }
-
-        let forbidden_chars = "'\"&|!@()<>=";
-
-        for c in string.chars() {
-            if forbidden_chars.contains(c) {
-                return false;
-            }
-        }
-
-        true
-    }
-
     /// Create a new valid `Group` as a union of two other groups.
     pub fn union(group1: &Group, group2: &Group) -> Group {
         let container = AtomContainer::union(group1.get_atoms(), group2.get_atoms());
+
+        Group {
+            atoms: container,
+            print_ndx: true,
+        }
+    }
+
+    /// Create a new valid `Group` as an interaction of two other groups.
+    pub fn intersection(group1: &Group, group2: &Group) -> Group {
+        let container = AtomContainer::intersection(group1.get_atoms(), group2.get_atoms());
 
         Group {
             atoms: container,
@@ -394,6 +399,33 @@ mod tests {
         let group = Group::from_ranges(atom_ranges, 1028);
 
         assert_eq!(group.get_n_atoms(), 198);
+    }
+
+    #[test]
+    fn union() {
+        let indices1 = vec![11, 1, 2, 3, 20, 5, 0, 5, 4, 18, 6, 19, 1, 13, 20, 27];
+        let group1 = Group::from_indices(indices1, 20);
+
+        let indices2 = vec![13, 1, 2, 7, 5, 19, 21, 1, 9, 10, 11];
+        let group2 = Group::from_indices(indices2, 15);
+
+        let union = Group::union(&group1, &group2);
+        assert_eq!(
+            union,
+            Group::from_indices(vec![0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 13, 14, 18, 19], 20)
+        );
+    }
+
+    #[test]
+    fn intersection() {
+        let indices1 = vec![11, 1, 2, 3, 20, 5, 0, 5, 4, 18, 6, 19, 1, 13, 20, 27];
+        let group1 = Group::from_indices(indices1, 20);
+
+        let indices2 = vec![13, 1, 2, 7, 5, 19, 21, 1, 9, 10, 11];
+        let group2 = Group::from_indices(indices2, 15);
+
+        let union = Group::intersection(&group1, &group2);
+        assert_eq!(union, Group::from_indices(vec![1, 2, 5, 11, 13], 20));
     }
 }
 

@@ -8,7 +8,9 @@ use std::collections::HashSet;
 use std::path::Path;
 use thiserror::Error;
 
+use crate::aux::{GRO_MAX_COORDINATE, GRO_MIN_COORDINATE, PDB_MAX_COORDINATE, PDB_MIN_COORDINATE};
 use crate::system::guess::{BondsGuessInfo, ElementGuessInfo, PropertiesGuessInfo};
+use crate::files::FileType;
 
 fn path_to_yellow(path: &Path) -> ColoredString {
     path.to_str().unwrap().yellow()
@@ -40,6 +42,10 @@ pub enum ParseFileError {
     /// and therefore the file type/format can not be identified.
     #[error("{} file '{}' has an unknown or unsupported file extension", "error:".red().bold(), path_to_yellow(.0))]
     UnknownExtension(Box<Path>),
+    /// Used when the user specifically wants the file to be used as a specific type but this type is not supported
+    /// for the requested operation.
+    #[error("{} the requested operation is not supported for file type '{}'", "error:".red().bold(), .0.to_string().yellow())]
+    UnsupportedFileType(FileType),
 }
 
 /// Errors that can occur when reading and parsing gro file.
@@ -125,6 +131,9 @@ pub enum WriteGroError {
     /// Used when the group of atoms selected to be written into the gro file does not exist.
     #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
     GroupNotFound(String),
+    /// Used when a coordinate of an atom is too large to fit into the GRO format.
+    #[error("{} a coordinate is too large to be written in GRO format (supported range: {} to {} nm)", "error:".red().bold(), GRO_MIN_COORDINATE, GRO_MAX_COORDINATE)]
+    CoordinateTooLarge,
 }
 
 /// Errors that can occur when writing a pdb file.
@@ -148,6 +157,9 @@ pub enum WritePdbError {
     /// Used when the atom number to be printed in the connectivity section is higher than 99,999.
     #[error("{} atom number '{}' is too high for PDB connectivity section and can not be wrapped", "error:".red().bold(), .0.to_string().yellow())]
     ConectInvalidNumber(usize),
+    /// Used when a coordinate of an atom is too large to fit into the PDB format.
+    #[error("{} a coordinate is too large to be written in PDB format (supported range: {} to {} nm)", "error:".red().bold(), PDB_MIN_COORDINATE, PDB_MAX_COORDINATE)]
+    CoordinateTooLarge,
 }
 
 /// Errors that can occur when reading and parsing pqr file.
@@ -232,6 +244,35 @@ pub enum GroupError {
     EmptyGroup(String),
 }
 
+/// Errors that can occur when working with labeled atoms.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum AtomLabelError {
+    /// Used when the atom could not be labeled because its index is out of range.
+    #[error("{} atom with index '{}' could not be labeled: index out of range", "error:".red().bold(), .0.to_string().yellow())]
+    IndexOutOfRange(usize),
+    /// Used when the label already exists. This is a warning and does not indicate failure.
+    #[error("{} label '{}' already existed and has been reassigned from atom '{}' to atom '{}'", 
+        "warning:".yellow().bold(), 
+        .0.yellow(), 
+        .1.to_string().yellow(), 
+        .2.to_string().yellow())
+    ]
+    AlreadyExistsWarning(String, usize, usize),
+    /// Used when the label contains invalid character(s).
+    #[error("{} label '{}' contains invalid characters", "error:".red().bold(), .0.yellow())]
+    InvalidLabel(String),
+    /// Used when the label was not assigned to any atom.
+    #[error("{} label '{}' does not exist", "error:".red().bold(), .0.yellow())]
+    NotFound(String),
+    /// Used when the groan selection language query provided to select the atom is invalid.
+    /// Encapsulates the `SelectError` providing more information about the type of the error.
+    #[error("{}", .0)]
+    InvalidQuery(SelectError),
+    /// Used when the groan selection language query selects a different number of atoms than 1.
+    #[error("{} invalid number of atoms selected for labeling: expected '{}', got '{}'", "error:".red().bold(), "1".yellow(), .0.to_string().yellow())]
+    InvalidNumberOfAtoms(usize),
+}
+
 /// Errors that can occur when working with atoms in a system.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum AtomError {
@@ -247,6 +288,9 @@ pub enum AtomError {
     /// Used when there is an issue with position of an atom.
     #[error("{}", .0)]
     InvalidPosition(PositionError),
+    /// Used when there is an issue with masses of atoms in the system.
+    #[error("{}", .0)]
+    InvalidMass(MassError),
 }
 
 /// Errors that can occur when reading and parsing ndx file.
@@ -334,6 +378,9 @@ pub enum ReadTrajError {
     /// Used when concatenation of trajectories is requested, but no trajectories are provided.
     #[error("{} no trajectories provided for concatenation", "error:".red().bold())]
     CatNoTrajectories,
+    /// Used when a trajectory iterator for parallel reading could not be constructed.
+    #[error("{} could not construct a parallel trajectory iterator for file '{}'", "error:".red().bold(), path_to_yellow(.0))]
+    InvalidParallelIteration(Box<Path>),
 }
 
 /// Errors that can occur when writing a trajectory file.
@@ -384,15 +431,18 @@ pub enum SelectError {
     /// Used when a group specified in the groan selection language query does not exist.
     #[error("{} group '{}' does not exist", "error:".red().bold(), .0.to_string().yellow())]
     GroupNotFound(String),
+    /// Used when a label specified in the groan selection language query does not exist.
+    #[error("{} label '{} does not exist", "error:".red().bold(), .0.to_string().yellow())]
+    LabelNotFound(String),
     /// Used when an invalid identifier of a chain (i.e. longer than one character) is used in the groan selection language query.
     #[error("{} invalid chain identifier(s) in query '{}'", "error:".red().bold(), .0.to_string().yellow())]
     InvalidChainId(String),
     /// Used when the groan selection language query contains a regular expression that is invalid.
     #[error("{} string '{}' is not a valid regular expression", "error:".red().bold(), .0.to_string().yellow())]
     InvalidRegex(String),
-    /// Used when the regular expression is used to select groups but corresponds to no groups in the system.
-    /// This is currently only used when no regular expression in the entire subquery corresponds to any groups of atoms.
-    #[error("{} regular expression '{}' matches no atom groups in the system", "error:".red().bold(), .0.to_string().yellow())]
+    /// Used when the regular expression is used to select groups/labels but corresponds to no groups/labels in the system.
+    /// This is currently only used when no regular expression in the entire subquery corresponds to any group of atoms or labeled atom.
+    #[error("{} regular expression '{}' matches no atom groups/labels in the system", "error:".red().bold(), .0.to_string().yellow())]
     NoRegexMatch(String),
     /// Used when an unknown error which does not have a specific `SelectError` variant occurs while parsing the groan selection language query.
     #[error("{} the provided query '{}' could not be understood for unknown reason", "error:".red().bold(), .0.to_string().yellow())]
@@ -470,4 +520,33 @@ pub enum MassError {
     /// Used when the atom has no mass but it is required.
     #[error("{} atom with atom number '{}' has undefined mass", "error:".red().bold(), .0.to_string().yellow())]
     NoMass(usize),
+}
+
+/// Errors that can occur when working with a grid map.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum GridMapError {
+    /// Used when the grid map could not be constructed because the span is invalid.
+    #[error("{} grid map could not be created: invalid span", "error:".red().bold())]
+    InvalidSpan,
+    /// Used when the grid map could not be constructed because the grid tile dimensions are invalid.
+    #[error("{} grid map could not be created: invalid grid tile dimensions", "error:".red().bold())]
+    InvalidGridTile,
+    /// Used when the map could not be written into output stream.
+    #[error("{} grid map could not be written into output stream", "error:".red().bold())]
+    CouldNotWrite,
+    /// Used when the grid map is read from an input file and the file could not be opened.
+    #[error("{} could not find grid map input file '{}'", "error:".red().bold(), path_to_yellow(.0))]
+    FileNotFound(Box<Path>),
+    /// Used when a line in the input grid map file could not be read.
+    #[error("{} could not read line in grid map input file '{}'", "error:".red().bold(), path_to_yellow(.0))]
+    CouldNotReadLine(Box<Path>),
+    /// Used when a line could not be parsed as a grid map input line.
+    #[error("{} could not parse line ('{}') in grid map input file '{}'", "error:".red().bold(), .0.yellow(), path_to_yellow(.1))]
+    CouldNotParseLine(String, Box<Path>),
+    /// Used when a grid map contains no tiles.
+    #[error("{} grid map contains no grid tiles", "error:".red().bold())]
+    EmptyGridMap,
+    /// Used when constructing a grid map from a vector which length does not match the dimensions of the map.
+    #[error("{} grid map expected '{}' values, got '{}' values", "error:".red().bold(), .0.to_string().yellow(), .1.to_string().yellow())]
+    InvalidMapDimensions(usize, usize),
 }

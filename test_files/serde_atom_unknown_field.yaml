@@ -1,0 +1,31 @@
+residue_number: 10
+residue_name: CYS
+atom_number: 24
+atom_name: CA
+chain: 'B'
+charge: -1.0
+mass: 32.12
+vdw: 0.64
+expected_max_bonds: 3
+expected_min_bonds: 1
+custom: 17.6
+element_name: carbon
+element_symbol: C
+position:
+- 10.4
+- 7.5
+- 2.6
+velocity:
+- -0.4332
+- 0.3221
+- 1.2314
+force:
+- 14.24898
+- -13.208472
+- 8.123864
+bonded:
+  atom_blocks:
+  - start: 4
+    end: 4
+  - start: 7
+    end: 9

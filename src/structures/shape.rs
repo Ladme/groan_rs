@@ -7,6 +7,8 @@ use crate::structures::{dimension::Dimension, simbox::SimBox, vector3d::Vector3D
 
 /// Structure describing a sphere for geometry selections.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct Sphere {
     /// Coordinates of the center of the sphere.
     position: Vector3D,
@@ -16,6 +18,8 @@ pub struct Sphere {
 
 /// Structure describing a rectangular box for geometry selections.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct Rectangular {
     /// Coordinates of the box origin.
     position: Vector3D,
@@ -29,6 +33,8 @@ pub struct Rectangular {
 
 /// Structure describing a cylinder for geometry selections.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct Cylinder {
     /// Coordinates of the cylinder base center.
     position: Vector3D,
@@ -44,6 +50,8 @@ pub struct Cylinder {
 
 /// Structure describing a triangular prism for geometry selections.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct TriangularPrism {
     /// Coordinates of the vertices of the base.
     base1: Vector3D,

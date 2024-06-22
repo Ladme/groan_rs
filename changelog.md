@@ -1,6 +1,49 @@
 
 ## Changelog for the `groan_rs` library
 
+### Version 0.8.0
+
+#### Reading structures from TPR files
+- In addition to system topology and simulation box, the positions, velocities, and forces of atoms, and intermolecular bonds can now also be read from TPR files.
+
+#### Reworked and expanded Atom iterators
+- All custom iterators over atoms now implement one of two traits: `MasterAtomIterator` and `MasterMutAtomIterator`, depending on whether they provide references or *mutable* references to atoms.
+- All mutable atom iterators can now call `MasterMutAtomIterator::translate` and `MasterMutAtomIterator::wrap` methods which translate and wrap, respectively, the atoms of the iterator.
+- All immutable atom iterators can now call `MasterAtomIterator::get_center` and `MasterAtomIterator::get_com` methods to calculate the center of geometry and center of mass, respectively, of the atoms of the iterator. This is useful for the calculation of the local center of mass in the system.
+- Iterators over atoms of the system can now be constructed directly from selection queries using `System::selection_iter` (for iteration over immutable atoms) and `System::selection_iter_mut` (for iteration over mutable atoms). This allows selecting atoms without adding groups to the system.
+- All custom iterators over atoms now implement `Debug` and `Clone`.
+
+#### Labeled atoms
+- Individual atoms can now be labeled with strings using `System::label_atom` and `System::select_and_label`.
+- Labeled atoms can be accessed using their labels via `System::get_labeled_atom_as_ref`, `System::get_labeled_atom_as_mut`, and `System::get_labeled_atom_copy`.
+- You can iterate through labeled atoms using `System::labeled_atoms_iter` and `System::labeled_atoms_iter_mut`.
+- Labeled atoms can be selected using the Groan Selection Language (`label 'atom X'`).
+
+#### GridMap structure
+- Implemented the `GridMap` structure for easier analysis of properties of planar surfaces such as membranes.
+- `GridMap` is a generic 2D array that can be navigated using coordinates of the molecular system.
+
+#### Serde feature
+- Serde support was added for `FileType`, `Dimension`, `Sphere`, `Rectangular`, `Cylinder`, and `TriangularPrism`.
+- All (de)serializable `groan_rs` structures/enums now deny unknown fields.
+
+#### Other changes
+- **Breaking change:** The `Group::name_is_valid` function has been moved to the `aux` module and is no longer public.
+- **Breaking change:** Renamed several functions for consistency with commonly used terminology:
+  - `System::get_atoms_as_ref_mut` -> `System::get_atoms_as_mut`
+  - `System::get_groups_as_ref_mut` -> `System::get_groups_as_mut`
+  - `System::get_box_as_ref_mut` -> `System::get_box_as_mut`
+  - `System::get_atom_as_ref_mut` -> `System::get_atom_as_mut`
+- **Breaking change:** `System::get_atoms_as_mut`, `System::get_groups_as_mut`, `System::group_remove`, and `System::group_rename` are no longer public (and also no longer marked as unsafe). Users should not be able to add/remove atoms or groups or change the properties and names of groups. Changing properties of atoms is still allowed, but it is better done using `System::atoms_iter_mut`.
+- Implemented `System::traj_iter_map_reduce` for simple, embarrassingly parallel iteration through simulation trajectories (requires the `parallel` feature).
+- Implemented `System::group_intersection`, allowing direct creation of groups that are intersections of other groups.
+- Implemented `System::from_file_with_format`, allowing direct specification of the input file format.
+- When writing 'gro' and 'pdb' files, large coordinates can no longer overflow the space allocated for them in the file format, and instead, an error is returned.
+- Made internal changes to the `ProgressPrinter`, potentially allowing it to be used in a multithreaded environment (untested).
+- Added unchecked (and unsafe) variants of `System::get_atom_*` methods.
+
+***
+
 ### Version 0.7.1
 - Bug fix: GSL queries containing non-ASCII characters should no longer cause panic.
 - `tpr_io::read_tpr` is now a public function.

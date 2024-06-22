@@ -7,19 +7,19 @@
 //! Currently in an early stage of development: anything can break, change or stop working at any time.
 //!
 //! ## What it can do
-//! - Read and write gro, pdb, pqr, ndx, xtc and trr files.
-//! - Read topology (atoms and connectivity) from tpr files.
-//! - Iterate over atoms and access their properties, including connectivity (bonds).
-//! - Select atoms using a selection language similar to VMD.
-//! - Calculate distances between atoms respecting periodic boundary conditions.
-//! - Select atoms based on geometric conditions.
-//! - Assign elements to atoms and guess connectivity between the atoms.
-//! - Calculate center of geometry for *any* group of atoms.
-//! - Center a group of atoms in a simulation box.
-//! - And some other, less relevant stuff.
+//! - Read and write [gro](`crate::io::gro_io::read_gro`), [pdb](`crate::io::pdb_io::read_pdb`), [pqr](`crate::io::pqr_io::read_pqr`), [ndx](`crate::system::System::read_ndx`), [xtc](`crate::system::System::xtc_iter`) and [trr](`crate::system::System::trr_iter`) files.
+//! - Read topology and structure of the system from [tpr](`crate::io::tpr_io::read_tpr`) files (using the [`minitpr`](`minitpr`) crate).
+//! - [Iterate over atoms](`crate::system::System::atoms_iter`) and access their [properties](`crate::structures::atom::Atom`), including connectivity (bonds).
+//! - Select atoms using a [selection language](#groan-selection-language) similar to VMD.
+//! - [Calculate distances between atoms](`crate::system::System::atoms_distance`) respecting periodic boundary conditions.
+//! - [Select atoms based on geometric conditions.](`crate::system::System::group_create_from_geometry`)
+//! - [Assign elements](`crate::system::System::guess_elements`) to atoms and [guess connectivity](`crate::system::System::guess_bonds`) between the atoms.
+//! - Calculate [center of geometry](`crate::system::System::group_get_center`) or [mass](`crate::system::System::group_get_com`) for *any* group of atoms.
+//! - [Center a group of atoms](`crate::system::System::atoms_center`) in a simulation box.
+//! - Help with specific analyses by providing utility data structures (e.g., [`GridMaps`](`crate::structures::gridmap::GridMap`)).
+//! - Some other minor stuff...
 //!
 //! ## What it CAN'T do (at the moment)
-//! - Read atom positions, velocities, and forces from tpr files.
 //! - Work with non-orthogonal periodic boundary conditions.
 //! - Perform advanced analyses of structure and dynamics out of the box.
 //! (But `groan_rs` library tries to make it simple to implement your own!)
@@ -413,6 +413,7 @@
 //! - Their **chain identifiers** using `chain X`. For instance `chain A` will select all atoms belonging to the chain 'A'. The information about chains is usually present in pdb files. Note that if no chain information is present, using this keyword will select no atoms.
 //! - Their **element names** using `element name XYZ` or `elname XYZ`. For instance, `element name carbon` will select all carbon atoms. Note that atoms must be assigned elements to be selected, read below.
 //! - Their **element symbols** using `element symbol X` or `elsymbol X`. For instance, `element symbol C` will select all carbon atoms. Note that atoms must be assigned elements to be selected, read below.
+//! - Their **labels** using `label XYZ`, see below.
 //!
 //! **Multiple identifiers**
 //!
@@ -498,9 +499,15 @@
 //!
 //! Note that to be able to select molecules, the system must contain topology information. Otherwise, no atoms are selected.
 //!
+//! **Labeling and selecting atoms**
+//!
+//! The `groan_rs` library allows you to label specific atoms by strings (see [`System::label_atom`](`crate::system::System::label_atom`)). Such labels can be used as identifiers in the Groan Selection Language. Each label is associated with a single atom which means that it can be used to select this atom. In other words, labels are similar to groups but are guaranteed to contain a single atom.
+//!
+//! For example, labeling a specific atom as `MyAtom` allows you to later select it using the query `label MyAtom`. You can also select multiple labeled atoms by chaining the labels together (e.g., `label MyAtom AnotherAtom OneMoreAtom`). Like groups, labels can be composed of multiple words. In such cases, the label must be enclosed by quotes (' or "), e.g., `label 'Very interesting atom'`.
+//!
 //! **Regular expressions**
 //!
-//! Atom, residue, and group names, as well as element names and element symbols can be specified using regular expressions. For instance all hydrogens atoms in the system can be selected using `name r'^[1-9]?H.*'` (or using `elname hydrogen`).                                 Similarly, all phosphatidylcholine lipids can be selected using `resname r'^.*PC'`. Query `group r'^P'` or just `r'^P'` will then select atoms of all groups which name starts with 'P' (case sensitive).
+//! Atom, residue, and group names, as well as element names, element symbols, and labels can be specified using regular expressions. For instance all hydrogens atoms in the system can be selected using `name r'^[1-9]?H.*'` (or using `elname hydrogen`). Similarly, all phosphatidylcholine lipids can be selected using `resname r'^.*PC'`. Query `group r'^P'` or just `r'^P'` will then select atoms of all groups which name starts with 'P' (case sensitive).
 //!
 //! Note that the regular expression must be enclosed inside "regular expression block" starting with `r'` and ending with `'`. You can specify multiple regular expressions in a single query and use them alongside normal strings.
 //!
@@ -540,7 +547,7 @@
 //! While it can read structures and trajectories with non-orthogonal boxes, calculated distances and similar properties may be incorrect!
 //! Tread very carefully!
 //!
-//! - While `groan_rs` can read double-precision trr files, it uses single-precision floating point numbers everywhere in its code.
+//! - While `groan_rs` can read double-precision trr and tpr files, it uses single-precision floating point numbers everywhere in its code.
 //! If you require double-precision for your analyses, look elsewhere.
 //!
 //! ## License
@@ -549,6 +556,7 @@
 /// Current version of the `groan_rs` library.
 pub const GROAN_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+mod aux;
 pub mod errors;
 pub mod files;
 pub mod io;
@@ -571,6 +579,12 @@ pub mod prelude {
     pub use crate::structures::atom::Atom;
     pub use crate::structures::dimension::Dimension;
     pub use crate::structures::element::Elements;
+    pub use crate::structures::gridmap::GridMap;
+    pub use crate::structures::iterators::{
+        AtomIterator, FilterAtomIterator, MasterAtomIterator, MasterMutAtomIterator,
+        MoleculeIterator, MutAtomIterator, MutFilterAtomIterator, MutMoleculeIterator,
+        OwnedAtomIterator, OwnedMutAtomIterator,
+    };
     pub use crate::structures::shape::{Cylinder, Rectangular, Shape, Sphere, TriangularPrism};
     pub use crate::structures::simbox::SimBox;
     pub use crate::structures::vector3d::Vector3D;

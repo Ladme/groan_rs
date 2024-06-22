@@ -9,6 +9,7 @@ use std::ops::Deref;
 /// Structure defining simulation box shape and dimensions.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct SimBox {
     /// You can also use `.x` to reach this value.
     pub v1x: f32,

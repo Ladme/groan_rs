@@ -336,7 +336,7 @@ mod tests {
         let e = elements.elements.get("bismuth").unwrap();
         assert_eq!(e.symbol.as_ref().unwrap(), "Bi");
         assert!(e.select.is_some());
-        assert_approx_eq!(f32, e.mass.unwrap(), 208.98040);
+        assert_approx_eq!(f32, e.mass.unwrap(), 208.9804);
         assert!(e.vdw.is_none());
         assert!(e.expected_max_bonds.is_none());
         assert!(e.expected_min_bonds.is_none());
@@ -509,7 +509,7 @@ mod tests {
         let e = elements.elements.get("bismuth").unwrap();
         assert_eq!(e.symbol.as_ref().unwrap(), "Bi");
         assert!(e.select.is_some());
-        assert_approx_eq!(f32, e.mass.unwrap(), 208.98040);
+        assert_approx_eq!(f32, e.mass.unwrap(), 208.9804);
         assert!(e.vdw.is_none());
         assert!(e.expected_max_bonds.is_none());
         assert!(e.expected_max_bonds.is_none());

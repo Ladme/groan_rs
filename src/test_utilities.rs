@@ -59,7 +59,7 @@ pub(crate) mod utilities {
         }
     }
 
-    pub(crate) fn compare_atoms_tpr(atom1: &Atom, atom2: &Atom) {
+    pub(crate) fn compare_atoms_tpr_with_pdb(atom1: &Atom, atom2: &Atom) {
         assert_eq!(atom1.get_residue_number(), atom2.get_residue_number());
         assert_eq!(atom1.get_residue_name(), atom2.get_residue_name());
         assert_eq!(atom1.get_atom_number(), atom2.get_atom_number());
@@ -68,6 +68,48 @@ pub(crate) mod utilities {
         assert_eq!(atom1.get_element_symbol(), atom2.get_element_symbol());
 
         assert_eq!(atom1.get_bonded(), atom2.get_bonded());
+
+        if let (Some(pos1), Some(pos2)) = (atom1.get_position(), atom2.get_position()) {
+            assert_approx_eq!(f32, pos1.x, pos2.x);
+            assert_approx_eq!(f32, pos1.y, pos2.y);
+            assert_approx_eq!(f32, pos1.z, pos2.z);
+        } else {
+            assert!(
+                atom1.get_position().is_none() && atom2.get_position().is_none(),
+                "Positions are not both None"
+            );
+        }
+    }
+
+    pub(crate) fn compare_atoms_tpr_with_gro(atom1: &Atom, atom2: &Atom) {
+        assert_eq!(atom1.get_residue_number(), atom2.get_residue_number());
+        assert_eq!(atom1.get_residue_name(), atom2.get_residue_name());
+        assert_eq!(atom1.get_atom_number(), atom2.get_atom_number());
+        assert_eq!(atom1.get_atom_name(), atom2.get_atom_name());
+        assert_eq!(atom1.get_element_name(), atom2.get_element_name());
+        assert_eq!(atom1.get_element_symbol(), atom2.get_element_symbol());
+
+        if let (Some(pos1), Some(pos2)) = (atom1.get_position(), atom2.get_position()) {
+            assert_approx_eq!(f32, pos1.x, pos2.x);
+            assert_approx_eq!(f32, pos1.y, pos2.y);
+            assert_approx_eq!(f32, pos1.z, pos2.z);
+        } else {
+            assert!(
+                atom1.get_position().is_none() && atom2.get_position().is_none(),
+                "Positions are not both None"
+            );
+        }
+
+        if let (Some(vel1), Some(vel2)) = (atom1.get_velocity(), atom2.get_velocity()) {
+            assert_approx_eq!(f32, vel1.x, vel2.x);
+            assert_approx_eq!(f32, vel1.y, vel2.y);
+            assert_approx_eq!(f32, vel1.z, vel2.z);
+        } else {
+            assert!(
+                atom1.get_velocity().is_none() && atom2.get_velocity().is_none(),
+                "Velocities are not both None"
+            );
+        }
     }
 
     pub(crate) fn compare_box(box1: &SimBox, box2: &SimBox) {

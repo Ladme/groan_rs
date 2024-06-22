@@ -3,10 +3,16 @@
 
 //! Enum capturing file types supported by `groan_rs`.
 
+use std::fmt::Display;
 use std::path::Path;
 
 /// Types of files supported by `groan_rs`.
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(rename_all = "lowercase", deny_unknown_fields)
+)]
 pub enum FileType {
     Unknown,
     GRO,
@@ -17,6 +23,24 @@ pub enum FileType {
     PQR,
     TPR,
     YAML,
+}
+
+impl Display for FileType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let string = match self {
+            Self::Unknown => "unknown",
+            Self::GRO => "gro",
+            Self::PDB => "pdb",
+            Self::XTC => "xtc",
+            Self::NDX => "ndx",
+            Self::TRR => "trr",
+            Self::PQR => "pqr",
+            Self::TPR => "tpr",
+            Self::YAML => "yaml",
+        };
+
+        write!(f, "{}", string)
+    }
 }
 
 impl FileType {
@@ -43,6 +67,8 @@ impl FileType {
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Write;
+
     use super::*;
 
     #[test]
@@ -94,5 +120,91 @@ mod tests {
     #[test]
     fn identify_noextension() {
         assert_eq!(FileType::from_name("file"), FileType::Unknown);
+    }
+
+    #[test]
+    fn display() {
+        let files = vec![
+            FileType::Unknown,
+            FileType::GRO,
+            FileType::PDB,
+            FileType::XTC,
+            FileType::NDX,
+            FileType::TRR,
+            FileType::PQR,
+            FileType::TPR,
+            FileType::YAML,
+        ];
+
+        let mut string = String::new();
+        for file in files {
+            write!(&mut string, "{} ", file).unwrap();
+        }
+
+        assert_eq!(string, "unknown gro pdb xtc ndx trr pqr tpr yaml ");
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "serde")]
+mod serde_tests {
+    use super::*;
+
+    #[test]
+    fn filetype_to_yaml() {
+        let files = vec![
+            FileType::Unknown,
+            FileType::GRO,
+            FileType::PDB,
+            FileType::XTC,
+            FileType::NDX,
+            FileType::TRR,
+            FileType::PQR,
+            FileType::TPR,
+            FileType::YAML,
+        ];
+
+        let string = serde_yaml::to_string(&files).unwrap();
+        let expected = "- unknown
+- gro
+- pdb
+- xtc
+- ndx
+- trr
+- pqr
+- tpr
+- yaml
+";
+        assert_eq!(string, expected);
+    }
+
+    #[test]
+    fn filetype_from_yaml() {
+        let string = "- unknown
+- gro
+- pdb
+- xtc
+- ndx
+- trr
+- pqr
+- tpr
+- yaml
+";
+
+        let filetypes: Vec<FileType> = serde_yaml::from_str(string).unwrap();
+
+        let expected = vec![
+            FileType::Unknown,
+            FileType::GRO,
+            FileType::PDB,
+            FileType::XTC,
+            FileType::NDX,
+            FileType::TRR,
+            FileType::PQR,
+            FileType::TPR,
+            FileType::YAML,
+        ];
+
+        assert_eq!(filetypes, expected);
     }
 }

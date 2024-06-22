@@ -7,8 +7,9 @@ use std::cmp;
 
 /// Structure describing a group of atoms.
 /// Guaranteed to only contain valid atom indices.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct AtomContainer {
     /// Vector of atom blocks capturing the indices of atoms included in the container.
     atom_blocks: Vec<AtomBlock>,
@@ -18,6 +19,7 @@ pub struct AtomContainer {
 /// Guaranteed to only contain valid atom indices.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 struct AtomBlock {
     /// Index of the first atom in the `AtomBlock`.
     /// Atoms are indexed starting from 0.
@@ -175,7 +177,7 @@ impl AtomContainer {
         atom_blocks.sort_unstable();
 
         let mut new_blocks = Vec::new();
-        let mut current_start = std::usize::MAX;
+        let mut current_start = usize::MAX;
         let mut current_end = 0usize;
 
         for block in atom_blocks {
@@ -184,7 +186,7 @@ impl AtomContainer {
 
             // current block does not overlap with the previous one nor is adjacent to it
             if block.start > current_end + 1 || (current_end == 0 && current_start != 0) {
-                if current_start != std::usize::MAX {
+                if current_start != usize::MAX {
                     unsafe {
                         // safety: each `block` is guaranteed to be valid; therefore, new `AtomBlock` must be valid as well
                         new_blocks.push(AtomBlock::new_unchecked(current_start, current_end));
@@ -200,7 +202,7 @@ impl AtomContainer {
         }
 
         // add the last merged block to the result if it exists
-        if current_start != std::usize::MAX {
+        if current_start != usize::MAX {
             unsafe {
                 // safety: each `block` is guaranteed to be valid; therefore, new `AtomBlock` must be valid as well
                 new_blocks.push(AtomBlock::new_unchecked(current_start, current_end));
@@ -215,6 +217,15 @@ impl AtomContainer {
     /// Iterate over the atom indices of the `AtomContainer`.
     pub fn iter(&self) -> AtomContainerIterator {
         AtomContainerIterator {
+            container: self,
+            current_block_index: 0,
+            current_atom_index: 0,
+        }
+    }
+
+    /// Convert `AtomContainer` into `OwnedAtomContainerIterator`.
+    pub fn into_iter(self) -> OwnedAtomContainerIterator {
+        OwnedAtomContainerIterator {
             container: self,
             current_block_index: 0,
             current_atom_index: 0,
@@ -258,6 +269,21 @@ impl AtomContainer {
             .chain(container2.atom_blocks.iter().cloned())
             .collect();
         AtomContainer::from_blocks(blocks)
+    }
+
+    /// Create a new `AtomContainer` that is the intersection of the provided `AtomContainers`.
+    pub fn intersection(container1: &AtomContainer, container2: &AtomContainer) -> AtomContainer {
+        let indices: Vec<usize> = container1
+            .iter()
+            .filter(|&index| container2.isin(index))
+            .collect();
+
+        let n_atoms = match indices.iter().max() {
+            Some(x) => x + 1,
+            None => return AtomContainer::empty(),
+        };
+
+        AtomContainer::from_indices(indices, n_atoms)
     }
 
     /// Add index to the `AtomContainer`.
@@ -342,7 +368,42 @@ impl cmp::PartialOrd for AtomBlock {
     }
 }
 
+// Private helper function to handle the iteration logic
+#[inline(always)]
+fn next_index(
+    container: &AtomContainer,
+    current_block_index: &mut usize,
+    current_atom_index: &mut usize,
+) -> Option<usize> {
+    while *current_block_index < container.atom_blocks.len() {
+        let block = unsafe { &container.atom_blocks.get_unchecked(*current_block_index) };
+
+        // move current_atom_index to the start of the block if it's not there yet
+        if *current_atom_index < block.start {
+            // immediately move to the start + 1 position
+            *current_atom_index = block.start + 1;
+            // and return the start position
+            return Some(block.start);
+        }
+
+        // check if current_atom_index is within the block range
+        if *current_atom_index <= block.end {
+            let index_to_return = *current_atom_index;
+            *current_atom_index += 1;
+
+            // return the current index
+            return Some(index_to_return);
+        }
+
+        // move to the next block
+        *current_block_index += 1;
+    }
+
+    None
+}
+
 /// Iterator over the atom indices in the `AtomContainer`.
+#[derive(Debug, Clone)]
 pub struct AtomContainerIterator<'a> {
     container: &'a AtomContainer,
     current_block_index: usize,
@@ -353,22 +414,36 @@ pub struct AtomContainerIterator<'a> {
 impl<'a> Iterator for AtomContainerIterator<'a> {
     type Item = usize;
 
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(block) = self.container.atom_blocks.get(self.current_block_index) {
-            if self.current_atom_index < block.start {
-                self.current_atom_index = block.start
-            }
+        next_index(
+            self.container,
+            &mut self.current_block_index,
+            &mut self.current_atom_index,
+        )
+    }
+}
 
-            if self.current_atom_index <= block.end {
-                let index_to_return = self.current_atom_index;
-                self.current_atom_index += 1;
-                return Some(index_to_return);
-            }
+/// Iterator over the atom indices in the `AtomContainer`
+/// which owns the `AtomContainer`.
+#[derive(Debug, Clone)]
+pub struct OwnedAtomContainerIterator {
+    container: AtomContainer,
+    current_block_index: usize,
+    current_atom_index: usize,
+}
 
-            self.current_block_index += 1;
-        }
+/// Implementation of the iteration over the indicies of the `AtomContainer`.
+impl Iterator for OwnedAtomContainerIterator {
+    type Item = usize;
 
-        None
+    #[inline(always)]
+    fn next(&mut self) -> Option<Self::Item> {
+        next_index(
+            &self.container,
+            &mut self.current_block_index,
+            &mut self.current_atom_index,
+        )
     }
 }
 
@@ -721,6 +796,17 @@ mod tests_container {
     }
 
     #[test]
+    fn into_iter() {
+        let indices = vec![11, 1, 2, 3, 20, 5, 0, 5, 4, 18, 6, 19, 1, 13, 20, 27];
+        let container = AtomContainer::from_indices(indices, 20);
+
+        let expected_indices = vec![0, 1, 2, 3, 4, 5, 6, 11, 13, 18, 19];
+        let observed_indices: Vec<usize> = container.into_iter().collect();
+
+        assert_eq!(expected_indices, observed_indices);
+    }
+
+    #[test]
     fn last() {
         let indices = vec![11, 1, 2, 3, 20, 5, 0, 5, 4, 18, 6, 19, 1, 13, 20, 27];
         let container = AtomContainer::from_indices(indices, 20);
@@ -790,6 +876,50 @@ mod tests_container {
         assert_eq!(union.atom_blocks.len(), 2);
         cmp_block_tuple(&union.atom_blocks[0], (0, 6));
         cmp_block_tuple(&union.atom_blocks[1], (9, 19));
+    }
+
+    #[test]
+    fn intersection() {
+        let indices = vec![11, 1, 2, 3, 20, 5, 0, 5, 4, 18, 6, 19, 1, 13, 20, 27];
+        let container1 = AtomContainer::from_indices(indices, 20);
+        let container2 =
+            AtomContainer::from_indices(vec![13, 1, 2, 7, 5, 19, 21, 1, 9, 10, 11], 15);
+
+        let intersect1 = AtomContainer::intersection(&container1, &container2);
+        let intersect2 = AtomContainer::intersection(&container2, &container1);
+
+        assert_eq!(intersect1.atom_blocks.len(), 4);
+        cmp_block_tuple(&intersect1.atom_blocks[0], (1, 2));
+        cmp_block_tuple(&intersect1.atom_blocks[1], (5, 5));
+        cmp_block_tuple(&intersect1.atom_blocks[2], (11, 11));
+        cmp_block_tuple(&intersect1.atom_blocks[3], (13, 13));
+        assert_eq!(intersect1, intersect2);
+    }
+
+    #[test]
+    fn intersection_empty() {
+        let indices = vec![11, 1, 2, 3, 20, 5, 0, 5, 4, 18, 6, 19, 1, 13, 20, 27];
+        let container1 = AtomContainer::from_indices(indices, 20);
+        let container2 = AtomContainer::empty();
+
+        let intersect1 = AtomContainer::intersection(&container1, &container2);
+        let intersect2 = AtomContainer::intersection(&container2, &container1);
+
+        assert_eq!(intersect1, AtomContainer::empty());
+        assert_eq!(intersect1, intersect2);
+    }
+
+    #[test]
+    fn intersection_disjunct() {
+        let indices = vec![11, 1, 2, 3, 20, 5, 0, 5, 4, 18, 6, 19, 1, 13, 20, 27];
+        let container1 = AtomContainer::from_indices(indices, 20);
+        let container2 = AtomContainer::from_indices(vec![7, 8, 9, 10, 12, 14], 15);
+
+        let intersect1 = AtomContainer::intersection(&container1, &container2);
+        let intersect2 = AtomContainer::intersection(&container2, &container1);
+
+        assert_eq!(intersect1, AtomContainer::empty());
+        assert_eq!(intersect1, intersect2);
     }
 
     #[test]

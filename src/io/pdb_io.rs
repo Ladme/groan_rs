@@ -8,9 +8,12 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 
+use crate::aux::{PDB_MAX_COORDINATE, PDB_MIN_COORDINATE};
 use crate::errors::{ParsePdbConnectivityError, ParsePdbError, WritePdbError};
 use crate::structures::{atom::Atom, simbox::SimBox};
 use crate::system::System;
+
+use super::check_coordinate_sizes;
 
 /// Read a pdb file and construct a System structure. Do not read connectivity.
 ///
@@ -283,6 +286,16 @@ impl System {
     ) -> Result<(), WritePdbError> {
         if !self.group_exists(group_name) {
             return Err(WritePdbError::GroupNotFound(group_name.to_string()));
+        }
+
+        // check that coordinates of the atoms are in the range supported by the data format
+        // this has to be done before the file is even created
+        if !check_coordinate_sizes(
+            self.group_iter(group_name).unwrap(),
+            PDB_MIN_COORDINATE,
+            PDB_MAX_COORDINATE,
+        ) {
+            return Err(WritePdbError::CoordinateTooLarge);
         }
 
         if write_connectivity {
@@ -693,7 +706,7 @@ mod tests_read {
         assert_eq!(system.get_name(), "Buforin II peptide P11L");
         assert_eq!(system.get_n_atoms(), 17);
 
-        assert_eq!(system.atoms_iter().nth(0).unwrap().get_atom_number(), 1);
+        assert_eq!(system.atoms_iter().next().unwrap().get_atom_number(), 1);
         assert_eq!(system.atoms_iter().nth(16).unwrap().get_atom_number(), 17);
     }
 
@@ -704,7 +717,7 @@ mod tests_read {
         assert_eq!(system.get_name(), "Buforin II peptide P11L");
         assert_eq!(system.get_n_atoms(), 17);
 
-        assert_eq!(system.atoms_iter().nth(0).unwrap().get_atom_number(), 1);
+        assert_eq!(system.atoms_iter().next().unwrap().get_atom_number(), 1);
         assert_eq!(system.atoms_iter().nth(16).unwrap().get_atom_number(), 17);
     }
 
@@ -1173,7 +1186,7 @@ mod tests_read {
     #[test]
     fn pdb_bonds_duplicate_numbers() {
         let mut system = read_pdb("test_files/example.pdb").unwrap();
-        system.get_atom_as_ref_mut(10).unwrap().set_atom_number(25);
+        system.get_atom_as_mut(10).unwrap().set_atom_number(25);
 
         match system.add_bonds_from_pdb("test_files/bonds_inconsistency.pdb") {
             Err(ParsePdbConnectivityError::DuplicateAtomNumbers) => (),
@@ -1268,7 +1281,7 @@ mod tests_write {
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();
 
-        if let Err(_) = system.write_pdb(path_to_output, false) {
+        if system.write_pdb(path_to_output, false).is_err() {
             panic!("Writing pdb file failed.");
         }
 
@@ -1298,7 +1311,7 @@ mod tests_write {
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();
 
-        if let Err(_) = system.write_pdb(path_to_output, false) {
+        if system.write_pdb(path_to_output, false).is_err() {
             panic!("Writing pdb file failed.");
         }
 
@@ -1328,7 +1341,7 @@ mod tests_write {
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();
 
-        if let Err(_) = system.write_pdb(path_to_output, false) {
+        if system.write_pdb(path_to_output, false).is_err() {
             panic!("Writing pdb file failed.");
         }
 
@@ -1347,7 +1360,10 @@ mod tests_write {
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();
 
-        if let Err(_) = system.group_write_pdb("Protein", path_to_output, false) {
+        if system
+            .group_write_pdb("Protein", path_to_output, false)
+            .is_err()
+        {
             panic!("Writing pdb file failed.");
         }
 
@@ -1455,7 +1471,7 @@ mod tests_write {
         let mut system = System::from_file("test_files/conect.pdb").unwrap();
         system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
 
-        system.get_atom_as_ref_mut(10).unwrap().set_atom_number(4);
+        system.get_atom_as_mut(10).unwrap().set_atom_number(4);
 
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();
@@ -1475,10 +1491,7 @@ mod tests_write {
         let mut system = System::from_file("test_files/conect.pdb").unwrap();
         system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
 
-        system
-            .get_atom_as_ref_mut(10)
-            .unwrap()
-            .set_atom_number(100_000);
+        system.get_atom_as_mut(10).unwrap().set_atom_number(100_000);
 
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();
@@ -1552,5 +1565,31 @@ mod tests_write {
         let mut expected = File::open("test_files/example_nobox.pdb").unwrap();
 
         assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_too_large_coordinate_1() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.get_atom_as_mut(16).unwrap().set_position_x(1000.0);
+
+        match system.write_pdb("will_not_be_created_1.pdb", false) {
+            Err(WritePdbError::CoordinateTooLarge) => (),
+            Ok(_) => panic!("Writing should have failed, but it did not."),
+            Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
+        }
+    }
+
+    #[test]
+    fn write_too_large_coordinate_2() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.get_atom_as_mut(16).unwrap().set_position_y(-999.0);
+
+        match system.group_write_pdb("all", "will_not_be_created_2.pdb", false) {
+            Err(WritePdbError::CoordinateTooLarge) => (),
+            Ok(_) => panic!("Writing should have failed, but it did not."),
+            Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
+        }
     }
 }

@@ -4,7 +4,11 @@
 //! Implementation of ProgressPrinter structure for printing the progress of trajectory reading.
 
 use colored::{ColoredString, Colorize};
-use std::{io::Write, num::NonZeroUsize};
+use std::{
+    io::Write,
+    num::NonZeroUsize,
+    sync::{Arc, Mutex},
+};
 
 /// Progress of trajectory reading.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -39,12 +43,16 @@ impl ProgressMessage {
     }
 
     /// Print formatted `ProgressMessage`.
-    fn print(&self, out: &mut dyn Write, colored: bool) {
+    fn print(&self, out: &Arc<Mutex<dyn Write>>, colored: bool) {
+        let mut writer = out.lock().expect(
+            "FATAL GROAN ERROR | ProgressMessage::print | Error occured while locking a mutex.",
+        );
+
         if colored {
-            write!(out, "[{: ^9}]   ", self.msg)
+            write!(writer, "[{: ^9}]   ", self.msg)
                 .expect("FATAL GROAN ERROR | ProgressMessage::print (1) | Could not write to `ProgressPrinter` stream.");
         } else {
-            write!(out, "[{: ^9}]   ", self.msg.as_ref() as &str)
+            write!(writer, "[{: ^9}]   ", self.msg.as_ref() as &str)
             .expect("FATAL GROAN ERROR | ProgressMessage::print (2) | Could not write to `ProgressPrinter` stream.");
         }
     }
@@ -71,9 +79,10 @@ impl From<ColoredString> for ProgressMessage {
 /// Structure handling printing of progress of reading a trajectory file.
 /// Constructed using `ProgressPrinter::new()` and associated with the given
 /// trajectory reader using `TrajMasterRead::print_progress()`.
+#[derive(Clone)]
 pub struct ProgressPrinter {
     /// Stream to write the progress info to.
-    output: Box<dyn Write>,
+    output: Arc<Mutex<dyn Write>>,
     /// Current status of reading. Default: ProgressStatus::Running.
     status: ProgressStatus,
     /// Frequency of printing. Print every `print_freq`th frame. Default: 100 frames.
@@ -82,7 +91,7 @@ pub struct ProgressPrinter {
     colored: bool,
     /// String to be printed with the current simulation step. Default: "Step".cyan().
     step_msg: ColoredString,
-    /// String to be printed with the current simulation step. Default: "Time".bright_purple().
+    /// String to be printed with the current simulation time. Default: "Time".bright_purple().
     time_msg: ColoredString,
     /// String to be printed when the trajectory reading is in progress. Default: "RUNNING".yellow().
     running_msg: ProgressMessage,
@@ -97,6 +106,9 @@ pub struct ProgressPrinter {
     /// Should newline character be printed at the end of the iteration? Default: `true`.
     newline_at_end: bool,
 }
+
+unsafe impl Send for ProgressPrinter {}
+unsafe impl Sync for ProgressPrinter {}
 
 impl ProgressPrinter {
     /// Create an instance of `ProgressPrinter` with default parameters.
@@ -164,7 +176,7 @@ impl ProgressPrinter {
     /// ```
     pub fn new() -> Self {
         ProgressPrinter {
-            output: Box::from(std::io::stdout()),
+            output: Arc::from(Mutex::from(std::io::stdout())),
             status: ProgressStatus::Running,
             print_freq: NonZeroUsize::new(100).unwrap(),
             colored: true,
@@ -180,18 +192,21 @@ impl ProgressPrinter {
     }
 
     /// Create new `ProgressPrinter` with specific `output` stream.
+    #[inline(always)]
     pub fn with_output(mut self, stream: Box<dyn Write>) -> Self {
-        self.output = stream;
+        self.output = Arc::from(Mutex::from(stream));
         self
     }
 
     /// Create new `ProgressPrinter` with specific value for `status`.
+    #[inline(always)]
     pub fn with_status(mut self, status: ProgressStatus) -> Self {
         self.status = status;
         self
     }
 
     /// Set new status to an already constructed `ProgressPrinter`.
+    #[inline(always)]
     pub fn set_status(&mut self, status: ProgressStatus) {
         self.status = status;
     }
@@ -200,6 +215,7 @@ impl ProgressPrinter {
     ///
     /// ## Panics
     /// Panics if `print_freq` is zero.
+    #[inline(always)]
     pub fn with_print_freq(mut self, print_freq: usize) -> Self {
         self.print_freq = NonZeroUsize::new(print_freq).expect(
             "FATAL GROAN ERROR | ProgressPrinter::with_print_freq | `print_freq` must be non-zero.",
@@ -208,18 +224,21 @@ impl ProgressPrinter {
     }
 
     /// Create new `ProgressPrinter` with specific value for `colored`.
+    #[inline(always)]
     pub fn with_colored(mut self, colored: bool) -> Self {
         self.colored = colored;
         self
     }
 
     /// Create new `ProgressPrinter` with specific value for `step_msg`.
+    #[inline(always)]
     pub fn with_step_msg(mut self, step_msg: ColoredString) -> Self {
         self.step_msg = step_msg;
         self
     }
 
     /// Create new `ProgressPrinter` with specific value for `time_msg`.
+    #[inline(always)]
     pub fn with_time_msg(mut self, time_msg: ColoredString) -> Self {
         self.time_msg = time_msg;
         self
@@ -229,6 +248,7 @@ impl ProgressPrinter {
     ///
     /// ## Panics
     /// Panics if the `running_msg` is longer than 9 characters.
+    #[inline(always)]
     pub fn with_running_msg(mut self, running_msg: ColoredString) -> Self {
         self.running_msg = ProgressMessage::new(running_msg);
         self
@@ -238,6 +258,7 @@ impl ProgressPrinter {
     ///
     /// ## Panics
     /// Panics if the `completed_msg` is longer than 9 characters.
+    #[inline(always)]
     pub fn with_completed_msg(mut self, completed_msg: ColoredString) -> Self {
         self.completed_msg = ProgressMessage::new(completed_msg);
         self
@@ -247,6 +268,7 @@ impl ProgressPrinter {
     ///
     /// ## Panics
     /// Panics if the `failed_msg` is longer than 9 characters.
+    #[inline(always)]
     pub fn with_failed_msg(mut self, failed_msg: ColoredString) -> Self {
         self.failed_msg = ProgressMessage::new(failed_msg);
         self
@@ -256,75 +278,105 @@ impl ProgressPrinter {
     ///
     /// ## Panics
     /// Panics if the `jumping_msg` is longer than 9 characters.
+    #[inline(always)]
     pub fn with_jumping_msg(mut self, jumping_msg: ColoredString) -> Self {
         self.jumping_msg = ProgressMessage::new(jumping_msg);
         self
     }
 
     /// Create new `ProgressPrinter` with specific value for `terminating`.
+    #[inline(always)]
     pub fn with_terminating(mut self, string: &str) -> Self {
         self.terminating = string.to_string();
         self
     }
 
     /// Create new `ProgressPrinter` that will (not) print newline once iteration is finished.
+    #[inline(always)]
     pub fn with_newline_at_end(mut self, newline: bool) -> Self {
         self.newline_at_end = newline;
         self
+    }
+
+    /// Prints message about jumping to the start of iteration.
+    #[inline(always)]
+    fn print_jumping_msg(&mut self) {
+        self.jumping_msg.print(&self.output, self.colored);
+        let mut writer = self.output.lock()
+            .expect("FATAL GROAN ERROR | ProgressPrinter::print_jumping_msg | Error occured while locking a mutex.");
+
+        write!(writer, "Jumping to the start of the iteration...{}", self.terminating)
+                        .expect("FATAL GROAN ERROR | ProgressPrinter::print_jumping_msg (1) | Could not write to `ProgressPrinter` stream.");
+        writer.flush()
+            .expect("FATAL GROAN ERROR | ProgressPrinter::print_jumping_msg (2) | Could not flush `ProgressPrinter` stream.");
+    }
+
+    /// Print formatted information about the current step and simulation time.
+    #[inline(always)]
+    fn print_steptime(&mut self, sim_step: u64, sim_time: f32) {
+        let mut writer = self.output.lock()
+            .expect("FATAL GROAN ERROR | ProgressPrinter::print_steptime | Error occured while locking a mutex.");
+
+        if self.colored {
+            write!(
+                writer,
+                "{} {:12} | {} {:12} ps{}",
+                self.step_msg, sim_step, self.time_msg, sim_time as u64, self.terminating
+            )
+            .expect("FATAL GROAN ERROR | ProgressPrinter::print_steptime(1) | Could not write to `ProgressPrinter` stream.");
+        } else {
+            write!(
+                writer,
+                "{} {:12} | {} {:12} ps{}",
+                self.step_msg.as_ref() as &str,
+                sim_step,
+                self.time_msg.as_ref() as &str,
+                sim_time as u64,
+                self.terminating
+            )
+            .expect("FATAL GROAN ERROR | ProgressPrinter::print_steptime (2) | Could not write to `ProgressPrinter` stream.");
+        }
+    }
+
+    /// Print newline at the end of iteration.
+    #[inline(always)]
+    fn print_newline_at_end(&mut self) {
+        let mut writer = self.output.lock()
+            .expect("FATAL GROAN ERROR | ProgressPrinter::print_newline_at_end | Error occured while locking a mutex.");
+
+        writeln!(writer).expect("FATAL GROAN ERROR | ProgressPrinter::print_newline_at_end | Could not write to `ProgressPrinter` stream.");
     }
 
     /// Print progress info about trajectory reading.
     pub fn print(&mut self, frame_number: usize, sim_step: u64, sim_time: f32) {
         if self.status != ProgressStatus::Running || frame_number % self.print_freq == 0 {
             match self.status {
-                ProgressStatus::Running => self.running_msg.print(&mut self.output, self.colored),
-                ProgressStatus::Completed => {
-                    self.completed_msg.print(&mut self.output, self.colored)
-                }
-                ProgressStatus::Failed => self.failed_msg.print(&mut self.output, self.colored),
+                ProgressStatus::Running => self.running_msg.print(&self.output, self.colored),
+                ProgressStatus::Completed => self.completed_msg.print(&self.output, self.colored),
+                ProgressStatus::Failed => self.failed_msg.print(&self.output, self.colored),
                 ProgressStatus::Jumping => {
-                    self.jumping_msg.print(&mut self.output, self.colored);
-                    write!(self.output, "Jumping to the start of the iteration...{}", self.terminating)
-                        .expect("FATAL GROAN ERROR | ProgressPrinter::print (1) | Could not write to `ProgressPrinter` stream.");
-                    self.output
-                        .flush()
-                        .expect("FATAL GROAN ERROR | ProgressPrinter::print (2) | Could not flush `ProgressPrinter` stream.");
+                    self.print_jumping_msg();
                     return;
                 }
             }
 
-            if self.colored {
-                write!(
-                    self.output,
-                    "{} {:12} | {} {:12} ps{}",
-                    self.step_msg, sim_step, self.time_msg, sim_time as u64, self.terminating
-                )
-                .expect("FATAL GROAN ERROR | ProgressPrinter::print (3) | Could not write to `ProgressPrinter` stream.");
-            } else {
-                write!(
-                    self.output,
-                    "{} {:12} | {} {:12} ps{}",
-                    self.step_msg.as_ref() as &str,
-                    sim_step,
-                    self.time_msg.as_ref() as &str,
-                    sim_time as u64,
-                    self.terminating
-                )
-                .expect("FATAL GROAN ERROR | ProgressPrinter::print (4) | Could not write to `ProgressPrinter` stream.");
-            }
+            self.print_steptime(sim_step, sim_time);
 
             match self.status {
                 ProgressStatus::Running | ProgressStatus::Jumping => (),
                 ProgressStatus::Completed | ProgressStatus::Failed => {
                     if self.newline_at_end {
-                        writeln!(self.output).expect("FATAL GROAN ERROR | ProgressPrinter::print (6) | Could not write to `ProgressPrinter` stream.");
+                        self.print_newline_at_end();
                     }
                 }
             }
 
-            self.output
-                .flush()
-                .expect("FATAL GROAN ERROR | ProgressPrinter::print (5) | Could not flush `ProgressPrinter` stream.");
+            let mut writer = self.output.lock().expect(
+                "FATAL GROAN ERROR | ProgressPrinter::print | Error occured while locking a mutex.",
+            );
+
+            writer.flush()
+                .expect("FATAL GROAN ERROR | ProgressPrinter::print | Could not flush `ProgressPrinter` stream.");
         }
     }
 }
@@ -351,7 +403,7 @@ mod tests {
 
         assert_eq!(printer.status, ProgressStatus::Running);
         assert_eq!(printer.print_freq.get(), 100);
-        assert_eq!(printer.colored, true);
+        assert!(printer.colored);
         assert_eq!(printer.step_msg, "Step".cyan());
         assert_eq!(printer.time_msg, "Time".bright_purple());
         assert_eq!(
@@ -375,7 +427,7 @@ mod tests {
 
         assert_eq!(printer.status, ProgressStatus::Running);
         assert_eq!(printer.print_freq.get(), 100);
-        assert_eq!(printer.colored, true);
+        assert!(printer.colored);
         assert_eq!(printer.step_msg, "Step".cyan());
         assert_eq!(printer.time_msg, "Time".bright_purple());
         assert_eq!(
@@ -428,7 +480,7 @@ mod tests {
 
         assert_eq!(printer.status, ProgressStatus::Jumping);
         assert_eq!(printer.print_freq.get(), 200);
-        assert_eq!(printer.colored, false);
+        assert!(!printer.colored);
         assert_eq!(printer.step_msg, "STEP".into());
         assert_eq!(printer.time_msg, "time".yellow());
         assert_eq!(printer.running_msg, ProgressMessage::new("ANALYZING".red()));

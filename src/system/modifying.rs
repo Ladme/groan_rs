@@ -6,6 +6,7 @@
 use std::collections::HashSet;
 
 use crate::errors::{AtomError, GroupError, PositionError};
+use crate::structures::iterators::MasterMutAtomIterator;
 use crate::structures::{
     atom::Atom,
     simbox::{simbox_check, SimBox},
@@ -38,21 +39,14 @@ impl System {
     ///     Ok(_) => (),   
     /// }
     /// ```
+    #[inline(always)]
     pub fn group_translate(&mut self, name: &str, vector: &Vector3D) -> Result<(), GroupError> {
-        let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?
-            as *const SimBox;
-
-        unsafe {
-            for atom in self.group_iter_mut(name)? {
-                match atom.translate(vector, &*simbox) {
-                    Ok(_) => (),
-                    Err(AtomError::InvalidPosition(e)) => return Err(GroupError::InvalidPosition(e)),
-                    _ => panic!("FATAL GROAN ERROR | System::group_translate | Invalid error type returned from `Atom::translate`."), 
-                }
-            }
+        match self.group_iter_mut(name)?.translate(vector) {
+            Ok(_) => Ok(()),
+            Err(AtomError::InvalidPosition(e)) => Err(GroupError::InvalidPosition(e)),
+            Err(AtomError::InvalidSimBox(e)) => Err(GroupError::InvalidSimBox(e)),
+            _ => panic!("FATAL GROAN ERROR | System::group_translate | Invalid error type returned from `MasterMutAtomIterator::translate`.")
         }
-
-        Ok(())
     }
 
     /// Translate all atoms in the system by target vector.
@@ -72,17 +66,9 @@ impl System {
     ///
     /// system.atoms_translate(&[1.0, 2.0, -1.0].into());
     /// ```
+    #[inline(always)]
     pub fn atoms_translate(&mut self, vector: &Vector3D) -> Result<(), AtomError> {
-        let simbox =
-            simbox_check(self.get_box_as_ref()).map_err(AtomError::InvalidSimBox)? as *const SimBox;
-
-        unsafe {
-            for atom in self.get_atoms_as_ref_mut().iter_mut() {
-                atom.translate(vector, &*simbox)?;
-            }
-        }
-
-        Ok(())
+        self.atoms_iter_mut().translate(vector)
     }
 
     /// Renumber all atoms of the system. This function will give a new atom number
@@ -123,10 +109,9 @@ impl System {
     /// new_system.write_gro("output.gro", true).unwrap();
     /// ```
     pub fn atoms_renumber(&mut self) {
-        unsafe {
-            for (i, atom) in self.get_atoms_as_ref_mut().iter_mut().enumerate() {
-                atom.set_atom_number(i + 1);
-            }
+        // intentionally not using `atoms_iter_mut` because this might be faster
+        for (i, atom) in self.get_atoms_as_mut().iter_mut().enumerate() {
+            atom.set_atom_number(i + 1);
         }
     }
 
@@ -186,18 +171,17 @@ impl System {
     /// After renumbering, atoms 1-3 will have a residue number 1, atoms 4-5 will have a residue number 2,
     /// and atoms 6-8 will have a residue number 3.
     pub fn residues_renumber(&mut self) {
-        unsafe {
-            let mut current_res = 0;
-            let mut renumbered_res = 0;
+        let mut current_res = 0;
+        let mut renumbered_res = 0;
 
-            for atom in self.get_atoms_as_ref_mut().iter_mut() {
-                if atom.get_residue_number() != current_res {
-                    current_res = atom.get_residue_number();
-                    renumbered_res += 1;
-                    atom.set_residue_number(renumbered_res);
-                } else {
-                    atom.set_residue_number(renumbered_res);
-                }
+        // intentionally not using `atoms_iter_mut` because this might be faster
+        for atom in self.get_atoms_as_mut().iter_mut() {
+            if atom.get_residue_number() != current_res {
+                current_res = atom.get_residue_number();
+                renumbered_res += 1;
+                atom.set_residue_number(renumbered_res);
+            } else {
+                atom.set_residue_number(renumbered_res);
             }
         }
     }
@@ -210,14 +194,9 @@ impl System {
     /// or the simulation box is not orthogonal.
     /// `AtomError::InvalidPosition` if any of the atoms in the system
     /// has an undefined position.
+    #[inline(always)]
     pub fn atoms_wrap(&mut self) -> Result<(), AtomError> {
-        match self.group_wrap("all") {
-            Ok(_) => Ok(()),
-            Err(GroupError::NotFound(_)) => panic!("FATAL GROAN ERROR | System::atoms_wrap | Default group 'all' does not exist."),
-            Err(GroupError::InvalidSimBox(e)) => Err(AtomError::InvalidSimBox(e)),
-            Err(GroupError::InvalidPosition(e)) => Err(AtomError::InvalidPosition(e)),
-            Err(_) => panic!("FATAL GROAN ERROR | System::atoms_wrap | Invalid error type returned from `System::group_wrap`."),
-        }
+        self.atoms_iter_mut().wrap()
     }
 
     /// Wrap atoms of a given group into the simulation box.
@@ -229,21 +208,14 @@ impl System {
     /// or the simulation box is not orthogonal.
     /// - `GroupError::InvalidPosition` if any of the atoms of the group
     /// has an undefined position.
+    #[inline(always)]
     pub fn group_wrap(&mut self, name: &str) -> Result<(), GroupError> {
-        let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?
-            as *const SimBox;
-
-        unsafe {
-            for atom in self.group_iter_mut(name)? {
-                match atom.wrap(&*simbox) {
-                    Ok(_) => (),
-                    Err(AtomError::InvalidPosition(e)) => return Err(GroupError::InvalidPosition(e)),
-                    _ => panic!("FATAL GROAN ERROR | System::group_wrap | Invalid error type returned from `Atom::wrap`."),
-                }
-            }
+        match self.group_iter_mut(name)?.wrap() {
+            Ok(_) => Ok(()),
+            Err(AtomError::InvalidPosition(e)) => Err(GroupError::InvalidPosition(e)),
+            Err(AtomError::InvalidSimBox(e)) => Err(GroupError::InvalidSimBox(e)),
+            _ => panic!("FATAL GROAN ERROR | System::group_wrap | Invalid error type returned from `MasterMutAtomIterator::wrap`.")
         }
-
-        Ok(())
     }
 
     /// Add bond connecting two atoms with target indices. Atoms are indexed from 0.
@@ -263,8 +235,8 @@ impl System {
         }
 
         unsafe {
-            let atom1 = self.get_atom_as_ref_mut(index1)? as *mut Atom;
-            let atom2 = self.get_atom_as_ref_mut(index2)? as *mut Atom;
+            let atom1 = self.get_atom_as_mut(index1)? as *mut Atom;
+            let atom2 = self.get_atom_as_mut(index2)? as *mut Atom;
 
             (*atom1).add_bonded(index2);
             (*atom2).add_bonded(index1);
@@ -304,9 +276,7 @@ impl System {
             }
         }
 
-        unsafe {
-            self.set_mol_references(new_mol_refs);
-        }
+        self.set_mol_references(new_mol_refs);
     }
 
     /// Make molecules whole in the simulation box.
@@ -377,7 +347,7 @@ impl System {
 
         unsafe {
             for index in (*starts).iter() {
-                let atom = self.get_atom_as_ref_mut(*index).expect(
+                let atom = self.get_atom_as_mut(*index).expect(
                     "FATAL GROAN ERROR | System::make_molecules_whole (2) | Atom index does not exist.",
                 ) as *mut Atom;
 
@@ -481,7 +451,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         let shift = Vector3D::new(3.5, -1.1, 5.4);
 
-        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+        system.get_atom_as_mut(15).unwrap().reset_position();
 
         match system.atoms_translate(&shift) {
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
@@ -553,7 +523,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         let shift = Vector3D::new(3.5, -1.1, 5.4);
 
-        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+        system.get_atom_as_mut(15).unwrap().reset_position();
 
         match system.group_translate("all", &shift) {
             Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
@@ -585,14 +555,8 @@ mod tests {
         let system1 = System::from_file("test_files/example_novelocities.gro").unwrap();
         let mut system2 = System::from_file("test_files/example_novelocities.gro").unwrap();
 
-        system2
-            .get_atom_as_ref_mut(0)
-            .unwrap()
-            .set_residue_number(3);
-        system2
-            .get_atom_as_ref_mut(1)
-            .unwrap()
-            .set_residue_number(3);
+        system2.get_atom_as_mut(0).unwrap().set_residue_number(3);
+        system2.get_atom_as_mut(1).unwrap().set_residue_number(3);
 
         system2.residues_renumber();
 
@@ -636,7 +600,7 @@ mod tests {
 
         for index in [154, 1754, 12345, 4, 37, 0] {
             system
-                .get_atom_as_ref_mut(index)
+                .get_atom_as_mut(index)
                 .unwrap()
                 .translate_nopbc(&translate1)
                 .unwrap();
@@ -645,7 +609,7 @@ mod tests {
         let translate2 = Vector3D::new(0.0, simbox.y, -simbox.z * 2.0);
         for index in [13, 65, 9853, 16843, 7832, 489] {
             system
-                .get_atom_as_ref_mut(index)
+                .get_atom_as_mut(index)
                 .unwrap()
                 .translate_nopbc(&translate2)
                 .unwrap();
@@ -695,7 +659,7 @@ mod tests {
     fn atoms_wrap_fail_position() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+        system.get_atom_as_mut(15).unwrap().reset_position();
 
         match system.atoms_wrap() {
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
@@ -719,7 +683,7 @@ mod tests {
 
         for index in [154, 1754, 12345, 4, 37, 0] {
             system
-                .get_atom_as_ref_mut(index)
+                .get_atom_as_mut(index)
                 .unwrap()
                 .translate_nopbc(&translate1)
                 .unwrap();
@@ -728,7 +692,7 @@ mod tests {
         let translate2 = Vector3D::new(0.0, simbox.y, -simbox.z * 2.0);
         for index in [13, 65, 9853, 16843, 7832, 489] {
             system
-                .get_atom_as_ref_mut(index)
+                .get_atom_as_mut(index)
                 .unwrap()
                 .translate_nopbc(&translate2)
                 .unwrap();
@@ -837,7 +801,7 @@ mod tests {
     #[test]
     fn group_wrap_fail_position() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
-        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+        system.get_atom_as_mut(15).unwrap().reset_position();
 
         match system.group_wrap("all") {
             Ok(_) => panic!("Function should have failed but it succeeded."),
@@ -963,7 +927,7 @@ mod tests {
         system.add_bond(0, 2).unwrap();
         system.make_molecules_whole().unwrap();
 
-        let atom1 = system.atoms_iter().nth(0).unwrap();
+        let atom1 = system.atoms_iter().next().unwrap();
         let atom2 = system.atoms_iter().nth(1).unwrap();
         let atom3 = system.atoms_iter().nth(2).unwrap();
 
@@ -984,7 +948,7 @@ mod tests {
         system.add_bond(1, 2).unwrap();
         system.make_molecules_whole().unwrap();
 
-        let atom1 = system.atoms_iter().nth(0).unwrap();
+        let atom1 = system.atoms_iter().next().unwrap();
         let atom2 = system.atoms_iter().nth(1).unwrap();
         let atom3 = system.atoms_iter().nth(2).unwrap();
 
@@ -1039,7 +1003,7 @@ mod tests {
     fn make_molecules_whole_fail_position() {
         let mut system = System::from_file("test_files/conect.pdb").unwrap();
         system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
-        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+        system.get_atom_as_mut(15).unwrap().reset_position();
 
         match system.make_molecules_whole() {
             Ok(_) => panic!("Function should have failed but it succeeded."),

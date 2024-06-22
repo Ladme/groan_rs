@@ -3,15 +3,11 @@
 
 //! Implementation of various methods for analysis of `System`.
 
-use crate::errors::{AtomError, GroupError, MassError, PositionError};
-use crate::structures::simbox::{simbox_check, SimBox};
+use crate::errors::{AtomError, GroupError};
+use crate::structures::iterators::MasterAtomIterator;
+use crate::structures::simbox::simbox_check;
 use crate::structures::{dimension::Dimension, vector3d::Vector3D};
 use crate::system::System;
-
-use std::f32::consts;
-
-// PI times 2.
-const PI_X2: f32 = consts::PI * 2.0f32;
 
 /// ## Methods for analyzing the properties of the system.
 impl System {
@@ -48,40 +44,20 @@ impl System {
     /// };
     /// ```
     pub fn group_get_center(&self, name: &str) -> Result<Vector3D, GroupError> {
-        // we can't work with a nonexistent or empty group
         if self.group_isempty(name)? {
-            return Err(GroupError::EmptyGroup(name.to_string()));
+            return Err(GroupError::EmptyGroup(name.to_owned()));
         }
 
-        let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?;
+        let iterator = self
+            .group_iter(name)
+            .expect("FATAL GROAN ERROR | System::group_get_center | Group does not exist but this should have been handled before.");
 
-        let scaling = Vector3D::new(PI_X2 / simbox.x, PI_X2 / simbox.y, PI_X2 / simbox.z);
-
-        let mut sum_xi = Vector3D::default();
-        let mut sum_zeta = Vector3D::default();
-
-        for atom in self.group_iter(name)
-            .expect("FATAL GROAN ERROR | System::group_get_center | Group not found but this should have already been checked.") 
-        {
-            match atom.get_position() {
-                Some(x) => center_atom_contribution(
-                    *x,
-                    &scaling,
-                    simbox,
-                    1.0, // use 1 as mass since we are calculating center of geometry
-                    &mut sum_xi,
-                    &mut sum_zeta,
-                ),
-                None => {
-                    return Err(GroupError::InvalidPosition(PositionError::NoPosition(
-                        atom.get_atom_number(),
-                    )));
-                }
-            }
+        match iterator.get_center() {
+            Ok(x) => Ok(x),
+            Err(AtomError::InvalidSimBox(e)) => Err(GroupError::InvalidSimBox(e)),
+            Err(AtomError::InvalidPosition(e)) => Err(GroupError::InvalidPosition(e)),
+            _ => panic!("FATAL GROAN ERROR | System::group_get_center | Invalid error type returned from `System::iterator_get_center`."),
         }
-
-        // convert to real coordinates
-        Ok(from_circle_to_line(sum_zeta, sum_xi, &scaling))
     }
 
     /// Calculate center of mass of a group in `System`.
@@ -120,45 +96,21 @@ impl System {
     /// };
     /// ```
     pub fn group_get_com(&self, name: &str) -> Result<Vector3D, GroupError> {
-        // we can't work with a nonexistent or empty group
         if self.group_isempty(name)? {
-            return Err(GroupError::EmptyGroup(name.to_string()));
+            return Err(GroupError::EmptyGroup(name.to_owned()));
         }
 
-        let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?;
+        let iterator = self
+            .group_iter(name)
+            .expect("FATAL GROAN ERROR | System::group_get_com | Group does not exist but this should have been handled before.");
 
-        let scaling = Vector3D::new(PI_X2 / simbox.x, PI_X2 / simbox.y, PI_X2 / simbox.z);
-
-        let mut sum_xi = Vector3D::default();
-        let mut sum_zeta = Vector3D::default();
-
-        for atom in self.group_iter(name)
-            .expect("FATAL GROAN ERROR | System::group_get_com | Group not found but this should have already been checked.") 
-        {
-            let mass = atom
-                .get_mass()
-                .ok_or(GroupError::InvalidMass(MassError::NoMass(
-                    atom.get_atom_number(),
-                )))?;
-
-            match atom.get_position() {
-                Some(x) => center_atom_contribution(
-                    *x,
-                    &scaling,
-                    simbox,
-                    mass,
-                    &mut sum_xi,
-                    &mut sum_zeta,
-                ),
-                None => {
-                    return Err(GroupError::InvalidPosition(PositionError::NoPosition(
-                        atom.get_atom_number(),
-                    )));
-                }
-            }
+        match iterator.get_com() {
+            Ok(x) => Ok(x),
+            Err(AtomError::InvalidSimBox(e)) => Err(GroupError::InvalidSimBox(e)),
+            Err(AtomError::InvalidPosition(e)) => Err(GroupError::InvalidPosition(e)),
+            Err(AtomError::InvalidMass(e)) => Err(GroupError::InvalidMass(e)),
+            _ => panic!("FATAL GROAN ERROR | System::group_get_com | Invalid error type returned from `System::iterator_get_com`."),
         }
-
-        Ok(from_circle_to_line(sum_zeta, sum_xi, &scaling))
     }
 
     /// Calculate distance between the centers of geometries of the specified groups.
@@ -232,12 +184,12 @@ impl System {
     /// let max = distances
     ///     .iter()
     ///     .flatten()
-    ///     .fold(std::f32::NEG_INFINITY, |max, &current| max.max(current));
+    ///     .fold(f32::NEG_INFINITY, |max, &current| max.max(current));
     /// // get the minimal distance between the atoms
     /// let min = distances
     ///     .iter()
     ///     .flatten()
-    ///     .fold(std::f32::INFINITY, |min, &current| min.min(current));
+    ///     .fold(f32::INFINITY, |min, &current| min.min(current));
     /// ```
     pub fn group_all_distances(
         &self,
@@ -313,50 +265,6 @@ impl System {
     }
 }
 
-/// Calculate contribution of an atom to the center of mass.
-#[inline(always)]
-fn center_atom_contribution(
-    mut position: Vector3D,
-    scaling: &Vector3D,
-    simbox: &SimBox,
-    mass: f32,
-    sum_xi: &mut Vector3D,
-    sum_zeta: &mut Vector3D,
-) {
-    // wrap position into the box
-    position.wrap(simbox);
-
-    let theta = Vector3D::new(
-        position.x * scaling.x,
-        position.y * scaling.y,
-        position.z * scaling.z,
-    );
-
-    sum_xi.x += mass * theta.x.cos();
-    sum_xi.y += mass * theta.y.cos();
-    sum_xi.z += mass * theta.z.cos();
-
-    sum_zeta.x += mass * theta.x.sin();
-    sum_zeta.y += mass * theta.y.sin();
-    sum_zeta.z += mass * theta.z.sin();
-}
-
-/// Convert coordinates from their representation on a circle to their representation on a line.
-#[inline(always)]
-fn from_circle_to_line(zeta: Vector3D, xi: Vector3D, scaling: &Vector3D) -> Vector3D {
-    let theta = Vector3D::new(
-        (-zeta.x).atan2(-xi.x) + consts::PI,
-        (-zeta.y).atan2(-xi.y) + consts::PI,
-        (-zeta.z).atan2(-xi.z) + consts::PI,
-    );
-
-    Vector3D::new(
-        theta.x / scaling.x,
-        theta.y / scaling.y,
-        theta.z / scaling.z,
-    )
-}
-
 /******************************/
 /*         UNIT TESTS         */
 /******************************/
@@ -366,7 +274,7 @@ mod tests {
     use super::*;
     use float_cmp::assert_approx_eq;
 
-    use crate::errors::SimBoxError;
+    use crate::errors::{MassError, PositionError, SimBoxError};
     use crate::structures::atom::Atom;
     use crate::structures::element::Elements;
 
@@ -438,7 +346,7 @@ mod tests {
 
         assert_approx_eq!(f32, center.x, 2.634386, epsilon = 0.0001);
         assert_approx_eq!(f32, center.y, 9.775156, epsilon = 0.0001);
-        assert_approx_eq!(f32, center.z, 1.174800, epsilon = 0.0001);
+        assert_approx_eq!(f32, center.z, 1.1748, epsilon = 0.0001);
     }
 
     #[test]
@@ -463,7 +371,7 @@ mod tests {
 
         assert_approx_eq!(f32, center.x, 2.634386, epsilon = 0.0001);
         assert_approx_eq!(f32, center.y, 9.775156, epsilon = 0.0001);
-        assert_approx_eq!(f32, center.z, 1.174800, epsilon = 0.0001);
+        assert_approx_eq!(f32, center.z, 1.1748, epsilon = 0.0001);
     }
 
     #[test]
@@ -475,7 +383,7 @@ mod tests {
         let center_prot = system.group_get_center("Protein").unwrap();
 
         assert_approx_eq!(f32, center_mem.x, 3.575004, epsilon = 0.0001);
-        assert_approx_eq!(f32, center_mem.y, 8.009330, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_mem.y, 8.00933, epsilon = 0.0001);
         assert_approx_eq!(f32, center_mem.z, 5.779888, epsilon = 0.0001);
 
         assert_approx_eq!(f32, center_prot.x, 9.857101, epsilon = 0.0001);
@@ -519,7 +427,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+        system.get_atom_as_mut(15).unwrap().reset_position();
 
         match system.group_get_center("Protein") {
             Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
@@ -612,7 +520,7 @@ mod tests {
             [8.7, 5.0, 2.4],
         ];
 
-        let masses = vec![10.3, 5.4, 3.8, 10.1, 7.6];
+        let masses = [10.3, 5.4, 3.8, 10.1, 7.6];
 
         let mut atoms = Vec::new();
         for (i, position) in atom_positions.into_iter().enumerate() {
@@ -642,7 +550,7 @@ mod tests {
             [-1.3, 5.0, 2.4],
         ];
 
-        let masses = vec![10.3, 5.4, 3.8, 10.1, 7.6];
+        let masses = [10.3, 5.4, 3.8, 10.1, 7.6];
 
         let mut atoms = Vec::new();
         for (i, position) in atom_positions.into_iter().enumerate() {
@@ -747,7 +655,7 @@ mod tests {
             atom.set_mass(10.3);
         }
 
-        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+        system.get_atom_as_mut(15).unwrap().reset_position();
 
         match system.group_get_com("Protein") {
             Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
@@ -928,7 +836,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+        system.get_atom_as_mut(15).unwrap().reset_position();
 
         match system.group_distance("Protein", "Membrane", Dimension::XYZ) {
             Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
@@ -945,7 +853,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        let n_atoms = system.group_get_n_atoms("Protein").unwrap() as usize;
+        let n_atoms = system.group_get_n_atoms("Protein").unwrap();
         let distances = system
             .group_all_distances("Protein", "Protein", Dimension::XYZ)
             .unwrap();
@@ -967,7 +875,7 @@ mod tests {
         let max = distances
             .iter()
             .flatten()
-            .fold(std::f32::NEG_INFINITY, |max, &current| max.max(current));
+            .fold(f32::NEG_INFINITY, |max, &current| max.max(current));
         assert_approx_eq!(f32, max, 4.597961);
 
         assert_approx_eq!(f32, distances[0][1], 0.31040135);
@@ -980,7 +888,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        let n_atoms = system.group_get_n_atoms("Protein").unwrap() as usize;
+        let n_atoms = system.group_get_n_atoms("Protein").unwrap();
         let distances = system
             .group_all_distances("Protein", "Protein", Dimension::Z)
             .unwrap();
@@ -1002,14 +910,14 @@ mod tests {
         let max = distances
             .iter()
             .flatten()
-            .fold(std::f32::NEG_INFINITY, |max, &current| max.max(current));
+            .fold(f32::NEG_INFINITY, |max, &current| max.max(current));
         assert_approx_eq!(f32, max, 4.383, epsilon = 0.00001);
 
         // get the minimal value
         let min = distances
             .iter()
             .flatten()
-            .fold(std::f32::INFINITY, |min, &current| min.min(current));
+            .fold(f32::INFINITY, |min, &current| min.min(current));
         assert_approx_eq!(f32, min, -4.383, epsilon = 0.00001);
 
         assert_approx_eq!(f32, distances[0][1], 0.0900, epsilon = 0.00001);
@@ -1027,8 +935,8 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        let n_atoms_membrane = system.group_get_n_atoms("Membrane").unwrap() as usize;
-        let n_atoms_protein = system.group_get_n_atoms("Protein").unwrap() as usize;
+        let n_atoms_membrane = system.group_get_n_atoms("Membrane").unwrap();
+        let n_atoms_protein = system.group_get_n_atoms("Protein").unwrap();
         let distances = system
             .group_all_distances("Membrane", "Protein", Dimension::XY)
             .unwrap();
@@ -1040,14 +948,14 @@ mod tests {
         let max = distances
             .iter()
             .flatten()
-            .fold(std::f32::NEG_INFINITY, |max, &current| max.max(current));
+            .fold(f32::NEG_INFINITY, |max, &current| max.max(current));
         assert_approx_eq!(f32, max, 9.190487, epsilon = 0.00001);
 
         // get the minimal value
         let min = distances
             .iter()
             .flatten()
-            .fold(std::f32::INFINITY, |min, &current| min.min(current));
+            .fold(f32::INFINITY, |min, &current| min.min(current));
         assert_approx_eq!(f32, min, 0.02607, epsilon = 0.00001);
 
         assert_approx_eq!(f32, distances[0][0], 3.747651);
@@ -1106,7 +1014,7 @@ mod tests {
     fn group_all_distances_fail_position() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
-        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+        system.get_atom_as_mut(15).unwrap().reset_position();
 
         match system.group_all_distances("Membrane", "Protein", Dimension::XYZ) {
             Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
@@ -1187,7 +1095,7 @@ mod tests {
     fn atoms_distance_fail_position() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        system.get_atom_as_ref_mut(15).unwrap().reset_position();
+        system.get_atom_as_mut(15).unwrap().reset_position();
 
         match system.atoms_distance(12, 15, Dimension::XYZ) {
             Ok(_) => panic!("Function should have failed but it succeeded."),

@@ -7,6 +7,7 @@ pub mod atom;
 pub(crate) mod container;
 pub mod dimension;
 pub mod element;
+pub mod gridmap;
 pub mod group;
 pub mod iterators;
 pub mod shape;

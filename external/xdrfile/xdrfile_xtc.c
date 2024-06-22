@@ -1,4 +1,4 @@
-/* -*- mode: c; tab-width: 4; indent-tabs-mode: t; c-basic-offset: 4 -*- 
+/* -*- mode: c; tab-width: 4; indent-tabs-mode: t; c-basic-offset: 4 -*-
  *
  * $Id$
  *
@@ -26,110 +26,114 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
- 
+
 #include <stdlib.h>
 #include "xdrfile.h"
 #include "xdrfile_xtc.h"
-	
+
 #define MAGIC 1995
 
-enum { FALSE, TRUE };
-
-static int xtc_header(XDRFILE *xd,int *natoms,int *step,float *time,mybool bRead)
+enum
 {
-	int result,magic,n=1;
-	
+	FALSE,
+	TRUE
+};
+
+static int xtc_header(XDRFILE *xd, int *natoms, int *step, float *time, mybool bRead)
+{
+	int result, magic, n = 1;
+
 	/* Note: read is same as write. He he he */
-	magic  = MAGIC;
-	if ((result = xdrfile_write_int(&magic,n,xd)) != n)
-		{
-			if (bRead)
-				return exdrENDOFFILE;
-			else
-				return exdrINT;
-		}
+	magic = MAGIC;
+	if ((result = xdrfile_write_int(&magic, n, xd)) != n)
+	{
+		if (bRead)
+			return exdrENDOFFILE;
+		else
+			return exdrINT;
+	}
 	if (magic != MAGIC)
 		return exdrMAGIC;
-	if ((result = xdrfile_write_int(natoms,n,xd)) != n)
+	if ((result = xdrfile_write_int(natoms, n, xd)) != n)
 		return exdrINT;
-	if ((result = xdrfile_write_int(step,n,xd)) != n)
+	if ((result = xdrfile_write_int(step, n, xd)) != n)
 		return exdrINT;
-	if ((result = xdrfile_write_float(time,n,xd)) != n)
+	if ((result = xdrfile_write_float(time, n, xd)) != n)
 		return exdrFLOAT;
-	
+
 	return exdrOK;
 }
 
-static int xtc_coord(XDRFILE *xd,int *natoms,matrix box,rvec *x,float *prec,
+static int xtc_coord(XDRFILE *xd, int *natoms, matrix box, rvec *x, float *prec,
 					 mybool bRead)
 {
 	int result;
-    
+
 	/* box */
-	result = xdrfile_read_float(box[0],DIM*DIM,xd);
-	if (DIM*DIM != result)
+	result = xdrfile_read_float(box[0], DIM * DIM, xd);
+	if (DIM * DIM != result)
 		return exdrFLOAT;
-	else 
+	else
+	{
+		if (bRead)
 		{
-			if (bRead)
-				{
-					result = xdrfile_decompress_coord_float(x[0],natoms,prec,xd); 
-					if (result != *natoms)
-						return exdr3DX;
-				}
-			else
-				{
-					result = xdrfile_compress_coord_float(x[0],*natoms,*prec,xd); 
-					if (result != *natoms)
-						return exdr3DX;
-				}
+			result = xdrfile_decompress_coord_float(x[0], natoms, prec, xd);
+			if (result != *natoms)
+				return exdr3DX;
 		}
+		else
+		{
+			result = xdrfile_compress_coord_float(x[0], *natoms, *prec, xd);
+			if (result != *natoms)
+				return exdr3DX;
+		}
+	}
 	return exdrOK;
 }
 
-int read_xtc_natoms(const char *fn,int *natoms)
+int read_xtc_natoms(const char *fn, int *natoms)
 {
 	XDRFILE *xd;
-	int step,result;
+	int step, result;
 	float time;
-	
-	xd = xdrfile_open(fn,"r");
+
+	xd = xdrfile_open(fn, "r");
 	if (NULL == xd)
 		return exdrFILENOTFOUND;
-	result = xtc_header(xd,natoms,&step,&time,TRUE);
+	result = xtc_header(xd, natoms, &step, &time, TRUE);
 	xdrfile_close(xd);
-	
+
 	return result;
 }
 
 int read_xtc(XDRFILE *xd,
-			 int natoms,int *step,float *time,
-			 matrix box,rvec *x,float *prec)
+			 int natoms, int *step, float *time,
+			 matrix box, rvec *x, float *prec)
 /* Read subsequent frames */
 {
 	int result;
-  
-	if ((result = xtc_header(xd,&natoms,step,time,TRUE)) != exdrOK)
+
+	if ((result = xtc_header(xd, &natoms, step, time, TRUE)) != exdrOK)
 		return result;
-	  
-	if ((result = xtc_coord(xd,&natoms,box,x,prec,1)) != exdrOK)
+
+	if ((result = xtc_coord(xd, &natoms, box, x, prec, 1)) != exdrOK)
 		return result;
-  
+
 	return exdrOK;
 }
 
 int write_xtc(XDRFILE *xd,
-			  int natoms,int step,float time,
-			  matrix box,rvec *x,float prec)
+			  int natoms, int step, float time,
+			  matrix box, rvec *x, float prec)
 /* Write a frame to xtc file */
 {
 	int result;
-  
-	if ((result = xtc_header(xd,&natoms,&step,&time,FALSE)) != exdrOK)
+
+	if ((result = xtc_header(xd, &natoms, &step, &time, FALSE)) != exdrOK)
 		return result;
 
-	if ((result = xtc_coord(xd,&natoms,box,x,&prec,0)) != exdrOK)
+	if ((result = xtc_coord(xd, &natoms, box, x, &prec, 0)) != exdrOK)
 		return result;
-  
+
 	return exdrOK;
 }

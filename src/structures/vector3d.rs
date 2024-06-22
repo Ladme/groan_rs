@@ -10,7 +10,8 @@ use nalgebra::base::Vector3;
 
 /// Describes length and orientation of a vector in space or a position of a point in space.
 /// Since v0.7.0 implemented using `nalgebra`'s Vector3
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone)]
+#[repr(transparent)]
 pub struct Vector3D(pub(crate) Vector3<f32>);
 
 /// Function replicating the behavior of Python '%'.
@@ -25,9 +26,16 @@ const REC_SQRT2: f32 = std::f32::consts::FRAC_1_SQRT_2;
 const REC_SQRT3: f32 = 0.577_350_3_f32;
 
 impl From<[f32; 3]> for Vector3D {
-    #[inline]
+    #[inline(always)]
     fn from(arr: [f32; 3]) -> Self {
         Vector3D(Vector3::new(arr[0], arr[1], arr[2]))
+    }
+}
+
+impl From<[f64; 3]> for Vector3D {
+    #[inline(always)]
+    fn from(arr: [f64; 3]) -> Self {
+        Vector3D(Vector3::new(arr[0] as f32, arr[1] as f32, arr[2] as f32))
     }
 }
 
@@ -241,7 +249,7 @@ impl Vector3D {
     /// assert_approx_eq!(f32, point.y, 2.0, epsilon = 0.00001);
     /// assert_approx_eq!(f32, point.z, 0.2, epsilon = 0.00001);
     /// ```
-    #[inline]
+    #[inline(always)]
     pub fn wrap(&mut self, sbox: &SimBox) {
         self.x = Vector3D::wrap_coordinate(self.0.x, sbox.x);
         self.y = Vector3D::wrap_coordinate(self.0.y, sbox.y);
@@ -256,17 +264,13 @@ impl Vector3D {
     /// ## Note on performance
     /// You may think that the body of this function should look rather like this:
     /// ```ignore
-    /// let wrapped = coor % box_len;
-    /// if wrapped < 0.0 {
-    ///    wrapped + box_len
-    /// } else {
-    ///    wrapped
-    /// }
+    /// coor - box_len * (coor / box_len).floor()
     /// ```
-    /// But, taking a remainder of floats is actually a very costly operation. As in almost all cases,
-    /// we will only perform AT MOST one iteration through one of the loops, the "loop" version of the wrapping
-    /// function is usually much faster.
-    /// This does not hold true, if the coordinate is VERY far away from the bounding box but that almost never happens.
+    ///
+    /// However, applying `floor` to float is a surprisingly costly operation.
+    /// As in almost all cases, we will only perform AT MOST one iteration through one of the loops,
+    /// the "loop" version of the wrapping function is usually much faster.
+    #[inline(always)]
     fn wrap_coordinate(coor: f32, box_len: f32) -> f32 {
         if box_len == 0.0 {
             panic!("FATAL GROAN ERROR | Vector3D::wrap_coordinate | Box len should not be zero.")
@@ -718,7 +722,7 @@ mod tests {
         let vector1 = Vector3D::new(2.0, 0.0, 0.0);
         let vector2 = Vector3D::new(0.0, 2.0, 0.0);
 
-        assert_approx_eq!(f32, vector1.angle(&vector2), 1.57079632);
+        assert_approx_eq!(f32, vector1.angle(&vector2), std::f32::consts::FRAC_PI_2);
     }
 
     #[test]
@@ -726,7 +730,7 @@ mod tests {
         let vector1 = Vector3D::new(2.0, 0.0, 0.0);
         let vector2 = Vector3D::new(0.0, -2.0, 0.0);
 
-        assert_approx_eq!(f32, vector1.angle(&vector2), 1.57079632);
+        assert_approx_eq!(f32, vector1.angle(&vector2), std::f32::consts::FRAC_PI_2);
     }
 
     #[test]
@@ -734,7 +738,7 @@ mod tests {
         let vector1 = Vector3D::new(1.0, 0.0, 0.0);
         let vector2 = Vector3D::new(0.0, 0.0, 7.0);
 
-        assert_approx_eq!(f32, vector1.angle(&vector2), 1.57079632);
+        assert_approx_eq!(f32, vector1.angle(&vector2), std::f32::consts::FRAC_PI_2);
     }
 
     #[test]
@@ -742,7 +746,7 @@ mod tests {
         let vector1 = Vector3D::new(1.0, 0.0, 0.0);
         let vector2 = Vector3D::new(3.0, 0.0, 3.0);
 
-        assert_approx_eq!(f32, vector1.angle(&vector2), 0.785398163);
+        assert_approx_eq!(f32, vector1.angle(&vector2), std::f32::consts::FRAC_PI_4);
     }
 
     #[test]
@@ -758,7 +762,7 @@ mod tests {
         let vector1 = Vector3D::new(1.0, 0.0, 0.0);
         let vector2 = Vector3D::new(-4.0, 0.0, 0.0);
 
-        assert_approx_eq!(f32, vector1.angle(&vector2), 3.14159265);
+        assert_approx_eq!(f32, vector1.angle(&vector2), std::f32::consts::PI);
     }
 
     #[test]
@@ -806,9 +810,9 @@ mod tests {
 
         vector.shift(orientation, 4.2);
 
-        assert_approx_eq!(f32, vector.x, -0.666970); // shifted by 1.833
+        assert_approx_eq!(f32, vector.x, -0.66697); // shifted by 1.833
         assert_approx_eq!(f32, vector.y, 1.216515); // shifted by 0.917
-        assert_approx_eq!(f32, vector.z, 8.766060); // shifted by 3.666
+        assert_approx_eq!(f32, vector.z, 8.76606); // shifted by 3.666
 
         assert_approx_eq!(
             f32,
@@ -824,9 +828,9 @@ mod tests {
 
         vector.shift(orientation, -4.2);
 
-        assert_approx_eq!(f32, vector.x, -4.333030); // shifted by -1.833
+        assert_approx_eq!(f32, vector.x, -4.33303); // shifted by -1.833
         assert_approx_eq!(f32, vector.y, -0.616515); // shifted by -0.917
-        assert_approx_eq!(f32, vector.z, 1.433940); // shifted by -3.666
+        assert_approx_eq!(f32, vector.z, 1.43394); // shifted by -3.666
 
         assert_approx_eq!(
             f32,
@@ -1131,13 +1135,13 @@ mod tests {
         assert_approx_eq!(
             f32,
             point1.distance_naive(&point2, Dimension::YZ),
-            4.390900,
+            4.3909,
             epsilon = 0.00001
         );
         assert_approx_eq!(
             f32,
             point2.distance_naive(&point1, Dimension::YZ),
-            4.390900,
+            4.3909,
             epsilon = 0.00001
         );
     }

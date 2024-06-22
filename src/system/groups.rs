@@ -40,7 +40,7 @@ impl System {
     /// - The following characters are not allowed in group names: '"&|!@()<>=
     /// - The group will be created even if the query selects no atoms.
     pub fn group_create(&mut self, name: &str, query: &str) -> Result<(), GroupError> {
-        if !Group::name_is_valid(name) {
+        if !crate::aux::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
         }
 
@@ -49,11 +49,9 @@ impl System {
             Err(e) => return Err(GroupError::InvalidQuery(e)),
         };
 
-        unsafe {
-            match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
-                None => Ok(()),
-                Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
-            }
+        match self.get_groups_as_mut().insert(name.to_string(), group) {
+            None => Ok(()),
+            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
     }
 
@@ -87,9 +85,9 @@ impl System {
     /// ## Warning
     /// - If you construct the group and then iterate through a trajectory, the group will still contain
     /// the same atoms as initially. In other words, the group is NOT dynamically updated.
-    /// - If you want to choose atoms dynamically, it is better to use `AtomIterator` and `filter_geometry` function
-    /// while iterating through the trajectory.
-    /// - Atoms that have undefiend positions will never be selected.
+    /// - If you want to choose atoms dynamically, it is better to use [`AtomIterator`](`crate::system::System::atoms_iter`)
+    /// and [`filter_geometry`](`crate::structures::iterators::MasterAtomIterator::filter_geometry`) function while iterating through the trajectory.
+    /// - Atoms with undefined positions will never be selected.
     ///
     /// ## Notes
     /// - In case a group with the given name already exists, it is replaced with the new group.
@@ -101,7 +99,7 @@ impl System {
         query: &str,
         geometry: impl Shape,
     ) -> Result<(), GroupError> {
-        if !Group::name_is_valid(name) {
+        if !crate::aux::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
         }
 
@@ -118,11 +116,9 @@ impl System {
             Err(e) => return Err(GroupError::InvalidQuery(e)),
         };
 
-        unsafe {
-            match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
-                None => Ok(()),
-                Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
-            }
+        match self.get_groups_as_mut().insert(name.to_string(), group) {
+            None => Ok(()),
+            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
     }
 
@@ -162,9 +158,9 @@ impl System {
     /// ## Warning
     /// - If you construct the group and then iterate through a trajectory, the group will still contain
     /// the same atoms as initially. In other words, the group is NOT dynamically updated.
-    /// - If you want to choose atoms dynamically, it is better to use `AtomIterator` and `filter_geometry` function
-    /// while iterating through the trajectory.
-    /// - Atoms that have undefiend positions will never be selected.
+    /// - If you want to choose atoms dynamically, it is better to use [`AtomIterator`](`crate::system::System::atoms_iter`)
+    /// and [`filter_geometry`](`crate::structures::iterators::MasterAtomIterator::filter_geometry`) function while iterating through the trajectory.
+    /// - Atoms with undefined positions will never be selected.
     ///
     /// ## Notes
     /// - In case a group with the given name already exists, it is replaced with the new group.
@@ -176,7 +172,7 @@ impl System {
         query: &str,
         geometries: Vec<Box<dyn Shape>>,
     ) -> Result<(), GroupError> {
-        if !Group::name_is_valid(name) {
+        if !crate::aux::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
         }
 
@@ -193,11 +189,9 @@ impl System {
             Err(e) => return Err(GroupError::InvalidQuery(e)),
         };
 
-        unsafe {
-            match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
-                None => Ok(()),
-                Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
-            }
+        match self.get_groups_as_mut().insert(name.to_string(), group) {
+            None => Ok(()),
+            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
     }
 
@@ -230,16 +224,14 @@ impl System {
         name: &str,
         atom_indices: Vec<usize>,
     ) -> Result<(), GroupError> {
-        if !Group::name_is_valid(name) {
+        if !crate::aux::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
         }
 
         let group = Group::from_indices(atom_indices, self.get_n_atoms());
-        unsafe {
-            match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
-                None => Ok(()),
-                Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
-            }
+        match self.get_groups_as_mut().insert(name.to_string(), group) {
+            None => Ok(()),
+            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
     }
 
@@ -272,17 +264,15 @@ impl System {
         name: &str,
         atom_ranges: Vec<(usize, usize)>,
     ) -> Result<(), GroupError> {
-        if !Group::name_is_valid(name) {
+        if !crate::aux::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
         }
 
         let group = Group::from_ranges(atom_ranges, self.get_n_atoms());
 
-        unsafe {
-            match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
-                None => Ok(()),
-                Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
-            }
+        match self.get_groups_as_mut().insert(name.to_string(), group) {
+            None => Ok(()),
+            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
     }
 
@@ -328,7 +318,7 @@ impl System {
         name: &str,
         select: Select,
     ) -> Result<(), GroupError> {
-        if !Group::name_is_valid(name) {
+        if !crate::aux::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
         }
 
@@ -337,11 +327,9 @@ impl System {
             Err(e) => return Err(GroupError::InvalidQuery(e)),
         };
 
-        unsafe {
-            match self.get_groups_as_ref_mut().insert(name.to_string(), group) {
-                None => Ok(()),
-                Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
-            }
+        match self.get_groups_as_mut().insert(name.to_string(), group) {
+            None => Ok(()),
+            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
     }
 
@@ -606,11 +594,9 @@ impl System {
     /// ## Returns
     /// `Ok` if successful, `GroupError::NotFound` in case the group does not exist.
     pub fn group_make_writable(&mut self, name: &str) -> Result<(), GroupError> {
-        unsafe {
-            match self.get_groups_as_ref_mut().get_mut(name) {
-                None => return Err(GroupError::NotFound(name.to_owned())),
-                Some(group) => group.print_ndx = true,
-            }
+        match self.get_groups_as_mut().get_mut(name) {
+            None => return Err(GroupError::NotFound(name.to_owned())),
+            Some(group) => group.print_ndx = true,
         }
 
         Ok(())
@@ -621,11 +607,9 @@ impl System {
     /// ## Returns
     /// `Ok` if successful, `GroupError::NotFound` in case the group does not exist.
     pub fn group_make_nonwritable(&mut self, name: &str) -> Result<(), GroupError> {
-        unsafe {
-            match self.get_groups_as_ref_mut().get_mut(name) {
-                None => return Err(GroupError::NotFound(name.to_owned())),
-                Some(group) => group.print_ndx = false,
-            }
+        match self.get_groups_as_mut().get_mut(name) {
+            None => return Err(GroupError::NotFound(name.to_owned())),
+            Some(group) => group.print_ndx = false,
         }
 
         Ok(())
@@ -636,7 +620,7 @@ impl System {
     /// ## Returns
     /// `Ok` if successful, `GroupError::NotFound` in case the group does not exist.
     ///
-    /// ## Safety
+    /// ## Warning
     /// Do not use this function to remove any of the default groups ('all' or 'All').
     /// Doing so would make many functions associated with the `System` structure invalid.
     /// Removing other groups is generally safe to do.
@@ -644,8 +628,9 @@ impl System {
     /// ## Notes
     /// - This function maintains the order of the groups in the system.
     /// - Time complexity is O(n).
-    pub unsafe fn group_remove(&mut self, name: &str) -> Result<(), GroupError> {
-        if self.get_groups_as_ref_mut().shift_remove(name).is_none() {
+    #[allow(dead_code)]
+    pub(crate) fn group_remove(&mut self, name: &str) -> Result<(), GroupError> {
+        if self.get_groups_as_mut().shift_remove(name).is_none() {
             Err(GroupError::NotFound(name.to_owned()))
         } else {
             Ok(())
@@ -658,7 +643,7 @@ impl System {
     /// `Ok` if successful, `GroupError::NotFound` in case the old name of the group does not exist,
     /// `GroupError::AlreadyExistsWarning` in case the new name already exists (it is overwritten).
     ///
-    /// ## Safety
+    /// ## Warning
     /// Do not use this function to rename any of the default groups ('all' or 'All').
     /// Doing so would make many functions associated with the `System` structure invalid.
     /// Renaming other groups is generally safe to do.
@@ -669,15 +654,16 @@ impl System {
     /// - This function maintains the order of the groups in the system, except for the renamed group
     /// which is placed to the last position.
     /// - Time complexity is O(n).
-    pub unsafe fn group_rename(&mut self, old: &str, new: &str) -> Result<(), GroupError> {
+    #[allow(dead_code)]
+    pub(crate) fn group_rename(&mut self, old: &str, new: &str) -> Result<(), GroupError> {
         // get the old group
-        let group = match self.get_groups_as_ref_mut().shift_remove(old) {
+        let group = match self.get_groups_as_mut().shift_remove(old) {
             Some(x) => x,
             None => return Err(GroupError::NotFound(old.to_owned())),
         };
 
         // reinsert the group with the new name
-        match self.get_groups_as_ref_mut().insert(new.to_owned(), group) {
+        match self.get_groups_as_mut().insert(new.to_owned(), group) {
             Some(_) => Err(GroupError::AlreadyExistsWarning(new.to_owned())),
             None => Ok(()),
         }
@@ -765,14 +751,45 @@ impl System {
 
         let group = Group::union(group1, group2);
 
-        unsafe {
-            match self
-                .get_groups_as_ref_mut()
-                .insert(union.to_string(), group)
-            {
-                None => Ok(()),
-                Some(_) => Err(GroupError::AlreadyExistsWarning(union.to_string())),
-            }
+        match self.get_groups_as_mut().insert(union.to_string(), group) {
+            None => Ok(()),
+            Some(_) => Err(GroupError::AlreadyExistsWarning(union.to_string())),
+        }
+    }
+
+    /// Create a new group that is the intersection of the provided groups.
+    ///
+    /// ## Returns
+    /// `GroupError::NotFound` if any of the input groups does not exist.
+    /// `GroupError::AlreadyExistsWarning` if a group with the name `intersection` already exists and is overwritten.
+    /// `Ok` otherwise.
+    ///
+    /// ## Notes
+    /// - If a group with the name `intersection` already exists, it is overwritten.
+    /// - `group1` and `group2` are unchanged.
+    pub fn group_intersection(
+        &mut self,
+        group1: &str,
+        group2: &str,
+        intersection: &str,
+    ) -> Result<(), GroupError> {
+        let group1 = self
+            .get_groups_as_ref()
+            .get(group1)
+            .ok_or(GroupError::NotFound(group1.to_string()))?;
+        let group2 = self
+            .get_groups_as_ref()
+            .get(group2)
+            .ok_or(GroupError::NotFound(group2.to_string()))?;
+
+        let group = Group::intersection(group1, group2);
+
+        match self
+            .get_groups_as_mut()
+            .insert(intersection.to_string(), group)
+        {
+            None => Ok(()),
+            Some(_) => Err(GroupError::AlreadyExistsWarning(intersection.to_string())),
         }
     }
 
@@ -1113,9 +1130,34 @@ mod tests {
 
         assert_eq!(system.group_get_n_atoms("Molecule").unwrap(), 8);
 
-        let numbers = vec![5, 12, 22, 31, 36, 40, 47, 50];
+        let numbers = [5, 12, 22, 31, 36, 40, 47, 50];
         for (a, atom) in system.group_iter("Molecule").unwrap().enumerate() {
             assert_eq!(atom.get_atom_number(), numbers[a]);
+        }
+    }
+
+    #[test]
+    fn group_create_molwith_label() {
+        let mut system = System::from_file("test_files/conect.pdb").unwrap();
+        system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
+
+        system
+            .select_and_label("ReferenceAtom", "serial 17")
+            .unwrap();
+
+        system
+            .group_create("Molecule", "molecule with label ReferenceAtom")
+            .unwrap();
+
+        assert_eq!(system.group_get_n_atoms("Molecule").unwrap(), 49);
+        for (a, atom) in system.group_iter("Molecule").unwrap().enumerate() {
+            if (9..27).contains(&a) {
+                assert_eq!(atom.get_atom_number(), a + 2);
+            } else if a == 27 {
+                assert_eq!(atom.get_atom_number(), 10);
+            } else {
+                assert_eq!(atom.get_atom_number(), a + 1);
+            }
         }
     }
 
@@ -1280,6 +1322,40 @@ mod tests {
 
         system.group_create("Atomid 10", "atomid 10").unwrap();
         assert_eq!(system.group_get_n_atoms("Atomid 10").unwrap(), 0);
+    }
+
+    #[test]
+    fn group_create_labeled_atoms() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.label_atom("MyAtom 1", 654).unwrap();
+        system.label_atom("AtomX", 2464).unwrap();
+        system.label_atom("Different one", 52).unwrap();
+
+        system
+            .group_create("group 1", "label 'MyAtom 1' AtomX 'Different one'")
+            .unwrap();
+
+        let mut group1_iterator = system.group_iter("group 1").unwrap();
+        assert_eq!(group1_iterator.next().unwrap().get_atom_number(), 53);
+        assert_eq!(group1_iterator.next().unwrap().get_atom_number(), 655);
+        assert_eq!(group1_iterator.next().unwrap().get_atom_number(), 2465);
+        assert!(group1_iterator.next().is_none());
+
+        system.group_create("group 2", "label r'Atom'").unwrap();
+        let mut group2_iterator = system.group_iter("group 2").unwrap();
+        assert_eq!(group2_iterator.next().unwrap().get_atom_number(), 655);
+        assert_eq!(group2_iterator.next().unwrap().get_atom_number(), 2465);
+        assert!(group2_iterator.next().is_none());
+
+        system.group_create("water", "resname W").unwrap();
+        system
+            .group_create("group 3", "water or label 'MyAtom 1'")
+            .unwrap();
+        assert_eq!(
+            system.group_get_n_atoms("water").unwrap() + 1,
+            system.group_get_n_atoms("group 3").unwrap()
+        );
     }
 
     #[test]
@@ -2005,7 +2081,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
         let (code, residues) = system.atoms_split_by_resid();
-        if let Err(_) = code {
+        if code.is_err() {
             panic!("Overlapping groups in atoms_split_by_resid.");
         }
 
@@ -2065,7 +2141,7 @@ mod tests {
         let mut system = System::from_file("test_files/example_shuffled_residues.gro").unwrap();
 
         let (code, residues) = system.atoms_split_by_resid();
-        if let Err(_) = code {
+        if code.is_err() {
             panic!("Overlapping groups in atoms_split_by_resid.");
         }
 
@@ -2075,7 +2151,7 @@ mod tests {
             assert!(system.group_get_n_atoms(groupname).unwrap() > 0);
         }
 
-        let expected_n = vec![
+        let expected_n = [
             2, 3, 2, 2, 3, 2, 1, 2, 2, 4, 2, 2, 1, 3, 2, 4, 3, 2, 2, 3, 3,
         ];
         for i in 1..=21 {
@@ -2099,7 +2175,7 @@ mod tests {
         system.read_ndx("test_files/index.ndx").unwrap();
 
         let (code, residues) = system.group_split_by_resid("Protein");
-        if let Err(_) = code {
+        if code.is_err() {
             panic!("Error occured when using `System::group_split_by_resid`");
         }
 
@@ -2128,7 +2204,7 @@ mod tests {
         system.read_ndx("test_files/index.ndx").unwrap();
 
         let (code, residues) = system.group_split_by_resid("Membrane");
-        if let Err(_) = code {
+        if code.is_err() {
             panic!("Error occured when using `System::group_split_by_resid`");
         }
 
@@ -2204,7 +2280,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
         let (code, residues) = system.atoms_split_by_resname();
-        if let Err(_) = code {
+        if code.is_err() {
             panic!("Overlapping groups in atoms_split_by_resname.");
         }
 
@@ -2271,7 +2347,7 @@ mod tests {
         system.read_ndx("test_files/index.ndx").unwrap();
 
         let (code, residues) = system.group_split_by_resname("Protein");
-        if let Err(_) = code {
+        if code.is_err() {
             panic!("Error occured when using `System::group_split_by_resname`");
         }
 
@@ -2300,7 +2376,7 @@ mod tests {
             .unwrap();
 
         let (code, residues) = system.group_split_by_resname("Membrane + Water");
-        if let Err(_) = code {
+        if code.is_err() {
             panic!("Error occured when using `System::group_split_by_resname`");
         }
 
@@ -2475,6 +2551,86 @@ mod tests {
     }
 
     #[test]
+    fn group_intersection_simple() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        system
+            .group_intersection("Protein", "Transmembrane", "Protein X Transmembrane")
+            .unwrap();
+
+        assert!(system.group_exists("Protein X Transmembrane"));
+        assert_eq!(
+            system.group_get_n_atoms("Protein X Transmembrane").unwrap(),
+            system.group_get_n_atoms("Transmembrane").unwrap()
+        );
+    }
+
+    #[test]
+    fn group_intersection_empty() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        system
+            .group_intersection("Protein", "W", "Protein X W")
+            .unwrap();
+
+        assert!(system.group_exists("Protein X W"));
+        assert_eq!(system.group_get_n_atoms("Protein X W").unwrap(), 0);
+    }
+
+    #[test]
+    fn group_intersection_already_exists() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.group_intersection("Protein", "Transmembrane", "Other") {
+            Err(GroupError::AlreadyExistsWarning(e)) => assert_eq!(e, "Other"),
+            Ok(_) => panic!("Warning should have been returned, but it was not."),
+            Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
+        }
+
+        assert_eq!(
+            system.group_get_n_atoms("Other").unwrap(),
+            system.group_get_n_atoms("Transmembrane").unwrap()
+        );
+    }
+
+    #[test]
+    fn group_intersection_invalid_group1() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.group_intersection("Nonexistent", "ION", "Test") {
+            Err(GroupError::NotFound(e)) => assert_eq!(e, "Nonexistent"),
+            Ok(_) => panic!("Creating intersection should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+
+        assert!(!system.group_exists("Test"));
+    }
+
+    #[test]
+    fn group_intersection_invalid_group2() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.group_intersection("ION", "Nonexistent", "Test") {
+            Err(GroupError::NotFound(e)) => assert_eq!(e, "Nonexistent"),
+            Ok(_) => panic!("Creating intersection should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+
+        assert!(!system.group_exists("Test"));
+    }
+
+    #[test]
     fn group_extend_simple() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
@@ -2550,9 +2706,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        unsafe {
-            system.group_remove("Protein").unwrap();
-        }
+        system.group_remove("Protein").unwrap();
 
         assert!(!system.group_exists("Protein"));
     }
@@ -2562,12 +2716,10 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        unsafe {
-            match system.group_remove("Proin") {
-                Err(GroupError::NotFound(e)) => assert_eq!("Proin", e),
-                Ok(_) => panic!("Function should have failed, but it was successful."),
-                Err(e) => panic!("Incorrect error type returned: {:?}", e),
-            }
+        match system.group_remove("Proin") {
+            Err(GroupError::NotFound(e)) => assert_eq!("Proin", e),
+            Ok(_) => panic!("Function should have failed, but it was successful."),
+            Err(e) => panic!("Incorrect error type returned: {:?}", e),
         }
     }
 
@@ -2576,9 +2728,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        unsafe {
-            system.group_rename("Protein", "My Protein Group").unwrap();
-        }
+        system.group_rename("Protein", "My Protein Group").unwrap();
 
         assert!(!system.group_exists("Protein"));
         assert!(system.group_exists("My Protein Group"));
@@ -2593,12 +2743,10 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        unsafe {
-            match system.group_rename("Proin", "Protein") {
-                Err(GroupError::NotFound(e)) => assert_eq!("Proin", e),
-                Ok(_) => panic!("Function should have failed, but it was successful."),
-                Err(e) => panic!("Incorrect error type returned: {:?}", e),
-            }
+        match system.group_rename("Proin", "Protein") {
+            Err(GroupError::NotFound(e)) => assert_eq!("Proin", e),
+            Ok(_) => panic!("Function should have failed, but it was successful."),
+            Err(e) => panic!("Incorrect error type returned: {:?}", e),
         }
     }
 
@@ -2607,12 +2755,10 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        unsafe {
-            match system.group_rename("Protein", "Membrane") {
-                Err(GroupError::AlreadyExistsWarning(e)) => assert_eq!("Membrane", e),
-                Ok(_) => panic!("Function should have raised warning, but it did not."),
-                Err(e) => panic!("Incorrect error type returned: {:?}", e),
-            }
+        match system.group_rename("Protein", "Membrane") {
+            Err(GroupError::AlreadyExistsWarning(e)) => assert_eq!("Membrane", e),
+            Ok(_) => panic!("Function should have raised warning, but it did not."),
+            Err(e) => panic!("Incorrect error type returned: {:?}", e),
         }
 
         assert!(!system.group_exists("Protein"));

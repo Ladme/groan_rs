@@ -1486,6 +1486,7 @@ groups:
       - start: 60
         end: 60
     print_ndx: true
+labeled_atoms: {}
 simulation_step: 0
 simulation_time: 0.0
 coordinates_precision: 100

@@ -637,7 +637,7 @@ mod tests_write_ndx {
         let ndx_output = NamedTempFile::new().unwrap();
         let path_to_output = ndx_output.path();
 
-        if let Err(_) = system.write_ndx(path_to_output) {
+        if system.write_ndx(path_to_output).is_err() {
             panic!("Writing ndx file failed.");
         }
 

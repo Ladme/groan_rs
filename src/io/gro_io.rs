@@ -7,9 +7,12 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 
+use crate::aux::{GRO_MAX_COORDINATE, GRO_MIN_COORDINATE};
 use crate::errors::{ParseGroError, WriteGroError};
 use crate::structures::{atom::Atom, simbox::SimBox};
 use crate::system::System;
+
+use super::check_coordinate_sizes;
 
 /// ## Methods for writing gro files.
 impl System {
@@ -86,6 +89,16 @@ impl System {
             return Err(WriteGroError::GroupNotFound(group_name.to_string()));
         }
 
+        // check that coordinates of the atoms are in the range supported by the data format
+        // this has to be done before the file is even created
+        if !check_coordinate_sizes(
+            self.group_iter(group_name).unwrap(),
+            GRO_MIN_COORDINATE,
+            GRO_MAX_COORDINATE,
+        ) {
+            return Err(WriteGroError::CoordinateTooLarge);
+        }
+
         let output = File::create(&filename)
             .map_err(|_| WriteGroError::CouldNotCreate(Box::from(filename.as_ref())))?;
 
@@ -154,7 +167,7 @@ impl System {
 }
 
 /// Read a gro file and construct a System structure.
-pub(crate) fn read_gro(filename: impl AsRef<Path>) -> Result<System, ParseGroError> {
+pub fn read_gro(filename: impl AsRef<Path>) -> Result<System, ParseGroError> {
     let file = match File::open(filename.as_ref()) {
         Ok(x) => x,
         Err(_) => return Err(ParseGroError::FileNotFound(Box::from(filename.as_ref()))),
@@ -496,7 +509,7 @@ mod tests_read {
 
     #[test]
     fn read_nonexistent() {
-        if let Ok(_) = read_gro("test_files/nonexistent.gro") {
+        if read_gro("test_files/nonexistent.gro").is_ok() {
             panic!("Nonexistent file seems to exist.");
         }
     }
@@ -635,9 +648,8 @@ mod tests_read {
 
     #[test]
     fn from_file_fails() {
-        match System::from_file("test_files/example_invalid_position.gro") {
-            Ok(_) => panic!("Parsing should have failed, but it succeeded."),
-            Err(_) => (),
+        if System::from_file("test_files/example_invalid_position.gro").is_ok() {
+            panic!("Parsing should have failed, but it succeeded.")
         }
     }
 }
@@ -655,7 +667,7 @@ mod tests_write {
         let gro_output = NamedTempFile::new().unwrap();
         let path_to_output = gro_output.path();
 
-        if let Err(_) = system.write_gro(path_to_output, true) {
+        if system.write_gro(path_to_output, true).is_err() {
             panic!("Writing gro file failed.");
         }
 
@@ -672,7 +684,7 @@ mod tests_write {
         let gro_output = NamedTempFile::new().unwrap();
         let path_to_output = gro_output.path();
 
-        if let Err(_) = system.write_gro(path_to_output, false) {
+        if system.write_gro(path_to_output, false).is_err() {
             panic!("Writing gro file failed.");
         }
 
@@ -702,7 +714,7 @@ mod tests_write {
         let gro_output = NamedTempFile::new().unwrap();
         let path_to_output = gro_output.path();
 
-        if let Err(_) = system.write_gro(path_to_output, false) {
+        if system.write_gro(path_to_output, false).is_err() {
             panic!("Writing gro file failed.");
         }
 
@@ -732,7 +744,7 @@ mod tests_write {
         let gro_output = NamedTempFile::new().unwrap();
         let path_to_output = gro_output.path();
 
-        if let Err(_) = system.write_gro(path_to_output, false) {
+        if system.write_gro(path_to_output, false).is_err() {
             panic!("Writing gro file failed.");
         }
 
@@ -751,7 +763,10 @@ mod tests_write {
         let gro_output = NamedTempFile::new().unwrap();
         let path_to_output = gro_output.path();
 
-        if let Err(_) = system.group_write_gro("Protein", path_to_output, true) {
+        if system
+            .group_write_gro("Protein", path_to_output, true)
+            .is_err()
+        {
             panic!("Writing gro file failed.");
         }
 
@@ -789,5 +804,31 @@ mod tests_write {
         let mut expected = File::open("test_files/example_box_zero.gro").unwrap();
 
         assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_too_large_coordinate_1() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.get_atom_as_mut(16).unwrap().set_position_z(10000.0);
+
+        match system.write_gro("will_not_be_created_1.gro", false) {
+            Err(WriteGroError::CoordinateTooLarge) => (),
+            Ok(_) => panic!("Writing should have failed, but it did not."),
+            Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
+        }
+    }
+
+    #[test]
+    fn write_too_large_coordinate_2() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.get_atom_as_mut(16).unwrap().set_position_x(-9999.0);
+
+        match system.group_write_gro("all", "will_not_be_created_2.gro", false) {
+            Err(WriteGroError::CoordinateTooLarge) => (),
+            Ok(_) => panic!("Writing should have failed, but it did not."),
+            Err(e) => panic!("Incorrect error type `{:?}` was returned.", e),
+        }
     }
 }

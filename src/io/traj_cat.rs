@@ -387,7 +387,7 @@ mod tests {
             .xtc_iter("test_files/short_trajectory.xtc")
             .unwrap();
         let traj_cat = system_cat
-            .traj_cat_iter::<XtcReader>(&vec![
+            .traj_cat_iter::<XtcReader>(&[
                 "test_files/split/traj1.xtc",
                 "test_files/split/traj2.xtc",
                 "test_files/split/traj3.xtc",
@@ -436,7 +436,7 @@ mod tests {
                 .with_range(start, end)
                 .unwrap();
             let traj_cat = system_cat
-                .traj_cat_iter::<XtcReader>(&vec![
+                .traj_cat_iter::<XtcReader>(&[
                     "test_files/split/traj1.xtc",
                     "test_files/split/traj2.xtc",
                     "test_files/split/traj3.xtc",
@@ -487,7 +487,7 @@ mod tests {
                 .with_step(step)
                 .unwrap();
             let traj_cat = system_cat
-                .traj_cat_iter::<XtcReader>(&vec![
+                .traj_cat_iter::<XtcReader>(&[
                     "test_files/split/traj1.xtc",
                     "test_files/split/traj2.xtc",
                     "test_files/split/traj3.xtc",
@@ -543,7 +543,7 @@ mod tests {
                     .with_range(*start, *end)
                     .unwrap();
                 let traj_cat = system_cat
-                    .traj_cat_iter::<XtcReader>(&vec![
+                    .traj_cat_iter::<XtcReader>(&[
                         "test_files/split/traj1.xtc",
                         "test_files/split/traj2.xtc",
                         "test_files/split/traj3.xtc",
@@ -595,7 +595,7 @@ mod tests {
             .trr_iter("test_files/short_trajectory.trr")
             .unwrap();
         let traj_cat = system_cat
-            .traj_cat_iter::<TrrReader>(&vec![
+            .traj_cat_iter::<TrrReader>(&[
                 "test_files/split/traj1.trr",
                 "test_files/split/traj2.trr",
                 "test_files/split/traj3.trr",
@@ -644,7 +644,7 @@ mod tests {
                 .with_range(start, end)
                 .unwrap();
             let traj_cat = system_cat
-                .traj_cat_iter::<TrrReader>(&vec![
+                .traj_cat_iter::<TrrReader>(&[
                     "test_files/split/traj1.trr",
                     "test_files/split/traj2.trr",
                     "test_files/split/traj3.trr",
@@ -695,7 +695,7 @@ mod tests {
                 .with_step(step)
                 .unwrap();
             let traj_cat = system_cat
-                .traj_cat_iter::<TrrReader>(&vec![
+                .traj_cat_iter::<TrrReader>(&[
                     "test_files/split/traj1.trr",
                     "test_files/split/traj2.trr",
                     "test_files/split/traj3.trr",
@@ -751,7 +751,7 @@ mod tests {
                     .with_range(*start, *end)
                     .unwrap();
                 let traj_cat = system_cat
-                    .traj_cat_iter::<TrrReader>(&vec![
+                    .traj_cat_iter::<TrrReader>(&[
                         "test_files/split/traj1.trr",
                         "test_files/split/traj2.trr",
                         "test_files/split/traj3.trr",
@@ -816,7 +816,7 @@ mod tests {
             .unwrap()
             .print_progress(single_printer);
         let traj_cat = system_cat
-            .traj_cat_iter::<XtcReader>(&vec![
+            .traj_cat_iter::<XtcReader>(&[
                 "test_files/split/traj1.xtc",
                 "test_files/split/traj2.xtc",
                 "test_files/split/traj3.xtc",
@@ -853,7 +853,7 @@ mod tests {
         ];
 
         for (i, frame) in system
-            .traj_cat_iter::<XtcReader>(&vec![
+            .traj_cat_iter::<XtcReader>(&[
                 "test_files/split/traj1.xtc",
                 "test_files/split/traj2.xtc",
                 "test_files/split/traj3.xtc",
