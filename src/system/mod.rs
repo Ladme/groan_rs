@@ -549,24 +549,18 @@ impl System {
     /// Reference to `Atom` structure or `AtomError::OutOfRange` if `index` is out of range.
     #[inline(always)]
     pub fn get_atom_as_ref(&self, index: usize) -> Result<&Atom, AtomError> {
-        if index >= self.atoms.len() {
-            return Err(AtomError::OutOfRange(index));
-        }
-
-        Ok(&self.atoms[index])
+        self.atoms.get(index).ok_or(AtomError::OutOfRange(index))
     }
 
-    /// Get mutable reference to an atom with target index. Atoms are indexed starting from 0.
+    /// Get mutable reference to an atom at target index. Atoms are indexed starting from 0.
     ///
     /// ## Returns
     /// Mutable reference to `Atom` structure or `AtomError::OutOfRange` if `index` is out of range.
     #[inline(always)]
     pub fn get_atom_as_mut(&mut self, index: usize) -> Result<&mut Atom, AtomError> {
-        if index >= self.atoms.len() {
-            return Err(AtomError::OutOfRange(index));
-        }
-
-        Ok(&mut self.atoms[index])
+        self.atoms
+            .get_mut(index)
+            .ok_or(AtomError::OutOfRange(index))
     }
 
     /// Get copy of an atom with target index. Atoms are indexed starting from 0.
@@ -575,11 +569,52 @@ impl System {
     /// Copy of an `Atom` structure or `AtomError::OutOfRange` if `index` is out of range
     #[inline(always)]
     pub fn get_atom_copy(&self, index: usize) -> Result<Atom, AtomError> {
-        if index >= self.atoms.len() {
-            return Err(AtomError::OutOfRange(index));
-        }
+        self.atoms
+            .get(index)
+            .cloned()
+            .ok_or(AtomError::OutOfRange(index))
+    }
 
-        Ok(self.atoms[index].clone())
+    /// Get immutable reference to an atom at taget index WITHOUT performing boundary checks.
+    /// Atoms are indexed starting from 0.
+    ///
+    /// ## Safety
+    /// `index` must be lower than the number of atoms in the system.
+    ///
+    /// ## Notes
+    /// - Always prefer to use [`System::get_atom_as_ref`], unless you are sure that the
+    /// boundary checks measurably slow down your application.
+    #[inline(always)]
+    pub unsafe fn get_atom_unchecked_as_ref(&self, index: usize) -> &Atom {
+        self.atoms.get_unchecked(index)
+    }
+
+    /// Get mutable reference to an atom at target index WITHOUT performing boundary checks.
+    /// Atoms are indexed starting from 0.
+    ///
+    /// ## Safety
+    /// `index` must be lower than the number of atoms in the system.
+    ///
+    /// ## Notes
+    /// - Always prefer to use [`System::get_atom_as_mut`], unless you are sure that the
+    /// boundary checks measurably slow down your application.
+    #[inline(always)]
+    pub unsafe fn get_atom_unchecked_as_mut(&mut self, index: usize) -> &mut Atom {
+        self.atoms.get_unchecked_mut(index)
+    }
+
+    /// Get copy of an atom with target index WITHOUT performing boundary checks.
+    /// Atoms are indexed starting from 0.
+    ///
+    /// ## Safety
+    /// `index` must be lower than the number of atoms in the system.
+    ///
+    /// ## Notes
+    /// - Always prefer to use [`System::get_atom_copy`], unless you are sure that the
+    /// boundary checks measurably slow down your application.
+    #[inline(always)]
+    pub unsafe fn get_atom_unchecked_copy(&self, index: usize) -> Atom {
+        self.atoms.get_unchecked(index).clone()
     }
 }
 
@@ -592,7 +627,7 @@ mod tests {
     use crate::{
         errors::ParsePdbConnectivityError,
         structures::element::Elements,
-        test_utilities::utilities::{compare_atoms_tpr_with_pdb, compare_box},
+        test_utilities::utilities::{compare_atoms, compare_atoms_tpr_with_pdb, compare_box},
     };
 
     use super::*;
@@ -1037,6 +1072,19 @@ mod tests {
     }
 
     #[test]
+    fn get_atom_unchecked_as_ref() {
+        let system = System::from_file("test_files/example.gro").unwrap();
+
+        let indices = [0, 329, 4938, 16843];
+        for i in indices {
+            let atom_safe = system.get_atom_as_ref(i).unwrap();
+            let atom_unsafe = unsafe { system.get_atom_unchecked_as_ref(i) };
+
+            compare_atoms(atom_safe, atom_unsafe);
+        }
+    }
+
+    #[test]
     fn get_atom_as_mut() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
@@ -1050,6 +1098,18 @@ mod tests {
     }
 
     #[test]
+    fn get_atom_unchecked_as_mut() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        let indices = [0, 329, 4938, 16843];
+        for i in indices {
+            let atom_unsafe = unsafe { system.get_atom_unchecked_as_mut(i) as *mut Atom };
+            let atom_safe = system.get_atom_as_mut(i).unwrap();
+            compare_atoms(atom_safe, unsafe { &*atom_unsafe });
+        }
+    }
+
+    #[test]
     fn get_atom_copy() {
         let system = System::from_file("test_files/example.gro").unwrap();
 
@@ -1060,6 +1120,19 @@ mod tests {
 
         let atom = system.get_atom_copy(16843).unwrap();
         assert_eq!(atom.get_atom_number(), 16844);
+    }
+
+    #[test]
+    fn get_atom_unchecked_copy() {
+        let system = System::from_file("test_files/example.gro").unwrap();
+
+        let indices = [0, 329, 4938, 16843];
+        for i in indices {
+            let atom_safe = system.get_atom_copy(i).unwrap();
+            let atom_unsafe = unsafe { system.get_atom_unchecked_copy(i) };
+
+            compare_atoms(&atom_safe, &atom_unsafe);
+        }
     }
 
     #[test]
