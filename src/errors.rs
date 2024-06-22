@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use thiserror::Error;
 
-use crate::aux::{GRO_MAX_COORDINATE, GRO_MIN_COORDINATE, PDB_MAX_COORDINATE, PDB_MIN_COORDINATE};
+use crate::auxiliary::{GRO_MAX_COORDINATE, GRO_MIN_COORDINATE, PDB_MAX_COORDINATE, PDB_MIN_COORDINATE};
 use crate::system::guess::{BondsGuessInfo, ElementGuessInfo, PropertiesGuessInfo};
 use crate::files::FileType;
 

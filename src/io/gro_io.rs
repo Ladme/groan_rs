@@ -7,7 +7,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 
-use crate::aux::{GRO_MAX_COORDINATE, GRO_MIN_COORDINATE};
+use crate::auxiliary::{GRO_MAX_COORDINATE, GRO_MIN_COORDINATE};
 use crate::errors::{ParseGroError, WriteGroError};
 use crate::structures::{atom::Atom, simbox::SimBox};
 use crate::system::System;

@@ -43,7 +43,7 @@ impl System {
             return Err(AtomLabelError::IndexOutOfRange(index));
         }
 
-        if !crate::aux::name_is_valid(label) {
+        if !crate::auxiliary::name_is_valid(label) {
             return Err(AtomLabelError::InvalidLabel(label.to_owned()));
         }
 
@@ -79,7 +79,7 @@ impl System {
     /// - In case the same label is already assigned, it is reassigned to the new atom and a warning is raised.
     /// - The following characters are not allowed in labels: '"&|!@()<>=
     pub fn select_and_label(&mut self, label: &str, query: &str) -> Result<(), AtomLabelError> {
-        if !crate::aux::name_is_valid(label) {
+        if !crate::auxiliary::name_is_valid(label) {
             return Err(AtomLabelError::InvalidLabel(label.to_owned()));
         }
 

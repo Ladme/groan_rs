@@ -8,7 +8,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 
-use crate::aux::{PDB_MAX_COORDINATE, PDB_MIN_COORDINATE};
+use crate::auxiliary::{PDB_MAX_COORDINATE, PDB_MIN_COORDINATE};
 use crate::errors::{ParsePdbConnectivityError, ParsePdbError, WritePdbError};
 use crate::structures::{atom::Atom, simbox::SimBox};
 use crate::system::System;

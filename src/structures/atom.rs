@@ -5,7 +5,9 @@
 
 use std::io::Write;
 
-use crate::aux::{GRO_MAX_COORDINATE, GRO_MIN_COORDINATE, PDB_MAX_COORDINATE, PDB_MIN_COORDINATE};
+use crate::auxiliary::{
+    GRO_MAX_COORDINATE, GRO_MIN_COORDINATE, PDB_MAX_COORDINATE, PDB_MIN_COORDINATE,
+};
 use crate::errors::{AtomError, PositionError, WriteGroError, WritePdbError, WritePqrError};
 use crate::io::pqr_io::PqrPrecision;
 use crate::structures::{

@@ -556,7 +556,7 @@
 /// Current version of the `groan_rs` library.
 pub const GROAN_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-mod aux;
+mod auxiliary;
 pub mod errors;
 pub mod files;
 pub mod io;

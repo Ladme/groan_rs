@@ -4,7 +4,7 @@
 //! Implementation of iterators over atoms and filter functions.
 
 use crate::{
-    aux::PI_X2,
+    auxiliary::PI_X2,
     errors::{AtomError, MassError, PositionError},
     structures::{
         atom::Atom,
@@ -520,7 +520,7 @@ pub trait MasterAtomIterator<'a>: Iterator<Item = &'a Atom> + Sized {
         for atom in self {
             match atom.get_position() {
                 Some(x) => unsafe {
-                    crate::aux::center_atom_contribution(
+                    crate::auxiliary::center_atom_contribution(
                         x.clone(),
                         &scaling,
                         &*simbox,
@@ -544,7 +544,9 @@ pub trait MasterAtomIterator<'a>: Iterator<Item = &'a Atom> + Sized {
         }
 
         // convert to real coordinates
-        Ok(crate::aux::from_circle_to_line(sum_zeta, sum_xi, &scaling))
+        Ok(crate::auxiliary::from_circle_to_line(
+            sum_zeta, sum_xi, &scaling,
+        ))
     }
 
     /// Calculate center of mass of a group of atoms selected by an iterator.
@@ -607,7 +609,7 @@ pub trait MasterAtomIterator<'a>: Iterator<Item = &'a Atom> + Sized {
 
             match atom.get_position() {
                 Some(x) => unsafe {
-                    crate::aux::center_atom_contribution(
+                    crate::auxiliary::center_atom_contribution(
                         x.clone(),
                         &scaling,
                         &*simbox,
@@ -631,7 +633,9 @@ pub trait MasterAtomIterator<'a>: Iterator<Item = &'a Atom> + Sized {
         }
 
         // convert to real coordinates
-        Ok(crate::aux::from_circle_to_line(sum_zeta, sum_xi, &scaling))
+        Ok(crate::auxiliary::from_circle_to_line(
+            sum_zeta, sum_xi, &scaling,
+        ))
     }
 }
 

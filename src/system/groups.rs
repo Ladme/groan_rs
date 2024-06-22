@@ -40,7 +40,7 @@ impl System {
     /// - The following characters are not allowed in group names: '"&|!@()<>=
     /// - The group will be created even if the query selects no atoms.
     pub fn group_create(&mut self, name: &str, query: &str) -> Result<(), GroupError> {
-        if !crate::aux::name_is_valid(name) {
+        if !crate::auxiliary::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
         }
 
@@ -99,7 +99,7 @@ impl System {
         query: &str,
         geometry: impl Shape,
     ) -> Result<(), GroupError> {
-        if !crate::aux::name_is_valid(name) {
+        if !crate::auxiliary::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
         }
 
@@ -172,7 +172,7 @@ impl System {
         query: &str,
         geometries: Vec<Box<dyn Shape>>,
     ) -> Result<(), GroupError> {
-        if !crate::aux::name_is_valid(name) {
+        if !crate::auxiliary::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
         }
 
@@ -224,7 +224,7 @@ impl System {
         name: &str,
         atom_indices: Vec<usize>,
     ) -> Result<(), GroupError> {
-        if !crate::aux::name_is_valid(name) {
+        if !crate::auxiliary::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
         }
 
@@ -264,7 +264,7 @@ impl System {
         name: &str,
         atom_ranges: Vec<(usize, usize)>,
     ) -> Result<(), GroupError> {
-        if !crate::aux::name_is_valid(name) {
+        if !crate::auxiliary::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
         }
 
@@ -318,7 +318,7 @@ impl System {
         name: &str,
         select: Select,
     ) -> Result<(), GroupError> {
-        if !crate::aux::name_is_valid(name) {
+        if !crate::auxiliary::name_is_valid(name) {
             return Err(GroupError::InvalidName(name.to_string()));
         }
 
