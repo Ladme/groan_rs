@@ -30,8 +30,8 @@ impl From<[f32; 9]> for SimBox {
     /// The order of the members of the array should be the same as in a gro file.
     ///
     /// ## Panics
-    /// Panics if the `SimBox` is not a simulation box supported by Gromacs,
-    /// i.e. if `v1y`, `v1z`, and `v2z` are not zero.
+    /// Panics if the array is not a simulation box supported by Gromacs,
+    /// i.e., if `v1y`, `v1z`, and `v2z` are not zero.
     fn from(arr: [f32; 9]) -> Self {
         if arr[3] != 0.0 || arr[4] != 0.0 || arr[6] != 0.0 {
             panic!("FATAL GROAN ERROR | SimBox::from | Unsupported Gromacs simulation box.");

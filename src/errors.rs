@@ -63,9 +63,12 @@ pub enum ParseGroError {
     /// Used when an "atom line" in the gro file could not be parsed.
     #[error("{} could not parse line '{}' as atom", "error:".red().bold(), .0.yellow())]
     ParseAtomLineErr(String),
-    /// Used when a "box line" in the gro file could not be parsed.
+    /// Used when the "box line" in the gro file could not be parsed.
     #[error("{} could not parse line '{}' as box dimensions", "error:".red().bold(), .0.yellow())]
     ParseBoxLineErr(String),
+    /// Used when the "box line" in the gro file could be parsed but the simulation box is not supported by Gromacs.
+    #[error("{} simulation box on line '{}' is not supported (4th, 5th, and 7th element must be zero)", "error:".red().bold(), .0.yellow())]
+    UnsupportedBox(String),
 }
 
 /// Errors that can occur when reading and parsing pdb file.

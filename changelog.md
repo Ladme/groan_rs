@@ -1,6 +1,9 @@
 
 ## Changelog for the `groan_rs` library
 
+### Version 0.8.1
+- Bug fix: Unsupported gromacs simulation box in GRO files no longer causes a panic.
+
 ### Version 0.8.0
 
 #### Reading structures from TPR files

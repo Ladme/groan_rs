@@ -310,6 +310,11 @@ fn line_as_box(line: &str) -> Result<SimBox, ParseGroError> {
         Err(ParseGroError::ParseBoxLineErr(line.to_string()))?;
     }
 
+    // check that the simulation box is valid
+    if simulation_box[3] != 0.0 || simulation_box[4] != 0.0 || simulation_box[6] != 0.0 {
+        return Err(ParseGroError::UnsupportedBox(line.to_string()));
+    }
+
     Ok(simulation_box.into())
 }
 
@@ -631,6 +636,13 @@ mod tests_read {
         "test_files/example_unparsable_box.gro",
         ParseGroError::ParseBoxLineErr,
         "   6.08608   6.08608   6,08608"
+    );
+
+    read_gro_fails!(
+        read_unsupported_box,
+        "test_files/example_unsupported_box.gro",
+        ParseGroError::UnsupportedBox,
+        "   6.08608   6.08608   6.08608   0.00000   0.60000   2.20000   0.00000   1.40000   3.85600"
     );
 
     #[test]
