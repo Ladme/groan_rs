@@ -21,7 +21,7 @@ pub mod guess;
 pub(crate) mod iterating;
 mod labeled_atoms;
 mod modifying;
-#[cfg(feature = "parallel")]
+#[cfg(any(feature = "parallel", doc))]
 mod parallel;
 mod utility;
 

@@ -326,7 +326,7 @@ impl System {
     /// ## Notes
     /// - Atoms which have no assigned van der Waals radius are not assigned any bonds.
     /// - Asymptotic time complexity of this function is O(n^2) where n is the number of atoms in the system.
-    /// - It is almost always useful to use the parallelized version of this function: `System::guess_bonds_parallel`,
+    /// - It is almost always useful to use the parallelized version of this function: [`System::guess_bonds_parallel`],
     /// especially if your system is large. To use this function, you have to use the `parallel` feature of `groan_rs`.
     pub fn guess_bonds(&mut self, radius_factor: Option<f32>) -> Result<(), ElementError> {
         let n_atoms = self.get_n_atoms();
@@ -374,7 +374,7 @@ impl System {
     /// ## Notes
     /// - If the number of threads is higher than the number of atoms (`n_atoms`) in the system,
     /// only `n_atoms` threads will be used.
-    #[cfg(feature = "parallel")]
+    #[cfg(any(feature = "parallel", doc))]
     pub fn guess_bonds_parallel(
         &mut self,
         radius_factor: Option<f32>,
