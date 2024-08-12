@@ -4,6 +4,7 @@ description = "Gromacs Analysis Library for Rust"
 version = "0.8.2"
 license = "MIT"
 edition = "2021"
+authors = ["Ladislav Bartos"]
 repository = "https://github.com/Ladme/groan_rs"
 keywords = ["gromacs", "molecular-dynamics"]
 categories = ["command-line-utilities", "science"]
