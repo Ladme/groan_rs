@@ -3,6 +3,8 @@
 
 //! Implementation of various methods for analysis of `System`.
 
+use ndarray::Array2;
+
 use crate::errors::{AtomError, GroupError};
 use crate::structures::iterators::MasterAtomIterator;
 use crate::structures::simbox::simbox_check;
@@ -157,7 +159,7 @@ impl System {
     /// Oriented distances are used for 1D problems.
     ///
     /// ## Returns
-    /// - Two dimensional vector of distances.
+    /// - Two dimensional array of distances.
     /// - `GroupError::NotFound` if any of the groups does not exist.
     /// - `GroupError::InvalidSimBox` if the system has no simulation box
     ///   or the simulation box is not orthogonal.
@@ -167,12 +169,13 @@ impl System {
     /// Calculate distances between atoms of group 'Protein' and 'Membrane'.
     /// ```no_run
     /// # use groan_rs::prelude::*;
+    /// # use ndarray::Array2;
     /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.read_ndx("index.ndx").unwrap();
     ///
     /// // calculate the matrix of distances
-    /// let distances: Vec<Vec<f32>> = match system.group_all_distances("Protein", "Membrane", Dimension::XYZ) {
+    /// let distances: Array2<f32> = match system.group_all_distances("Protein", "Membrane", Dimension::XYZ) {
     ///     Ok(x) => x,
     ///     Err(e) => {
     ///         eprintln!("{}", e);
@@ -181,39 +184,38 @@ impl System {
     /// };
     ///
     /// // get the maximal distance between the atoms
-    /// let max = distances
+    /// let max = *distances
     ///     .iter()
-    ///     .flatten()
-    ///     .fold(f32::NEG_INFINITY, |max, &current| max.max(current));
+    ///     .max_by(|x, y| x.partial_cmp(y).unwrap())
+    ///     .unwrap();
     /// // get the minimal distance between the atoms
-    /// let min = distances
+    /// let min = *distances
     ///     .iter()
-    ///     .flatten()
-    ///     .fold(f32::INFINITY, |min, &current| min.min(current));
+    ///     .min_by(|x, y| x.partial_cmp(y).unwrap())
+    ///     .unwrap();
     /// ```
     pub fn group_all_distances(
         &self,
         group1: &str,
         group2: &str,
         dim: Dimension,
-    ) -> Result<Vec<Vec<f32>>, GroupError> {
+    ) -> Result<Array2<f32>, GroupError> {
         let n_atoms_group1 = self.group_get_n_atoms(group1)?;
         let n_atoms_group2 = self.group_get_n_atoms(group2)?;
 
         let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?;
 
-        let mut distances = Vec::with_capacity(n_atoms_group1);
+        let mut distances = Array2::default((n_atoms_group1, n_atoms_group2));
 
         for (i, atom1) in self.group_iter(group1)?.enumerate() {
-            distances.push(Vec::with_capacity(n_atoms_group2));
-            for atom2 in self.group_iter(group2)? {
+            for (j, atom2) in self.group_iter(group2)?.enumerate() {
                 let dist = match atom1.distance(atom2, dim, simbox) {
                     Ok(x) => x,
                     Err(AtomError::InvalidPosition(e)) => return Err(GroupError::InvalidPosition(e)),
                     _ => panic!("FATAL GROAN ERROR | System::group_all_distances | Invalid error type returned by Atom::distance."),
                 };
 
-                distances[i].push(dist);
+                distances[(i, j)] = dist;
             }
         }
 
@@ -858,29 +860,28 @@ mod tests {
             .group_all_distances("Protein", "Protein", Dimension::XYZ)
             .unwrap();
 
-        assert_eq!(distances.len(), n_atoms);
-        assert_eq!(distances[0].len(), n_atoms);
+        assert_eq!(distances.len(), n_atoms * n_atoms);
 
         for i in 0..n_atoms {
             for j in 0..n_atoms {
-                assert_approx_eq!(f32, distances[i][j], distances[j][i]);
+                assert_approx_eq!(f32, distances[(i, j)], distances[(j, i)]);
 
                 if i == j {
-                    assert_eq!(distances[i][j], 0.0);
+                    assert_eq!(distances[(i, j)], 0.0);
                 }
             }
         }
 
         // get maximal value
-        let max = distances
+        let max = *distances
             .iter()
-            .flatten()
-            .fold(f32::NEG_INFINITY, |max, &current| max.max(current));
+            .max_by(|x, y| x.partial_cmp(y).unwrap())
+            .unwrap();
         assert_approx_eq!(f32, max, 4.597961);
 
-        assert_approx_eq!(f32, distances[0][1], 0.31040135);
-        assert_approx_eq!(f32, distances[n_atoms - 1][0], 4.266728);
-        assert_approx_eq!(f32, distances[n_atoms - 1][n_atoms - 2], 0.31425142);
+        assert_approx_eq!(f32, distances[(0, 1)], 0.31040135);
+        assert_approx_eq!(f32, distances[(n_atoms - 1, 0)], 4.266728);
+        assert_approx_eq!(f32, distances[(n_atoms - 1, n_atoms - 2)], 0.31425142);
     }
 
     #[test]
@@ -893,38 +894,37 @@ mod tests {
             .group_all_distances("Protein", "Protein", Dimension::Z)
             .unwrap();
 
-        assert_eq!(distances.len(), n_atoms);
-        assert_eq!(distances[0].len(), n_atoms);
+        assert_eq!(distances.len(), n_atoms * n_atoms);
 
         for i in 0..n_atoms {
             for j in 0..n_atoms {
-                assert_approx_eq!(f32, distances[i][j], -distances[j][i]);
+                assert_approx_eq!(f32, distances[(i, j)], -distances[(j, i)]);
 
                 if i == j {
-                    assert_eq!(distances[i][j], 0.0);
+                    assert_eq!(distances[(i, j)], 0.0);
                 }
             }
         }
 
         // get maximal value
-        let max = distances
+        let max = *distances
             .iter()
-            .flatten()
-            .fold(f32::NEG_INFINITY, |max, &current| max.max(current));
+            .max_by(|x, y| x.partial_cmp(y).unwrap())
+            .unwrap();
         assert_approx_eq!(f32, max, 4.383, epsilon = 0.00001);
 
         // get the minimal value
-        let min = distances
+        let min = *distances
             .iter()
-            .flatten()
-            .fold(f32::INFINITY, |min, &current| min.min(current));
+            .min_by(|x, y| x.partial_cmp(y).unwrap())
+            .unwrap();
         assert_approx_eq!(f32, min, -4.383, epsilon = 0.00001);
 
-        assert_approx_eq!(f32, distances[0][1], 0.0900, epsilon = 0.00001);
-        assert_approx_eq!(f32, distances[n_atoms - 1][0], -4.213, epsilon = 0.00001);
+        assert_approx_eq!(f32, distances[(0, 1)], 0.0900, epsilon = 0.00001);
+        assert_approx_eq!(f32, distances[(n_atoms - 1, 0)], -4.213, epsilon = 0.00001);
         assert_approx_eq!(
             f32,
-            distances[n_atoms - 1][n_atoms - 2],
+            distances[(n_atoms - 1, n_atoms - 2)],
             -0.101,
             epsilon = 0.00001
         );
@@ -941,27 +941,26 @@ mod tests {
             .group_all_distances("Membrane", "Protein", Dimension::XY)
             .unwrap();
 
-        assert_eq!(distances.len(), n_atoms_membrane);
-        assert_eq!(distances[0].len(), n_atoms_protein);
+        assert_eq!(distances.len(), n_atoms_membrane * n_atoms_protein);
 
         // get maximal value
-        let max = distances
+        let max = *distances
             .iter()
-            .flatten()
-            .fold(f32::NEG_INFINITY, |max, &current| max.max(current));
+            .max_by(|x, y| x.partial_cmp(y).unwrap())
+            .unwrap();
         assert_approx_eq!(f32, max, 9.190487, epsilon = 0.00001);
 
         // get the minimal value
-        let min = distances
+        let min = *distances
             .iter()
-            .flatten()
-            .fold(f32::INFINITY, |min, &current| min.min(current));
+            .min_by(|x, y| x.partial_cmp(y).unwrap())
+            .unwrap();
         assert_approx_eq!(f32, min, 0.02607, epsilon = 0.00001);
 
-        assert_approx_eq!(f32, distances[0][0], 3.747651);
-        assert_approx_eq!(f32, distances[1240][12], 3.7207017);
-        assert_approx_eq!(f32, distances[12][34], 6.2494035);
-        assert_approx_eq!(f32, distances[6143][60], 4.7850933);
+        assert_approx_eq!(f32, distances[(0, 0)], 3.747651);
+        assert_approx_eq!(f32, distances[(1240, 12)], 3.7207017);
+        assert_approx_eq!(f32, distances[(12, 34)], 6.2494035);
+        assert_approx_eq!(f32, distances[(6143, 60)], 4.7850933);
     }
 
     #[test]
