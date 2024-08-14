@@ -215,8 +215,9 @@ impl System {
                                 progress.set_status(ProgressStatus::Failed);
                                 // print information about the frame where the trajectory reading failed
                                 progress.print(0, step, time);
-                                return Err(e);
                             }
+                            // propagate the error
+                            return Err(e);
                         }
                     }
                 }
@@ -427,7 +428,9 @@ impl System {
 #[cfg(test)]
 mod tests {
 
-    use std::fs::File;
+    use std::{error::Error, fs::File, io::BufRead};
+
+    use tempfile::NamedTempFile;
 
     use crate::{
         errors::AtomError,
@@ -507,6 +510,15 @@ mod tests {
         Ok(())
     }
 
+    fn frame_get_number_may_fail(frame: &System, data: &mut Steps) -> Result<(), AtomError> {
+        if frame.get_simulation_step() == 35000 {
+            Err(AtomError::OutOfRange(10)) // arbitrary error
+        } else {
+            data.0.push(frame.get_simulation_step());
+            Ok(())
+        }
+    }
+
     fn run_traj_iter_single_threaded<'a, Reader>(
         system: &'a mut System,
         filename: &str,
@@ -568,6 +580,33 @@ mod tests {
 
         steps.0.sort();
         steps
+    }
+
+    fn run_traj_iter_map_reduce_fails<'a, Reader>(
+        system: &'a System,
+        filename: &str,
+        n_threads: usize,
+        start: Option<f32>,
+        end: Option<f32>,
+        step: Option<usize>,
+        progress: Option<ProgressPrinter>,
+    ) -> Result<Steps, Box<dyn Error + Send + Sync>>
+    where
+        Reader: TrajReadOpen<'a> + TrajRangeRead<'a> + TrajStepRead<'a> + TrajRead<'a> + 'a,
+        <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
+    {
+        let mut steps = system.traj_iter_map_reduce::<Reader, Steps, AtomError>(
+            filename,
+            n_threads,
+            frame_get_number_may_fail,
+            start,
+            end,
+            step,
+            progress,
+        )?;
+
+        steps.0.sort();
+        Ok(steps)
     }
 
     #[test]
@@ -1088,5 +1127,60 @@ mod tests {
                 assert_eq!(item1, item2);
             }
         }
+    }
+
+    #[test]
+    fn xtc_iter_map_reduce_fail() {
+        let system = System::from_file("test_files/example.gro").unwrap();
+
+        for n_threads in 1..=16 {
+            assert!(run_traj_iter_map_reduce_fails::<XtcReader>(
+                &system,
+                "test_files/short_trajectory.xtc",
+                n_threads,
+                None,
+                None,
+                None,
+                None,
+            )
+            .is_err());
+        }
+    }
+
+    #[test]
+    fn xtc_iter_map_reduce_fail_progress_printing() {
+        let system = System::from_file("test_files/example.gro").unwrap();
+
+        let output = NamedTempFile::new().unwrap();
+        let path_to_output = output.path().to_owned();
+
+        let progress = ProgressPrinter::new()
+            .with_output(Box::from(output))
+            .with_terminating("\n")
+            .with_colored(false);
+        for n_threads in [1, 2, 3, 4, 8, 16] {
+            assert!(run_traj_iter_map_reduce_fails::<XtcReader>(
+                &system,
+                "test_files/short_trajectory.xtc",
+                n_threads,
+                None,
+                None,
+                None,
+                Some(progress.clone()),
+            )
+            .is_err());
+        }
+
+        let file = File::open(path_to_output).unwrap();
+        let reader = std::io::BufReader::new(file);
+        let pattern = "[ FAILED! ]   Step        35000 | Time          700 ps";
+
+        let count = reader
+            .lines()
+            .filter_map(|line| line.ok())
+            .filter(|line| line.contains(pattern))
+            .count();
+
+        assert_eq!(count, 6);
     }
 }
