@@ -1,5 +1,5 @@
 # Summary
 
 - [Introduction](./introduction.md)
-- [Installation](./installation.md)
-- [Analyzing static structures](./structure.md)
+- [Getting started](./getting_started.md)
+- [Tutorial 1: Analyzing a protein](./tutorial1.md)
