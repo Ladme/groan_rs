@@ -1,6 +1,15 @@
 
 ## Changelog for the `groan_rs` library
 
+### Version 0.9.0
+
+- Introduced `System::make_group_whole` for making a group "whole" in the system (similar to `System::make_molecules_whole`).
+
+#### Bug fixes and minor changes
+- `System::traj_iter_map_reduce` now properly propagates errors and failures from the individual threads into the master-thread `ProgressPrinter`.
+
+***
+
 ### Version 0.8.2
 - Methods from the `parallel` feature are now included in the documentation.
 
