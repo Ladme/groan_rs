@@ -4,7 +4,8 @@
 //! # groan_rs: Gromacs Analysis Library for Rust
 //!
 //! Rust library for analyzing Gromacs simulations.
-//! Currently in an early stage of development: anything can break, change or stop working at any time.
+//!
+//! While the library is no longer in an _early_ stage of development, it is still unstable. Breaking changes can appear in any new version.
 //!
 //! ## What it can do
 //! - Read and write [gro](`crate::io::gro_io::read_gro`), [pdb](`crate::io::pdb_io::read_pdb`), [pqr](`crate::io::pqr_io::read_pqr`), [ndx](`crate::system::System::read_ndx`), [xtc](`crate::system::System::xtc_iter`) and [trr](`crate::system::System::trr_iter`) files.
