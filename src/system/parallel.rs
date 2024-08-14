@@ -43,6 +43,8 @@ impl System {
     /// ## Example
     /// Calculating the average number of phosphorus atoms above and below the global membrane center of geometry.
     /// ```no_run
+    /// #[cfg(feature = "parallel")]
+    /// # {
     /// # use groan_rs::prelude::*;
     /// # use std::ops::Add;
     /// # use groan_rs::errors::GroupError;
@@ -131,7 +133,7 @@ impl System {
     ///     result.upper.iter().sum::<usize>() as f32 / result.upper.len() as f32;
     /// let av_lower_leaflet =
     ///     result.lower.iter().sum::<usize>() as f32 / result.lower.len() as f32;
-    ///
+    /// # }
     /// ```
     ///
     /// ## Notes
