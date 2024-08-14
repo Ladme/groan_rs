@@ -569,6 +569,7 @@ mod test_utilities;
 
 /// Reexported basic `groan_rs` structures and traits.
 pub mod prelude {
+    pub use crate::files::FileType;
     pub use crate::io::traj_io::{
         FrameData, FrameDataTime, TrajFile, TrajGroupWrite, TrajMasterRead, TrajRangeRead,
         TrajRangeReader, TrajRangeStepReader, TrajRead, TrajReadOpen, TrajReader, TrajStepRead,
