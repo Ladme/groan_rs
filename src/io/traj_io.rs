@@ -793,7 +793,7 @@ impl System {
     /// ## Notes
     /// - The `System` structure is modified while iterating through the trajectory.
     /// - `xtc` and `trr` files also have their own specific functions implementing iteration.
-    /// See `System::xtc_iter()` and `System::trr_iter()`.
+    ///   See `System::xtc_iter()` and `System::trr_iter()`.
     pub fn traj_iter<'a, Read>(
         &'a mut self,
         filename: impl AsRef<Path>,

@@ -57,8 +57,8 @@ impl Atom {
     ///
     /// ## Notes
     /// - By default, atom is constructed with `position`, `velocity`, `force`, `chain`, `charge`,
-    /// `mass`, `vdw`, `expected_max_bonds`, `expected_min_bonds`, `element_name`, and `element_symbol`
-    /// set to `None`. You can provide this information using the `Atom::with_*` methods.
+    ///   `mass`, `vdw`, `expected_max_bonds`, `expected_min_bonds`, `element_name`, and `element_symbol`
+    ///   set to `None`. You can provide this information using the `Atom::with_*` methods.
     pub fn new(
         residue_number: usize,
         residue_name: &str,
@@ -524,7 +524,7 @@ impl Atom {
     /// - Longer names are shortened, longer numbers are wrapped to 0.
     /// - If atom has no position (or velocity, if requested), 0 is printed out for all dimensions.
     /// - No coordinate of the atom can be higher than 9999 or lower than -999 nm.
-    /// Otherwise the function returns an error.
+    ///   Otherwise the function returns an error.
     pub fn write_gro(
         &self,
         stream: &mut impl Write,
@@ -601,7 +601,7 @@ impl Atom {
     /// - Longer names are shortened, longer numbers are wrapped to 0.
     /// - If atom has no position, 0 is printed out for all dimensions.
     /// - No coordinate of the atom can be higher than 999 or lower than -99 nm.
-    /// Otherwise the function returns an error.
+    ///   Otherwise the function returns an error.
     pub fn write_pdb(&self, stream: &mut impl Write) -> Result<(), WritePdbError> {
         let binding = Vector3D::default();
         let position = self.get_position().unwrap_or(&binding);
@@ -655,7 +655,7 @@ impl Atom {
     ///
     /// ## Parameters
     /// - `precision` parameters specify the number of decimal places to be printed for
-    /// position, charge and radius.
+    ///   position, charge and radius.
     ///
     /// ## Notes
     /// - All atoms are treated as 'ATOM'. 'HETATM' is not used at all.

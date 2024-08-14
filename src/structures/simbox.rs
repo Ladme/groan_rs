@@ -92,7 +92,7 @@ impl SimBox {
     ///
     /// ## Notes
     /// - Adapted from Tsjerk Wassenaar's `triclinic` function:
-    /// <https://www.mail-archive.com/gmx-users@gromacs.org/msg28032.html>
+    ///   <https://www.mail-archive.com/gmx-users@gromacs.org/msg28032.html>
     pub fn from_lengths_angles(lengths: Vector3D, angles: Vector3D) -> Self {
         let mut simbox = SimBox {
             v1x: lengths.x,

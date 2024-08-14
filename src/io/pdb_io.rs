@@ -25,13 +25,13 @@ use super::check_coordinate_sizes;
 /// - Reading ends once `ENDMDL`, `END`, or the end of file is reached.
 ///
 /// - In case multiple TITLE lines are provided, the **last one** is used as the
-/// name of the system. If no TITLE line is provided, "Unknown" is used as the name.
+///   name of the system. If no TITLE line is provided, "Unknown" is used as the name.
 ///
 /// - In case multiple CRYST1 lines are provided, information from the **last one** is used.
-/// If no CRYST1 line is provided, the simulation box is undefined.
+///   If no CRYST1 line is provided, the simulation box is undefined.
 ///
 /// - If you want to load connectivity from the PDB file,
-/// use [`System::add_bonds_from_pdb`] after constructing the `System` structure.
+///   use [`System::add_bonds_from_pdb`] after constructing the `System` structure.
 pub fn read_pdb(filename: impl AsRef<Path>) -> Result<System, ParsePdbError> {
     let file = match File::open(filename.as_ref()) {
         Ok(x) => x,
@@ -80,9 +80,9 @@ impl System {
     /// ## Returns
     /// - `Ok` if the connectivity was read correctly.
     /// - `ParsePdbConnectivityError::NoBondsWarning` is the file was read successfully
-    /// but no bonds have been found. The `System` structure is still modified.
+    ///   but no bonds have been found. The `System` structure is still modified.
     /// - Other `ParsePdbConnectivityError` if an error occured.
-    /// If an error occurs, the `System` structure is not changed.
+    ///   If an error occurs, the `System` structure is not changed.
     ///
     /// ## Example
     /// ```no_run
@@ -119,11 +119,11 @@ impl System {
     /// - Reading ends once `END` keyword or the end of file is reached.
     /// - Unlike with `read_pdb`, the `ENDMDL` keyword is ignored by this function.
     /// - Note that the PDB file with the connectivity information can but does not have to contain information about the atoms.
-    /// All lines other than those starting with the `CONECT` (or `END`) keyword are ignored.
+    ///   All lines other than those starting with the `CONECT` (or `END`) keyword are ignored.
     /// - This function can read `CONECT` lines of any length, i.e. it is not limited by the traditional requirement
-    /// of using at most 4 bonds in a single `CONECT` line.
+    ///   of using at most 4 bonds in a single `CONECT` line.
     /// - This function resets the reference atoms for molecules (`mol_references`) in the system
-    /// if it completes without an error. (Warning still causes reset of the reference atoms.)
+    ///   if it completes without an error. (Warning still causes reset of the reference atoms.)
     pub fn add_bonds_from_pdb(
         &mut self,
         filename: impl AsRef<Path>,
@@ -226,12 +226,12 @@ impl System {
     /// ## Notes on connectivity
     /// - The function will attempt to write connectivity into the PDB file if `write_connectivity` is true.
     /// - Connectivity block can only be written for systems with fewer than 100,000 atoms
-    /// and for systems in which each atom has a unique number. In case these requirements
-    /// are not fulfilled and the `write_connectivity` is `true`, an error is returned
-    /// and no output PDB file is written.
+    ///   and for systems in which each atom has a unique number. In case these requirements
+    ///   are not fulfilled and the `write_connectivity` is `true`, an error is returned
+    ///   and no output PDB file is written.
     /// - Even though `groan_rs` library can read `CONECT` lines of any length,
-    /// this function prints at most 4 bonds on a single `CONECT` line as is traditionally requested.
-    /// If the atom is bonded to more atoms, multiple `CONECT` lines will be written for it.
+    ///   this function prints at most 4 bonds on a single `CONECT` line as is traditionally requested.
+    ///   If the atom is bonded to more atoms, multiple `CONECT` lines will be written for it.
     /// - If simulation box is undefined, it is not written out.
     pub fn write_pdb(
         &self,
@@ -271,12 +271,12 @@ impl System {
     /// ## Notes on connectivity
     /// - The function will attempt to write connectivity into the PDB file if `write_connectivity` is true.
     /// - Connectivity block can only be written for systems with fewer than 100,000 atoms
-    /// and for systems in which each atom has a unique number. In case these requirements
-    /// are not fulfilled and the `write_connectivity` is `true`, an error is returned
-    /// and no output PDB file is written.
+    ///   and for systems in which each atom has a unique number. In case these requirements
+    ///   are not fulfilled and the `write_connectivity` is `true`, an error is returned
+    ///   and no output PDB file is written.
     /// - Even though `groan_rs` library can read `CONECT` lines of any length,
-    /// this function prints at most 4 bonds on a single `CONECT` line as is traditionally requested.
-    /// If the atom is bonded to more atoms, multiple `CONECT` lines will be written for it.
+    ///   this function prints at most 4 bonds on a single `CONECT` line as is traditionally requested.
+    ///   If the atom is bonded to more atoms, multiple `CONECT` lines will be written for it.
     /// - If the simulation box is undefined, it is not written out.
     pub fn group_write_pdb(
         &self,

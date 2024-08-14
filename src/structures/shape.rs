@@ -291,9 +291,9 @@ impl TriangularPrism {
     ///
     /// ## Notes
     /// - Periodic boundary conditions are not applied to the base of the triangular prism.
-    /// In other words, if you define the base of a triangular prism with a point
-    /// that is outside of the box boundaries, you will only select atoms located in the area
-    /// enclosed by the base itself, not by the periodic image of the base.
+    ///   In other words, if you define the base of a triangular prism with a point
+    ///   that is outside of the box boundaries, you will only select atoms located in the area
+    ///   enclosed by the base itself, not by the periodic image of the base.
     ///
     /// ```text
     ///     ╔════════════════╗
@@ -307,16 +307,16 @@ impl TriangularPrism {
     ///     ╚════════════════╝
     ///
     /// ```
-    /// `A`, `B`, `C` specify vertices of the base, `#` roughly specifies areas that are considered
-    /// to be inside the base. `C'` specifies periodic image of `C`.
-    /// Areas marked with `!` are *NOT* included in the prism, even though they could be if we considered PBC.
+    ///   `A`, `B`, `C` specify vertices of the base, `#` roughly specifies areas that are considered
+    ///   to be inside the base. `C'` specifies periodic image of `C`.
+    ///   Areas marked with `!` are *NOT* included in the prism, even though they could be if we considered PBC.
     ///
     /// - The above-described behavior may change in future version of the `groan_rs` library!
     ///
     /// - Since the upper base of the prism is defined relative to the bottom base (using the `height` attribute),
-    /// periodic boundary conditions *ARE* used in this case. In other words,
-    /// if you define a prism with a height that would position the upper base outside of the box,
-    /// the atoms will be selected based on the periodic image of the upper base.
+    ///   periodic boundary conditions *ARE* used in this case. In other words,
+    ///   if you define a prism with a height that would position the upper base outside of the box,
+    ///   the atoms will be selected based on the periodic image of the upper base.
     ///
     /// ```text
     ///     ╔════════════════╗
@@ -330,7 +330,7 @@ impl TriangularPrism {
     ///     ╚════════════════╝
     ///
     /// ```
-    /// (The vertex `C` is not seen.)
+    ///   (The vertex `C` is not seen.)
     pub fn new(base1: Vector3D, base2: Vector3D, base3: Vector3D, height: f32) -> Self {
         let bases = [
             (base1.x, base2.x, base3.x, Dimension::X, Dimension::YZ),

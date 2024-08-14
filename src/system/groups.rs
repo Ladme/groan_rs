@@ -64,7 +64,7 @@ impl System {
     /// - `GroupError::InvalidName` if the name of the group is invalid (no group created).
     /// - `GroupError::InvalidQuery` if the query could not be parsed.
     /// - `GroupError::InvalidSimBox` if the system has no simulation box or if the
-    /// simulation box is not orthogonal.
+    ///   simulation box is not orthogonal.
     ///
     /// ## Example
     /// Select phosphori atoms which are inside a z-axis oriented cylinder
@@ -84,9 +84,9 @@ impl System {
     ///
     /// ## Warning
     /// - If you construct the group and then iterate through a trajectory, the group will still contain
-    /// the same atoms as initially. In other words, the group is NOT dynamically updated.
+    ///   the same atoms as initially. In other words, the group is NOT dynamically updated.
     /// - If you want to choose atoms dynamically, it is better to use [`AtomIterator`](`crate::system::System::atoms_iter`)
-    /// and [`filter_geometry`](`crate::structures::iterators::MasterAtomIterator::filter_geometry`) function while iterating through the trajectory.
+    ///   and [`filter_geometry`](`crate::structures::iterators::MasterAtomIterator::filter_geometry`) function while iterating through the trajectory.
     /// - Atoms with undefined positions will never be selected.
     ///
     /// ## Notes
@@ -131,7 +131,7 @@ impl System {
     /// - `GroupError::InvalidName` if the name of the group is invalid (no group created).
     /// - `GroupError::InvalidQuery` if the query could not be parsed.
     /// - `GroupError::InvalidSimBox` if the system has no simulation box or if the
-    /// simulation box is not orthogonal.
+    ///   simulation box is not orthogonal.
     ///
     /// ## Example
     /// Select phosphori atoms which are inside a z-axis oriented cylinder
@@ -157,9 +157,9 @@ impl System {
     ///
     /// ## Warning
     /// - If you construct the group and then iterate through a trajectory, the group will still contain
-    /// the same atoms as initially. In other words, the group is NOT dynamically updated.
+    ///   the same atoms as initially. In other words, the group is NOT dynamically updated.
     /// - If you want to choose atoms dynamically, it is better to use [`AtomIterator`](`crate::system::System::atoms_iter`)
-    /// and [`filter_geometry`](`crate::structures::iterators::MasterAtomIterator::filter_geometry`) function while iterating through the trajectory.
+    ///   and [`filter_geometry`](`crate::structures::iterators::MasterAtomIterator::filter_geometry`) function while iterating through the trajectory.
     /// - Atoms with undefined positions will never be selected.
     ///
     /// ## Notes
@@ -650,9 +650,9 @@ impl System {
     ///
     /// ## Notes
     /// - Note that if the `new` name already matches name of another group in the `System`,
-    /// the previous group with this name is overwritten and `GroupError::AlreadyExistsWarning` is returned.
+    ///   the previous group with this name is overwritten and `GroupError::AlreadyExistsWarning` is returned.
     /// - This function maintains the order of the groups in the system, except for the renamed group
-    /// which is placed to the last position.
+    ///   which is placed to the last position.
     /// - Time complexity is O(n).
     #[allow(dead_code)]
     pub(crate) fn group_rename(&mut self, old: &str, new: &str) -> Result<(), GroupError> {
@@ -682,9 +682,9 @@ impl System {
     ///
     /// ## Notes
     /// - Note that `index` corresponds to the atom index in the `System` structure.
-    /// The atoms in `System` are numbered starting from 0.
+    ///   The atoms in `System` are numbered starting from 0.
     /// - The time complexity of this operation is somewhere between `O(1)` and `O(n)`
-    /// where `n` is the number of atoms in the group.
+    ///   where `n` is the number of atoms in the group.
     pub fn group_isin(&self, name: &str, index: usize) -> Result<bool, GroupError> {
         let group = self
             .get_groups_as_ref()
@@ -701,9 +701,9 @@ impl System {
     ///
     /// ## Notes
     /// - This is NOT an `O(1)` operation. In fact, the complexity of this operation
-    /// depends on the complexity of the group. Length of a group composed
-    /// of a continuous block of atoms will be computed more quickly
-    /// than the length of a group composed of a large number of separate atoms.
+    ///   depends on the complexity of the group. Length of a group composed
+    ///   of a continuous block of atoms will be computed more quickly
+    ///   than the length of a group composed of a large number of separate atoms.
     ///
     /// - The time complexity of this operation is thus somewhere between `O(1)` and `O(n)`.
     ///

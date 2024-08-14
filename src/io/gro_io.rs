@@ -35,8 +35,8 @@ impl System {
     /// ## Notes
     /// - The function will write velocities for atoms only if `write_velocities == true`.
     /// - The function will write all 9 box coordinates only if necessary
-    /// (any of the last 6 coordinates is non-zero). Otherwise, it assumes the box is
-    /// orthogonal and writes out only 3 dimensions of the box.
+    ///   (any of the last 6 coordinates is non-zero). Otherwise, it assumes the box is
+    ///   orthogonal and writes out only 3 dimensions of the box.
     /// - If simulation box is undefined, it is written as a sequence of zeros.
     pub fn write_gro(
         &self,
@@ -76,8 +76,8 @@ impl System {
     /// ## Notes
     /// - The function will write velocities for atoms only if `write_velocities == true`.
     /// - The function will write all 9 box coordinates only if necessary
-    /// (any of the last 6 coordinates is non-zero). Otherwise, it assumes the box is
-    /// orthogonal and writes out only 3 dimensions of the box.
+    ///   (any of the last 6 coordinates is non-zero). Otherwise, it assumes the box is
+    ///   orthogonal and writes out only 3 dimensions of the box.
     /// - If the simulation box is undefined, it is written as a sequence of zeros.
     pub fn group_write_gro(
         &self,

@@ -270,7 +270,7 @@ impl fmt::Display for Select {
     ///
     /// ## Warning
     /// - The GSL query returned by this function may be different from the query
-    /// used to construct the Select structure in the first place.
+    ///   used to construct the Select structure in the first place.
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut string = String::new();
 

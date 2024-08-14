@@ -22,7 +22,7 @@
 //! ## What it CAN'T do (at the moment)
 //! - Work with non-orthogonal periodic boundary conditions.
 //! - Perform advanced analyses of structure and dynamics out of the box.
-//! (But `groan_rs` library tries to make it simple to implement your own!)
+//!   (But `groan_rs` library tries to make it simple to implement your own!)
 //!
 //! ## Usage
 //!
@@ -544,11 +544,11 @@
 //!
 //! ## Limitations
 //! - Currently, `groan_rs` library is not able to properly work with periodic simulation boxes that are **not orthogonal**.
-//! While it can read structures and trajectories with non-orthogonal boxes, calculated distances and similar properties may be incorrect!
-//! Tread very carefully!
+//!   While it can read structures and trajectories with non-orthogonal boxes, calculated distances and similar properties may be incorrect!
+//!   Tread very carefully!
 //!
 //! - While `groan_rs` can read double-precision trr and tpr files, it uses single-precision floating point numbers everywhere in its code.
-//! If you require double-precision for your analyses, look elsewhere.
+//!   If you require double-precision for your analyses, look elsewhere.
 //!
 //! ## License
 //! This library is released under the MIT License.

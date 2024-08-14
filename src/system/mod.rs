@@ -61,7 +61,7 @@ impl System {
     ///
     /// ## Notes
     /// - The returned `System` structure will contain two default groups "all" and "All",
-    /// each consisting of all the atoms in the system.
+    ///   each consisting of all the atoms in the system.
     ///
     /// ## Example 1: Manually creating a system
     /// ```no_run
@@ -165,10 +165,10 @@ impl System {
     ///
     /// ## Notes
     /// - The returned System structure will contain two default groups "all" and "All"
-    /// consisting of all the atoms in the system.
+    ///   consisting of all the atoms in the system.
     /// - When reading a pdb file, no connectivity information (bonds) is read, even if it is provided. You can add
-    /// connectivity from a pdb file to your system using [`System::add_bonds_from_pdb`]. See more information
-    /// about parsing PDB files in [`pdb_io::read_pdb`](`crate::io::pdb_io::read_pdb`).
+    ///   connectivity from a pdb file to your system using [`System::add_bonds_from_pdb`]. See more information
+    ///   about parsing PDB files in [`pdb_io::read_pdb`](`crate::io::pdb_io::read_pdb`).
     /// - Groups are not read from tpr files.
     #[inline(always)]
     pub fn from_file(filename: impl AsRef<Path>) -> Result<Self, Box<dyn Error + Send + Sync>> {
@@ -250,10 +250,10 @@ impl System {
     ///
     /// ## Warning
     /// - Note that manually changing the `atoms` of the system
-    /// can cause the system to become invalid. Other functions may then not work correctly.
+    ///   can cause the system to become invalid. Other functions may then not work correctly.
     /// - Notably, no atoms can be added or removed from the `atoms` vector as such
-    /// operation would make all the groups associated with the system invalid. The same goes
-    /// for reordering the atoms.
+    ///   operation would make all the groups associated with the system invalid. The same goes
+    ///   for reordering the atoms.
     /// - The properties of the individual atoms can however be safely changed.
     #[inline(always)]
     pub(crate) fn get_atoms_as_mut(&mut self) -> &mut Vec<Atom> {
@@ -276,10 +276,10 @@ impl System {
     ///
     /// ## Safety
     /// - This function is unsafe as manually changing the `groups` of the system
-    /// can cause the system to become invalid.
+    ///   can cause the system to become invalid.
     /// - Notably, it is forbidden to modify the default groups 'all' and 'All' as changing
-    /// these groups may cause the behavior of many other functions associated with `System`
-    /// to become incorrect.
+    ///   these groups may cause the behavior of many other functions associated with `System`
+    ///   to become incorrect.
     #[inline(always)]
     pub(crate) fn get_groups_as_mut(&mut self) -> &mut IndexMap<String, Group> {
         &mut self.groups
@@ -308,7 +308,7 @@ impl System {
     /// ## Returns
     /// - `Vector3D` if successful.
     /// - `SimBoxError` if the system has no simulation box
-    /// or if the simulation box is not orthogonal.
+    ///   or if the simulation box is not orthogonal.
     #[inline(always)]
     pub fn get_box_center(&self) -> Result<Vector3D, SimBoxError> {
         match &self.simulation_box {
@@ -417,7 +417,7 @@ impl System {
     ///
     /// ## Notes
     /// - **This function must be called every time topology
-    /// of the system is changed**.
+    ///   of the system is changed**.
     /// - (Safe native groan library functions handle this for you.)
     #[inline(always)]
     pub fn reset_mol_references(&mut self) {
@@ -583,7 +583,7 @@ impl System {
     ///
     /// ## Notes
     /// - Always prefer to use [`System::get_atom_as_ref`], unless you are sure that the
-    /// boundary checks measurably slow down your application.
+    ///   boundary checks measurably slow down your application.
     #[inline(always)]
     pub unsafe fn get_atom_unchecked_as_ref(&self, index: usize) -> &Atom {
         self.atoms.get_unchecked(index)
@@ -597,7 +597,7 @@ impl System {
     ///
     /// ## Notes
     /// - Always prefer to use [`System::get_atom_as_mut`], unless you are sure that the
-    /// boundary checks measurably slow down your application.
+    ///   boundary checks measurably slow down your application.
     #[inline(always)]
     pub unsafe fn get_atom_unchecked_as_mut(&mut self, index: usize) -> &mut Atom {
         self.atoms.get_unchecked_mut(index)
@@ -611,7 +611,7 @@ impl System {
     ///
     /// ## Notes
     /// - Always prefer to use [`System::get_atom_copy`], unless you are sure that the
-    /// boundary checks measurably slow down your application.
+    ///   boundary checks measurably slow down your application.
     #[inline(always)]
     pub unsafe fn get_atom_unchecked_copy(&self, index: usize) -> Atom {
         self.atoms.get_unchecked(index).clone()

@@ -320,11 +320,11 @@ impl System {
     /// ## Notes
     /// - The trajectory files are not reordered in any way and are read in the order in which they are provided.
     /// - It is quite common that the last frame of a simulation trajectory is the same frame as the first frame
-    /// of the following simulation trajectory. When concatenating trajectories using this function,
-    /// any duplicate frames, i.e., frames with matching simulation time, at the trajectory boundaries are removed.
+    ///   of the following simulation trajectory. When concatenating trajectories using this function,
+    ///   any duplicate frames, i.e., frames with matching simulation time, at the trajectory boundaries are removed.
     /// - ONLY duplicate frames at the trajectory boundaries are removed, all other frames are kept and iterated through.
     /// - For instance, the following three trajectory files (each composed of 4 frames with specified time)
-    /// will be concatenated into one file like this:
+    ///   will be concatenated into one file like this:
     /// ```text
     ///       trajectory 1            trajectory 2              trajectory 3
     /// [ 0 , 100 , 200 , 300 ] [ 300 , 400 , 500 , 600 ] [ 100 , 200 , 300 , 400 ]
@@ -333,7 +333,7 @@ impl System {
     /// [ 0 , 100 , 200 , 300 , 400 , 500 , 600 , 100 , 200 , 300 , 400 ]
     /// ```
     /// - All the concatenated trajectory files must be of the same type, i.e. it is not possible to concatenate
-    /// e.g. `xtc` with `trr` files.
+    ///   e.g. `xtc` with `trr` files.
     /// - Only trajectories which contain information about the simulation time can be concatenated using this function.
     pub fn traj_cat_iter<'a, Read>(
         &'a mut self,

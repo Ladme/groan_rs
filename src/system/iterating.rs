@@ -239,8 +239,8 @@ impl System {
     /// |
     /// 8 --- 9
     /// ```
-    /// and starting from atom 1, the method will traverse the atoms in this order:
-    /// 1, 2, 4, 3, 5, 8, 7, 6, 9
+    ///   and starting from atom 1, the method will traverse the atoms in this order:
+    ///   1, 2, 4, 3, 5, 8, 7, 6, 9
     /// - I.e. atoms closer to the starting atom will be visited before atoms that are further way.
     pub fn molecule_iter(&self, index: usize) -> Result<MoleculeIterator, AtomError> {
         let indices = get_molecule_indices(self, index)?;
@@ -268,8 +268,8 @@ impl System {
     /// |
     /// 8 --- 9
     /// ```
-    /// and starting from atom 1, the method will traverse the atoms in this order:
-    /// 1, 2, 4, 3, 5, 8, 7, 6, 9
+    ///   and starting from atom 1, the method will traverse the atoms in this order:
+    ///   1, 2, 4, 3, 5, 8, 7, 6, 9
     /// - I.e. atoms closer to the starting atom will be visited before atoms that are further way.
     pub fn molecule_iter_mut(&mut self, index: usize) -> Result<MutMoleculeIterator, AtomError> {
         let indices = get_molecule_indices(self, index)?;

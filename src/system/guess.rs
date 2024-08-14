@@ -22,12 +22,12 @@ impl System {
     ///
     /// ## Returns
     /// - Returns `Ok` if the assignment was successful, all atoms were assigned an element and no
-    /// atom matched multiple elements.
+    ///   atom matched multiple elements.
     /// - Returns `ElementError::ElementGuessWarning` if there is at least one atom which was not assigned
-    /// an element and/or at least one atom which matches multiple elements. This does not
-    /// indicate an error as other atoms are assigned an element.
+    ///   an element and/or at least one atom which matches multiple elements. This does not
+    ///   indicate an error as other atoms are assigned an element.
     /// - Returns a different `ElementError` if the assignment was not successful. In case
-    /// an error occurs, the system is not modified. Errors take precedence over warnings.
+    ///   an error occurs, the system is not modified. Errors take precedence over warnings.
     ///
     /// ## Examples
     /// Guess elements for the atoms of the system using **default** element definitions.
@@ -89,24 +89,24 @@ impl System {
     ///
     /// ## Notes
     /// - This function will assign an element to each atom if it finds a matching query in the `Elements`
-    /// structure. If a match is found, the function will set the `element_name` field.
-    /// If the matched element is assigned a symbol, the `element_symbol` field of the atom is also set.
-    /// In case the `element_name` and/or `element_symbol` fields have been previously set for the atom,
-    /// they are overwritten.
+    ///   structure. If a match is found, the function will set the `element_name` field.
+    ///   If the matched element is assigned a symbol, the `element_symbol` field of the atom is also set.
+    ///   In case the `element_name` and/or `element_symbol` fields have been previously set for the atom,
+    ///   they are overwritten.
     /// - The `mass`, `vdw`, and `expected_max_bonds` are set based on the properties of the
-    /// element **only** if they were not previously set. I.e. if the `mass` of an atom is
-    /// `None`, the `mass` will be assigned based on the mass of the element. If the
-    /// `mass` is already assigned and thus **not** `None`, it is not changed. This goes for all
-    /// three of the aforementioned properties.
+    ///   element **only** if they were not previously set. I.e. if the `mass` of an atom is
+    ///   `None`, the `mass` will be assigned based on the mass of the element. If the
+    ///   `mass` is already assigned and thus **not** `None`, it is not changed. This goes for all
+    ///   three of the aforementioned properties.
     /// - In case you want to set new masses (or other properties) for your atoms based on the newly
-    /// assigned elements, run `reset_mass` (or similar function for other properties) on each atom of
-    /// the system before running `System::guess_elements` or run `System::guess_properties` after
-    /// running `System::guess_elements`.
+    ///   assigned elements, run `reset_mass` (or similar function for other properties) on each atom of
+    ///   the system before running `System::guess_elements` or run `System::guess_properties` after
+    ///   running `System::guess_elements`.
     /// - This function checks for all potential matches between an atom and the provided elements.
-    /// In case there are multiple matches, the function assigns the first element from the list
-    /// and returns a warning.
+    ///   In case there are multiple matches, the function assigns the first element from the list
+    ///   and returns a warning.
     /// - Unless an error is returned, the time complexity of this function is _always_ O(m * n + n),
-    /// where `m` is the number of atoms in the system and `n` is the number of available elements.
+    ///   where `m` is the number of atoms in the system and `n` is the number of available elements.
     /// - If an error (not a warning!) is returned, the `System` structure is not modified.
     pub fn guess_elements(&mut self, elements: Elements) -> Result<(), ElementError> {
         // check that all select trees are valid
@@ -170,9 +170,9 @@ impl System {
     /// ## Returns
     /// - `Ok` if the assignment was fully successful and all properties have been assigned.
     /// - `ElementError::PropertiesGuessWarning` if at least one of the atoms does not have all the properties assigned
-    /// or if any of the atoms does not have an element defined in the `Elements` structure.
-    /// This does not indicate failure of the function. In fact, this is something that will usually happen,
-    /// and is usually not an issue. Nonetheless, the user should be informed about it.
+    ///   or if any of the atoms does not have an element defined in the `Elements` structure.
+    ///   This does not indicate failure of the function. In fact, this is something that will usually happen,
+    ///   and is usually not an issue. Nonetheless, the user should be informed about it.
     ///
     /// ## Examples
     /// Assign elements using default `groan_rs` element definitions and
@@ -206,20 +206,20 @@ impl System {
     ///
     /// ## Notes
     /// - The properties are guessed from the provided `Elements` structure. However, the elements
-    /// are **not assigned** from the `Elements` structure. This function uses information about the elements
-    /// already stored in the atoms.
+    ///   are **not assigned** from the `Elements` structure. This function uses information about the elements
+    ///   already stored in the atoms.
     /// - If you already called `System::guess_elements`, you generally do not need to call `System::guess_properties`
-    /// as the properties have already been set to the atoms. You would call `System::guess_properties`
-    /// only if you want to force overwrite of the previously assigned properties of the atoms.
+    ///   as the properties have already been set to the atoms. You would call `System::guess_properties`
+    ///   only if you want to force overwrite of the previously assigned properties of the atoms.
     /// - If you have assigned the elements to the atoms in some other way, i.e. without calling
-    /// `System::guess_elements`, use this function to guess the properties of atoms from the assigned elements.
+    ///   `System::guess_elements`, use this function to guess the properties of atoms from the assigned elements.
     /// - If the element does not have a specific property assigned, the property of the atom is not changed.
-    /// E.g. if the element has no `mass` set, but the atom corresponding to the element does,
-    /// the mass of the atom is **not** reset.
+    ///   E.g. if the element has no `mass` set, but the atom corresponding to the element does,
+    ///   the mass of the atom is **not** reset.
     /// - When using default element definitions provided by the `groan_rs`, this function will usually
-    /// returns a warning as most elements do not have all properties properly set as they are usually not needed.
-    /// This is intentional and does not indicate failure of the function.
-    /// It only informs the user about potential issues they might not expect.
+    ///   returns a warning as most elements do not have all properties properly set as they are usually not needed.
+    ///   This is intentional and does not indicate failure of the function.
+    ///   It only informs the user about potential issues they might not expect.
     pub fn guess_properties(&mut self, elements: Elements) -> Result<(), ElementError> {
         let mut info = PropertiesGuessInfo {
             no_element: Vec::new(),
@@ -275,14 +275,14 @@ impl System {
     /// ## Returns
     /// - `Ok` if the bonds were guessed, all atoms have vdw information and no atom has suspicious number of bonds.
     /// - `ElementError::BondGuessWarning` if at least one atom has a suspicious number of
-    /// guessed bonds or if at least one atom is missing vdw radius.
-    /// This does not indicate failure of the function.
+    ///   guessed bonds or if at least one atom is missing vdw radius.
+    ///   This does not indicate failure of the function.
     ///
     /// ## Warning
     /// - Currently only works with orthogonal periodic boundary conditions!
     /// - This function is rather unreliable. If you require precise information
-    /// about the topology of your system, load in a TPR file, a PDB file with CONECT information,
-    /// or define the topology manually.
+    ///   about the topology of your system, load in a TPR file, a PDB file with CONECT information,
+    ///   or define the topology manually.
     ///
     /// ## Example
     /// ```no_run
@@ -327,7 +327,7 @@ impl System {
     /// - Atoms which have no assigned van der Waals radius are not assigned any bonds.
     /// - Asymptotic time complexity of this function is O(n^2) where n is the number of atoms in the system.
     /// - It is almost always useful to use the parallelized version of this function: [`System::guess_bonds_parallel`],
-    /// especially if your system is large. To use this function, you have to use the `parallel` feature of `groan_rs`.
+    ///   especially if your system is large. To use this function, you have to use the `parallel` feature of `groan_rs`.
     pub fn guess_bonds(&mut self, radius_factor: Option<f32>) -> Result<(), ElementError> {
         let n_atoms = self.get_n_atoms();
         if n_atoms == 0 {
@@ -373,7 +373,7 @@ impl System {
     ///
     /// ## Notes
     /// - If the number of threads is higher than the number of atoms (`n_atoms`) in the system,
-    /// only `n_atoms` threads will be used.
+    ///   only `n_atoms` threads will be used.
     #[cfg(any(feature = "parallel", doc))]
     pub fn guess_bonds_parallel(
         &mut self,

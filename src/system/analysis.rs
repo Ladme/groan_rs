@@ -19,13 +19,13 @@ impl System {
     /// - `GroupError::NotFound` if the group does not exist.
     /// - `GroupError::EmptyGroup` if the group contains no atoms.
     /// - `GroupError::InvalidSimBox` if the system has no simulation box
-    /// or the simulation box is not orthogonal.
+    ///   or the simulation box is not orthogonal.
     /// - `GroupError::InvalidPosition` if any of the atoms in the group has no position.
     ///
     /// ## Notes
     /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
     /// - It is able to calculate correct center of geometry for any distribution of atoms
-    /// that is not completely homogeneous.
+    ///   that is not completely homogeneous.
     ///
     /// ## Example
     /// ```no_run
@@ -68,14 +68,14 @@ impl System {
     /// - `GroupError::NotFound` if the group does not exist.
     /// - `GroupError::EmptyGroup` if the group contains no atoms.
     /// - `GroupError::InvalidSimBox` if the system has no simulation box
-    /// or the simulation box is not orthogonal.
+    ///   or the simulation box is not orthogonal.
     /// - `GroupError::InvalidPosition` if any of the atoms in the group has no position.
     /// - `GroupError::InvalidMass` if any of the atoms in the group has no mass.
     ///
     /// ## Notes
     /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
     /// - It is able to calculate correct center of mass for any distribution of atoms
-    /// that is not completely homogeneous.
+    ///   that is not completely homogeneous.
     ///
     /// ## Example
     /// ```no_run
@@ -120,7 +120,7 @@ impl System {
     /// - `f32` corresponding to the distance between the groups.
     /// - `GroupError::NotFound` if any of the groups does not exist.
     /// - `GroupError::InvalidSimBox` if the system has no simulation box
-    /// or the simulation box is not orthogonal.
+    ///   or the simulation box is not orthogonal.
     /// - `GroupError::InvalidPosition` if any of the atoms in the groups has no position.
     ///
     /// ## Example
@@ -160,7 +160,7 @@ impl System {
     /// - Two dimensional vector of distances.
     /// - `GroupError::NotFound` if any of the groups does not exist.
     /// - `GroupError::InvalidSimBox` if the system has no simulation box
-    /// or the simulation box is not orthogonal.
+    ///   or the simulation box is not orthogonal.
     /// - `GroupError::InvalidPosition` if any of the atoms in the groups has no position.
     ///
     /// ## Example
@@ -229,7 +229,7 @@ impl System {
     /// - `f32` corresponding to the distance between the atoms.
     /// - `AtomError::OutOfRange` if any of the atom indices is out of range.
     /// - `AtomError::InvalidSimBox` if the system has no simulation box
-    /// or the simulation box is not orthogonal.
+    ///   or the simulation box is not orthogonal.
     /// - `AtomError::InvalidPosition` if any of the atoms has no position.
     ///
     /// ## Example

@@ -22,9 +22,9 @@ impl System {
     /// - `Ok` if everything was successful.
     /// - `GroupError::NotFound` in case the group does not exist.
     /// - `GroupError::InvalidSimBox` if the system has no simulation box
-    /// or the simulation box is not orthogonal.
+    ///   or the simulation box is not orthogonal.
     /// - `GroupError::InvalidPosition` if any of the atoms of the group
-    /// has an undefined position.
+    ///   has an undefined position.
     ///
     /// ## Example
     /// Translating the atoms of the group "Protein".
@@ -54,9 +54,9 @@ impl System {
     /// ## Returns
     /// - `Ok` if everything was successful.
     /// - `AtomError::InvalidSimBox` if the system has no simulation box
-    /// or the simulation box is not orthogonal.
+    ///   or the simulation box is not orthogonal.
     /// - `AtomError::InvalidPosition` if any of the atoms of the system
-    /// has an undefined position.
+    ///   has an undefined position.
     ///
     /// ## Example
     /// ```no_run
@@ -156,8 +156,8 @@ impl System {
     ///
     /// ## Notes
     /// - In case the residues are 'broken' meaning that atoms of one residue do not follow each other,
-    /// this function will not be able to renumber the residues correctly.
-    /// In other words, if your gro file looks like this:
+    ///   this function will not be able to renumber the residues correctly.
+    ///   In other words, if your gro file looks like this:
     /// ```text
     /// 1GLN      N    1   5.349   9.908   1.871 -0.3054  0.4903 -0.0291
     /// 1GLN    HT1    2   5.293   9.941   1.951  0.0970  1.0823  0.0129
@@ -168,8 +168,8 @@ impl System {
     /// 1GLN     CA    7   5.432   9.785   1.924  0.2711 -0.5576 -0.7626
     /// 1GLN     HA    8   5.363   9.708   1.957 -0.1090  0.8599  1.9361
     /// ```
-    /// After renumbering, atoms 1-3 will have a residue number 1, atoms 4-5 will have a residue number 2,
-    /// and atoms 6-8 will have a residue number 3.
+    ///   After renumbering, atoms 1-3 will have a residue number 1, atoms 4-5 will have a residue number 2,
+    ///   and atoms 6-8 will have a residue number 3.
     pub fn residues_renumber(&mut self) {
         let mut current_res = 0;
         let mut renumbered_res = 0;
@@ -189,11 +189,11 @@ impl System {
     /// Wrap atoms of the system into the simulation box.
     ///
     /// ## Returns
-    /// `Ok` if everything was successful.
-    /// `AtomError::InvalidSimBox` if the system has no simulation box
-    /// or the simulation box is not orthogonal.
-    /// `AtomError::InvalidPosition` if any of the atoms in the system
-    /// has an undefined position.
+    /// - `Ok` if everything was successful.
+    /// - `AtomError::InvalidSimBox` if the system has no simulation box
+    ///   or the simulation box is not orthogonal.
+    /// - `AtomError::InvalidPosition` if any of the atoms in the system
+    ///   has an undefined position.
     #[inline(always)]
     pub fn atoms_wrap(&mut self) -> Result<(), AtomError> {
         self.atoms_iter_mut().wrap()
@@ -205,9 +205,9 @@ impl System {
     /// - `Ok` if everything was successful.
     /// - `GroupError::NotFound` if the group does not exist.
     /// - `GroupError::InvalidSimBox` if the system has no simulation box
-    /// or the simulation box is not orthogonal.
+    ///   or the simulation box is not orthogonal.
     /// - `GroupError::InvalidPosition` if any of the atoms of the group
-    /// has an undefined position.
+    ///   has an undefined position.
     #[inline(always)]
     pub fn group_wrap(&mut self, name: &str) -> Result<(), GroupError> {
         match self.group_iter_mut(name)?.wrap() {
@@ -284,9 +284,9 @@ impl System {
     /// ## Returns
     /// - `Ok` if everything was successful.
     /// - `AtomError::InvalidSimBox` if the system has no simulation box
-    /// or the simulation box is not orthogonal.
+    ///   or the simulation box is not orthogonal.
     /// - `AtomError::InvalidPosition` if any atom that is part of any
-    /// polyatomic molecule has no position.
+    ///   polyatomic molecule has no position.
     ///
     /// ## Notes
     /// - Assume you have a system composed of two molecules:
@@ -304,13 +304,13 @@ impl System {
     ///
     ///
     /// ```
-    /// All atoms are indicated by `o` except for the
-    /// reference atom of the molecule which is indicated by `<R>`.
+    ///   All atoms are indicated by `o` except for the
+    ///   reference atom of the molecule which is indicated by `<R>`.
     ///
-    /// All the atoms are nicely wrapped to the inside of the box,
-    /// but the molecules are broken on the periodic boundaries.
-    /// This method makes molecules whole, i.e.
-    /// it transforms the above system into this:
+    ///   All the atoms are nicely wrapped to the inside of the box,
+    ///   but the molecules are broken on the periodic boundaries.
+    ///   This method makes molecules whole, i.e.
+    ///   it transforms the above system into this:
     /// ```text
     ///     o
     ///     |
@@ -326,12 +326,12 @@ impl System {
     ///
     ///
     /// ```
-    /// The reference atom is wrapped into the simulation box, while other
-    /// atoms of the molecule are positioned based on the reference atom.
+    ///   The reference atom is wrapped into the simulation box, while other
+    ///   atoms of the molecule are positioned based on the reference atom.
     /// - This function uses `mol_references` from the `System` structure as
-    /// the reference atoms for the polyatomic molecules.
-    /// In case `mol_references` do not exist, they are generated and stored in the `System` structure.
-    /// Note that all functions changing the topology of the `System` MUST reset `mol_references`.
+    ///   the reference atoms for the polyatomic molecules.
+    ///   In case `mol_references` do not exist, they are generated and stored in the `System` structure.
+    ///   Note that all functions changing the topology of the `System` MUST reset `mol_references`.
     pub fn make_molecules_whole(&mut self) -> Result<(), AtomError> {
         if self.get_mol_references().is_none() {
             self.create_mol_references();

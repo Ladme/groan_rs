@@ -47,7 +47,7 @@ impl AtomContainer {
     /// ## Notes
     /// - `atom_indices` structure can contain duplicate indices.
     /// - In case an index in the `atom_indices` is out of range (>= `n_atoms`),
-    /// the index of the last atom in the `System` is used instead.
+    ///   the index of the last atom in the `System` is used instead.
     pub fn from_indices(mut atom_indices: Vec<usize>, n_atoms: usize) -> Self {
         let mut blocks: Vec<AtomBlock> = Vec::new();
 
@@ -107,9 +107,9 @@ impl AtomContainer {
     ///
     /// ## Parameters
     /// - `atom_ranges`: vector of atom ranges from the `System` structure. Atoms are indexed from 0.
-    /// Atom range is a tuple representation of an `AtomBlock`. The first element of the tuple
-    /// corresponds to the index of the first atom in the block. The second element corresponds
-    /// to the index of the last atom in the block.
+    ///   Atom range is a tuple representation of an `AtomBlock`. The first element of the tuple
+    ///   corresponds to the index of the first atom in the block. The second element corresponds
+    ///   to the index of the last atom in the block.
     ///
     /// - `n_atoms`: the total number of atoms in the `System` structure
     ///
@@ -117,8 +117,8 @@ impl AtomContainer {
     /// - `atom_ranges` may be overlapping and multiple identical atom ranges may be provided.
     /// - The `start` value of the ranges may be higher than the `end` value. Such ranges are ignored.
     /// - `atom_ranges` may contain atom indices that are out of range (do not exist in the `System`).
-    /// In such cases, the index of the last atom in the `System` is used instead as the upper bound
-    /// of the range.
+    ///   In such cases, the index of the last atom in the `System` is used instead as the upper bound
+    ///   of the range.
     pub fn from_ranges(atom_ranges: Vec<(usize, usize)>, n_atoms: usize) -> Self {
         // create `AtomBlocks` from the ranges
         let mut blocks = Vec::new();

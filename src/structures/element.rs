@@ -30,9 +30,9 @@ impl Default for Elements {
     ///
     /// ## Notes
     /// - This function parses YAML content from `src/config/elements.yaml`
-    /// which is included in the `groan_rs` library at compile time.
+    ///   which is included in the `groan_rs` library at compile time.
     /// - This is a relatively slow operation and there is no reason to call it multiple times in a program!
-    /// If you need to use the `Elements` structure for multiple systems, clone it.
+    ///   If you need to use the `Elements` structure for multiple systems, clone it.
     fn default() -> Self {
         let yaml = include_str!("../config/elements.yaml");
 

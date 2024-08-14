@@ -340,7 +340,7 @@ impl System {
     /// - The function checks whether the number of atoms in the system corresponds to the number of atoms in the trr file.
     /// - The `System` structure is modified while iterating through the trr file.
     /// - The trr file does not need to have positions, velocities, and forces provided for each frame.
-    /// In case any of these properties is missing, it is set to `None` for all atoms.
+    ///   In case any of these properties is missing, it is set to `None` for all atoms.
     pub fn trr_iter(
         &mut self,
         filename: impl AsRef<Path>,
@@ -456,7 +456,7 @@ impl TrajWrite for TrrWriter {
     ///
     /// ## Notes
     /// - While Gromacs supports writing trr files containing only some of the particle properties (e.g. just velocities),
-    /// `groan_rs` will always write full trr file with all the properties, even if they are zeroed.
+    ///   `groan_rs` will always write full trr file with all the properties, even if they are zeroed.
     fn write_frame(&mut self) -> Result<(), WriteTrajError> {
         unsafe {
             let n_atoms = (*self.system).get_n_atoms();
@@ -593,7 +593,7 @@ impl TrajGroupWrite for TrrGroupWriter {
     /// ```
     /// ## Notes
     /// - While Gromacs supports writing trr files containing only some of the particle properties (e.g. just velocities),
-    /// `groan_rs` will always write full trr file with all the properties, even if they are zeroed.
+    ///   `groan_rs` will always write full trr file with all the properties, even if they are zeroed.
     fn write_frame(&mut self) -> Result<(), WriteTrajError> {
         unsafe {
             let n_atoms = self.group.get_n_atoms();

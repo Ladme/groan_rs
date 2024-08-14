@@ -474,13 +474,13 @@ pub trait MasterAtomIterator<'a>: Iterator<Item = &'a Atom> + Sized {
     /// ## Returns
     /// - `Vector3D` corresponding to the geometric center of the selected atoms.
     /// - `AtomError::InvalidSimBox` if the iterator has no simulation box
-    /// or the simulation box is not orthogonal.
+    ///   or the simulation box is not orthogonal.
     /// - `AtomError::InvalidPosition` if any of the atoms of the iterator has no position.
     ///
     /// ## Notes
     /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
     /// - It is able to calculate correct center of geometry for any distribution of atoms
-    /// that is not completely homogeneous.
+    ///   that is not completely homogeneous.
     /// - In case the iterator is empty, the center of geometry is NaN.
     ///
     /// ## Example
@@ -556,14 +556,14 @@ pub trait MasterAtomIterator<'a>: Iterator<Item = &'a Atom> + Sized {
     /// ## Returns
     /// - `Vector3D` corresponding to the center of mass of the selected atoms.
     /// - `AtomError::InvalidSimBox` if the iterator has no simulation box
-    /// or the simulation box is not orthogonal.
+    ///   or the simulation box is not orthogonal.
     /// - `AtomError::InvalidPosition` if any of the atoms of the iterator has no position.
     /// - `AtomError::InvalidMass` if any of the atoms of the iterator has no mass.
     ///
     /// ## Notes
     /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
     /// - It is able to calculate correct center of mass for any distribution of atoms
-    /// that is not completely homogeneous.
+    ///   that is not completely homogeneous.
     /// - In case the iterator is empty, the center of mass is NaN.
     ///
     /// ## Example
@@ -691,9 +691,9 @@ pub trait MasterMutAtomIterator<'a>: Iterator<Item = &'a mut Atom> + Sized {
     /// ## Returns
     /// - `Ok` if everything was successful.
     /// - `AtomError::InvalidSimBox` if the iterator has no simulation box
-    /// or the simulation box is not orthogonal.
+    ///   or the simulation box is not orthogonal.
     /// - `AtomError::InvalidPosition` if any of the atoms of the iterator
-    /// has an undefined position.
+    ///   has an undefined position.
     ///
     /// ## Example
     /// Translate all atoms with the name CA by 1.3 nm in the x-dimension.
@@ -719,9 +719,9 @@ pub trait MasterMutAtomIterator<'a>: Iterator<Item = &'a mut Atom> + Sized {
     /// ## Returns
     /// `Ok` if everything was successful.
     /// - `AtomError::InvalidSimBox` if the iterator has no simulation box
-    /// or the simulation box is not orthogonal.
+    ///   or the simulation box is not orthogonal.
     /// - `AtomError::InvalidPosition` if any of the atoms of the iterator
-    /// has an undefined position.
+    ///   has an undefined position.
     ///
     /// ## Example
     /// Wrap all atoms with the name CA into the simulation box.

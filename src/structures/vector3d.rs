@@ -412,8 +412,8 @@ impl Vector3D {
     ///
     /// ## Notes
     /// - In case the real point and its periodic image are equidistant from `self`,
-    /// this function will return either of the two shortest vectors. It is not defined
-    /// which vector will be returned.
+    ///   this function will return either of the two shortest vectors. It is not defined
+    ///   which vector will be returned.
     ///
     /// ## Example
     /// ```

@@ -31,15 +31,15 @@ use crate::io::pdb_io;
 /// `chain_id` is an optional property and can be skipped.
 ///
 /// - In case multiple TITLE lines are provided, the **last one** is used as the
-/// name of the system. If no TITLE line is provided, "Unknown" is used as the name.
+///   name of the system. If no TITLE line is provided, "Unknown" is used as the name.
 ///
 /// - In case multiple CRYST1 lines are provided, information from the **last one** is used.
-/// If no CRYST1 line is provided, the simulation box is undefined.
+///   If no CRYST1 line is provided, the simulation box is undefined.
 ///
 /// - Reading ends once `ENDMDL`, `END`, or the end of file is reached.
 /// - The implementation of this function is based on the MDAnalysis' implementation,
-/// see `https://docs.mdanalysis.org/2.0.0/documentation_pages/coordinates/PQR.html`
-/// but unlike MDAnalysis, this function also reads CRYST1 and TITLE keywords.
+///   see `https://docs.mdanalysis.org/2.0.0/documentation_pages/coordinates/PQR.html`
+///   but unlike MDAnalysis, this function also reads CRYST1 and TITLE keywords.
 pub fn read_pqr(filename: impl AsRef<Path>) -> Result<System, ParsePqrError> {
     let file = match File::open(filename.as_ref()) {
         Ok(x) => x,
@@ -110,9 +110,9 @@ impl System {
     ///
     /// ## Parameters
     /// - `precision` parameter specifies the number of decimal places to be printed for
-    /// position, charge and radius.
+    ///   position, charge and radius.
     /// - If not provided, the default values are used. In such case, position coordinates
-    /// are written with 3 decimal places, and charge and radius are both written with 4 decimal places.
+    ///   are written with 3 decimal places, and charge and radius are both written with 4 decimal places.
     ///
     /// ## Returns
     /// `Ok` if writing has been successful. Otherwise `WritePqrError`.
@@ -134,7 +134,7 @@ impl System {
     ///
     /// ## Notes
     /// - Unlike many other programs, `groan_rs` library also uses `CRYST1` and `TITLE` in pqr files.
-    /// The pqr file will thus contain information about box dimensions and the name of the system.
+    ///   The pqr file will thus contain information about box dimensions and the name of the system.
     pub fn write_pqr(
         &self,
         filename: impl AsRef<Path>,
@@ -155,9 +155,9 @@ impl System {
     ///
     /// ## Parameters
     /// - `precision` parameter specifies the number of decimal places to be printed for
-    /// position, charge and radius.
+    ///   position, charge and radius.
     /// - If not provided, the default values are used. In such case, position coordinates
-    /// are written with 3 decimal places, and charge and radius are both written with 4 decimal places.
+    ///   are written with 3 decimal places, and charge and radius are both written with 4 decimal places.
     ///
     /// ## Returns
     /// `Ok` if writing has been successful. Otherwise `WritePqrError`.
@@ -182,7 +182,7 @@ impl System {
     /// ```
     /// ## Notes
     /// - Unlike many other programs, `groan_rs` library also uses `CRYST1` and `TITLE` in pqr files.
-    /// The pqr file will thus contain information about box dimensions and the name of the system.
+    ///   The pqr file will thus contain information about box dimensions and the name of the system.
     pub fn group_write_pqr(
         &self,
         group_name: &str,
