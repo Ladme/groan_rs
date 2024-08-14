@@ -18,7 +18,7 @@ impl System {
     /// This method performs embarrassingly parallel iteration over a trajectory (xtc or trr) file,
     /// using the MapReduce parallel scheme.
     ///
-    /// The trajectory is divided into `n_thread` threads, each analyzing a portion of the data independently (`map` phase).
+    /// The trajectory is divided into `n_threads` threads, each analyzing a portion of the data independently (`map` phase).
     /// The results from each thread are subsequently merged to produce a single result (`reduce` phase).
     ///
     /// ## Panics
@@ -137,9 +137,9 @@ impl System {
     /// ## Notes
     /// - The order of iteration through trajectory frames is completely undefined!
     /// - The original `System` structure is not modified and remains in the same state as at the start of the iteration.
-    /// That is different from the standard (serial) iteration over trajectories.
+    ///   That is different from the standard (serial) iteration over trajectories.
     /// - If a single thread encounters an error during the iteration, the entire function returns an error.
-    /// However, this error is propagated only after all the other threads finish their work.
+    ///   However, this error is propagated only after all the other threads finish their work.
     pub fn traj_iter_map_reduce<'a, Reader, Data, Error>(
         &self,
         trajectory_file: impl AsRef<Path> + Send + Clone,
@@ -172,8 +172,8 @@ impl System {
                     let mut data = Data::default();
 
                     let handle = s.spawn(
-                        move || -> Result<(Data, Option<(u64, f32)>), Box<dyn std::error::Error + Send + Sync>> {
-                            let last_read = system_clone.thread_iter::<Reader, Data, Error>(
+                        move || -> (Result<Data, Box<dyn std::error::Error + Send + Sync>>, u64, f32) {
+                            match system_clone.thread_iter::<Reader, Data, Error>(
                                 &mut data,
                                 filename,
                                 n,
@@ -183,9 +183,10 @@ impl System {
                                 end_time,
                                 step,
                                 progress_clone,
-                            )?;
-
-                            Ok((data, last_read))
+                            ) {
+                                (Ok(_), step, time) => (Ok(data), step, time),
+                                (Err(e), step, time) => (Err(e), step, time),
+                            }
                         },
                     );
                     handles.push(handle);
@@ -196,15 +197,26 @@ impl System {
                 let mut last_step = 0u64;
                 let mut last_time = 0.0f32;
                 for handle in handles {
-                    let returned = handle.join().expect(
+                    let (result, step, time) = handle.join().expect(
                         "FATAL GROAN ERROR | System::traj_iter_map_reduce | A thread panicked!",
-                    )?;
-                    data.push(returned.0);
+                    );
 
-                    if let Some((step, time)) = returned.1 {
-                        if step > last_step {
-                            last_step = step;
-                            last_time = time;
+                    // get the last frame of the trajectory that was analyzed by any thread
+                    if time > last_time {
+                        last_step = step;
+                        last_time = time;
+                    }
+
+                    match result {
+                        Ok(x) => data.push(x),
+                        Err(e) => {
+                            // set the progress printer to FAILED if an error is detected
+                            if let Some(mut progress) = progress_printer {
+                                progress.set_status(ProgressStatus::Failed);
+                                // print information about the frame where the trajectory reading failed
+                                progress.print(0, step, time);
+                                return Err(e);
+                            }
                         }
                     }
                 }
@@ -235,7 +247,11 @@ impl System {
         end_time: Option<f32>,
         step: Option<usize>,
         progress_printer: Option<ProgressPrinter>,
-    ) -> Result<Option<(u64, f32)>, Box<dyn std::error::Error + Send + Sync>>
+    ) -> (
+        Result<(), Box<dyn std::error::Error + Send + Sync>>,
+        u64,
+        f32,
+    )
     where
         Reader: TrajReadOpen<'a> + TrajRangeRead<'a> + TrajStepRead<'a> + TrajRead<'a> + 'a,
         <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
@@ -248,7 +264,11 @@ impl System {
 
         // prepare the iterator
         // TODO! remove this unsafe
-        let mut iterator = unsafe { (*(&mut self as *mut Self)).traj_iter::<Reader>(&filename)? };
+        let mut iterator =
+            match unsafe { (*(&mut self as *mut Self)).traj_iter::<Reader>(&filename) } {
+                Ok(x) => x,
+                Err(e) => return (Err(Box::from(e)), 0, 0.0),
+            };
 
         // associate the progress printer with the iterator only in the master thread
         if thread_number == 0 {
@@ -258,32 +278,61 @@ impl System {
         }
 
         // find the start of the reading
-        let mut iterator = iterator.with_range(start, end)?;
+        let mut iterator = match iterator.with_range(start, end) {
+            Ok(x) => x,
+            Err(e) => return (Err(Box::from(e)), 0, 0.0),
+        };
 
         // prepare the iterator for reading (skip N frames)
         for _ in 0..(thread_number * step) {
             match iterator.next() {
                 Some(Ok(_)) => (),
-                Some(Err(e)) => return Err(Box::from(e)),
+                Some(Err(e)) => {
+                    return (
+                        Err(Box::from(e)),
+                        self.get_simulation_step(),
+                        self.get_simulation_time(),
+                    )
+                }
                 // if the iterator has nothing to read, then just finish with Ok
-                None => return Ok(None),
+                None => return (Ok(()), 0, 0.0),
             }
         }
 
         // the iterator should step by N * n_threads frames
-        let iterator = iterator.with_step(step * n_threads)?;
+        let iterator = match iterator.with_step(step * n_threads) {
+            Ok(x) => x,
+            Err(e) => return (Err(Box::from(e)), 0, 0.0),
+        };
 
         for frame in iterator {
-            let frame = frame?;
-            body(&frame, data)?;
+            let frame = match frame {
+                Ok(x) => x,
+                Err(e) => {
+                    return (
+                        Err(Box::from(e)),
+                        self.get_simulation_step(),
+                        self.get_simulation_time(),
+                    )
+                }
+            };
+
+            if let Err(e) = body(&frame, data) {
+                return (
+                    Err(Box::from(e)),
+                    frame.get_simulation_step(),
+                    frame.get_simulation_time(),
+                );
+            }
         }
 
         // we return the final simulation step and time so we can print correct
         // information about the completion of the trajectory reading
-        Ok(Some((
+        (
+            Ok(()),
             self.get_simulation_step(),
             self.get_simulation_time(),
-        )))
+        )
     }
 
     /// Distribute all atoms of the system between threads.
