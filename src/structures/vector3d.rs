@@ -3,7 +3,7 @@
 
 //! Implementation of methods for three-dimensional vector.
 
-use std::ops::{Deref, DerefMut};
+use std::ops::{Add, Deref, DerefMut, Div, Mul, Sub};
 
 use crate::structures::{dimension::Dimension, simbox::SimBox};
 use nalgebra::base::Vector3;
@@ -84,6 +84,110 @@ impl DerefMut for Vector3D {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+
+// Addition for owned Vector3D
+impl Add for Vector3D {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self::Output {
+        Vector3D(self.0 + other.0)
+    }
+}
+
+// Addition for &Vector3D
+impl Add<&Vector3D> for Vector3D {
+    type Output = Self;
+
+    fn add(self, other: &Vector3D) -> Self::Output {
+        Vector3D(self.0 + other.0)
+    }
+}
+
+impl Add<Vector3D> for &Vector3D {
+    type Output = Vector3D;
+
+    fn add(self, other: Vector3D) -> Self::Output {
+        Vector3D(self.0 + other.0)
+    }
+}
+
+impl Add<&Vector3D> for &Vector3D {
+    type Output = Vector3D;
+
+    fn add(self, other: &Vector3D) -> Self::Output {
+        Vector3D(self.0 + other.0)
+    }
+}
+
+// Subtraction for owned Vector3D
+impl Sub for Vector3D {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self::Output {
+        Vector3D(self.0 - other.0)
+    }
+}
+
+// Subtraction for &Vector3D
+impl Sub<&Vector3D> for Vector3D {
+    type Output = Self;
+
+    fn sub(self, other: &Vector3D) -> Self::Output {
+        Vector3D(self.0 - other.0)
+    }
+}
+
+impl Sub<Vector3D> for &Vector3D {
+    type Output = Vector3D;
+
+    fn sub(self, other: Vector3D) -> Self::Output {
+        Vector3D(self.0 - other.0)
+    }
+}
+
+impl Sub<&Vector3D> for &Vector3D {
+    type Output = Vector3D;
+
+    fn sub(self, other: &Vector3D) -> Self::Output {
+        Vector3D(self.0 - other.0)
+    }
+}
+
+// Scalar multiplication for owned Vector3D
+impl Mul<f32> for Vector3D {
+    type Output = Self;
+
+    fn mul(self, scalar: f32) -> Self::Output {
+        Vector3D(self.0 * scalar)
+    }
+}
+
+// Scalar multiplication for &Vector3D
+impl Mul<f32> for &Vector3D {
+    type Output = Vector3D;
+
+    fn mul(self, scalar: f32) -> Self::Output {
+        Vector3D(self.0 * scalar)
+    }
+}
+
+// Scalar division for owned Vector3D
+impl Div<f32> for Vector3D {
+    type Output = Self;
+
+    fn div(self, scalar: f32) -> Self::Output {
+        Vector3D(self.0 / scalar)
+    }
+}
+
+// Scalar division for &Vector3D
+impl Div<f32> for &Vector3D {
+    type Output = Vector3D;
+
+    fn div(self, scalar: f32) -> Self::Output {
+        Vector3D(self.0 / scalar)
     }
 }
 

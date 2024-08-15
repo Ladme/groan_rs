@@ -615,7 +615,7 @@ mod tests {
         assert_eq!(gridmap.n_tiles(), 61 * 16);
         assert_eq!(gridmap.n_tiles_x(), 61);
         assert_eq!(gridmap.n_tiles_y(), 16);
-        assert_eq!(gridmap.values[(5, 8)], vec![]);
+        assert_eq!(gridmap.values[(5, 8)], Vec::<f32>::new());
     }
 
     #[test]
@@ -687,7 +687,7 @@ mod tests {
         assert_eq!(gridmap.n_tiles(), 68 * 101);
         assert_eq!(gridmap.n_tiles_x(), 68);
         assert_eq!(gridmap.n_tiles_y(), 101);
-        assert_eq!(gridmap.values[(5, 8)], vec![]);
+        assert_eq!(gridmap.values[(5, 8)], Vec::<f32>::new());
     }
 
     #[test]
@@ -775,7 +775,7 @@ mod tests {
         assert_eq!(*gridmap.get_at(2.0, 0.0).unwrap(), vec![43, 23, 21]);
         assert_eq!(*gridmap.get_at(0.0, 1.0).unwrap(), vec![4, 8, 12]);
         assert_eq!(*gridmap.get_at(1.0, 1.0).unwrap(), vec![2, 5]);
-        assert_eq!(*gridmap.get_at(2.0, 1.0).unwrap(), vec![]);
+        assert_eq!(*gridmap.get_at(2.0, 1.0).unwrap(), Vec::<usize>::new());
     }
 
     #[test]
@@ -794,7 +794,7 @@ mod tests {
         assert_eq!(*gridmap.get_at(2.0, 0.0).unwrap(), vec![43, 23, 21]);
         assert_eq!(*gridmap.get_at(0.0, 1.0).unwrap(), vec![4, 8, 12]);
         assert_eq!(*gridmap.get_at(1.0, 1.0).unwrap(), vec![2, 5]);
-        assert_eq!(*gridmap.get_at(2.0, 1.0).unwrap(), vec![]);
+        assert_eq!(*gridmap.get_at(2.0, 1.0).unwrap(), Vec::<usize>::new());
     }
 
     #[test]
