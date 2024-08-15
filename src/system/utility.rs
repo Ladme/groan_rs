@@ -3,6 +3,8 @@
 
 //! Implementation of some higher level functions for `groan_rs` programs.
 
+use std::ops::Deref;
+
 use crate::errors::{AtomError, GroupError, ParseNdxError};
 use crate::structures::{dimension::Dimension, vector3d::Vector3D};
 use crate::system::System;
@@ -108,12 +110,7 @@ impl System {
         let reference_center = self.group_get_center(reference)?;
 
         let box_center = self.get_box_center().map_err(GroupError::InvalidSimBox)?;
-        let mut shift: Vector3D = [
-            box_center.x - reference_center.x,
-            box_center.y - reference_center.y,
-            box_center.z - reference_center.z,
-        ]
-        .into();
+        let mut shift = Vector3D(box_center.deref() - reference_center.deref());
 
         shift.filter(dimension);
         match self.atoms_translate(&shift) {
@@ -168,12 +165,7 @@ impl System {
         let reference_com = self.group_get_com(reference)?;
 
         let box_center = self.get_box_center().map_err(GroupError::InvalidSimBox)?;
-        let mut shift: Vector3D = [
-            box_center.x - reference_com.x,
-            box_center.y - reference_com.y,
-            box_center.z - reference_com.z,
-        ]
-        .into();
+        let mut shift = Vector3D(box_center.deref() - reference_com.deref());
 
         shift.filter(dimension);
         match self.atoms_translate(&shift) {

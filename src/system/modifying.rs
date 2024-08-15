@@ -4,6 +4,7 @@
 //! Implementation of System methods for modifying the system.
 
 use std::collections::HashSet;
+use std::ops::Deref;
 
 use crate::errors::{AtomError, GroupError, PositionError};
 use crate::structures::iterators::MasterMutAtomIterator;
@@ -378,11 +379,7 @@ impl System {
                     let vector = ref_atom_position.vector_to(atom2_pos, &*simbox);
 
                     // place the target atom to position based on the shortest vector
-                    let new_position = Vector3D::new(
-                        ref_atom_position.x + vector.x,
-                        ref_atom_position.y + vector.y,
-                        ref_atom_position.z + vector.z
-                    );
+                    let new_position = Vector3D(ref_atom_position.deref() + vector.deref());
 
                     atom2.set_position(new_position);
                 }
@@ -466,11 +463,7 @@ impl System {
             let vector = center.vector_to(pos, unsafe { &*simbox });
 
             // place the atom to position based on the shortest vector
-            let new_position = Vector3D::new(
-                center.x + vector.x,
-                center.y + vector.y,
-                center.z + vector.z,
-            );
+            let new_position = Vector3D(center.deref() + vector.deref());
 
             atom.set_position(new_position)
         }

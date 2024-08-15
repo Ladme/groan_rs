@@ -57,6 +57,13 @@ impl From<Dimension> for Vector3D {
     }
 }
 
+impl From<Vector3<f32>> for Vector3D {
+    #[inline(always)]
+    fn from(vec: Vector3<f32>) -> Self {
+        Vector3D(vec)
+    }
+}
+
 /// Allows accessing fields of `Vector3D` as `.x`, `.y`, and `.z`.
 pub struct Vector3Raw {
     pub x: f32,
@@ -65,18 +72,18 @@ pub struct Vector3Raw {
 }
 
 impl Deref for Vector3D {
-    type Target = Vector3Raw;
+    type Target = Vector3<f32>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        unsafe { &*(self.0.as_ptr() as *const Vector3Raw) }
+        &self.0
     }
 }
 
 impl DerefMut for Vector3D {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { &mut *(self.0.as_mut_ptr() as *mut Vector3Raw) }
+        &mut self.0
     }
 }
 
@@ -99,7 +106,7 @@ impl Vector3D {
     /// ```
     #[inline]
     pub fn len(&self) -> f32 {
-        self.0.magnitude()
+        self.magnitude()
     }
 
     /// Convert vector to unit vector.
@@ -121,7 +128,7 @@ impl Vector3D {
     /// ```
     #[inline]
     pub fn to_unit(self) -> Vector3D {
-        Vector3D(self.0.normalize())
+        Vector3D(self.normalize())
     }
 
     /// Invert the vector. (Reverse direction of the vector.)
@@ -140,44 +147,6 @@ impl Vector3D {
     #[inline]
     pub fn invert(self) -> Vector3D {
         Vector3D(self.0 * -1.0)
-    }
-
-    /// Calculate the dot product of two vectors.
-    ///
-    /// ## Example
-    /// ```
-    /// # use groan_rs::prelude::*;
-    /// # use float_cmp::assert_approx_eq;
-    /// #
-    /// let vector1 = Vector3D::new(4.0, 2.0, -1.0);
-    /// let vector2 = Vector3D::new(1.0, -3.0, 2.0);
-    ///
-    /// assert_approx_eq!(f32, vector1.dot(&vector2), -4.0);
-    /// ```
-    #[inline]
-    pub fn dot(&self, vector: &Vector3D) -> f32 {
-        self.0.dot(&vector.0)
-    }
-
-    /// Calculate the cross product of two vectors.
-    ///
-    /// ## Example
-    /// ```
-    /// # use groan_rs::prelude::*;
-    /// # use float_cmp::assert_approx_eq;
-    /// #
-    /// let vector1 = Vector3D::new(4.0, 2.0, -1.0);
-    /// let vector2 = Vector3D::new(1.0, -3.0, 2.0);
-    ///
-    /// let cross = vector1.cross(&vector2);
-    ///
-    /// assert_approx_eq!(f32, cross.x, 1.0);
-    /// assert_approx_eq!(f32, cross.y, -9.0);
-    /// assert_approx_eq!(f32, cross.z, -14.0);
-    /// ```
-    #[inline]
-    pub fn cross(&self, vector: &Vector3D) -> Vector3D {
-        Vector3D(self.0.cross(&vector.0))
     }
 
     /// Calculate the angle between two vectors. Returns angle in radians.
