@@ -172,7 +172,7 @@ pub(crate) fn kabsch_rmsd(
 }
 
 #[cfg(test)]
-mod tests {
+mod tests_rmsd {
     use super::*;
     use float_cmp::assert_approx_eq;
 
