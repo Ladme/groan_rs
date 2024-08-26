@@ -553,3 +553,27 @@ pub enum GridMapError {
     #[error("{} grid map expected '{}' values, got '{}' values", "error:".red().bold(), .0.to_string().yellow(), .1.to_string().yellow())]
     InvalidMapDimensions(usize, usize),
 }
+
+/// Errors that can occur when calculating RMSD.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum RMSDError {
+    /// Used when the group is not present in the current or reference system.
+    #[error("{} group '{}' does not exist in the current or reference system", "error:".red().bold(), .0.yellow())]
+    NonexistentGroup(String),
+    /// Used when the group in the current system contains different number of atoms than the group in the reference system.
+    #[error("{} group '{}' has an inconsistent number of atoms ('{}' atoms in reference, '{}' atoms in current)", 
+        "error:".red().bold(), 
+        .0.yellow(), 
+        .1.to_string().yellow(), 
+        .2.to_string().yellow())]
+    InconsistentGroup(String, usize, usize),
+    /// Used when the group is empty in both the current system and the reference system.
+    #[error("{} group '{}' is empty (RMSD can not be calculated)", "error:".red().bold(), .0.yellow())]
+    EmptyGroup(String),
+    /// Used when any atom which is to be used for the RMSD calculation has no position.
+    #[error("{} atom with atom number '{}' has undefined position", "error:".red().bold(), .0.to_string().yellow())]
+    NoPosition(usize),
+    /// Used when the simulation box is invalid.
+    #[error("{}", .0)]
+    InvalidSimBox(SimBoxError),
+}

@@ -23,6 +23,7 @@ mod labeled_atoms;
 mod modifying;
 #[cfg(any(feature = "parallel", doc))]
 mod parallel;
+mod rmsd;
 mod utility;
 
 #[derive(Debug, Clone)]
