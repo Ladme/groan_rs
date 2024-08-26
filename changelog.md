@@ -6,6 +6,9 @@
 - Introduced `System::make_group_whole` for making a group "whole" in the system (similar to `System::make_molecules_whole`).
 - **Breaking change:** `System::group_all_distances` now returns ndarray's `Array2` instead of a vector of vectors.
 
+#### RMSD calculation
+- Introduced `System::calc_rmsd` allowing to calculate RMSD between current and some reference structure.
+
 #### Bug fixes and minor changes
 - `System::traj_iter_map_reduce` now properly propagates errors and failures from the individual threads into the master-thread `ProgressPrinter`.
 - `FileType` is now part of the prelude.
