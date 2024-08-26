@@ -17,7 +17,7 @@ mod xdrfile;
 pub mod xtc_io;
 
 /// Check that no coordinate of any atom is smaller than `min_limit` or higher than `max_limit`.
-/// This has to be done before writing the atoms into an output, otherwise a partial output could be wrriten.
+/// This has to be done before writing the atoms into an output, otherwise a partial output could be writen.
 /// Returns `true` if all coordinates are in the supported range (or undefined). Otherwise returns `false`.
 fn check_coordinate_sizes<'a>(
     mut atoms: impl Iterator<Item = &'a Atom>,
