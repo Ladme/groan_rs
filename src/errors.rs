@@ -570,9 +570,9 @@ pub enum RMSDError {
     /// Used when the group is empty in both the current system and the reference system.
     #[error("{} group '{}' is empty (RMSD can not be calculated)", "error:".red().bold(), .0.yellow())]
     EmptyGroup(String),
-    /// Used when any atom which is to be used for the RMSD calculation has no position.
-    #[error("{} atom with atom number '{}' has undefined position", "error:".red().bold(), .0.to_string().yellow())]
-    NoPosition(usize),
+    /// Used when any atom which is to be used for the RMSD calculation has invalid position.
+    #[error("{}", .0)]
+    InvalidPosition(PositionError),
     /// Used when the simulation box is invalid.
     #[error("{}", .0)]
     InvalidSimBox(SimBoxError),

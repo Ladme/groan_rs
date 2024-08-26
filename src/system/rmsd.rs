@@ -7,6 +7,7 @@ use std::ops::Deref;
 
 use crate::{
     errors::{GroupError, RMSDError},
+    prelude::SimBox,
     structures::{atom::Atom, vector3d::Vector3D},
     system::System,
 };
@@ -21,11 +22,40 @@ impl System {
     ///   of the specified group in `reference` and `self`.
     /// - Returns an `RMSDError` if the calculation fails.
     ///
+    /// ## Example
+    /// Calculating RMSD for every 10th frame of an XTC trajectory.
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// fn calculate_rmsd() -> Result<Vec<f32>, Box<dyn std::error::Error + Send + Sync>> {
+    ///     let mut system = System::from_file("system.gro")?;
+    ///
+    ///     // create a group `Protein` for which the RMSD will be calculated
+    ///     system.group_create("Protein", "@protein")?;
+    ///
+    ///     // use the input structure file as a reference structure
+    ///     let reference = system.clone();
+    ///
+    ///     // iterate over the xtc trajectory and calculate RMSD for every 10th frame
+    ///     let mut rmsd = Vec::new();
+    ///     for frame in system.xtc_iter("trajectory.xtc")?.with_step(10)? {
+    ///         let frame = frame?;
+    ///         rmsd.push(frame.calc_rmsd(&reference, "Protein")?);
+    ///     }
+    ///
+    ///     // return the collected data
+    ///     Ok(rmsd)
+    /// }
+    ///
+    /// ```
+    ///
     /// ## Notes
     /// - This method requires both systems to have a valid orthogonal simulation box;
     ///   otherwise, an error will be returned.
+    /// - The method may not work properly for groups that are larger than the simulation box.
     /// - The method performs a rigid-body alignment of the atoms in the specified group using
     ///   the Kabsch algorithm before calculating the RMSD.
+    /// - Mass weighting is **not** performed during the alignment.
     /// - The RMSD is calculated in nanometers (nm).
     /// - Neither the current system (`self`) nor the reference system is modified by this method.
     /// - The group does not have to be centered or fully contained inside the simulation box.
@@ -55,34 +85,27 @@ impl System {
         let target_box_center = self.get_box_center().map_err(RMSDError::InvalidSimBox)?;
 
         // get the center of geometry of the reference
-        let reference_center = reference.group_get_center(group).expect(
-            "FATAL GROAN ERROR | System::calc_rmsd | The `reference` system should be valid.",
-        );
-        let target_center = self.group_get_center(group).expect(
-            "FATAL GROAN ERROR | System::calc_rmsd | The `current` system should be valid.",
-        );
+        let reference_center = get_center(reference, group)?;
+        let target_center = get_center(self, group)?;
 
         // extract the coordinates of the atoms of the group and shift them
         let reference_shift = Vector3D(reference_box_center.deref() - reference_center.deref());
         let target_shift = Vector3D(target_box_center.deref() - target_center.deref());
 
-        let reference_coordinates = extract_coordinates(reference.group_iter(group))?
-            .iter()
-            .map(|pos| {
-                let mut new = Vector3D(pos.deref() + reference_shift.deref());
-                new.wrap(reference.get_box_as_ref().unwrap());
-                new
-            })
-            .collect::<Vec<Vector3D>>();
+        let reference_coordinates = shift_and_wrap_coordinates(
+            extract_coordinates(reference.group_iter(group)),
+            &reference_shift,
+            reference
+                .get_box_as_ref()
+                .expect("FATAL GROAN ERROR | System::calc_rmsd | Reference SimBox should exist."),
+        );
 
-        let target_coordinates = extract_coordinates(self.group_iter(group))?
-            .iter()
-            .map(|pos| {
-                let mut new = Vector3D(pos.deref() + target_shift.deref());
-                new.wrap(self.get_box_as_ref().unwrap());
-                new
-            })
-            .collect::<Vec<Vector3D>>();
+        let target_coordinates = shift_and_wrap_coordinates(
+            extract_coordinates(self.group_iter(group)),
+            &target_shift,
+            self.get_box_as_ref()
+                .expect("FATAL GROAN ERROR | System::calc_rmsd | Current SimBox should exist."),
+        );
 
         // calculate RMSD
         let (_, _, rmsd) = kabsch_rmsd(
@@ -109,7 +132,7 @@ fn extract_n_atoms(group: &str, result: Result<usize, GroupError>) -> Result<usi
 
 /// Auxiliary function for extracting the coordinates of relevant atoms from the system.
 #[inline(always)]
-fn extract_coordinates<'a, I>(iter: Result<I, GroupError>) -> Result<Vec<Vector3D>, RMSDError>
+fn extract_coordinates<'a, I>(iter: Result<I, GroupError>) -> Vec<Vector3D>
 where
     I: Iterator<Item = &'a Atom>,
 {
@@ -117,17 +140,44 @@ where
         .map(|x| {
             x.get_position()
                 .cloned()
-                .ok_or_else(|| RMSDError::NoPosition(x.get_atom_number()))
+                .expect("FATAL GROAN ERROR | rmsd::extract_coordinates | All atoms should have defined positions.")
         })
-        .collect::<Result<Vec<Vector3D>, RMSDError>>()
+        .collect::<Vec<Vector3D>>()
+}
+
+/// Auxiliary function for shifting and wrapping coordinates.
+#[inline(always)]
+fn shift_and_wrap_coordinates(
+    coordinates: Vec<Vector3D>,
+    shift: &Vector3D,
+    simbox: &SimBox,
+) -> Vec<Vector3D> {
+    coordinates
+        .iter()
+        .map(|pos| {
+            let mut new = Vector3D(pos.deref() + shift.deref());
+            new.wrap(simbox);
+            new
+        })
+        .collect::<Vec<Vector3D>>()
+}
+
+/// Auxiliary function for obtaining the center of geometry of the specified group.
+#[inline(always)]
+fn get_center(system: &System, group: &str) -> Result<Vector3D, RMSDError> {
+    match system.group_get_center(group) {
+        Ok(x) => Ok(x),
+        Err(GroupError::InvalidPosition(x)) => Err(RMSDError::InvalidPosition(x)),
+        Err(_) => panic!("FATAL GROAN ERROR | rmsd::get_center | Unexpected error type returned from System::group_get_center."),
+    }
 }
 
 /// Calculate the optimal rotation matrix, translation vector, and RMSD
 /// to align two sets of points (P -> Q) using the Kabsch algorithm.
 ///
 /// ## Parameters
-/// - `p`: reference vector of points
-/// - `q`: another vector of points
+/// - `p`: target vector of points
+/// - `q`: reference vector of points
 /// - `centroid_p`: center of geometry (or mass) of points `p`
 /// - `centroid_q`: center of geometry (or mass) of points `q`
 ///
@@ -192,6 +242,8 @@ fn kabsch_rmsd(
 
 #[cfg(test)]
 mod tests {
+    use crate::errors::{PositionError, SimBoxError};
+
     use super::*;
     use float_cmp::assert_approx_eq;
 
@@ -339,5 +391,141 @@ mod tests {
         assert!(rotation_matrix.relative_eq(&expected_rotation_matrix, 1e-6, 1e-6));
         assert!(translation_vector.relative_eq(&expected_translation, 1e-6, 1e-6));
         assert_approx_eq!(f32, rmsd, 4.471225, epsilon = 1e-6);
+    }
+
+    #[test]
+    fn test_calc_rmsd_same_structure() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+        assert_approx_eq!(
+            f32,
+            system.calc_rmsd(&system, "Protein").unwrap(),
+            0.0,
+            epsilon = 1e-6
+        )
+    }
+
+    #[test]
+    fn test_calc_rmsd_trajectory() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.group_create("Protein", "@protein").unwrap();
+
+        let mut reference = system.clone();
+
+        // should work even if we remove position of some atom that is not in the group
+        reference.get_atom_as_mut(176).unwrap().reset_position();
+
+        let rmsd = system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .map(|frame| frame.unwrap().calc_rmsd(&reference, "Protein").unwrap())
+            .collect::<Vec<f32>>();
+
+        let expected = vec![
+            0.24140519, 0.2684668, 0.26846585, 0.21979603, 0.22441757, 0.20068163, 0.27553108,
+            0.27580568, 0.27042708, 0.24541956, 0.24489026,
+        ];
+
+        assert_eq!(rmsd.len(), expected.len());
+        for (x, y) in rmsd.into_iter().zip(expected.into_iter()) {
+            assert_approx_eq!(f32, x, y);
+        }
+    }
+
+    #[test]
+    fn test_calc_rmsd_fail_group_does_not_exist_in_reference() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let reference = system.clone();
+
+        system.group_create("Protein", "@protein").unwrap();
+
+        match system.calc_rmsd(&reference, "Protein") {
+            Ok(_) => panic!("Function should have failed."),
+            Err(RMSDError::NonexistentGroup(x)) => assert_eq!(x, "Protein"),
+            Err(_) => panic!("Function failed but incorrect error type returned."),
+        }
+    }
+
+    #[test]
+    fn test_calc_rmsd_fail_group_does_not_exist_in_self() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+        let reference = system.clone();
+
+        system.group_remove("Protein").unwrap();
+
+        match system.calc_rmsd(&reference, "Protein") {
+            Ok(_) => panic!("Function should have failed."),
+            Err(RMSDError::NonexistentGroup(x)) => assert_eq!(x, "Protein"),
+            Err(_) => panic!("Function failed but incorrect error type returned."),
+        }
+    }
+
+    #[test]
+    fn test_calc_rmsd_fail_inconsistent_group() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+        let mut reference = system.clone();
+        match reference.group_create("Protein", "serial 1 to 4") {
+            Err(GroupError::AlreadyExistsWarning(_)) => (),
+            _ => panic!("Group could not be created or was created without warning."),
+        }
+
+        match system.calc_rmsd(&reference, "Protein") {
+            Ok(_) => panic!("Function should have failed."),
+            Err(RMSDError::InconsistentGroup(x, i, j)) => {
+                assert_eq!(x, "Protein");
+                assert_eq!(i, 4);
+                assert_eq!(j, 61);
+            }
+            Err(_) => panic!("Function failed but incorrect error type returned."),
+        }
+    }
+
+    #[test]
+    fn test_calc_rmsd_fail_empty_group() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("Protein", "not all").unwrap();
+
+        let reference = system.clone();
+
+        match system.calc_rmsd(&reference, "Protein") {
+            Ok(_) => panic!("Function should have failed."),
+            Err(RMSDError::EmptyGroup(x)) => assert_eq!(x, "Protein"),
+            Err(_) => panic!("Function failed but incorrect error type returned."),
+        }
+    }
+
+    #[test]
+    fn test_calc_rmsd_fail_no_position() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        let reference = system.clone();
+
+        system.get_atom_as_mut(14).unwrap().reset_position();
+
+        match system.calc_rmsd(&reference, "Protein") {
+            Ok(_) => panic!("Function should have failed."),
+            Err(RMSDError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
+            Err(_) => panic!("Function failed but incorrect error type returned."),
+        }
+    }
+
+    #[test]
+    fn test_calc_rmsd_fail_no_box() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        let mut reference = system.clone();
+
+        reference.reset_box();
+
+        match system.calc_rmsd(&reference, "Protein") {
+            Ok(_) => panic!("Function should have failed."),
+            Err(RMSDError::InvalidSimBox(SimBoxError::DoesNotExist)) => (),
+            Err(_) => panic!("Function failed but incorrect error type returned."),
+        }
     }
 }
