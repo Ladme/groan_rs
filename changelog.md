@@ -13,6 +13,7 @@
 - `System::traj_iter_map_reduce` now properly propagates errors and failures from the individual threads into the master-thread `ProgressPrinter`.
 - `FileType` is now part of the prelude.
 - Implemented `Deref` and `DerefMut` for `Vector3D` properly, so accessing the methods of `nalgebra::Vector3` should be easier.
+- `AtomContainer::isin` (and consequently `System::group_isin`) should be now faster.
 
 ***
 

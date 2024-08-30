@@ -252,7 +252,14 @@ impl AtomContainer {
     /// Returns `true` if the `AtomContainer` contains the atom with target index.
     pub fn isin(&self, index: usize) -> bool {
         for block in &self.atom_blocks {
-            if index >= block.start && index <= block.end {
+            // blocks are ordered; if index is smaller than the start of the current block,
+            // it cannot be present in the container
+            if index < block.start {
+                return false;
+            }
+
+            // we only need to test for block.end because we already test for block.start before
+            if index <= block.end {
                 return true;
             }
         }
@@ -850,6 +857,16 @@ mod tests_container {
         assert!(container.isin(5));
         assert!(!container.isin(12));
         assert!(!container.isin(73));
+    }
+
+    #[test]
+    fn isin2() {
+        let indices = vec![11, 20, 5, 5, 4, 18, 6, 19, 13, 20, 27];
+        let container = AtomContainer::from_indices(indices, 20);
+
+        assert!(!container.isin(1));
+        assert!(!container.isin(3));
+        assert!(container.isin(5));
     }
 
     #[test]
