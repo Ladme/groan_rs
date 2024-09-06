@@ -35,6 +35,7 @@ impl System {
     /// - `trajectory_file`: The path to the trajectory file to read.
     /// - `n_threads`: The number of threads to spawn.
     /// - `body`: A function or closure to apply to each trajectory frame, storing results in the `Data` structure.
+    /// - `init_data`: Initial state of the `Data` structure used during the calculation.
     /// - `start_time`: The starting time for the iteration.
     /// - `end_time`: The ending time for the iteration.
     /// - `step`: The step interval for frame analysis (i.e., analyze every `step`th frame).
@@ -121,6 +122,7 @@ impl System {
     ///         "md.xtc",
     ///         4,
     ///         assign_lipids,
+    ///         LeafletComposition::default(),
     ///         Some(200_000.0),
     ///         Some(500_000.0),
     ///         Some(5),
@@ -147,6 +149,7 @@ impl System {
         trajectory_file: impl AsRef<Path> + Send + Clone,
         n_threads: usize,
         body: impl Fn(&System, &mut Data) -> Result<(), Error> + Send + Clone,
+        init_data: Data,
         start_time: Option<f32>,
         end_time: Option<f32>,
         step: Option<usize>,
@@ -155,7 +158,7 @@ impl System {
     where
         Reader: TrajReadOpen<'a> + TrajRangeRead<'a> + TrajStepRead<'a> + TrajRead<'a> + 'a,
         <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
-        Data: Add<Output = Data> + Default + Send,
+        Data: Add<Output = Data> + Clone + Send,
         Error: std::error::Error + Send + Sync + 'static,
     {
         if n_threads == 0 {
@@ -171,7 +174,7 @@ impl System {
                     let body_clone = body.clone();
                     let filename = trajectory_file.clone();
                     let progress_clone = progress_printer.clone();
-                    let mut data = Data::default();
+                    let mut data = init_data.clone();
 
                     let handle = s.spawn(
                         move || -> (Result<Data, Box<dyn std::error::Error + Send + Sync>>, u64, f32) {
@@ -233,7 +236,7 @@ impl System {
 
                 // reduce data
                 // TODO! implement parallel reduction
-                Ok(data.into_iter().fold(Data::default(), |acc, x| acc + x))
+                Ok(data.into_iter().fold(init_data, |acc, x| acc + x))
             },
         )
     }
@@ -258,7 +261,7 @@ impl System {
     where
         Reader: TrajReadOpen<'a> + TrajRangeRead<'a> + TrajStepRead<'a> + TrajRead<'a> + 'a,
         <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
-        Data: Add<Output = Data> + Default,
+        Data: Add<Output = Data>,
         Error: std::error::Error + Send + Sync + 'static,
     {
         let start = start_time.unwrap_or(0.0);
@@ -573,6 +576,7 @@ mod tests {
                 filename,
                 n_threads,
                 frame_get_number,
+                Steps::default(),
                 start,
                 end,
                 step,
@@ -601,6 +605,7 @@ mod tests {
             filename,
             n_threads,
             frame_get_number_may_fail,
+            Steps::default(),
             start,
             end,
             step,

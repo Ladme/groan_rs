@@ -9,8 +9,11 @@
 #### RMSD calculation
 - Introduced `System::calc_rmsd` allowing to calculate RMSD between current and some reference structure.
 
-#### Bug fixes and minor changes
+#### Changes to `System::traj_iter_map_reduce`
+- **Breaking change**: `System::traj_iter_map_reduce` now requires the user to provide the initial `Data` structure. `Data` structure no longer needs to implement `Default`, but needs to implement `Clone`.
 - `System::traj_iter_map_reduce` now properly propagates errors and failures from the individual threads into the master-thread `ProgressPrinter`.
+
+#### Bug fixes and minor changes
 - `FileType` is now part of the prelude.
 - Implemented `Deref` and `DerefMut` for `Vector3D` properly, so accessing the methods of `nalgebra::Vector3` should be easier.
 - `AtomContainer::isin` (and consequently `System::group_isin`) should be now faster.
