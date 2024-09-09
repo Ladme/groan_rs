@@ -28,7 +28,7 @@ impl System {
     /// The method uses the following generic parameters:
     /// - `Reader`: The type of trajectory reader to utilize (e.g., `XtcReader`, `TrrReader`).
     /// - `Data`: The data structure for storing analysis results, which must implement `Add` and `Default`.
-    ///   The `Add` trait defines how `Data` instances are combined. `Default` defines the initial state of the data structure.
+    ///   The `Add` trait defines how `Data` instances are combined.
     /// - `Error`: The error type that the `body` function may return if an error occurs.
     ///
     /// ## Arguments
