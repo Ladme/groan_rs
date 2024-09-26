@@ -52,7 +52,6 @@ impl System {
     /// ## Notes
     /// - This method requires both systems to have a valid orthogonal simulation box;
     ///   otherwise, an error will be returned.
-    /// - The method may not work properly for groups that are larger than the simulation box.
     /// - The method performs a rigid-body alignment of the atoms in the specified group using
     ///   the Kabsch algorithm before calculating the RMSD.
     /// - Mass weighting is **not** performed during the alignment.
