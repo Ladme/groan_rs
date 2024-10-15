@@ -1815,6 +1815,26 @@ mod tests {
     }
 
     #[test]
+    fn group_create_regex_with_operator() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system
+            .group_create(
+                "Selection",
+                "resname POPC and (name r'C[1234]A|C[1234]B' or name D2A)",
+            )
+            .unwrap();
+
+        assert!(system.group_exists("Selection"));
+        assert_eq!(system.group_get_n_atoms("Selection").unwrap(), 4096);
+
+        assert!(system.group_isin("Selection", 78).unwrap());
+        assert!(system.group_isin("Selection", 79).unwrap());
+        assert!(system.group_isin("Selection", 80).unwrap());
+        assert!(system.group_isin("Selection", 81).unwrap());
+    }
+
+    #[test]
     fn group_create_regex_aa() {
         let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
 

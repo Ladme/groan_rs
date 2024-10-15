@@ -398,8 +398,21 @@ fn parse_subquery(expression: &str, start: usize, end: usize) -> Result<Box<Sele
     let mut unary_operators: Vec<Operator> = Vec::new();
     let mut binary_operator: Option<Operator> = None;
 
+    let mut inside_regex = false;
+
     while i < end {
         let c = expression.chars().nth(i).unwrap();
+
+        // when inside of a regex block, ignore all the operators
+        if inside_regex {
+            if c == '\'' {
+                inside_regex = false;
+            }
+
+            token.push(c);
+            i += 1;
+            continue;
+        }
 
         match c {
             '(' => {
@@ -456,6 +469,19 @@ fn parse_subquery(expression: &str, start: usize, end: usize) -> Result<Box<Sele
 
                 unary_operators.push(Operator::Molecule);
                 i += 2;
+            }
+
+            // regex
+            'r' => {
+                if expression.get(i + 1..i + 2) == Some("'") {
+                    token.push('r');
+                    token.push('\'');
+                    i += 2;
+                    inside_regex = true;
+                } else {
+                    token.push(c);
+                    i += 1;
+                }
             }
 
             _ => {
@@ -2575,6 +2601,39 @@ mod pass_tests {
             Name::new("underhålls").unwrap(),
             Name::new("uppföljnings").unwrap()
         ])
+    );
+
+    parsing_success!(
+        operator_in_regex,
+        "name r'C3[2-9]|C3[1][0-6]|C2[2-9]|C2[1][0-8]' P",
+        Select::AtomName(vec![
+            Name::new("r'C3[2-9]|C3[1][0-6]|C2[2-9]|C2[1][0-8]'").unwrap(),
+            Name::new("P").unwrap()
+        ])
+    );
+
+    parsing_success!(
+        operator_in_regex_2,
+        "name r'C3[2-9]|C3[1][0-6]|C2[2-9]|C2[1][0-8]' and resname POPC",
+        Select::And(
+            Box::from(Select::AtomName(vec![Name::new(
+                "r'C3[2-9]|C3[1][0-6]|C2[2-9]|C2[1][0-8]'"
+            )
+            .unwrap()])),
+            Box::from(Select::ResidueName(vec![Name::new("POPC").unwrap()]))
+        )
+    );
+
+    parsing_success!(
+        operator_in_regex_3,
+        "name r'C3[2-9]&C3[1][0-6]&C2[2-9]&C2[1][0-8]' and resname POPC",
+        Select::And(
+            Box::from(Select::AtomName(vec![Name::new(
+                "r'C3[2-9]&C3[1][0-6]&C2[2-9]&C2[1][0-8]'"
+            )
+            .unwrap()])),
+            Box::from(Select::ResidueName(vec![Name::new("POPC").unwrap()]))
+        )
     );
 
     /*
