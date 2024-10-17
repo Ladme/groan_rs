@@ -119,7 +119,7 @@ impl Select {
                     &vector,
                     system,
                     |s| system.group_exists(s),
-                    |system| system.get_groups_as_ref().keys(),
+                    |system| system.get_groups().keys(),
                     SelectError::GroupNotFound,
                 )?;
                 Ok(Select::GroupName(new_vector))

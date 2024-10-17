@@ -562,7 +562,7 @@ mod tests {
     fn atoms_center_fail_position() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
-        system.get_atom_as_mut(15).unwrap().reset_position();
+        system.get_atom_mut(15).unwrap().reset_position();
 
         match system.atoms_center("Protein", Dimension::XYZ) {
             Ok(_) => panic!("Function should have failed."),
@@ -839,7 +839,7 @@ mod tests {
         let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
         system.guess_elements(Elements::default()).unwrap();
         system.group_create("Protein", "@protein").unwrap();
-        system.get_atom_as_mut(15).unwrap().reset_position();
+        system.get_atom_mut(15).unwrap().reset_position();
 
         match system.atoms_center_mass("Protein", Dimension::XYZ) {
             Ok(_) => panic!("Function should have failed."),

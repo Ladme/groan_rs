@@ -76,7 +76,7 @@ impl System {
 
             // read standard line
             } else {
-                atom_indices.extend(parse_ndx_line(&line, self.get_atoms_as_ref())?);
+                atom_indices.extend(parse_ndx_line(&line, self.get_atoms())?);
             }
         }
 
@@ -146,7 +146,7 @@ impl System {
 
         let mut writer = BufWriter::new(output);
 
-        for (name, group) in self.get_groups_as_ref() {
+        for (name, group) in self.get_groups() {
             // skip default groups
             if group.print_ndx {
                 group.write_ndx(&mut writer, name)?

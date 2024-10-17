@@ -49,7 +49,7 @@ impl System {
             Err(e) => return Err(GroupError::InvalidQuery(e)),
         };
 
-        match self.get_groups_as_mut().insert(name.to_string(), group) {
+        match self.get_groups_mut().insert(name.to_string(), group) {
             None => Ok(()),
             Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
@@ -107,7 +107,7 @@ impl System {
             return Err(GroupError::InvalidSimBox(SimBoxError::DoesNotExist));
         }
 
-        if !self.get_box_as_ref().unwrap().is_orthogonal() {
+        if !self.get_box().unwrap().is_orthogonal() {
             return Err(GroupError::InvalidSimBox(SimBoxError::NotOrthogonal));
         }
 
@@ -116,7 +116,7 @@ impl System {
             Err(e) => return Err(GroupError::InvalidQuery(e)),
         };
 
-        match self.get_groups_as_mut().insert(name.to_string(), group) {
+        match self.get_groups_mut().insert(name.to_string(), group) {
             None => Ok(()),
             Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
@@ -180,7 +180,7 @@ impl System {
             return Err(GroupError::InvalidSimBox(SimBoxError::DoesNotExist));
         }
 
-        if !self.get_box_as_ref().unwrap().is_orthogonal() {
+        if !self.get_box().unwrap().is_orthogonal() {
             return Err(GroupError::InvalidSimBox(SimBoxError::NotOrthogonal));
         }
 
@@ -189,7 +189,7 @@ impl System {
             Err(e) => return Err(GroupError::InvalidQuery(e)),
         };
 
-        match self.get_groups_as_mut().insert(name.to_string(), group) {
+        match self.get_groups_mut().insert(name.to_string(), group) {
             None => Ok(()),
             Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
@@ -229,7 +229,7 @@ impl System {
         }
 
         let group = Group::from_indices(atom_indices, self.get_n_atoms());
-        match self.get_groups_as_mut().insert(name.to_string(), group) {
+        match self.get_groups_mut().insert(name.to_string(), group) {
             None => Ok(()),
             Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
@@ -270,7 +270,7 @@ impl System {
 
         let group = Group::from_ranges(atom_ranges, self.get_n_atoms());
 
-        match self.get_groups_as_mut().insert(name.to_string(), group) {
+        match self.get_groups_mut().insert(name.to_string(), group) {
             None => Ok(()),
             Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
@@ -327,7 +327,7 @@ impl System {
             Err(e) => return Err(GroupError::InvalidQuery(e)),
         };
 
-        match self.get_groups_as_mut().insert(name.to_string(), group) {
+        match self.get_groups_mut().insert(name.to_string(), group) {
             None => Ok(()),
             Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
@@ -415,7 +415,7 @@ impl System {
     pub fn group_split_by_resid(&mut self, name: &str) -> (Result<(), GroupError>, Vec<String>) {
         let mut groups: IndexMap<String, Vec<usize>> = IndexMap::new();
 
-        let group = match self.get_groups_as_ref().get(name) {
+        let group = match self.get_groups().get(name) {
             Some(x) => x,
             None => return (Err(GroupError::NotFound(name.to_string())), Vec::new()),
         };
@@ -543,7 +543,7 @@ impl System {
     pub fn group_split_by_resname(&mut self, name: &str) -> (Result<(), GroupError>, Vec<String>) {
         let mut groups: IndexMap<String, Vec<usize>> = IndexMap::new();
 
-        let group = match self.get_groups_as_ref().get(name) {
+        let group = match self.get_groups().get(name) {
             Some(x) => x,
             None => return (Err(GroupError::NotFound(name.to_string())), Vec::new()),
         };
@@ -594,7 +594,7 @@ impl System {
     /// ## Returns
     /// `Ok` if successful, `GroupError::NotFound` in case the group does not exist.
     pub fn group_make_writable(&mut self, name: &str) -> Result<(), GroupError> {
-        match self.get_groups_as_mut().get_mut(name) {
+        match self.get_groups_mut().get_mut(name) {
             None => return Err(GroupError::NotFound(name.to_owned())),
             Some(group) => group.print_ndx = true,
         }
@@ -607,7 +607,7 @@ impl System {
     /// ## Returns
     /// `Ok` if successful, `GroupError::NotFound` in case the group does not exist.
     pub fn group_make_nonwritable(&mut self, name: &str) -> Result<(), GroupError> {
-        match self.get_groups_as_mut().get_mut(name) {
+        match self.get_groups_mut().get_mut(name) {
             None => return Err(GroupError::NotFound(name.to_owned())),
             Some(group) => group.print_ndx = false,
         }
@@ -630,7 +630,7 @@ impl System {
     /// - Time complexity is O(n).
     #[allow(dead_code)]
     pub(crate) fn group_remove(&mut self, name: &str) -> Result<(), GroupError> {
-        if self.get_groups_as_mut().shift_remove(name).is_none() {
+        if self.get_groups_mut().shift_remove(name).is_none() {
             Err(GroupError::NotFound(name.to_owned()))
         } else {
             Ok(())
@@ -657,13 +657,13 @@ impl System {
     #[allow(dead_code)]
     pub(crate) fn group_rename(&mut self, old: &str, new: &str) -> Result<(), GroupError> {
         // get the old group
-        let group = match self.get_groups_as_mut().shift_remove(old) {
+        let group = match self.get_groups_mut().shift_remove(old) {
             Some(x) => x,
             None => return Err(GroupError::NotFound(old.to_owned())),
         };
 
         // reinsert the group with the new name
-        match self.get_groups_as_mut().insert(new.to_owned(), group) {
+        match self.get_groups_mut().insert(new.to_owned(), group) {
             Some(_) => Err(GroupError::AlreadyExistsWarning(new.to_owned())),
             None => Ok(()),
         }
@@ -671,7 +671,7 @@ impl System {
 
     /// Check whether a group with a given name exists in the system.
     pub fn group_exists(&self, name: &str) -> bool {
-        self.get_groups_as_ref().contains_key(name)
+        self.get_groups().contains_key(name)
     }
 
     /// Check whether the target group contains the atom of target index.
@@ -687,7 +687,7 @@ impl System {
     ///   where `n` is the number of atoms in the group.
     pub fn group_isin(&self, name: &str, index: usize) -> Result<bool, GroupError> {
         let group = self
-            .get_groups_as_ref()
+            .get_groups()
             .get(name)
             .ok_or(GroupError::NotFound(name.to_string()))?;
 
@@ -717,7 +717,7 @@ impl System {
     /// ```
     pub fn group_get_n_atoms(&self, name: &str) -> Result<usize, GroupError> {
         let group = self
-            .get_groups_as_ref()
+            .get_groups()
             .get(name)
             .ok_or(GroupError::NotFound(name.to_string()))?;
 
@@ -741,17 +741,17 @@ impl System {
         union: &str,
     ) -> Result<(), GroupError> {
         let group1 = self
-            .get_groups_as_ref()
+            .get_groups()
             .get(group1)
             .ok_or(GroupError::NotFound(group1.to_string()))?;
         let group2 = self
-            .get_groups_as_ref()
+            .get_groups()
             .get(group2)
             .ok_or(GroupError::NotFound(group2.to_string()))?;
 
         let group = Group::union(group1, group2);
 
-        match self.get_groups_as_mut().insert(union.to_string(), group) {
+        match self.get_groups_mut().insert(union.to_string(), group) {
             None => Ok(()),
             Some(_) => Err(GroupError::AlreadyExistsWarning(union.to_string())),
         }
@@ -774,18 +774,18 @@ impl System {
         intersection: &str,
     ) -> Result<(), GroupError> {
         let group1 = self
-            .get_groups_as_ref()
+            .get_groups()
             .get(group1)
             .ok_or(GroupError::NotFound(group1.to_string()))?;
         let group2 = self
-            .get_groups_as_ref()
+            .get_groups()
             .get(group2)
             .ok_or(GroupError::NotFound(group2.to_string()))?;
 
         let group = Group::intersection(group1, group2);
 
         match self
-            .get_groups_as_mut()
+            .get_groups_mut()
             .insert(intersection.to_string(), group)
         {
             None => Ok(()),
@@ -826,10 +826,7 @@ impl System {
     /// assert!(names.contains(&"All".to_string()));
     /// ```
     pub fn group_names(&self) -> Vec<String> {
-        self.get_groups_as_ref()
-            .keys()
-            .map(|key| key.to_owned())
-            .collect()
+        self.get_groups().keys().map(|key| key.to_owned()).collect()
     }
 
     /// Get all group names assocaited with the system excluding ndx-nonwritable (default) groups.
@@ -850,7 +847,7 @@ impl System {
     /// assert!(!names.contains(&"All".to_string()));
     /// ```
     pub fn group_names_writable(&self) -> Vec<String> {
-        self.get_groups_as_ref()
+        self.get_groups()
             .iter()
             .filter_map(|(key, group)| {
                 if group.print_ndx {
@@ -870,7 +867,7 @@ impl System {
     /// - `GroupError` if the group does not exist.
     pub fn group_isempty(&self, name: &str) -> Result<bool, GroupError> {
         let group = self
-            .get_groups_as_ref()
+            .get_groups()
             .get(name)
             .ok_or(GroupError::NotFound(name.to_string()))?;
 
@@ -1374,10 +1371,7 @@ mod tests {
 
         for atom in system.group_iter("Selected Membrane").unwrap() {
             assert_eq!(atom.get_residue_name(), "POPC");
-            assert!(cylinder.inside(
-                atom.get_position().unwrap(),
-                system.get_box_as_ref().unwrap()
-            ));
+            assert!(cylinder.inside(atom.get_position().unwrap(), system.get_box().unwrap()));
         }
     }
 
@@ -1397,10 +1391,7 @@ mod tests {
 
         for atom in system.group_iter("Selected Water").unwrap() {
             assert_eq!(atom.get_residue_name(), "W");
-            assert!(sphere.inside(
-                atom.get_position().unwrap(),
-                system.get_box_as_ref().unwrap()
-            ));
+            assert!(sphere.inside(atom.get_position().unwrap(), system.get_box().unwrap()));
         }
     }
 
@@ -1427,10 +1418,7 @@ mod tests {
                     || resname == "LYS"
                     || resname == "CYS"
             );
-            assert!(rectangular.inside(
-                atom.get_position().unwrap(),
-                system.get_box_as_ref().unwrap()
-            ));
+            assert!(rectangular.inside(atom.get_position().unwrap(), system.get_box().unwrap()));
         }
     }
 
@@ -1455,10 +1443,9 @@ mod tests {
         for atom in system.group_iter("Selected Water").unwrap() {
             let resname = atom.get_residue_name();
             assert_eq!(resname, "W");
-            assert!(triangular_prism.inside(
-                atom.get_position().unwrap(),
-                system.get_box_as_ref().unwrap()
-            ));
+            assert!(
+                triangular_prism.inside(atom.get_position().unwrap(), system.get_box().unwrap())
+            );
         }
     }
 
@@ -1622,18 +1609,9 @@ mod tests {
         for (i, atom) in system.group_iter("Selected Membrane").unwrap().enumerate() {
             assert_eq!(atom.get_atom_number(), expected_numbers[i]);
 
-            assert!(rectangular.inside(
-                atom.get_position().unwrap(),
-                system.get_box_as_ref().unwrap()
-            ));
-            assert!(sphere.inside(
-                atom.get_position().unwrap(),
-                system.get_box_as_ref().unwrap()
-            ));
-            assert!(cylinder.inside(
-                atom.get_position().unwrap(),
-                system.get_box_as_ref().unwrap()
-            ));
+            assert!(rectangular.inside(atom.get_position().unwrap(), system.get_box().unwrap()));
+            assert!(sphere.inside(atom.get_position().unwrap(), system.get_box().unwrap()));
+            assert!(cylinder.inside(atom.get_position().unwrap(), system.get_box().unwrap()));
         }
     }
 
@@ -2454,9 +2432,9 @@ mod tests {
     #[test]
     fn group_make_writable() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
-        assert!(!system.get_groups_as_ref().get("all").unwrap().print_ndx);
+        assert!(!system.get_groups().get("all").unwrap().print_ndx);
         system.group_make_writable("all").unwrap();
-        assert!(system.get_groups_as_ref().get("all").unwrap().print_ndx);
+        assert!(system.get_groups().get("all").unwrap().print_ndx);
     }
 
     #[test]
@@ -2474,9 +2452,9 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.group_create("Group", "resid 1").unwrap();
 
-        assert!(system.get_groups_as_ref().get("Group").unwrap().print_ndx);
+        assert!(system.get_groups().get("Group").unwrap().print_ndx);
         system.group_make_nonwritable("Group").unwrap();
-        assert!(!system.get_groups_as_ref().get("Group").unwrap().print_ndx);
+        assert!(!system.get_groups().get("Group").unwrap().print_ndx);
     }
 
     #[test]

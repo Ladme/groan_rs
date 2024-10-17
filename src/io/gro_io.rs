@@ -131,7 +131,7 @@ impl System {
 
     /// Write box dimensions into an open gro file.
     fn write_box(&self, writer: &mut BufWriter<File>) -> Result<(), WriteGroError> {
-        match self.get_box_as_ref() {
+        match self.get_box() {
             Some(simbox) if simbox.is_orthogonal() => {
                 writeln!(
                     writer,
@@ -354,7 +354,7 @@ mod tests_read {
         assert_eq!(system.get_n_atoms(), 16844);
 
         // check box size
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
         assert!(approx_eq!(f32, simbox.x, 13.01331));
         assert!(approx_eq!(f32, simbox.y, 13.01331));
         assert!(approx_eq!(f32, simbox.z, 11.25347));
@@ -371,7 +371,7 @@ mod tests_read {
         assert_eq!(simbox.v3x, 0.0f32);
         assert_eq!(simbox.v3y, 0.0f32);
 
-        let atoms = system.get_atoms_as_ref();
+        let atoms = system.get_atoms();
 
         // check the first atom
         let first = &atoms[0];
@@ -433,7 +433,7 @@ mod tests_read {
         assert_eq!(system.get_n_atoms(), 50);
 
         // check box size
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
         assert!(approx_eq!(f32, simbox.x, 6.08608));
         assert!(approx_eq!(f32, simbox.y, 6.08608));
         assert!(approx_eq!(f32, simbox.z, 6.08608));
@@ -446,7 +446,7 @@ mod tests_read {
         assert_eq!(simbox.v3x, 0.0f32);
         assert_eq!(simbox.v3y, 0.0f32);
 
-        let atoms = system.get_atoms_as_ref();
+        let atoms = system.get_atoms();
 
         // check the first atom
         let first = &atoms[0];
@@ -492,7 +492,7 @@ mod tests_read {
     fn read_box9() {
         let system = read_gro("test_files/example_box9.gro").unwrap();
 
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
         assert!(approx_eq!(f32, simbox.x, 6.08608));
         assert!(approx_eq!(f32, simbox.y, 6.08608));
         assert!(approx_eq!(f32, simbox.z, 6.08608));
@@ -822,7 +822,7 @@ mod tests_write {
     fn write_too_large_coordinate_1() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        system.get_atom_as_mut(16).unwrap().set_position_z(10000.0);
+        system.get_atom_mut(16).unwrap().set_position_z(10000.0);
 
         match system.write_gro("will_not_be_created_1.gro", false) {
             Err(WriteGroError::CoordinateTooLarge) => (),
@@ -835,7 +835,7 @@ mod tests_write {
     fn write_too_large_coordinate_2() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        system.get_atom_as_mut(16).unwrap().set_position_x(-9999.0);
+        system.get_atom_mut(16).unwrap().set_position_x(-9999.0);
 
         match system.group_write_gro("all", "will_not_be_created_2.gro", false) {
             Err(WriteGroError::CoordinateTooLarge) => (),

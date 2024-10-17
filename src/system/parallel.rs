@@ -88,7 +88,7 @@ impl System {
     ///             .distance_from_point(
     ///                 &membrane_com,
     ///                 Dimension::Z,
-    ///                 frame.get_box_as_ref().unwrap(),
+    ///                 frame.get_box().unwrap(),
     ///             )
     ///             .unwrap();
     ///
@@ -377,7 +377,7 @@ impl System {
         n_threads: usize,
     ) -> Vec<AtomContainer> {
         let group_atoms = self
-            .get_groups_as_ref()
+            .get_groups()
             .get(group)
             .expect("FATAL GROAN ERROR | System::distribute_atoms_group | Group should exist.");
 

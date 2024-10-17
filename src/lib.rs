@@ -350,7 +350,7 @@
 //!     let cylinder = Cylinder::new([1.5, 2.5, 3.5].into(), 2.1, 4.3, Dimension::Z);
 //!
 //!     for atom in system.atoms_iter() {
-//!         if cylinder.inside(atom.get_position().unwrap(), system.get_box_as_ref().unwrap()) {
+//!         if cylinder.inside(atom.get_position().unwrap(), system.get_box().unwrap()) {
 //!             inside_cylinder.push(atom.clone());
 //!         }
 //!     }

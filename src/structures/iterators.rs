@@ -842,8 +842,8 @@ mod tests {
             .translate(&Vector3D::new(3.5, -1.1, 5.4))
             .unwrap();
 
-        let first = system.get_atom_as_ref(31).unwrap().get_position().unwrap();
-        let last = system.get_atom_as_ref(52).unwrap().get_position().unwrap();
+        let first = system.get_atom(31).unwrap().get_position().unwrap();
+        let last = system.get_atom(52).unwrap().get_position().unwrap();
 
         assert_approx_eq!(f32, first.x, 0.23069);
         assert_approx_eq!(f32, first.y, 1.567);
@@ -866,7 +866,7 @@ mod tests {
         system.group_create("Alanines", "resname ALA").unwrap();
         system.group_iter_mut("Alanines").unwrap().wrap().unwrap();
 
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
         for (a, atom) in system.atoms_iter().enumerate() {
             let pos = atom.get_position().unwrap();
 

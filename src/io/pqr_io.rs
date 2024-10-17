@@ -206,7 +206,7 @@ impl System {
             _ => format!("Group `{}` from {}", group_name, self.get_name()),
         };
 
-        write_header(&mut writer, &title, self.get_box_as_ref())?;
+        write_header(&mut writer, &title, self.get_box())?;
 
         for atom in self.group_iter(group_name).expect(
             "FATAL GROAN ERROR | System::group_write_pqr | Group should exist but it does not.",
@@ -323,7 +323,7 @@ mod tests_read {
         assert_eq!(system.get_n_atoms(), 50);
 
         // check box size
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
         assert_approx_eq!(f32, simbox.x, 6.0861);
         assert_approx_eq!(f32, simbox.y, 6.0861);
         assert_approx_eq!(f32, simbox.z, 6.0861);
@@ -336,7 +336,7 @@ mod tests_read {
         assert_eq!(simbox.v3x, 0.0f32);
         assert_eq!(simbox.v3y, 0.0f32);
 
-        let atoms = system.get_atoms_as_ref();
+        let atoms = system.get_atoms();
 
         // check the first atom
         let first = &atoms[0];
@@ -392,7 +392,7 @@ mod tests_read {
         let system = read_pqr("test_files/example_endmdl.pqr").unwrap();
 
         assert_eq!(system.get_name(), "Unknown");
-        assert!(system.get_box_as_ref().is_none());
+        assert!(system.get_box().is_none());
         assert_eq!(system.get_n_atoms(), 17);
 
         assert_eq!(system.atoms_iter().next().unwrap().get_atom_number(), 1);
@@ -404,7 +404,7 @@ mod tests_read {
         let system = read_pqr("test_files/example_end.pqr").unwrap();
 
         assert_eq!(system.get_name(), "Unknown");
-        assert!(system.get_box_as_ref().is_none());
+        assert!(system.get_box().is_none());
         assert_eq!(system.get_n_atoms(), 17);
 
         assert_eq!(system.atoms_iter().next().unwrap().get_atom_number(), 1);
@@ -418,16 +418,16 @@ mod tests_read {
 
         assert_eq!(system_chain.get_name(), system_nochain.get_name());
         assert_eq!(
-            system_chain.get_box_as_ref().unwrap().x,
-            system_nochain.get_box_as_ref().unwrap().x
+            system_chain.get_box().unwrap().x,
+            system_nochain.get_box().unwrap().x
         );
         assert_eq!(
-            system_chain.get_box_as_ref().unwrap().y,
-            system_nochain.get_box_as_ref().unwrap().y
+            system_chain.get_box().unwrap().y,
+            system_nochain.get_box().unwrap().y
         );
         assert_eq!(
-            system_chain.get_box_as_ref().unwrap().z,
-            system_nochain.get_box_as_ref().unwrap().z
+            system_chain.get_box().unwrap().z,
+            system_nochain.get_box().unwrap().z
         );
 
         for (ac, anc) in system_chain.atoms_iter().zip(system_nochain.atoms_iter()) {
@@ -454,18 +454,9 @@ mod tests_read {
         let system2 = read_pqr("test_files/example_weird_format.pqr").unwrap();
 
         assert_eq!(system1.get_name(), system2.get_name());
-        assert_eq!(
-            system1.get_box_as_ref().unwrap().x,
-            system2.get_box_as_ref().unwrap().x
-        );
-        assert_eq!(
-            system1.get_box_as_ref().unwrap().y,
-            system2.get_box_as_ref().unwrap().y
-        );
-        assert_eq!(
-            system1.get_box_as_ref().unwrap().z,
-            system2.get_box_as_ref().unwrap().z
-        );
+        assert_eq!(system1.get_box().unwrap().x, system2.get_box().unwrap().x);
+        assert_eq!(system1.get_box().unwrap().y, system2.get_box().unwrap().y);
+        assert_eq!(system1.get_box().unwrap().z, system2.get_box().unwrap().z);
 
         for (a1, a2) in system1.atoms_iter().zip(system2.atoms_iter()) {
             assert_eq!(a1.get_residue_number(), a2.get_residue_number());
@@ -491,18 +482,9 @@ mod tests_read {
         let system2 = read_pqr("test_files/example_mixchain.pqr").unwrap();
 
         assert_eq!(system1.get_name(), system2.get_name());
-        assert_eq!(
-            system1.get_box_as_ref().unwrap().x,
-            system2.get_box_as_ref().unwrap().x
-        );
-        assert_eq!(
-            system1.get_box_as_ref().unwrap().y,
-            system2.get_box_as_ref().unwrap().y
-        );
-        assert_eq!(
-            system1.get_box_as_ref().unwrap().z,
-            system2.get_box_as_ref().unwrap().z
-        );
+        assert_eq!(system1.get_box().unwrap().x, system2.get_box().unwrap().x);
+        assert_eq!(system1.get_box().unwrap().y, system2.get_box().unwrap().y);
+        assert_eq!(system1.get_box().unwrap().z, system2.get_box().unwrap().z);
 
         for (a1, a2) in system1.atoms_iter().zip(system2.atoms_iter()) {
             assert_eq!(a1.get_residue_number(), a2.get_residue_number());
@@ -679,29 +661,23 @@ mod tests_write {
     fn write_large() {
         let mut system = System::from_file("test_files/example.pqr").unwrap();
 
-        system.get_atom_as_mut(3).unwrap().set_atom_number(12753);
+        system.get_atom_mut(3).unwrap().set_atom_number(12753);
         system
-            .get_atom_as_mut(28)
+            .get_atom_mut(28)
             .unwrap()
             .set_atom_number(127533497463);
-        system.get_atom_as_mut(29).unwrap().set_atom_number(999999);
-        system.get_atom_as_mut(31).unwrap().set_atom_name("SC1234");
-        system.get_atom_as_mut(2).unwrap().set_residue_name("ARGG");
-        system.get_atom_as_mut(17).unwrap().reset_chain();
-        system
-            .get_atom_as_mut(17)
-            .unwrap()
-            .set_residue_number(29345);
-        system.get_atom_as_mut(13).unwrap().set_position_x(14.32);
-        system
-            .get_atom_as_mut(12)
-            .unwrap()
-            .set_position_x(214.32134);
-        system.get_atom_as_mut(12).unwrap().set_position_y(16.21);
-        system.get_atom_as_mut(11).unwrap().set_position_z(9423.32);
-        system.get_atom_as_mut(42).unwrap().set_charge(11.32);
-        system.get_atom_as_mut(43).unwrap().set_charge(-11.32);
-        system.get_atom_as_mut(45).unwrap().set_vdw(1.477);
+        system.get_atom_mut(29).unwrap().set_atom_number(999999);
+        system.get_atom_mut(31).unwrap().set_atom_name("SC1234");
+        system.get_atom_mut(2).unwrap().set_residue_name("ARGG");
+        system.get_atom_mut(17).unwrap().reset_chain();
+        system.get_atom_mut(17).unwrap().set_residue_number(29345);
+        system.get_atom_mut(13).unwrap().set_position_x(14.32);
+        system.get_atom_mut(12).unwrap().set_position_x(214.32134);
+        system.get_atom_mut(12).unwrap().set_position_y(16.21);
+        system.get_atom_mut(11).unwrap().set_position_z(9423.32);
+        system.get_atom_mut(42).unwrap().set_charge(11.32);
+        system.get_atom_mut(43).unwrap().set_charge(-11.32);
+        system.get_atom_mut(45).unwrap().set_vdw(1.477);
 
         let pqr_output = NamedTempFile::new().unwrap();
         let path_to_output = pqr_output.path();

@@ -95,14 +95,14 @@ impl System {
             extract_coordinates(reference.group_iter(group)),
             &reference_shift,
             reference
-                .get_box_as_ref()
+                .get_box()
                 .expect("FATAL GROAN ERROR | System::calc_rmsd | Reference SimBox should exist."),
         );
 
         let target_coordinates = shift_and_wrap_coordinates(
             extract_coordinates(self.group_iter(group)),
             &target_shift,
-            self.get_box_as_ref()
+            self.get_box()
                 .expect("FATAL GROAN ERROR | System::calc_rmsd | Current SimBox should exist."),
         );
 
@@ -413,7 +413,7 @@ mod tests {
         let mut reference = system.clone();
 
         // should work even if we remove position of some atom that is not in the group
-        reference.get_atom_as_mut(176).unwrap().reset_position();
+        reference.get_atom_mut(176).unwrap().reset_position();
 
         let rmsd = system
             .xtc_iter("test_files/short_trajectory.xtc")
@@ -503,7 +503,7 @@ mod tests {
 
         let reference = system.clone();
 
-        system.get_atom_as_mut(14).unwrap().reset_position();
+        system.get_atom_mut(14).unwrap().reset_position();
 
         match system.calc_rmsd(&reference, "Protein") {
             Ok(_) => panic!("Function should have failed."),

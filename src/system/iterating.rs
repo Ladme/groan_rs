@@ -42,14 +42,14 @@ impl System {
     /// ```
     pub fn group_iter(&self, name: &str) -> Result<AtomIterator, GroupError> {
         let group = self
-            .get_groups_as_ref()
+            .get_groups()
             .get(name)
             .ok_or(GroupError::NotFound(name.to_string()))?;
 
         Ok(AtomIterator::new(
-            self.get_atoms_as_ref(),
+            self.get_atoms(),
             group.get_atoms(),
-            self.get_box_as_ref(),
+            self.get_box(),
         ))
     }
 
@@ -78,17 +78,17 @@ impl System {
     /// };
     /// ```
     pub fn group_iter_mut(&mut self, name: &str) -> Result<MutAtomIterator, GroupError> {
-        let simbox = self.get_box_as_ref().map(|x| x as *const SimBox);
+        let simbox = self.get_box().map(|x| x as *const SimBox);
 
         let group = {
-            self.get_groups_as_mut()
+            self.get_groups_mut()
                 .get_mut(name)
                 .ok_or(GroupError::NotFound(name.to_string()))? as *mut Group
         };
 
         unsafe {
             Ok(MutAtomIterator::new(
-                self.get_atoms_as_mut(),
+                self.get_atoms_mut(),
                 (*group).get_atoms(),
                 simbox.map(|x| &*x),
             ))
@@ -109,7 +109,7 @@ impl System {
     /// ```
     ///
     /// ## Note on performance
-    /// It might be slightly faster to get reference to the atoms [`System::get_atoms_as_ref`](`crate::system::System::get_atoms_as_ref`)
+    /// It might be slightly faster to get reference to the atoms [`System::get_atoms`](`crate::system::System::get_atoms`)
     /// and iterate through it if you do not care about the additional methods [`AtomIterator`](`crate::structures::iterators::AtomIterator`) implements.
     #[inline(always)]
     pub fn atoms_iter(&self) -> AtomIterator {
@@ -154,7 +154,7 @@ impl System {
     /// system.add_bonds_from_pdb("system.pdb").unwrap();
     ///
     /// // get target atom
-    /// let target_atom = match system.get_atom_as_ref(15) {
+    /// let target_atom = match system.get_atom(15) {
     ///     Ok(atom) => atom,
     ///     Err(e) => {
     ///         eprintln!("{}", e);
@@ -167,7 +167,7 @@ impl System {
     /// match system.bonded_atoms_iter(15) {
     ///     Ok(iterator) => {
     ///         for bonded_atom in iterator {
-    ///             distances.push(target_atom.distance(bonded_atom, Dimension::XYZ, system.get_box_as_ref().unwrap()));
+    ///             distances.push(target_atom.distance(bonded_atom, Dimension::XYZ, system.get_box().unwrap()));
     ///         }
     ///         println!("{:?}", distances);
     ///     }
@@ -175,12 +175,12 @@ impl System {
     /// }
     /// ```
     pub fn bonded_atoms_iter(&self, index: usize) -> Result<AtomIterator, AtomError> {
-        let atom = self.get_atom_as_ref(index)?;
+        let atom = self.get_atom(index)?;
 
         Ok(AtomIterator::new(
-            self.get_atoms_as_ref(),
+            self.get_atoms(),
             atom.get_bonded(),
-            self.get_box_as_ref(),
+            self.get_box(),
         ))
     }
 
@@ -209,13 +209,13 @@ impl System {
     /// }
     /// ```
     pub fn bonded_atoms_iter_mut(&mut self, index: usize) -> Result<MutAtomIterator, AtomError> {
-        let simbox = self.get_box_as_ref().map(|x| x as *const SimBox);
+        let simbox = self.get_box().map(|x| x as *const SimBox);
 
         unsafe {
-            let atom = self.get_atom_as_mut(index)? as *mut Atom;
+            let atom = self.get_atom_mut(index)? as *mut Atom;
 
             Ok(MutAtomIterator::new(
-                self.get_atoms_as_mut(),
+                self.get_atoms_mut(),
                 (*atom).get_bonded(),
                 simbox.map(|x| &*x),
             ))
@@ -245,9 +245,9 @@ impl System {
     pub fn molecule_iter(&self, index: usize) -> Result<MoleculeIterator, AtomError> {
         let indices = get_molecule_indices(self, index)?;
         Ok(MoleculeIterator::new(
-            self.get_atoms_as_ref(),
+            self.get_atoms(),
             indices,
-            self.get_box_as_ref(),
+            self.get_box(),
         ))
     }
 
@@ -273,11 +273,11 @@ impl System {
     /// - I.e. atoms closer to the starting atom will be visited before atoms that are further way.
     pub fn molecule_iter_mut(&mut self, index: usize) -> Result<MutMoleculeIterator, AtomError> {
         let indices = get_molecule_indices(self, index)?;
-        let simbox = self.get_box_as_ref().map(|x| x as *const SimBox);
+        let simbox = self.get_box().map(|x| x as *const SimBox);
 
         unsafe {
             Ok(MutMoleculeIterator::new(
-                self.get_atoms_as_mut(),
+                self.get_atoms_mut(),
                 indices,
                 simbox.map(|x| &*x),
             ))
@@ -305,9 +305,9 @@ impl System {
         let group = crate::structures::group::Group::from_query(query, self)?;
 
         Ok(OwnedAtomIterator::new(
-            self.get_atoms_as_ref(),
+            self.get_atoms(),
             group.get_atoms().to_owned(),
-            self.get_box_as_ref(),
+            self.get_box(),
         ))
     }
 
@@ -331,11 +331,11 @@ impl System {
     pub fn selection_iter_mut(&mut self, query: &str) -> Result<OwnedMutAtomIterator, SelectError> {
         let group = crate::structures::group::Group::from_query(query, self)?;
 
-        let simbox = self.get_box_as_ref().map(|x| x as *const SimBox);
+        let simbox = self.get_box().map(|x| x as *const SimBox);
 
         unsafe {
             Ok(OwnedMutAtomIterator::new(
-                self.get_atoms_as_mut(),
+                self.get_atoms_mut(),
                 group.get_atoms().to_owned(),
                 simbox.map(|x| &*x),
             ))
@@ -366,7 +366,7 @@ pub(crate) fn get_molecule_indices(system: &System, index: usize) -> Result<Vec<
             .pop_front()
             .expect("FATAL GROAN ERROR | iterators::get_molecule_indices | Attempted to dequeue element from an empty queue.");
 
-        let atom = system.get_atom_as_ref(index).expect(
+        let atom = system.get_atom(index).expect(
             "FATAL GROAN ERROR | iterators::get_molecule_indices | Atom index does not exist.",
         );
 
@@ -411,7 +411,7 @@ mod tests {
         for (group_atom, system_atom) in system
             .group_iter("Protein")
             .unwrap()
-            .zip(system.get_atoms_as_ref().iter().take(61))
+            .zip(system.get_atoms().iter().take(61))
         {
             assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
         }
@@ -425,7 +425,7 @@ mod tests {
         for (group_atom, system_atom) in system
             .group_iter("Membrane")
             .unwrap()
-            .zip(system.get_atoms_as_ref().iter().skip(61))
+            .zip(system.get_atoms().iter().skip(61))
         {
             assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
         }
@@ -439,7 +439,7 @@ mod tests {
         for (group_atom, system_atom) in system
             .group_iter("ION")
             .unwrap()
-            .zip(system.get_atoms_as_ref().iter().skip(16604))
+            .zip(system.get_atoms().iter().skip(16604))
         {
             assert_eq!(system_atom.get_atom_number(), group_atom.get_atom_number());
         }
@@ -449,7 +449,7 @@ mod tests {
     fn atoms_iter() {
         let system = System::from_file("test_files/example.gro").unwrap();
 
-        let atoms = system.get_atoms_as_ref();
+        let atoms = system.get_atoms();
 
         for (extracted_atom, system_atom) in atoms.iter().zip(system.atoms_iter()) {
             assert_eq!(
@@ -537,7 +537,7 @@ mod tests {
                 atom.get_position().unwrap().distance(
                     &sphere_pos,
                     Dimension::XYZ,
-                    system.get_box_as_ref().unwrap()
+                    system.get_box().unwrap()
                 ) < 5.0
             );
         }
@@ -554,14 +554,14 @@ mod tests {
                 atom.get_position().unwrap().distance(
                     &sphere_pos,
                     Dimension::XYZ,
-                    system.get_box_as_ref().unwrap()
+                    system.get_box().unwrap()
                 ) < 5.0
             );
             assert!(
                 atom.get_position().unwrap().distance(
                     &sphere_pos2,
                     Dimension::XYZ,
-                    system.get_box_as_ref().unwrap()
+                    system.get_box().unwrap()
                 ) < 4.0
             );
         }
@@ -880,12 +880,7 @@ mod tests {
         system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
 
         let sphere = Sphere::new(
-            system
-                .get_atom_as_ref(0)
-                .unwrap()
-                .get_position()
-                .unwrap()
-                .clone(),
+            system.get_atom(0).unwrap().get_position().unwrap().clone(),
             2.0,
         );
 
@@ -963,12 +958,7 @@ mod tests {
         system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
 
         let sphere = Sphere::new(
-            system
-                .get_atom_as_ref(0)
-                .unwrap()
-                .get_position()
-                .unwrap()
-                .clone(),
+            system.get_atom(0).unwrap().get_position().unwrap().clone(),
             2.0,
         );
 

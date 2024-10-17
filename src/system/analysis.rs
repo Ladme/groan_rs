@@ -150,7 +150,7 @@ impl System {
         let group1_center = self.group_get_center(group1)?;
         let group2_center = self.group_get_center(group2)?;
 
-        let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?;
+        let simbox = simbox_check(self.get_box()).map_err(GroupError::InvalidSimBox)?;
 
         Ok(group1_center.distance(&group2_center, dim, simbox))
     }
@@ -203,7 +203,7 @@ impl System {
         let n_atoms_group1 = self.group_get_n_atoms(group1)?;
         let n_atoms_group2 = self.group_get_n_atoms(group2)?;
 
-        let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?;
+        let simbox = simbox_check(self.get_box()).map_err(GroupError::InvalidSimBox)?;
 
         let mut distances = Array2::default((n_atoms_group1, n_atoms_group2));
 
@@ -258,10 +258,10 @@ impl System {
         index2: usize,
         dim: Dimension,
     ) -> Result<f32, AtomError> {
-        let atom1 = self.get_atom_as_ref(index1)?;
-        let atom2 = self.get_atom_as_ref(index2)?;
+        let atom1 = self.get_atom(index1)?;
+        let atom2 = self.get_atom(index2)?;
 
-        let simbox = simbox_check(self.get_box_as_ref()).map_err(AtomError::InvalidSimBox)?;
+        let simbox = simbox_check(self.get_box()).map_err(AtomError::InvalidSimBox)?;
 
         atom1.distance(atom2, dim, simbox)
     }
@@ -429,7 +429,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        system.get_atom_as_mut(15).unwrap().reset_position();
+        system.get_atom_mut(15).unwrap().reset_position();
 
         match system.group_get_center("Protein") {
             Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
@@ -657,7 +657,7 @@ mod tests {
             atom.set_mass(10.3);
         }
 
-        system.get_atom_as_mut(15).unwrap().reset_position();
+        system.get_atom_mut(15).unwrap().reset_position();
 
         match system.group_get_com("Protein") {
             Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
@@ -838,7 +838,7 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        system.get_atom_as_mut(15).unwrap().reset_position();
+        system.get_atom_mut(15).unwrap().reset_position();
 
         match system.group_distance("Protein", "Membrane", Dimension::XYZ) {
             Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
@@ -1013,7 +1013,7 @@ mod tests {
     fn group_all_distances_fail_position() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
-        system.get_atom_as_mut(15).unwrap().reset_position();
+        system.get_atom_mut(15).unwrap().reset_position();
 
         match system.group_all_distances("Membrane", "Protein", Dimension::XYZ) {
             Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
@@ -1094,7 +1094,7 @@ mod tests {
     fn atoms_distance_fail_position() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        system.get_atom_as_mut(15).unwrap().reset_position();
+        system.get_atom_mut(15).unwrap().reset_position();
 
         match system.atoms_distance(12, 15, Dimension::XYZ) {
             Ok(_) => panic!("Function should have failed but it succeeded."),

@@ -412,8 +412,8 @@ mod tests {
             );
 
             compare_box(
-                frame_single.get_box_as_ref().unwrap(),
-                frame_cat.get_box_as_ref().unwrap(),
+                frame_single.get_box().unwrap(),
+                frame_cat.get_box().unwrap(),
             );
 
             for (atom_single, atom_cat) in frame_single.atoms_iter().zip(frame_cat.atoms_iter()) {
@@ -463,8 +463,8 @@ mod tests {
                 );
 
                 compare_box(
-                    frame_single.get_box_as_ref().unwrap(),
-                    frame_cat.get_box_as_ref().unwrap(),
+                    frame_single.get_box().unwrap(),
+                    frame_cat.get_box().unwrap(),
                 );
 
                 for (atom_single, atom_cat) in frame_single.atoms_iter().zip(frame_cat.atoms_iter())
@@ -514,8 +514,8 @@ mod tests {
                 );
 
                 compare_box(
-                    frame_single.get_box_as_ref().unwrap(),
-                    frame_cat.get_box_as_ref().unwrap(),
+                    frame_single.get_box().unwrap(),
+                    frame_cat.get_box().unwrap(),
                 );
 
                 for (atom_single, atom_cat) in frame_single.atoms_iter().zip(frame_cat.atoms_iter())
@@ -572,8 +572,8 @@ mod tests {
                     );
 
                     compare_box(
-                        frame_single.get_box_as_ref().unwrap(),
-                        frame_cat.get_box_as_ref().unwrap(),
+                        frame_single.get_box().unwrap(),
+                        frame_cat.get_box().unwrap(),
                     );
 
                     for (atom_single, atom_cat) in
@@ -620,8 +620,8 @@ mod tests {
             );
 
             compare_box(
-                frame_single.get_box_as_ref().unwrap(),
-                frame_cat.get_box_as_ref().unwrap(),
+                frame_single.get_box().unwrap(),
+                frame_cat.get_box().unwrap(),
             );
 
             for (atom_single, atom_cat) in frame_single.atoms_iter().zip(frame_cat.atoms_iter()) {
@@ -671,8 +671,8 @@ mod tests {
                 );
 
                 compare_box(
-                    frame_single.get_box_as_ref().unwrap(),
-                    frame_cat.get_box_as_ref().unwrap(),
+                    frame_single.get_box().unwrap(),
+                    frame_cat.get_box().unwrap(),
                 );
 
                 for (atom_single, atom_cat) in frame_single.atoms_iter().zip(frame_cat.atoms_iter())
@@ -722,8 +722,8 @@ mod tests {
                 );
 
                 compare_box(
-                    frame_single.get_box_as_ref().unwrap(),
-                    frame_cat.get_box_as_ref().unwrap(),
+                    frame_single.get_box().unwrap(),
+                    frame_cat.get_box().unwrap(),
                 );
 
                 for (atom_single, atom_cat) in frame_single.atoms_iter().zip(frame_cat.atoms_iter())
@@ -780,8 +780,8 @@ mod tests {
                     );
 
                     compare_box(
-                        frame_single.get_box_as_ref().unwrap(),
-                        frame_cat.get_box_as_ref().unwrap(),
+                        frame_single.get_box().unwrap(),
+                        frame_cat.get_box().unwrap(),
                     );
 
                     for (atom_single, atom_cat) in

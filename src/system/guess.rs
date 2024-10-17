@@ -428,7 +428,7 @@ impl System {
         // safety: only safe if bonds vector contains valid indices
         // we apply `System::reset_mol_references` at the end of the function
         unsafe {
-            let atoms = self.get_atoms_as_mut();
+            let atoms = self.get_atoms_mut();
             for (index1, index2) in bonds {
                 atoms[index1].add_bonded(index2);
                 atoms[index2].add_bonded(index1);
@@ -497,7 +497,7 @@ impl System {
 
         for a in start..end {
             let atom1 = self
-                .get_atom_as_ref(a)
+                .get_atom(a)
                 .expect("FATAL GROAN ERROR | System::identify_bonds | Atom 1 should exist.");
 
             let vdw1 = match atom1.get_vdw() {
@@ -510,7 +510,7 @@ impl System {
 
             for b in (a + 1)..self.get_n_atoms() {
                 let atom2 = self
-                    .get_atom_as_ref(b)
+                    .get_atom(b)
                     .expect("FATAL GROAN ERROR | System::identify_bonds | Atom 2 should exist.");
 
                 let vdw2 = match atom2.get_vdw() {
@@ -572,7 +572,7 @@ impl System {
     /// Panics if the atom or the element does not exist.
     fn set_atom_properties(&mut self, atom_index: usize, element_name: &str, elements: &Elements) {
         let atom = self
-            .get_atom_as_mut(atom_index)
+            .get_atom_mut(atom_index)
             .expect("FATAL GROAN ERROR | System::set_atom_properties | Atom should exist.");
 
         let element = elements
@@ -854,7 +854,7 @@ mod tests {
         }
 
         // N in SER1
-        let atom = system.get_atom_as_ref(0).unwrap();
+        let atom = system.get_atom(0).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "nitrogen");
         assert_eq!(atom.get_element_symbol().unwrap(), "N");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 14.0067);
@@ -863,7 +863,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 1);
 
         // H1 in SER1
-        let atom = system.get_atom_as_ref(1).unwrap();
+        let atom = system.get_atom(1).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "hydrogen");
         assert_eq!(atom.get_element_symbol().unwrap(), "H");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 1.0079);
@@ -872,7 +872,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 1);
 
         // C in SER23
-        let atom = system.get_atom_as_ref(360).unwrap();
+        let atom = system.get_atom(360).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "carbon");
         assert_eq!(atom.get_element_symbol().unwrap(), "C");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 12.0107);
@@ -881,7 +881,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 2);
 
         // O31 in POPC44
-        let atom = system.get_atom_as_ref(3081).unwrap();
+        let atom = system.get_atom(3081).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "oxygen");
         assert_eq!(atom.get_element_symbol().unwrap(), "O");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 15.9994);
@@ -890,7 +890,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 1);
 
         // P in POPC127
-        let atom = system.get_atom_as_ref(14184).unwrap();
+        let atom = system.get_atom(14184).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "phosphorus");
         assert_eq!(atom.get_element_symbol().unwrap(), "P");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 30.9738);
@@ -899,7 +899,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 2);
 
         // HW1 in SOL4827
-        let atom = system.get_atom_as_ref(31541).unwrap();
+        let atom = system.get_atom(31541).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "hydrogen");
         assert_eq!(atom.get_element_symbol().unwrap(), "H");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 1.0079);
@@ -908,7 +908,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 1);
 
         // OW in SOL177
-        let atom = system.get_atom_as_ref(17590).unwrap();
+        let atom = system.get_atom(17590).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "oxygen");
         assert_eq!(atom.get_element_symbol().unwrap(), "O");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 15.9994);
@@ -917,7 +917,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 1);
 
         // NA in NA5250
-        let atom = system.get_atom_as_ref(32795).unwrap();
+        let atom = system.get_atom(32795).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "sodium");
         assert_eq!(atom.get_element_symbol().unwrap(), "Na");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 22.9897);
@@ -926,7 +926,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds(), None);
 
         // CL in CL5271
-        let atom = system.get_atom_as_ref(32816).unwrap();
+        let atom = system.get_atom(32816).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "chlorine");
         assert_eq!(atom.get_element_symbol().unwrap(), "Cl");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 35.453);
@@ -939,17 +939,14 @@ mod tests {
     fn guess_elements_prefilled() {
         let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
 
-        system.get_atom_as_mut(0).unwrap().set_mass(19.1);
-        system.get_atom_as_mut(0).unwrap().set_element_symbol("Uk");
-        system.get_atom_as_mut(0).unwrap().set_vdw(0.24);
+        system.get_atom_mut(0).unwrap().set_mass(19.1);
+        system.get_atom_mut(0).unwrap().set_element_symbol("Uk");
+        system.get_atom_mut(0).unwrap().set_vdw(0.24);
+        system.get_atom_mut(360).unwrap().set_expected_max_bonds(7);
+        system.get_atom_mut(14184).unwrap().set_vdw(0.20);
+        system.get_atom_mut(32795).unwrap().set_mass(19.1);
         system
-            .get_atom_as_mut(360)
-            .unwrap()
-            .set_expected_max_bonds(7);
-        system.get_atom_as_mut(14184).unwrap().set_vdw(0.20);
-        system.get_atom_as_mut(32795).unwrap().set_mass(19.1);
-        system
-            .get_atom_as_mut(32795)
+            .get_atom_mut(32795)
             .unwrap()
             .set_element_name("Unknown");
 
@@ -962,7 +959,7 @@ mod tests {
         }
 
         // N in SER1
-        let atom = system.get_atom_as_ref(0).unwrap();
+        let atom = system.get_atom(0).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "nitrogen");
         assert_eq!(atom.get_element_symbol().unwrap(), "N");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 19.1);
@@ -971,7 +968,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 1);
 
         // H1 in SER1
-        let atom = system.get_atom_as_ref(1).unwrap();
+        let atom = system.get_atom(1).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "hydrogen");
         assert_eq!(atom.get_element_symbol().unwrap(), "H");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 1.0079);
@@ -980,7 +977,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 1);
 
         // C in SER23
-        let atom = system.get_atom_as_ref(360).unwrap();
+        let atom = system.get_atom(360).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "carbon");
         assert_eq!(atom.get_element_symbol().unwrap(), "C");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 12.0107);
@@ -989,7 +986,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 2);
 
         // O31 in POPC44
-        let atom = system.get_atom_as_ref(3081).unwrap();
+        let atom = system.get_atom(3081).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "oxygen");
         assert_eq!(atom.get_element_symbol().unwrap(), "O");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 15.9994);
@@ -998,7 +995,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 1);
 
         // P in POPC127
-        let atom = system.get_atom_as_ref(14184).unwrap();
+        let atom = system.get_atom(14184).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "phosphorus");
         assert_eq!(atom.get_element_symbol().unwrap(), "P");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 30.9738);
@@ -1007,7 +1004,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 2);
 
         // HW1 in SOL4827
-        let atom = system.get_atom_as_ref(31541).unwrap();
+        let atom = system.get_atom(31541).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "hydrogen");
         assert_eq!(atom.get_element_symbol().unwrap(), "H");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 1.0079);
@@ -1016,7 +1013,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 1);
 
         // OW in SOL177
-        let atom = system.get_atom_as_ref(17590).unwrap();
+        let atom = system.get_atom(17590).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "oxygen");
         assert_eq!(atom.get_element_symbol().unwrap(), "O");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 15.9994);
@@ -1025,7 +1022,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 1);
 
         // NA in NA5250
-        let atom = system.get_atom_as_ref(32795).unwrap();
+        let atom = system.get_atom(32795).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "sodium");
         assert_eq!(atom.get_element_symbol().unwrap(), "Na");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 19.1);
@@ -1034,7 +1031,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds(), None);
 
         // CL in CL5271
-        let atom = system.get_atom_as_ref(32816).unwrap();
+        let atom = system.get_atom(32816).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "chlorine");
         assert_eq!(atom.get_element_symbol().unwrap(), "Cl");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 35.453);
@@ -1105,7 +1102,7 @@ mod tests {
         }
 
         // N in SER1
-        let atom = system.get_atom_as_ref(0).unwrap();
+        let atom = system.get_atom(0).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "nitrogen");
         assert_eq!(atom.get_element_symbol().unwrap(), "N");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 14.0067);
@@ -1113,7 +1110,7 @@ mod tests {
         assert_eq!(atom.get_expected_max_bonds().unwrap(), 3);
 
         // H1 in SER1
-        let atom = system.get_atom_as_ref(1).unwrap();
+        let atom = system.get_atom(1).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "hydrogen");
         assert_eq!(atom.get_element_symbol().unwrap(), "H");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 1.0079);
@@ -1121,7 +1118,7 @@ mod tests {
         assert_eq!(atom.get_expected_max_bonds().unwrap(), 1);
 
         // C in SER23
-        let atom = system.get_atom_as_ref(360).unwrap();
+        let atom = system.get_atom(360).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "carbon");
         assert_eq!(atom.get_element_symbol().unwrap(), "C");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 12.0107);
@@ -1129,7 +1126,7 @@ mod tests {
         assert_eq!(atom.get_expected_max_bonds().unwrap(), 4);
 
         // O31 in POPC44
-        let atom = system.get_atom_as_ref(3081).unwrap();
+        let atom = system.get_atom(3081).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "oxygen");
         assert_eq!(atom.get_element_symbol().unwrap(), "O");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 15.9994);
@@ -1137,7 +1134,7 @@ mod tests {
         assert_eq!(atom.get_expected_max_bonds().unwrap(), 2);
 
         // P in POPC127
-        let atom = system.get_atom_as_ref(14184).unwrap();
+        let atom = system.get_atom(14184).unwrap();
         assert_eq!(atom.get_element_name(), None);
         assert_eq!(atom.get_element_symbol(), None);
         assert_eq!(atom.get_mass(), None);
@@ -1145,7 +1142,7 @@ mod tests {
         assert_eq!(atom.get_expected_max_bonds(), None);
 
         // HW1 in SOL4827
-        let atom = system.get_atom_as_ref(31541).unwrap();
+        let atom = system.get_atom(31541).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "hydrogen");
         assert_eq!(atom.get_element_symbol().unwrap(), "H");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 1.0079);
@@ -1153,7 +1150,7 @@ mod tests {
         assert_eq!(atom.get_expected_max_bonds().unwrap(), 1);
 
         // OW in SOL177
-        let atom = system.get_atom_as_ref(17590).unwrap();
+        let atom = system.get_atom(17590).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "oxygen");
         assert_eq!(atom.get_element_symbol().unwrap(), "O");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 15.9994);
@@ -1161,7 +1158,7 @@ mod tests {
         assert_eq!(atom.get_expected_max_bonds().unwrap(), 2);
 
         // NA in NA5250
-        let atom = system.get_atom_as_ref(32795).unwrap();
+        let atom = system.get_atom(32795).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "sodium");
         assert_eq!(atom.get_element_symbol().unwrap(), "Na");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 22.9897);
@@ -1169,7 +1166,7 @@ mod tests {
         assert_eq!(atom.get_expected_max_bonds(), None);
 
         // CL in CL5259
-        let atom = system.get_atom_as_ref(32804).unwrap();
+        let atom = system.get_atom(32804).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "carbon");
         assert_eq!(atom.get_element_symbol().unwrap(), "C");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 12.0107);
@@ -1177,7 +1174,7 @@ mod tests {
         assert_eq!(atom.get_expected_max_bonds().unwrap(), 4);
 
         // CL in CL5271
-        let atom = system.get_atom_as_ref(32816).unwrap();
+        let atom = system.get_atom(32816).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "carbon");
         assert_eq!(atom.get_element_symbol().unwrap(), "C");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 12.0107);
@@ -1283,7 +1280,7 @@ mod tests {
         }
 
         // N in SER1
-        let atom = system.get_atom_as_ref(0).unwrap();
+        let atom = system.get_atom(0).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "nitrogen");
         assert_eq!(atom.get_element_symbol().unwrap(), "N");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 17.0067);
@@ -1292,7 +1289,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 4);
 
         // H1 in SER1
-        let atom = system.get_atom_as_ref(1).unwrap();
+        let atom = system.get_atom(1).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "hydrogen");
         assert_eq!(atom.get_element_symbol().unwrap(), "H");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 1.5079);
@@ -1301,7 +1298,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 2);
 
         // C in SER23
-        let atom = system.get_atom_as_ref(360).unwrap();
+        let atom = system.get_atom(360).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "carbon");
         assert_eq!(atom.get_element_symbol().unwrap(), "C");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 16.0107);
@@ -1310,7 +1307,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 3);
 
         // O31 in POPC44
-        let atom = system.get_atom_as_ref(3081).unwrap();
+        let atom = system.get_atom(3081).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "oxygen");
         assert_eq!(atom.get_element_symbol().unwrap(), "O");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 19.9994);
@@ -1319,7 +1316,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 3);
 
         // P in POPC127
-        let atom = system.get_atom_as_ref(14184).unwrap();
+        let atom = system.get_atom(14184).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "phosphorus");
         assert_eq!(atom.get_element_symbol().unwrap(), "P");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 32.9738);
@@ -1328,7 +1325,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 5);
 
         // HW1 in SOL4827
-        let atom = system.get_atom_as_ref(31541).unwrap();
+        let atom = system.get_atom(31541).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "hydrogen");
         assert_eq!(atom.get_element_symbol().unwrap(), "H");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 1.5079);
@@ -1337,7 +1334,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 2);
 
         // OW in SOL177
-        let atom = system.get_atom_as_ref(17590).unwrap();
+        let atom = system.get_atom(17590).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "oxygen");
         assert_eq!(atom.get_element_symbol().unwrap(), "O");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 19.9994);
@@ -1346,7 +1343,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 3);
 
         // NA in NA5250
-        let atom = system.get_atom_as_ref(32795).unwrap();
+        let atom = system.get_atom(32795).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "sodium");
         assert_eq!(atom.get_element_symbol().unwrap(), "Na");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 25.9897);
@@ -1355,7 +1352,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 0);
 
         // CL in CL5271
-        let atom = system.get_atom_as_ref(32816).unwrap();
+        let atom = system.get_atom(32816).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "chlorine");
         assert_eq!(atom.get_element_symbol().unwrap(), "Cl");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 37.453);
@@ -1369,7 +1366,7 @@ mod tests {
         let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
         system.guess_elements(Elements::default()).unwrap();
 
-        system.get_atom_as_mut(1).unwrap().reset_element_name();
+        system.get_atom_mut(1).unwrap().reset_element_name();
 
         let no_element: Vec<usize> = vec![2];
         let not_recognized: Vec<usize> = vec![
@@ -1430,7 +1427,7 @@ mod tests {
         }
 
         // N in SER1
-        let atom = system.get_atom_as_ref(0).unwrap();
+        let atom = system.get_atom(0).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "nitrogen");
         assert_eq!(atom.get_element_symbol().unwrap(), "N");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 17.0067);
@@ -1439,7 +1436,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 5);
 
         // H1 in SER1
-        let atom = system.get_atom_as_ref(1).unwrap();
+        let atom = system.get_atom(1).unwrap();
         assert_eq!(atom.get_element_name(), None);
         assert_eq!(atom.get_element_symbol().unwrap(), "H");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 1.0079);
@@ -1448,7 +1445,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 1);
 
         // C in SER23
-        let atom = system.get_atom_as_ref(360).unwrap();
+        let atom = system.get_atom(360).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "carbon");
         assert_eq!(atom.get_element_symbol().unwrap(), "C");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 16.0107);
@@ -1457,7 +1454,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 2);
 
         // O31 in POPC44
-        let atom = system.get_atom_as_ref(3081).unwrap();
+        let atom = system.get_atom(3081).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "oxygen");
         assert_eq!(atom.get_element_symbol().unwrap(), "O");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 19.9994);
@@ -1466,7 +1463,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 2);
 
         // P in POPC127
-        let atom = system.get_atom_as_ref(14184).unwrap();
+        let atom = system.get_atom(14184).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "phosphorus");
         assert_eq!(atom.get_element_symbol().unwrap(), "P");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 32.9738);
@@ -1475,7 +1472,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 2);
 
         // HW1 in SOL4827
-        let atom = system.get_atom_as_ref(31541).unwrap();
+        let atom = system.get_atom(31541).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "hydrogen");
         assert_eq!(atom.get_element_symbol().unwrap(), "H");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 1.5079);
@@ -1484,7 +1481,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 1);
 
         // OW in SOL177
-        let atom = system.get_atom_as_ref(17590).unwrap();
+        let atom = system.get_atom(17590).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "oxygen");
         assert_eq!(atom.get_element_symbol().unwrap(), "O");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 19.9994);
@@ -1493,7 +1490,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds().unwrap(), 2);
 
         // NA in NA5250
-        let atom = system.get_atom_as_ref(32795).unwrap();
+        let atom = system.get_atom(32795).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "sodium");
         assert_eq!(atom.get_element_symbol().unwrap(), "Na");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 22.9897);
@@ -1502,7 +1499,7 @@ mod tests {
         assert_eq!(atom.get_expected_min_bonds(), None);
 
         // CL in CL5271
-        let atom = system.get_atom_as_ref(32816).unwrap();
+        let atom = system.get_atom(32816).unwrap();
         assert_eq!(atom.get_element_name().unwrap(), "chlorine");
         assert_eq!(atom.get_element_symbol().unwrap(), "Cl");
         assert_approx_eq!(f32, atom.get_mass().unwrap(), 35.453);
@@ -1561,7 +1558,7 @@ mod tests {
             Ok(_) | Err(_) => (),
         }
 
-        system.get_atom_as_mut(1).unwrap().reset_vdw();
+        system.get_atom_mut(1).unwrap().reset_vdw();
 
         let no_vdw = vec![2];
         let too_few_bonds = vec![
@@ -1630,7 +1627,7 @@ mod tests {
                 Ok(_) | Err(_) => (),
             }
 
-            system.get_atom_as_mut(1).unwrap().reset_vdw();
+            system.get_atom_mut(1).unwrap().reset_vdw();
 
             match system.guess_bonds_parallel(None, n_threads) {
                 Ok(_) => panic!("Function should have returned a warning."),

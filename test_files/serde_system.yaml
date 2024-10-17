@@ -1489,6 +1489,6 @@ groups:
 labeled_atoms: {}
 simulation_step: 0
 simulation_time: 0.0
-coordinates_precision: 100
+precision: 100
 lambda: 0.0
 mol_references: null

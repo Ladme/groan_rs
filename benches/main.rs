@@ -50,7 +50,7 @@ fn benchmark(c: &mut Criterion) {
         b.iter(|| {
             std::hint::black_box(
                 system
-                    .get_atoms_as_ref()
+                    .get_atoms()
                     .iter()
                     .fold(0, |sum, atom| sum + atom.get_atom_number()),
             );
