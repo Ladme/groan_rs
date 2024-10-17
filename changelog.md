@@ -6,6 +6,23 @@
 - Introduced `System::make_group_whole` for making a group "whole" in the system (similar to `System::make_molecules_whole`).
 - **Breaking change:** `System::group_all_distances` now returns ndarray's `Array2` instead of a vector of vectors.
 
+#### Getters and Setters
+- **Breaking changes**:
+  - Many 'setter' and 'getter' methods have been renamed, namely:
+    - `get_atoms_as_ref` -> `get_atoms`
+    - `get_atoms_as_mut` -> `get_atoms_mut`
+    - `get_groups_as_ref` -> `get_groups`
+    - `get_box_as_ref` -> `get_box`
+    - `get_box_as_mut` -> `get_box_mut`
+    - `get_atom_as_ref` -> `get_atom`
+    - `get_atom_as_mut` -> `get_atom_mut`
+    - `get_atom_unchecked_as_ref` -> `get_atom_unchecked`
+    - `get_atom_unchecked_as_mut` -> `get_atom_unchecked_mut`
+    - `get_labeled_atom_as_ref` -> `get_labeled_atom`
+    - `get_labeled_atom_as_mut` -> `get_labeled_atom_mut`
+  - `get_atoms_mut` no longer returns a mutable vector `&mut Vec<Atom>` but only a mutable slice `&mut [Atom]` preventing the user from adding and removing atoms.
+  - Signatures of several 'getter' methods originally returning `&str` or `Option<&str>` have been changed to return `&String` or `Option<&String>` which may cause minor issues, e.g. when comparing strings.
+
 #### RMSD calculation
 - Introduced `System::calc_rmsd` allowing to calculate RMSD between current and some reference structure.
 
