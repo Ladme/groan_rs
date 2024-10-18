@@ -297,6 +297,7 @@ impl<
 
     /// Check that the x and y coordinates used for the construction of the GridMap are valid.
     /// Also get the span of the grid map.
+    #[allow(clippy::type_complexity)]
     fn validate_and_get_span(
         x_coords: &[f32],
         y_coords: &[f32],
@@ -360,12 +361,14 @@ impl<
                 }
 
                 match block_size {
-                    Some(block) => {
-                        if counter < block {
+                    Some(block) => match counter.cmp(&block) {
+                        std::cmp::Ordering::Less => {
                             return Err(GridMapError::InvalidCoordinates(s.to_string()));
-                        } else if counter > block {
+                        }
+                        std::cmp::Ordering::Greater => {
                             panic!("FATAL GROAN ERROR | GridMap::validate_slow_changing_coords | Invalid slow-changing coordinate detected but this should have been handled elsewhere.");
-                        } else {
+                        }
+                        std::cmp::Ordering::Equal => {
                             previous_slow = s;
                             Self::update_min_max(
                                 previous_slow,
@@ -374,7 +377,7 @@ impl<
                                 &mut max_s,
                             );
                         }
-                    }
+                    },
                     None => {
                         block_size = Some(counter);
                         previous_slow = s;
