@@ -64,13 +64,6 @@ impl From<Vector3<f32>> for Vector3D {
     }
 }
 
-/// Allows accessing fields of `Vector3D` as `.x`, `.y`, and `.z`.
-pub struct Vector3Raw {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-}
-
 impl Deref for Vector3D {
     type Target = Vector3<f32>;
 
