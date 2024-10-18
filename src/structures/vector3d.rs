@@ -3,7 +3,10 @@
 
 //! Implementation of methods for three-dimensional vector.
 
-use std::ops::{Add, Deref, DerefMut, Div, Mul, Sub};
+use std::{
+    fmt::Display,
+    ops::{Add, Deref, DerefMut, Div, Mul, Sub},
+};
 
 use crate::structures::{dimension::Dimension, simbox::SimBox};
 use nalgebra::base::Vector3;
@@ -13,6 +16,12 @@ use nalgebra::base::Vector3;
 #[derive(Debug, PartialEq, Clone)]
 #[repr(transparent)]
 pub struct Vector3D(pub(crate) Vector3<f32>);
+
+impl Display for Vector3D {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}, {}, {}]", self.x, self.y, self.z)
+    }
+}
 
 /// Function replicating the behavior of Python '%'.
 #[inline]
@@ -646,6 +655,12 @@ mod serde {
 mod tests {
     use super::*;
     use float_cmp::assert_approx_eq;
+
+    #[test]
+    fn display() {
+        let vec = Vector3D::new(4.32174, 5.6245, 1.212094);
+        assert_eq!(vec.to_string(), String::from("[4.32174, 5.6245, 1.212094]"));
+    }
 
     #[test]
     fn len() {
