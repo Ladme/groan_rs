@@ -36,6 +36,7 @@
 - Implemented `Deref` and `DerefMut` for `Vector3D` properly, so accessing the methods of `nalgebra::Vector3` should be easier.
 - `AtomContainer::isin` (and consequently `System::group_isin`) should be now faster.
 - `Vector3D` now implements the `Display` trait.
+- Values in the `GridMap` can be now cleared using `GridMap::clear`.
 
 ***
 

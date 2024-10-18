@@ -347,6 +347,13 @@ impl<
         })
     }
 
+    /// Set all raw values in the gridmap to the default values.
+    pub fn clear(&mut self) {
+        self.values
+            .iter_mut()
+            .for_each(|x| *x = RawValue::default())
+    }
+
     /// Get the total number of tiles in the grid map.
     #[inline(always)]
     pub fn n_tiles(&self) -> usize {
@@ -781,6 +788,35 @@ mod tests {
         assert_eq!(*gridmap.get_at(0.0, 1.0).unwrap(), vec![4, 8, 12]);
         assert_eq!(*gridmap.get_at(1.0, 1.0).unwrap(), vec![2, 5]);
         assert_eq!(*gridmap.get_at(2.0, 1.0).unwrap(), Vec::<usize>::new());
+    }
+
+    #[test]
+    fn clear() {
+        let values = vec![1, 2, 3, 4, 5, 6, 7, 8];
+        let mut gridmap = GridMap::from_vec(
+            (1.0, 2.0),
+            (1.0, 2.5),
+            (1.0, 0.5),
+            values,
+            DataOrder::ColumnMajor,
+            usize::to_owned,
+        )
+        .unwrap();
+
+        gridmap.clear();
+        assert!(gridmap.values.iter().all(|&x| x == 0));
+
+        let mut gridmap = GridMap::from_file(
+            "test_files/gridmaps/map_column_major.dat",
+            sum_usize,
+            &['|'],
+            parse_vec,
+            &["@", "#"],
+        )
+        .unwrap();
+
+        gridmap.clear();
+        assert!(gridmap.values.iter().all(|x| x.is_empty()));
     }
 
     #[test]
