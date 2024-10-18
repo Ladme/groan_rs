@@ -3,6 +3,7 @@
 
 //! Implementation of a higher-level utility GridMap structure for use in `groan_rs` programs.
 
+use getset::CopyGetters;
 use ndarray::{Array2, ShapeBuilder};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -46,17 +47,20 @@ pub enum DataOrder {
 /// 1 2   4   6   8 9
 ///
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, CopyGetters)]
 pub struct GridMap<
     RawValue: Default + Clone + std::fmt::Debug,
     VisValue: Display,
     Converter: Fn(&RawValue) -> VisValue,
 > {
     /// Span of the map in the x-dimension.
+    #[getset(get_copy = "pub")]
     span_x: (f32, f32),
     /// Span of the map in the y-dimension.
+    #[getset(get_copy = "pub")]
     span_y: (f32, f32),
     /// Dimensions of a single grid tile.
+    #[getset(get_copy = "pub")]
     tile_dim: (f32, f32),
     /// All values of the individual grid tiles.
     values: Array2<RawValue>,
@@ -359,24 +363,6 @@ impl<
     #[inline(always)]
     pub fn n_tiles_y(&self) -> usize {
         self.values.ncols()
-    }
-
-    /// Get the span of the map along the x-dimension.
-    #[inline(always)]
-    pub fn span_x(&self) -> (f32, f32) {
-        self.span_x
-    }
-
-    /// Get the span of the map along the y-dimension.
-    #[inline(always)]
-    pub fn span_y(&self) -> (f32, f32) {
-        self.span_y
-    }
-
-    /// Get the grid tile dimensions.
-    #[inline(always)]
-    pub fn tile_dim(&self) -> (f32, f32) {
-        self.tile_dim
     }
 
     /// Get the coordinates of tile target point is located in.
