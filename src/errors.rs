@@ -552,6 +552,15 @@ pub enum GridMapError {
     /// Used when constructing a grid map from a vector which length does not match the dimensions of the map.
     #[error("{} grid map expected '{}' values, got '{}' values", "error:".red().bold(), .0.to_string().yellow(), .1.to_string().yellow())]
     InvalidMapDimensions(usize, usize),
+    /// Used when the coordinates used to specify the map dimensions are inconsistent.
+    #[error("{} invalid or inconsistent coordinates of a grid map: unexpected coordinate '{}'", "error:".red().bold(), .0.yellow())]
+    InvalidCoordinates(String),
+    /// Used whent he coordinates of the grid map are not specified in increasing order.
+    #[error("{} coordinates of a grid map not specified in increasing order ('{}' is lower than '{}')", "error:".red().bold(), .0.yellow(), .1.yellow())]
+    NotIncreasing(String, String),
+    /// Used when a point of a grid map is defined multiple times in the input.
+    #[error("{} point with coordinates '{},{}' is defined multiple times", "error:".red().bold(), .0.yellow(), .1.yellow())]
+    PointDefinedMultipleTimes(String, String)
 }
 
 /// Errors that can occur when calculating RMSD.

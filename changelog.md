@@ -37,6 +37,7 @@
 - `AtomContainer::isin` (and consequently `System::group_isin`) should be now faster.
 - `Vector3D` now implements the `Display` trait.
 - Values in the `GridMap` can be now cleared using `GridMap::clear`.
+- The loading of `GridMaps` from files has been reworked. It should no longer be possible to load a grid map with invalid coordinates.
 
 ***
 
