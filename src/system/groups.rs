@@ -841,7 +841,8 @@ impl System {
     pub fn group_names_writable(&self) -> Vec<String> {
         self.get_groups()
             .iter()
-            .filter_map(|(key, group)| group.print_ndx.then(|| key.to_owned()))
+            .filter(|(_, group)| group.print_ndx)
+            .map(|(key, _)| key.to_owned())
             .collect()
     }
 
@@ -863,10 +864,12 @@ impl System {
     /// Collect names of all groups the atom at target index is a member of.
     /// Atoms are indexed starting from 0.
     /// In case the index is out of range, returns an empty vector.
+    /// The names are returned in their order of insertion.
     pub fn groups_member(&self, index: usize) -> Vec<String> {
         self.get_groups()
             .iter()
-            .filter_map(|(name, group)| group.get_atoms().isin(index).then(|| name.to_owned()))
+            .filter(|(_, group)| group.get_atoms().isin(index))
+            .map(|(name, _)| name.to_owned())
             .collect()
     }
 }
@@ -2782,5 +2785,35 @@ mod tests {
             Err(GroupError::NotFound(x)) => assert_eq!(x, "Nonexistent"),
             Err(e) => panic!("Incorrect error type returned: {:?}", e),
         }
+    }
+
+    #[test]
+    fn groups_member() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let expected_groups = vec![
+            "all",
+            "All",
+            "System",
+            "Protein",
+            "Protein-H",
+            "SideChain",
+            "SideChain-H",
+            "Prot-Masses",
+            "Transmembrane_all",
+            "Transmembrane",
+            "Protein_Membrane",
+        ];
+        let groups = system.groups_member(1);
+
+        assert_eq!(expected_groups.len(), groups.len());
+        for (expected, result) in expected_groups.into_iter().zip(groups.iter()) {
+            assert_eq!(expected, result)
+        }
+
+        // index out of range is part of no groups
+        let groups = system.groups_member(16844);
+        assert!(groups.is_empty());
     }
 }

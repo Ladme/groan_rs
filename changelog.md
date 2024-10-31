@@ -39,6 +39,7 @@
 - Implemented `Deref` and `DerefMut` for `Vector3D` properly, so accessing the methods of `nalgebra::Vector3` should be easier.
 - `AtomContainer::isin` (and consequently `System::group_isin`) should be now faster.
 - `Vector3D` now implements the `Display` trait.
+- Introduced `System::groups_member` function which returns a vector of all group names an atom with specified index is a member of.
 - Values in the `GridMap` can be now cleared using `GridMap::clear`.
 - The loading of `GridMaps` from files has been reworked. It should no longer be possible to load a grid map with invalid coordinates.
 - Bug fix: Regex operators can be now used in regular expression blocks without raising an InvalidOperator error.
