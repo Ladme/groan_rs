@@ -821,7 +821,7 @@ impl System {
         self.get_groups().keys().map(|key| key.to_owned()).collect()
     }
 
-    /// Get all group names assocaited with the system excluding ndx-nonwritable (default) groups.
+    /// Get all group names associated with the system excluding ndx-nonwritable (default) groups.
     ///
     /// ## Example
     /// ```no_run
@@ -864,6 +864,16 @@ impl System {
             .ok_or(GroupError::NotFound(name.to_string()))?;
 
         Ok(group.get_atoms().is_empty())
+    }
+
+    /// Collect names of all groups the atom at target index is a member of.
+    /// Atoms are indexed starting from 0.
+    /// In case the index is out of range, returns an empty vector.
+    pub fn groups_member(&self, index: usize) -> Vec<String> {
+        self.get_groups()
+            .iter()
+            .filter_map(|(name, group)| group.get_atoms().isin(index).then(|| name.to_owned()))
+            .collect()
     }
 }
 
