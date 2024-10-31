@@ -574,6 +574,47 @@ impl Vector3D {
     pub fn is_zero(&self) -> bool {
         self.0.x == 0.0 && self.0.y == 0.0 && self.0.z == 0.0
     }
+
+    /// Get an average 3D vector from a collection of 3D vectors.
+    ///
+    /// ## Examples
+    /// Example 1:
+    /// ```
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
+    /// let vectors = [Vector3D::new(1.0, 2.0, 4.0), Vector3D::new(3.0, 2.0, -2.0)];
+    /// let average = Vector3D::average(&vectors);
+    ///
+    /// assert_approx_eq!(f32, average.x, 2.0);
+    /// assert_approx_eq!(f32, average.y, 2.0);
+    /// assert_approx_eq!(f32, average.z, 1.0);
+    /// ```
+    ///
+    /// Example 2:
+    /// ```
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
+    /// let vectors = [
+    ///     Vector3D::new(-3.0, 0.0, 2.0),
+    ///     Vector3D::new(-2.0, 1.0, 7.0),
+    ///     Vector3D::new(1.0, -2.0, 2.0),
+    /// ];
+    ///
+    /// let average = Vector3D::average(&vectors);
+    /// assert_approx_eq!(f32, average.x, -1.333333, epsilon = 1e-4);
+    /// assert_approx_eq!(f32, average.y, -0.333333, epsilon = 1e-4);
+    /// assert_approx_eq!(f32, average.z, 3.6666666, epsilon = 1e-4);
+    /// ```
+    pub fn average(vectors: &[Vector3D]) -> Vector3D {
+        let sum = vectors.iter().fold((0.0, 0.0, 0.0), |(x, y, z), vec| {
+            (x + vec.x, y + vec.y, z + vec.z)
+        });
+
+        let count = vectors.len() as f32;
+        Vector3D::new(sum.0 / count, sum.1 / count, sum.2 / count)
+    }
 }
 
 impl Default for Vector3D {
