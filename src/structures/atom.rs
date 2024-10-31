@@ -21,7 +21,7 @@ use crate::structures::{
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct Atom {
     /// Position (index) of the atom in the system. Guaranteed to be unique.
-    /// Undefined if the atom is not part of the system.
+    /// Undefined if the atom is not part of a system.
     #[getset(get_copy = "pub with_prefix", set = "pub(crate)")]
     #[cfg_attr(feature = "serde", serde(skip))]
     index: usize,
@@ -76,6 +76,7 @@ impl Atom {
     /// - By default, atom is constructed with `position`, `velocity`, `force`, `chain`, `charge`,
     ///   `mass`, `vdw`, `expected_max_bonds`, `expected_min_bonds`, `element_name`, and `element_symbol`
     ///   set to `None`. You can provide this information using the `Atom::with_*` methods.
+    /// - Index of an atom after construction is 0. Valid index is only assigned once the atom is added to a System.
     pub fn new(
         residue_number: usize,
         residue_name: &str,

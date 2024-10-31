@@ -70,7 +70,7 @@ impl Select {
         let molwith_pattern = Regex::new(
             r"(molecule\s*with|mol\s*with)(?=(?:[^']*'[^']*')*[^']*$)",
         )
-        .expect("FATAL GROAN ERROR | select::parse_query | Could not construct regex pattern.");
+        .expect("FATAL GROAN ERROR | Select::parse_query | Could not construct regex pattern.");
         expression = molwith_pattern.replace_all(&expression, "@@").to_string();
 
         // replace word operators with their symbolic equivalents
@@ -518,10 +518,10 @@ fn process_operation(
             Operator::Not => Box::from(Select::Not(parsed)),
             Operator::Molecule => Box::from(Select::Molecule(parsed)),
             Operator::And => panic!(
-                "FATAL GROAN ERROR | select::process_operation | AND operator is being treated as an unary operator."
+                "FATAL GROAN ERROR | select::process_operation | AND operator is being treated as a unary operator."
             ),
             Operator::Or => panic!(
-                "FATAL GROAN ERROR | select::process_operation | OR operator is being treated as an unary operator."
+                "FATAL GROAN ERROR | select::process_operation | OR operator is being treated as a unary operator."
             ),
         };
     }
@@ -804,7 +804,7 @@ fn parse_token(string: &str) -> Result<Select, SelectError> {
         }
 
         "atomid" => Err(SelectError::DeprecatedKeyword(
-            "'atomid' is a deprecated keyword since `groan_rs` v0.9; use 'atomnum' instead",
+            "'atomid' is a deprecated Groan Selection Language keyword since `groan_rs` v0.9; use 'atomnum' instead",
         )),
 
         "chain" => {

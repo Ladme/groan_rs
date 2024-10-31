@@ -81,7 +81,7 @@ impl AtomContainer {
             } else {
                 // create the block
                 unsafe {
-                    // safety: we previously make sure that `end` is lower than `n_atoms`
+                    // safety: we previously made sure that `end` is lower than `n_atoms`
                     // start can not be higher than end from logic
                     blocks.push(AtomBlock::new_unchecked(start, end));
                 }
@@ -93,7 +93,7 @@ impl AtomContainer {
 
         // add the last completed block to the `blocks` vector
         unsafe {
-            // safety: we previously make sure that `end` is lower than `n_atoms`
+            // safety: we previously made sure that `end` is lower than `n_atoms`
             // start can not be higher than end from logic
             blocks.push(AtomBlock::new_unchecked(start, end));
         }

@@ -311,7 +311,7 @@ impl TriangularPrism {
     ///   to be inside the base. `C'` specifies periodic image of `C`.
     ///   Areas marked with `!` are *NOT* included in the prism, even though they could be if we considered PBC.
     ///
-    /// - The above-described behavior may change in future version of the `groan_rs` library!
+    /// - The above-described behavior may change in future versions of the `groan_rs` library!
     ///
     /// - Since the upper base of the prism is defined relative to the bottom base (using the `height` attribute),
     ///   periodic boundary conditions *ARE* used in this case. In other words,
