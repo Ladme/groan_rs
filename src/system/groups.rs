@@ -841,13 +841,7 @@ impl System {
     pub fn group_names_writable(&self) -> Vec<String> {
         self.get_groups()
             .iter()
-            .filter_map(|(key, group)| {
-                if group.print_ndx {
-                    Some(key.to_owned())
-                } else {
-                    None
-                }
-            })
+            .filter_map(|(key, group)| group.print_ndx.then(|| key.to_owned()))
             .collect()
     }
 
