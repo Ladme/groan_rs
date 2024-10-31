@@ -466,17 +466,17 @@ impl TrajWrite for TrrWriter {
             let mut velocities = vec![[0.0, 0.0, 0.0]; n_atoms];
             let mut forces = vec![[0.0, 0.0, 0.0]; n_atoms];
 
-            for (i, atom) in (*self.system).atoms_iter().enumerate() {
+            for atom in (*self.system).atoms_iter() {
                 if let Some(pos) = atom.get_position() {
-                    coordinates[i] = [pos.x, pos.y, pos.z];
+                    coordinates[atom.get_index()] = [pos.x, pos.y, pos.z];
                 }
 
                 if let Some(vel) = atom.get_velocity() {
-                    velocities[i] = [vel.x, vel.y, vel.z];
+                    velocities[atom.get_index()] = [vel.x, vel.y, vel.z];
                 }
 
                 if let Some(force) = atom.get_force() {
-                    forces[i] = [force.x, force.y, force.z]
+                    forces[atom.get_index()] = [force.x, force.y, force.z]
                 }
             }
 

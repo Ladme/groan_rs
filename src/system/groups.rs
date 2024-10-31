@@ -415,25 +415,20 @@ impl System {
     pub fn group_split_by_resid(&mut self, name: &str) -> (Result<(), GroupError>, Vec<String>) {
         let mut groups: IndexMap<String, Vec<usize>> = IndexMap::new();
 
-        let group = match self.get_groups().get(name) {
-            Some(x) => x,
-            None => return (Err(GroupError::NotFound(name.to_string())), Vec::new()),
+        let iterator = match self.group_iter(name) {
+            Ok(x) => x,
+            Err(e) => return (Err(e), Vec::new()),
         };
 
         // collect atoms into groups
-        // Note: we have to iterate through all the atoms to get their correct indices
-        for (atomid, atom) in self.atoms_iter().enumerate() {
-            if !group.get_atoms().isin(atomid) {
-                continue;
-            }
-
+        for atom in iterator {
             let res = atom.get_residue_number();
             let group_name = format!("resid {}", res);
 
             match groups.get_mut(&group_name) {
-                Some(group) => group.push(atomid),
+                Some(group) => group.push(atom.get_index()),
                 None => {
-                    groups.insert(group_name, vec![atomid]);
+                    groups.insert(group_name, vec![atom.get_index()]);
                 }
             }
         }
@@ -543,23 +538,20 @@ impl System {
     pub fn group_split_by_resname(&mut self, name: &str) -> (Result<(), GroupError>, Vec<String>) {
         let mut groups: IndexMap<String, Vec<usize>> = IndexMap::new();
 
-        let group = match self.get_groups().get(name) {
-            Some(x) => x,
-            None => return (Err(GroupError::NotFound(name.to_string())), Vec::new()),
+        let iterator = match self.group_iter(name) {
+            Ok(x) => x,
+            Err(e) => return (Err(e), Vec::new()),
         };
 
-        for (atomid, atom) in self.atoms_iter().enumerate() {
-            if !group.get_atoms().isin(atomid) {
-                continue;
-            }
-
+        // collect atoms into groups
+        for atom in iterator {
             let res = atom.get_residue_name();
             let group_name = format!("resname {}", res);
 
             match groups.get_mut(&group_name) {
-                Some(group) => group.push(atomid),
+                Some(group) => group.push(atom.get_index()),
                 None => {
-                    groups.insert(group_name, vec![atomid]);
+                    groups.insert(group_name, vec![atom.get_index()]);
                 }
             }
         }
@@ -1272,7 +1264,7 @@ mod tests {
 
         system.group_create(
             "Complex Group", 
-            "((serial 1 - 15 or atomid 13 14 15 16 || atomnum 62 64 to 70) && Protein ION) or 
+            "((serial 1 - 15 or atomnum 13 14 15 16 || atomnum 62 64 to 70) && Protein ION) or 
             (resid 11179 to 13000 or resnum 5400) and (resname W or (resname GLY LEU and (name BB or atomname SC1)))").unwrap();
         assert_eq!(system.group_get_n_atoms("Complex Group").unwrap(), 2);
 
@@ -1286,7 +1278,7 @@ mod tests {
         let mut system = System::from_file("test_files/example_renumbered.gro").unwrap();
 
         system.group_create("Serial 6", "serial 6").unwrap();
-        system.group_create("Atomid 6", "atomid 6").unwrap();
+        system.group_create("Atomid 6", "atomnum 6").unwrap();
         system.group_create("Atomnum 6", "atomnum 6").unwrap();
 
         assert_eq!(
@@ -1307,7 +1299,7 @@ mod tests {
             assert_eq!(atom.get_atom_number(), 49);
         }
 
-        system.group_create("Atomid 49", "atomid 49").unwrap();
+        system.group_create("Atomid 49", "atomnum 49").unwrap();
         assert_eq!(system.group_get_n_atoms("Atomid 49").unwrap(), 3);
 
         assert!(system.group_isin("Atomid 49", 9).unwrap());
@@ -1317,7 +1309,7 @@ mod tests {
         system.group_create("Atomnum 133", "atomnum 133").unwrap();
         assert_eq!(system.group_get_n_atoms("Atomnum 133").unwrap(), 1);
 
-        system.group_create("Atomid 10", "atomid 10").unwrap();
+        system.group_create("Atomid 10", "atomnum 10").unwrap();
         assert_eq!(system.group_get_n_atoms("Atomid 10").unwrap(), 0);
     }
 

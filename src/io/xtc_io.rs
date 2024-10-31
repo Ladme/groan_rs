@@ -465,9 +465,9 @@ impl TrajWrite for XtcWriter {
 
             // prepare coordinate matrix
             let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
-            for (i, atom) in (*self.system).atoms_iter().enumerate() {
+            for atom in (*self.system).atoms_iter() {
                 if let Some(pos) = atom.get_position() {
-                    coordinates[i] = [pos.x, pos.y, pos.z];
+                    coordinates[atom.get_index()] = [pos.x, pos.y, pos.z];
                 }
             }
 
@@ -507,7 +507,8 @@ impl TrajWrite for XtcWriter {
 pub struct XtcGroupWriter {
     system: *const System,
     xtc: XdrFile,
-    /// This is a deep copy of the group from the system. `XtcGroupWriter` must always work, even if the user removes the group from the `System` or overwrites it.
+    /// This is a deep copy of the group from the system.
+    /// `XtcGroupWriter` must always work, even if the user removes the group from the `System` or overwrites it.
     group: Group,
 }
 

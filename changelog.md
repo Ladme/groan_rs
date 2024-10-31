@@ -3,11 +3,13 @@
 
 ### Version 0.9.0
 
-- Introduced `System::make_group_whole` for making a group "whole" in the system (similar to `System::make_molecules_whole`).
-- **Breaking change:** `System::group_all_distances` now returns ndarray's `Array2` instead of a vector of vectors.
+#### Atom index
+- Introduced a new `Atom` field `index` which corresponds to the index of the atom in the system (starting from 0). This field can be accessed using `Atom::get_index` and is only valid if the atom is part of a system.
+- Several functions have been reworked to be more efficient by using the new `index` field.
+- **Breaking change:** Keyword `atomid` in the Groan Selection Language has been removed as to not confuse it with the new `index` field. Use `atomnum` instead.
 
 #### Getters and Setters
-- **Breaking changes**:
+- **Breaking changes:**
   - Many 'setter' and 'getter' methods have been renamed, namely:
     - `get_atoms_as_ref` -> `get_atoms`
     - `get_atoms_as_mut` -> `get_atoms_mut`
@@ -31,13 +33,15 @@
 - `System::traj_iter_map_reduce` now properly propagates errors and failures from the individual threads into the master-thread `ProgressPrinter`.
 
 #### Bug fixes and minor changes
-- Bug fix: Regex operators can be now used in regular expression blocks without raising an InvalidOperator error.
+- Introduced `System::make_group_whole` for making a group "whole" in the system (similar to `System::make_molecules_whole`).
+- **Breaking change:** `System::group_all_distances` now returns ndarray's `Array2` instead of a vector of vectors.
 - `FileType` is now part of the prelude.
 - Implemented `Deref` and `DerefMut` for `Vector3D` properly, so accessing the methods of `nalgebra::Vector3` should be easier.
 - `AtomContainer::isin` (and consequently `System::group_isin`) should be now faster.
 - `Vector3D` now implements the `Display` trait.
 - Values in the `GridMap` can be now cleared using `GridMap::clear`.
 - The loading of `GridMaps` from files has been reworked. It should no longer be possible to load a grid map with invalid coordinates.
+- Bug fix: Regex operators can be now used in regular expression blocks without raising an InvalidOperator error.
 
 ***
 

@@ -541,12 +541,12 @@ impl System {
         let mut too_many_bonds = IndexMap::new();
         let mut too_few_bonds = IndexMap::new();
 
-        for (a, atom) in self.atoms_iter().enumerate() {
+        for atom in self.atoms_iter() {
             // check limit for maximal number of bonds
             if let Some(limit) = atom.get_expected_max_bonds() {
                 if atom.get_n_bonded() > limit as usize
                     && too_many_bonds
-                        .insert(a + 1, (atom.get_n_bonded(), limit))
+                        .insert(atom.get_index() + 1, (atom.get_n_bonded(), limit))
                         .is_some()
                 {
                     panic!("FATAL GROAN ERROR | System::guess_bonds | Atom should not be in the `too_many_bonds` map.")
@@ -557,7 +557,7 @@ impl System {
             if let Some(limit) = atom.get_expected_min_bonds() {
                 if atom.get_n_bonded() < limit as usize
                     && too_few_bonds
-                        .insert(a + 1, (atom.get_n_bonded(), limit))
+                        .insert(atom.get_index() + 1, (atom.get_n_bonded(), limit))
                         .is_some()
                 {
                     panic!("FATAL GROAN ERROR | System::guess_bonds | Atom should not be in the `too_few_bonds` map.")

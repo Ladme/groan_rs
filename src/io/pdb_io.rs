@@ -151,8 +151,7 @@ impl System {
         // create a mapping from atom numbers to their indices for quick lookup
         let atom_number_to_index: HashMap<usize, usize> = self
             .atoms_iter()
-            .enumerate()
-            .map(|(index, atom)| (atom.get_atom_number(), index))
+            .map(|atom| (atom.get_atom_number(), atom.get_index()))
             .collect();
 
         // create vector for temporary storing of connectivity information
@@ -948,8 +947,8 @@ mod tests_read {
             vec![],
         ];
 
-        for (a, atom) in system.atoms_iter().enumerate() {
-            let expected = expected_bonded.get(a).unwrap();
+        for atom in system.atoms_iter() {
+            let expected = expected_bonded.get(atom.get_index()).unwrap();
             for index in atom.get_bonded().iter() {
                 let bonded = system.get_atoms().get(index).unwrap().get_atom_number();
                 assert!(expected.contains(&bonded));

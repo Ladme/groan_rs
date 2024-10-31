@@ -447,6 +447,9 @@ pub enum SelectError {
     /// This is currently only used when no regular expression in the entire subquery corresponds to any group of atoms or labeled atom.
     #[error("{} regular expression '{}' matches no atom groups/labels in the system", "error:".red().bold(), .0.to_string().yellow())]
     NoRegexMatch(String),
+    /// Used when the user uses a deprecated groan selection language keyword.
+    #[error("{} {}", "error:".red().bold(), .0)]
+    DeprecatedKeyword(&'static str),
     /// Used when an unknown error which does not have a specific `SelectError` variant occurs while parsing the groan selection language query.
     #[error("{} the provided query '{}' could not be understood for unknown reason", "error:".red().bold(), .0.to_string().yellow())]
     UnknownError(String),

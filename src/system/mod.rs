@@ -125,7 +125,12 @@ impl System {
     ///     iterator.cloned().collect(),
     ///     original_system.get_box_copy());
     /// ```
-    pub fn new(name: &str, atoms: Vec<Atom>, simulation_box: Option<SimBox>) -> Self {
+    pub fn new(name: &str, mut atoms: Vec<Atom>, simulation_box: Option<SimBox>) -> Self {
+        // set atom indices
+        atoms.iter_mut().enumerate().for_each(|(index, atom)| {
+            atom.set_index(index);
+        });
+
         let mut system = System {
             name: name.to_string(),
             atoms,
@@ -651,7 +656,13 @@ mod tests {
         assert_eq!(simbox.v3y, 0.0f32);
 
         // compare atoms from PDB an GRO file
-        for (groa, pdba) in system_gro.atoms_iter().zip(system_pdb.atoms_iter()) {
+        for (i, (groa, pdba)) in system_gro
+            .atoms_iter()
+            .zip(system_pdb.atoms_iter())
+            .enumerate()
+        {
+            assert_eq!(groa.get_index(), i);
+            assert_eq!(groa.get_index(), pdba.get_index());
             assert_eq!(groa.get_residue_number(), pdba.get_residue_number());
             assert_eq!(groa.get_residue_name(), pdba.get_residue_name());
             assert_eq!(groa.get_atom_number(), pdba.get_atom_number());
@@ -677,7 +688,13 @@ mod tests {
         }
 
         // compare atoms from PQR and PDB file
-        for (pqra, pdba) in system_pqr.atoms_iter().zip(system_pdb.atoms_iter()) {
+        for (i, (pqra, pdba)) in system_pqr
+            .atoms_iter()
+            .zip(system_pdb.atoms_iter())
+            .enumerate()
+        {
+            assert_eq!(pqra.get_index(), i);
+            assert_eq!(pqra.get_index(), pdba.get_index());
             assert_eq!(pqra.get_residue_number(), pdba.get_residue_number());
             assert_eq!(pqra.get_residue_name(), pdba.get_residue_name());
             assert_eq!(pqra.get_atom_number(), pdba.get_atom_number());

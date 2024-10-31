@@ -111,9 +111,9 @@ impl System {
     /// ```
     pub fn atoms_renumber(&mut self) {
         // intentionally not using `atoms_iter_mut` because this might be faster
-        for (i, atom) in self.get_atoms_mut().iter_mut().enumerate() {
-            atom.set_atom_number(i + 1);
-        }
+        self.get_atoms_mut().iter_mut().for_each(|atom| {
+            atom.set_atom_number(atom.get_index() + 1);
+        })
     }
 
     /// Renumber all residues of the system. This function will give a new residue number
@@ -257,8 +257,8 @@ impl System {
         let mut visited = HashSet::new();
         let mut new_mol_refs = Vec::new();
 
-        for (a, atom) in self.atoms_iter().enumerate() {
-            if visited.contains(&a) {
+        for atom in self.atoms_iter() {
+            if visited.contains(&atom.get_index()) {
                 continue;
             }
 
@@ -267,10 +267,10 @@ impl System {
                 continue;
             }
 
-            new_mol_refs.push(a);
+            new_mol_refs.push(atom.get_index());
 
-            visited.insert(a);
-            for a2 in crate::system::iterating::get_molecule_indices(self, a).expect(
+            visited.insert(atom.get_index());
+            for a2 in crate::system::iterating::get_molecule_indices(self, atom.get_index()).expect(
                 "FATAL GROAN ERROR | System::create_mol_references | Atom index does not exist.",
             ) {
                 visited.insert(a2);

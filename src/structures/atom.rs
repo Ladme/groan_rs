@@ -20,13 +20,18 @@ use crate::structures::{
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct Atom {
-    /// Number (index) of the residue this atom is part of.
+    /// Position (index) of the atom in the system. Guaranteed to be unique.
+    /// Undefined if the atom is not part of the system.
+    #[getset(get_copy = "pub with_prefix", set = "pub(crate)")]
+    #[cfg_attr(feature = "serde", serde(skip))]
+    index: usize,
+    /// Number of the residue this atom is part of.
     #[getset(get_copy = "pub with_prefix", set = "pub")]
     residue_number: usize,
     /// Name of the residue this atom is part of.
     #[getset(get = "pub with_prefix")]
     residue_name: String,
-    /// Number (index) of the atom.
+    /// Number of the atom. Not guaranteed to be unique.
     #[getset(get_copy = "pub with_prefix", set = "pub")]
     atom_number: usize,
     /// Name of the atom.
@@ -78,6 +83,7 @@ impl Atom {
         atom_name: &str,
     ) -> Self {
         Atom {
+            index: 0,
             residue_number,
             residue_name: residue_name.to_string(),
             atom_number,
@@ -639,7 +645,7 @@ impl Atom {
             _ => format!(" {}", resid),
         };
 
-        let format_atomid = match self.get_atom_number() {
+        let format_atomnum = match self.get_atom_number() {
             0..=99999 => format!(" {:>5}", self.get_atom_number()),
             _ => format!("{}", self.get_atom_number()),
         };
@@ -657,7 +663,7 @@ impl Atom {
             precision.position,
             precision.charge,
             precision.vdw,
-            format_atomid,
+            format_atomnum,
             format_atomname,
             format_resname,
             chain,
