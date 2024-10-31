@@ -2934,8 +2934,30 @@ mod select_impl {
         let selection = Select::parse_query("resname ION and label different r'a'").unwrap();
         let selection = selection.expand_regex_group_label(&system).unwrap();
 
-        let string = format!("{:?}", selection);
-        assert_eq!(string, "And(ResidueName([String(\"ION\")]), LabeledAtom([String(\"different\"), String(\"atom_new\"), String(\"atom\"), String(\"atom2\")]))");
+        let expected_expanded = [
+            Name::new("different").unwrap(),
+            Name::new("atom").unwrap(),
+            Name::new("atom2").unwrap(),
+            Name::new("atom_new").unwrap(),
+        ];
+
+        if let Select::And(residue, labeled_atom) = selection {
+            assert_eq!(
+                residue,
+                Box::from(Select::ResidueName(vec![Name::new("ION").unwrap()]))
+            );
+
+            if let Select::LabeledAtom(vec) = *labeled_atom {
+                assert_eq!(vec.len(), expected_expanded.len());
+                for name in vec {
+                    assert!(expected_expanded.contains(&name));
+                }
+            } else {
+                panic!("Labeled atom not matched.")
+            }
+        } else {
+            panic!("Selection tree not matched.")
+        }
     }
 
     #[test]
