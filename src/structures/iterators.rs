@@ -3,6 +3,8 @@
 
 //! Implementation of iterators over atoms and filter functions.
 
+use std::marker::PhantomData;
+
 use crate::{
     auxiliary::PI_X2,
     errors::{AtomError, MassError, PositionError},
@@ -738,6 +740,81 @@ pub trait MasterMutAtomIterator<'a>: Iterator<Item = &'a mut Atom> + Sized {
             simbox_check(self.get_simbox()).map_err(AtomError::InvalidSimBox)? as *const SimBox;
 
         unsafe { self.try_for_each(|atom| atom.wrap(&*simbox)) }
+    }
+}
+
+/**************************/
+/*     PAIR ITERATORS     */
+/**************************/
+
+/// Iterator over pairs of immutable atoms in specified order.
+#[derive(Debug, Clone)]
+pub struct AtomPairIterator<'a> {
+    atoms: &'a [Atom],
+    container: Vec<(usize, usize)>,
+    current_index: usize,
+}
+
+impl<'a> AtomPairIterator<'a> {
+    pub fn new(atoms: &'a [Atom], container: Vec<(usize, usize)>) -> Self {
+        AtomPairIterator {
+            atoms,
+            container,
+            current_index: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for AtomPairIterator<'a> {
+    type Item = (&'a Atom, &'a Atom);
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some((i, j)) = self.container.get(self.current_index) {
+            self.current_index += 1;
+            unsafe { Some((self.atoms.get_unchecked(*i), self.atoms.get_unchecked(*j))) }
+        } else {
+            None
+        }
+    }
+}
+
+/// Iterator over pairs of mutable atoms in specified order.
+#[derive(Debug, Clone)]
+pub struct MutAtomPairIterator<'a> {
+    atoms: *mut [Atom],
+    container: Vec<(usize, usize)>,
+    current_index: usize,
+    phantom: PhantomData<&'a Atom>, // remove, if we ever use simbox here
+}
+
+impl<'a> MutAtomPairIterator<'a> {
+    pub fn new(atoms: &mut [Atom], container: Vec<(usize, usize)>) -> Self {
+        MutAtomPairIterator {
+            atoms: atoms as *mut [Atom],
+            container,
+            current_index: 0,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<'a> Iterator for MutAtomPairIterator<'a> {
+    type Item = (&'a mut Atom, &'a mut Atom);
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some((i, j)) = self.container.get(self.current_index) {
+            self.current_index += 1;
+            unsafe {
+                Some((
+                    (*self.atoms).get_unchecked_mut(*i),
+                    (*self.atoms).get_unchecked_mut(*j),
+                ))
+            }
+        } else {
+            None
+        }
     }
 }
 

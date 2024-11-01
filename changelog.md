@@ -33,6 +33,10 @@
 - **Breaking change**: `System::traj_iter_map_reduce` now requires the user to provide the initial `Data` structure. `Data` structure no longer needs to implement `Default`, but needs to implement `Clone`.
 - `System::traj_iter_map_reduce` now properly propagates errors and failures from the individual threads into the master-thread `ProgressPrinter`.
 
+#### New iterators
+- Added `AtomPairIterator` and `MutAtomPairIterator` to enable iteration over pairs of atoms. These iterators currently support iterating over molecule bonds and can be created via `System::molecule_bonds_iter` and `System::molecule_bonds_iter_mut` for immutable and mutable access, respectively.
+- Note: The design of these iterators and the structure of atom pairs are subject to future refinement and potential expansion in functionality.
+
 #### Bug fixes and minor changes
 - Introduced `System::make_group_whole` for making a group "whole" in the system (similar to `System::make_molecules_whole`).
 - **Breaking change:** `System::group_all_distances` now returns ndarray's `Array2` instead of a vector of vectors.

@@ -583,9 +583,9 @@ pub mod prelude {
     pub use crate::structures::element::Elements;
     pub use crate::structures::gridmap::GridMap;
     pub use crate::structures::iterators::{
-        AtomIterator, FilterAtomIterator, MasterAtomIterator, MasterMutAtomIterator,
-        MoleculeIterator, MutAtomIterator, MutFilterAtomIterator, MutMoleculeIterator,
-        OwnedAtomIterator, OwnedMutAtomIterator,
+        AtomIterator, AtomPairIterator, FilterAtomIterator, MasterAtomIterator,
+        MasterMutAtomIterator, MoleculeIterator, MutAtomIterator, MutAtomPairIterator,
+        MutFilterAtomIterator, MutMoleculeIterator, OwnedAtomIterator, OwnedMutAtomIterator,
     };
     pub use crate::structures::shape::{Cylinder, Rectangular, Shape, Sphere, TriangularPrism};
     pub use crate::structures::simbox::SimBox;

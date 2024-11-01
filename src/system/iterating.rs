@@ -8,8 +8,8 @@ use std::collections::{HashSet, VecDeque};
 use crate::structures::atom::Atom;
 use crate::structures::group::Group;
 use crate::structures::iterators::{
-    AtomIterator, MoleculeIterator, MutAtomIterator, MutMoleculeIterator, OwnedAtomIterator,
-    OwnedMutAtomIterator,
+    AtomIterator, AtomPairIterator, MoleculeIterator, MutAtomIterator, MutAtomPairIterator,
+    MutMoleculeIterator, OwnedAtomIterator, OwnedMutAtomIterator,
 };
 use crate::structures::simbox::SimBox;
 use crate::system::System;
@@ -284,6 +284,61 @@ impl System {
         }
     }
 
+    /// Perform breadth-first iteration through a molecule starting from the atom with `index` and
+    /// collect all bonded pairs of atoms in the molecule.
+    /// The atoms are immutable. Atoms are indexed starting from 0.
+    ///
+    /// ## Returns
+    /// `AtomPairIterator` if the index is valid. `AtomError` otherwise.
+    ///
+    /// ## Notes
+    /// - This function performs breadth-first traveral. Given a molecule
+    /// ```text
+    /// 1 --- 2 --- 3
+    /// |            \___
+    /// |                \
+    /// 4 --- 5 --- 6 --- 7
+    /// |
+    /// |
+    /// 8 --- 9
+    /// ```
+    ///   and starting from the atom 1, the metod will traverse the pairs of atoms in this order:
+    ///   (1, 2), (1, 4), (2, 3), (4, 5), (4, 8), **(3, 7)**, (5, 6), (8, 9), (6, 7).
+    /// - Inside the pair, the atom with the lower index is always first.
+    pub fn molecule_bonds_iter(&self, index: usize) -> Result<AtomPairIterator, AtomError> {
+        let pairs = get_molecule_bonds(self, index)?;
+        Ok(AtomPairIterator::new(self.get_atoms(), pairs))
+    }
+
+    /// Perform breadth-first iteration through a molecule starting from the atom with `index` and
+    /// collect all bonded pairs of atoms in the molecule.
+    /// The atoms are mutable. Atoms are indexed starting from 0.
+    ///
+    /// ## Returns
+    /// `MutAtomPairIterator` if the index is valid. `AtomError` otherwise.
+    ///
+    /// ## Notes
+    /// - This function performs breadth-first traveral. Given a molecule
+    /// ```text
+    /// 1 --- 2 --- 3
+    /// |            \___
+    /// |                \
+    /// 4 --- 5 --- 6 --- 7
+    /// |
+    /// |
+    /// 8 --- 9
+    /// ```
+    ///   and starting from the atom 1, the metod will traverse the pairs of atoms in this order:
+    ///   (1, 2), (1, 4), (2, 3), (4, 5), (4, 8), **(3, 7)**, (5, 6), (8, 9), (6, 7).
+    /// - Inside the pair, the atom with the lower index is always first.
+    pub fn molecule_bonds_iter_mut(
+        &mut self,
+        index: usize,
+    ) -> Result<MutAtomPairIterator, AtomError> {
+        let pairs = get_molecule_bonds(self, index)?;
+        Ok(MutAtomPairIterator::new(self.get_atoms_mut(), pairs))
+    }
+
     /// Create an iterator over atoms specified using a Groan Selection Language query.
     /// This allows selecting atoms without adding a group into the system.
     ///
@@ -374,14 +429,64 @@ pub(crate) fn get_molecule_indices(system: &System, index: usize) -> Result<Vec<
         indices.push(index);
 
         for bonded_index in atom.get_bonded().iter() {
-            if !visited.contains(&bonded_index) {
+            if visited.insert(bonded_index) {
                 queue.push_back(bonded_index);
-                visited.insert(bonded_index);
             }
         }
     }
 
     Ok(indices)
+}
+
+/// Perform breadth-first traversal through a molecule collecting all bonds.
+///
+/// ## Returns
+/// Vector of pairs of bonded atom indices that are part of the molecule.
+/// `AtomError` in case the index is out of range.
+pub(crate) fn get_molecule_bonds(
+    system: &System,
+    index: usize,
+) -> Result<Vec<(usize, usize)>, AtomError> {
+    if index >= system.get_n_atoms() {
+        return Err(AtomError::OutOfRange(index));
+    }
+
+    let mut pairs = Vec::new();
+    let mut queue = VecDeque::new();
+    let mut visited = HashSet::new();
+
+    queue.push_back(index);
+    visited.insert(index);
+
+    // perform BFS
+    while !queue.is_empty() {
+        let index = queue
+            .pop_front()
+            .expect("FATAL GROAN ERROR | iterators::get_molecule_bonds | Attempted to dequeue element from an empty queue.");
+
+        let atom = system.get_atom(index).expect(
+            "FATAL GROAN ERROR | iterators::get_molecule_bonds | Atom index does not exist.",
+        );
+
+        for bonded_index in atom.get_bonded().iter() {
+            let pair = if index < bonded_index {
+                (index, bonded_index)
+            } else {
+                (bonded_index, index)
+            };
+
+            // O(n) operation but we can't use HashSet since it does not maintain the order of items
+            if !pairs.contains(&pair) {
+                pairs.push(pair);
+            }
+
+            if visited.insert(bonded_index) {
+                queue.push_back(bonded_index);
+            }
+        }
+    }
+
+    Ok(pairs)
 }
 
 /**************************/
@@ -1072,6 +1177,276 @@ mod tests {
             assert_approx_eq!(f32, vel.x, 1.0);
             assert_approx_eq!(f32, vel.y, 2.0);
             assert_approx_eq!(f32, vel.z, 3.0);
+        }
+    }
+
+    #[test]
+    fn molecule_bonds_iter_artificial() {
+        let atom1 = Atom::new(1, "LYS", 1, "BB");
+        let atom2 = Atom::new(1, "LYS", 2, "SC1");
+        let atom3 = Atom::new(1, "LYS", 3, "SC2");
+        let atom4 = Atom::new(1, "LYS", 4, "SC3");
+
+        let mut system = System::new("Test", vec![atom1, atom2, atom3, atom4], None);
+
+        // no bonds
+        let mut iterator = system.molecule_bonds_iter(1).unwrap();
+        assert!(iterator.next().is_none());
+
+        // linear molecule
+        system.add_bond(0, 1).unwrap();
+        system.add_bond(1, 2).unwrap();
+        system.add_bond(2, 3).unwrap();
+
+        let iterator = system.molecule_bonds_iter(2).unwrap();
+        let expected = [(1, 2), (2, 3), (0, 1)];
+        for ((a, b), (i, j)) in iterator.zip(expected.into_iter()) {
+            assert_eq!(a.get_index(), i);
+            assert_eq!(b.get_index(), j);
+        }
+
+        // cyclic molecule
+        system.add_bond(0, 3).unwrap();
+        let iterator = system.molecule_bonds_iter(2).unwrap();
+        let expected = [(1, 2), (2, 3), (0, 1), (0, 3)];
+        for ((a, b), (i, j)) in iterator.zip(expected.into_iter()) {
+            assert_eq!(a.get_index(), i);
+            assert_eq!(b.get_index(), j);
+        }
+
+        // all atoms bonded to all atoms
+        system.add_bond(0, 2).unwrap();
+        system.add_bond(1, 3).unwrap();
+
+        let iterator = system.molecule_bonds_iter(2).unwrap();
+        let expected = [(0, 2), (1, 2), (2, 3), (0, 1), (0, 3), (1, 3)];
+        for ((a, b), (i, j)) in iterator.zip(expected.into_iter()) {
+            assert_eq!(a.get_index(), i);
+            assert_eq!(b.get_index(), j);
+        }
+
+        // larger molecule
+        // 1 --- 2 --- 3
+        // |            \___
+        // |                \
+        // 4 --- 5 --- 6 --- 7
+        // |
+        // |
+        // 8 --- 9
+        let atom1 = Atom::new(1, "MOL", 1, "A");
+        let atom2 = Atom::new(1, "MOL", 2, "B");
+        let atom3 = Atom::new(1, "MOL", 3, "C");
+        let atom4 = Atom::new(1, "MOL", 4, "D");
+        let atom5 = Atom::new(1, "MOL", 5, "E");
+        let atom6 = Atom::new(1, "MOL", 6, "F");
+        let atom7 = Atom::new(1, "MOL", 7, "G");
+        let atom8 = Atom::new(1, "MOL", 8, "H");
+        let atom9 = Atom::new(1, "MOL", 9, "I");
+
+        let mut system = System::new(
+            "Test",
+            vec![
+                atom1, atom2, atom3, atom4, atom5, atom6, atom7, atom8, atom9,
+            ],
+            None,
+        );
+
+        system.add_bond(0, 1).unwrap();
+        system.add_bond(0, 3).unwrap();
+        system.add_bond(1, 2).unwrap();
+        system.add_bond(2, 6).unwrap();
+        system.add_bond(3, 4).unwrap();
+        system.add_bond(3, 7).unwrap();
+        system.add_bond(7, 8).unwrap();
+        system.add_bond(4, 5).unwrap();
+        system.add_bond(5, 6).unwrap();
+
+        let iterator = system.molecule_bonds_iter(0).unwrap();
+        let expected = [
+            (0, 1),
+            (0, 3),
+            (1, 2),
+            (3, 4),
+            (3, 7),
+            (2, 6),
+            (4, 5),
+            (7, 8),
+            (5, 6),
+        ];
+        for ((a, b), (i, j)) in iterator.zip(expected.into_iter()) {
+            assert_eq!(a.get_index(), i);
+            assert_eq!(b.get_index(), j);
+        }
+    }
+
+    #[test]
+    fn molecule_bonds_iter() {
+        let system = System::from_file("test_files/example.tpr").unwrap();
+
+        let iterator = system.molecule_bonds_iter(69).unwrap();
+        let expected = [
+            (64, 69),
+            (69, 70),
+            (63, 64),
+            (70, 71),
+            (62, 63),
+            (63, 65),
+            (71, 72),
+            (61, 62),
+            (65, 66),
+            (66, 67),
+            (67, 68),
+        ];
+
+        for ((a, b), (i, j)) in iterator.zip(expected.into_iter()) {
+            assert_eq!(a.get_index(), i);
+            assert_eq!(b.get_index(), j);
+        }
+    }
+
+    #[test]
+    fn molecule_bonds_iter_mut_artificial() {
+        let atom1 = Atom::new(1, "LYS", 1, "BB");
+        let atom2 = Atom::new(1, "LYS", 2, "SC1");
+        let atom3 = Atom::new(1, "LYS", 3, "SC2");
+        let atom4 = Atom::new(1, "LYS", 4, "SC3");
+
+        let mut system = System::new("Test", vec![atom1, atom2, atom3, atom4], None);
+
+        // no bonds
+        let mut iterator = system.molecule_bonds_iter_mut(1).unwrap();
+        assert!(iterator.next().is_none());
+
+        // linear molecule
+        system.add_bond(0, 1).unwrap();
+        system.add_bond(1, 2).unwrap();
+        system.add_bond(2, 3).unwrap();
+
+        let iterator = system.molecule_bonds_iter_mut(2).unwrap();
+        let expected = [(1, 2), (2, 3), (0, 1)];
+        for ((a, b), (i, j)) in iterator.zip(expected.into_iter()) {
+            assert_eq!(a.get_index(), i);
+            assert_eq!(b.get_index(), j);
+        }
+
+        // cyclic molecule
+        system.add_bond(0, 3).unwrap();
+        let iterator = system.molecule_bonds_iter_mut(2).unwrap();
+        let expected = [(1, 2), (2, 3), (0, 1), (0, 3)];
+        for ((a, b), (i, j)) in iterator.zip(expected.into_iter()) {
+            assert_eq!(a.get_index(), i);
+            assert_eq!(b.get_index(), j);
+        }
+
+        // all atoms bonded to all atoms
+        system.add_bond(0, 2).unwrap();
+        system.add_bond(1, 3).unwrap();
+
+        let iterator = system.molecule_bonds_iter_mut(2).unwrap();
+        let expected = [(0, 2), (1, 2), (2, 3), (0, 1), (0, 3), (1, 3)];
+        for ((a, b), (i, j)) in iterator.zip(expected.into_iter()) {
+            assert_eq!(a.get_index(), i);
+            assert_eq!(b.get_index(), j);
+        }
+
+        // larger molecule
+        // 1 --- 2 --- 3
+        // |            \___
+        // |                \
+        // 4 --- 5 --- 6 --- 7
+        // |
+        // |
+        // 8 --- 9
+        let atom1 = Atom::new(1, "MOL", 1, "A");
+        let atom2 = Atom::new(1, "MOL", 2, "B");
+        let atom3 = Atom::new(1, "MOL", 3, "C");
+        let atom4 = Atom::new(1, "MOL", 4, "D");
+        let atom5 = Atom::new(1, "MOL", 5, "E");
+        let atom6 = Atom::new(1, "MOL", 6, "F");
+        let atom7 = Atom::new(1, "MOL", 7, "G");
+        let atom8 = Atom::new(1, "MOL", 8, "H");
+        let atom9 = Atom::new(1, "MOL", 9, "I");
+
+        let mut system = System::new(
+            "Test",
+            vec![
+                atom1, atom2, atom3, atom4, atom5, atom6, atom7, atom8, atom9,
+            ],
+            None,
+        );
+
+        system.add_bond(0, 1).unwrap();
+        system.add_bond(0, 3).unwrap();
+        system.add_bond(1, 2).unwrap();
+        system.add_bond(2, 6).unwrap();
+        system.add_bond(3, 4).unwrap();
+        system.add_bond(3, 7).unwrap();
+        system.add_bond(7, 8).unwrap();
+        system.add_bond(4, 5).unwrap();
+        system.add_bond(5, 6).unwrap();
+
+        let iterator = system.molecule_bonds_iter_mut(0).unwrap();
+        let expected = [
+            (0, 1),
+            (0, 3),
+            (1, 2),
+            (3, 4),
+            (3, 7),
+            (2, 6),
+            (4, 5),
+            (7, 8),
+            (5, 6),
+        ];
+        for ((a, b), (i, j)) in iterator.zip(expected.into_iter()) {
+            assert_eq!(a.get_index(), i);
+            assert_eq!(b.get_index(), j);
+        }
+    }
+
+    #[test]
+    fn molecule_bonds_iter_mut() {
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
+
+        let iterator = system.molecule_bonds_iter_mut(69).unwrap();
+        let expected = [
+            (64, 69),
+            (69, 70),
+            (63, 64),
+            (70, 71),
+            (62, 63),
+            (63, 65),
+            (71, 72),
+            (61, 62),
+            (65, 66),
+            (66, 67),
+            (67, 68),
+        ];
+
+        for ((a, b), (i, j)) in iterator.zip(expected.into_iter()) {
+            assert_eq!(a.get_index(), i);
+            assert_eq!(b.get_index(), j);
+        }
+    }
+
+    #[test]
+    fn molecule_bonds_iter_fail() {
+        let system = System::from_file("test_files/example.tpr").unwrap();
+
+        match system.molecule_bonds_iter(16844) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(AtomError::OutOfRange(x)) => assert_eq!(x, 16844),
+            Err(e) => panic!("Unexpected error type `{}` returned.", e),
+        }
+    }
+
+    #[test]
+    fn molecule_bonds_iter_mut_fail() {
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
+
+        match system.molecule_bonds_iter_mut(16844) {
+            Ok(_) => panic!("Function should have failed."),
+            Err(AtomError::OutOfRange(x)) => assert_eq!(x, 16844),
+            Err(e) => panic!("Unexpected error type `{}` returned.", e),
         }
     }
 }
