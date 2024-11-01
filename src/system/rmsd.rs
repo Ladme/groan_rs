@@ -507,7 +507,7 @@ mod tests {
 
         match system.calc_rmsd(&reference, "Protein") {
             Ok(_) => panic!("Function should have failed."),
-            Err(RMSDError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
+            Err(RMSDError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 14),
             Err(_) => panic!("Function failed but incorrect error type returned."),
         }
     }

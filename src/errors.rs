@@ -516,7 +516,7 @@ pub enum SimBoxError {
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum PositionError {
     /// Used when the atom has no position but it is required.
-    #[error("{} atom with atom number '{}' has undefined position", "error:".red().bold(), .0.to_string().yellow())]
+    #[error("{} atom with index '{}' has undefined position", "error:".red().bold(), .0.to_string().yellow())]
     NoPosition(usize),
 }
 
@@ -524,7 +524,7 @@ pub enum PositionError {
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum MassError {
     /// Used when the atom has no mass but it is required.
-    #[error("{} atom with atom number '{}' has undefined mass", "error:".red().bold(), .0.to_string().yellow())]
+    #[error("{} atom with index '{}' has undefined mass", "error:".red().bold(), .0.to_string().yellow())]
     NoMass(usize),
 }
 

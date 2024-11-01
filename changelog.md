@@ -7,6 +7,7 @@
 - Introduced a new `Atom` field `index` which corresponds to the index of the atom in the system (starting from 0). This field can be accessed using `Atom::get_index` and is only valid if the atom is part of a system.
 - Several functions have been reworked to be more efficient by using the new `index` field.
 - **Breaking change:** Keyword `atomid` in the Groan Selection Language has been removed as to not confuse it with the new `index` field. Use `atomnum` instead.
+- `PositionError` and `MassError` now report atom index instead of atom number.
 
 #### Getters and Setters
 - **Breaking changes:**

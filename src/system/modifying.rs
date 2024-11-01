@@ -359,7 +359,7 @@ impl System {
                     Some(x) => x,
                     None => {
                         return Err(AtomError::InvalidPosition(PositionError::NoPosition(
-                            (*atom).get_atom_number(),
+                            (*atom).get_index(),
                         )))
                     }
                 };
@@ -372,7 +372,7 @@ impl System {
                 {
                     let atom2_pos = match atom2.get_position() {
                         Some(x) => x,
-                        None => return Err(AtomError::InvalidPosition(PositionError::NoPosition(atom2.get_atom_number()))),
+                        None => return Err(AtomError::InvalidPosition(PositionError::NoPosition(atom2.get_index()))),
                     };
 
                     // get the shortest vector between the reference atom and the target atom
@@ -455,7 +455,7 @@ impl System {
                 Some(x) => x,
                 None => {
                     return Err(GroupError::InvalidPosition(PositionError::NoPosition(
-                        atom.get_atom_number(),
+                        atom.get_index(),
                     )))
                 }
             };
@@ -534,7 +534,7 @@ mod tests {
         system.get_atom_mut(15).unwrap().reset_position();
 
         match system.atoms_translate(&shift) {
-            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
             Ok(_) => panic!("Funtion should have failed, but it succeeded."),
             Err(e) => panic!(
                 "Function successfully failed but incorrect error type `{:?}` was returned.",
@@ -606,7 +606,7 @@ mod tests {
         system.get_atom_mut(15).unwrap().reset_position();
 
         match system.group_translate("all", &shift) {
-            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
             Ok(_) => panic!("Funtion should have failed, but it succeeded."),
             Err(e) => panic!(
                 "Function successfully failed but incorrect error type `{:?}` was returned.",
@@ -742,7 +742,7 @@ mod tests {
         system.get_atom_mut(15).unwrap().reset_position();
 
         match system.atoms_wrap() {
-            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
             Ok(_) => panic!("Funtion should have failed, but it succeeded."),
             Err(e) => panic!(
                 "Function successfully failed but incorrect error type `{:?}` was returned.",
@@ -885,7 +885,7 @@ mod tests {
 
         match system.group_wrap("all") {
             Ok(_) => panic!("Function should have failed but it succeeded."),
-            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
             Err(e) => panic!(
                 "Function failed successfully but incorrect error type `{:?}` was returned",
                 e
@@ -1166,8 +1166,7 @@ mod tests {
 
         match system.make_molecules_whole() {
             Ok(_) => panic!("Function should have failed but it succeeded."),
-            // atoms are renumbered, therefore we use 17
-            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 17),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
             Err(e) => panic!(
                 "Function failed successfully but incorrect error type `{:?}` was returned",
                 e
@@ -1182,8 +1181,7 @@ mod tests {
 
         match system.make_group_whole("all") {
             Ok(_) => panic!("Function should have failed but it succeeded."),
-            // atoms are renumbered, therefore we use 17
-            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 17),
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
             Err(e) => panic!(
                 "Function failed successfully but incorrect error type `{:?}` was returned",
                 e

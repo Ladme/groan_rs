@@ -432,7 +432,7 @@ mod tests {
         system.get_atom_mut(15).unwrap().reset_position();
 
         match system.group_get_center("Protein") {
-            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
             Ok(_) => panic!("Calculating center should have failed, but it was successful."),
             Err(e) => panic!(
                 "Failed successfully but incorrect error type `{:?}` was returned.",
@@ -660,7 +660,7 @@ mod tests {
         system.get_atom_mut(15).unwrap().reset_position();
 
         match system.group_get_com("Protein") {
-            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
             Ok(_) => panic!("Calculating center should have failed, but it was successful."),
             Err(e) => panic!(
                 "Failed successfully but incorrect error type `{:?}` was returned.",
@@ -675,7 +675,7 @@ mod tests {
         system.read_ndx("test_files/index.ndx").unwrap();
 
         match system.group_get_com("Protein") {
-            Err(GroupError::InvalidMass(MassError::NoMass(x))) => assert_eq!(x, 1),
+            Err(GroupError::InvalidMass(MassError::NoMass(x))) => assert_eq!(x, 0),
             Ok(_) => panic!("Calculating center should have failed, but it was successful."),
             Err(e) => panic!(
                 "Failed successfully but incorrect error type `{:?}` was returned.",
@@ -841,7 +841,7 @@ mod tests {
         system.get_atom_mut(15).unwrap().reset_position();
 
         match system.group_distance("Protein", "Membrane", Dimension::XYZ) {
-            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
             Ok(_) => panic!("Calculating center should have failed, but it was successful."),
             Err(e) => panic!(
                 "Failed successfully but incorrect error type `{:?}` was returned.",
@@ -1016,7 +1016,7 @@ mod tests {
         system.get_atom_mut(15).unwrap().reset_position();
 
         match system.group_all_distances("Membrane", "Protein", Dimension::XYZ) {
-            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
             Ok(_) => panic!("Calculating center should have failed, but it was successful."),
             Err(e) => panic!(
                 "Failed successfully but incorrect error type `{:?}` was returned.",
@@ -1098,7 +1098,7 @@ mod tests {
 
         match system.atoms_distance(12, 15, Dimension::XYZ) {
             Ok(_) => panic!("Function should have failed but it succeeded."),
-            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
             Err(e) => panic!(
                 "Function failed successfully but incorrect error type `{:?}` was returned.",
                 e

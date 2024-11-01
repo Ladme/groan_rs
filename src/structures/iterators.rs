@@ -531,7 +531,7 @@ pub trait MasterAtomIterator<'a>: Iterator<Item = &'a Atom> + Sized {
                 },
                 None => {
                     return Err(AtomError::InvalidPosition(PositionError::NoPosition(
-                        atom.get_atom_number(),
+                        atom.get_index(),
                     )));
                 }
             }
@@ -603,9 +603,7 @@ pub trait MasterAtomIterator<'a>: Iterator<Item = &'a Atom> + Sized {
         for atom in self {
             let mass = atom
                 .get_mass()
-                .ok_or(AtomError::InvalidMass(MassError::NoMass(
-                    atom.get_atom_number(),
-                )))?;
+                .ok_or(AtomError::InvalidMass(MassError::NoMass(atom.get_index())))?;
 
             match atom.get_position() {
                 Some(x) => unsafe {
@@ -620,7 +618,7 @@ pub trait MasterAtomIterator<'a>: Iterator<Item = &'a Atom> + Sized {
                 },
                 None => {
                     return Err(AtomError::InvalidPosition(PositionError::NoPosition(
-                        atom.get_atom_number(),
+                        atom.get_index(),
                     )));
                 }
             }

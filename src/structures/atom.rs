@@ -438,7 +438,7 @@ impl Atom {
             Ok(())
         } else {
             Err(AtomError::InvalidPosition(PositionError::NoPosition(
-                self.get_atom_number(),
+                self.get_index(),
             )))
         }
     }
@@ -454,7 +454,7 @@ impl Atom {
             Ok(())
         } else {
             Err(AtomError::InvalidPosition(PositionError::NoPosition(
-                self.get_atom_number(),
+                self.get_index(),
             )))
         }
     }
@@ -466,7 +466,7 @@ impl Atom {
     pub fn wrap(&mut self, sbox: &SimBox) -> Result<(), AtomError> {
         match self.position {
             None => Err(AtomError::InvalidPosition(PositionError::NoPosition(
-                self.get_atom_number(),
+                self.get_index(),
             ))),
             Some(ref mut pos) => {
                 pos.wrap(sbox);
@@ -711,10 +711,10 @@ impl Atom {
     pub fn distance(&self, atom: &Atom, dim: Dimension, sbox: &SimBox) -> Result<f32, AtomError> {
         match (&self.position, &atom.position) {
             (None, Some(_) | None) => Err(AtomError::InvalidPosition(PositionError::NoPosition(
-                self.get_atom_number(),
+                self.get_index(),
             ))),
             (Some(_), None) => Err(AtomError::InvalidPosition(PositionError::NoPosition(
-                atom.get_atom_number(),
+                atom.get_index(),
             ))),
             (Some(ref pos1), Some(ref pos2)) => Ok(pos1.distance(pos2, dim, sbox)),
         }
@@ -746,10 +746,10 @@ impl Atom {
     pub fn distance_naive(&self, atom: &Atom, dim: Dimension) -> Result<f32, AtomError> {
         match (&self.position, &atom.position) {
             (None, Some(_) | None) => Err(AtomError::InvalidPosition(PositionError::NoPosition(
-                self.get_atom_number(),
+                self.get_index(),
             ))),
             (Some(_), None) => Err(AtomError::InvalidPosition(PositionError::NoPosition(
-                atom.get_atom_number(),
+                atom.get_index(),
             ))),
             (Some(ref pos1), Some(ref pos2)) => Ok(pos1.distance_naive(pos2, dim)),
         }
@@ -791,7 +791,7 @@ impl Atom {
     ) -> Result<f32, AtomError> {
         match self.position {
             None => Err(AtomError::InvalidPosition(PositionError::NoPosition(
-                self.get_atom_number(),
+                self.get_index(),
             ))),
             Some(ref pos) => Ok(pos.distance(point, dim, sbox)),
         }
@@ -1211,7 +1211,7 @@ mod tests {
         match atom.translate_nopbc(&shift) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
-                assert_eq!(x, atom.get_atom_number())
+                assert_eq!(x, atom.get_index())
             }
             Err(e) => {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
@@ -1258,7 +1258,7 @@ mod tests {
         match atom.translate(&shift, &simbox) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
-                assert_eq!(x, atom.get_atom_number())
+                assert_eq!(x, atom.get_index())
             }
             Err(e) => {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
@@ -1333,7 +1333,7 @@ mod tests {
         match atom.wrap(&simbox) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
-                assert_eq!(x, atom.get_atom_number())
+                assert_eq!(x, atom.get_index())
             }
             Err(e) => {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
@@ -1662,7 +1662,7 @@ mod tests {
         match atom1.distance(&atom2, Dimension::XYZ, &simbox) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
-                assert_eq!(x, atom1.get_atom_number())
+                assert_eq!(x, atom1.get_index())
             }
             Err(e) => {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
@@ -1674,7 +1674,7 @@ mod tests {
         match atom1.distance(&atom2, Dimension::XYZ, &simbox) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
-                assert_eq!(x, atom1.get_atom_number())
+                assert_eq!(x, atom1.get_index())
             }
             Err(e) => {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
@@ -1687,7 +1687,7 @@ mod tests {
         match atom1.distance(&atom2, Dimension::XYZ, &simbox) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
-                assert_eq!(x, atom2.get_atom_number())
+                assert_eq!(x, atom2.get_index())
             }
             Err(e) => {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
@@ -1703,7 +1703,7 @@ mod tests {
         match atom1.distance_naive(&atom2, Dimension::XYZ) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
-                assert_eq!(x, atom1.get_atom_number())
+                assert_eq!(x, atom1.get_index())
             }
             Err(e) => {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
@@ -1715,7 +1715,7 @@ mod tests {
         match atom1.distance_naive(&atom2, Dimension::XYZ) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
-                assert_eq!(x, atom1.get_atom_number())
+                assert_eq!(x, atom1.get_index())
             }
             Err(e) => {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
@@ -1728,7 +1728,7 @@ mod tests {
         match atom1.distance_naive(&atom2, Dimension::XYZ) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
-                assert_eq!(x, atom2.get_atom_number())
+                assert_eq!(x, atom2.get_index())
             }
             Err(e) => {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
@@ -1881,7 +1881,7 @@ mod tests {
         match atom.distance_from_point(&point, Dimension::XYZ, &simbox) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
-                assert_eq!(x, atom.get_atom_number())
+                assert_eq!(x, atom.get_index())
             }
             Err(e) => {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")

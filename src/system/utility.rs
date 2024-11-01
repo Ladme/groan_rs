@@ -566,7 +566,7 @@ mod tests {
 
         match system.atoms_center("Protein", Dimension::XYZ) {
             Ok(_) => panic!("Function should have failed."),
-            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
             Err(e) => panic!(
                 "Function failed successfully, but incorrect error type `{:?}` was returned.",
                 e
@@ -843,7 +843,7 @@ mod tests {
 
         match system.atoms_center_mass("Protein", Dimension::XYZ) {
             Ok(_) => panic!("Function should have failed."),
-            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
             Err(e) => panic!(
                 "Function failed successfully, but incorrect error type `{:?}` was returned.",
                 e
@@ -858,7 +858,7 @@ mod tests {
 
         match system.atoms_center_mass("Protein", Dimension::XYZ) {
             Ok(_) => panic!("Function should have failed."),
-            Err(GroupError::InvalidMass(MassError::NoMass(x))) => assert_eq!(x, 1),
+            Err(GroupError::InvalidMass(MassError::NoMass(x))) => assert_eq!(x, 0),
             Err(e) => panic!(
                 "Function failed successfully, but incorrect error type `{:?}` was returned.",
                 e
