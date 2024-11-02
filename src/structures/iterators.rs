@@ -492,14 +492,14 @@ struct AtomOrigin<A> {
     origin: IteratorOrigin,
 }
 
-impl<'a, A> AtomOrigin<A> {
+impl<A> AtomOrigin<A> {
     fn try_new(atom: Option<A>, origin: IteratorOrigin) -> Option<AtomOrigin<A>> {
         atom.map(|x| AtomOrigin { atom: x, origin })
     }
 }
 
 /// Sort two atoms based on their index.
-fn sort_atoms<'a, A>(a: AtomOrigin<A>, b: AtomOrigin<A>) -> (AtomOrigin<A>, AtomOrigin<A>, bool)
+fn sort_atoms<A>(a: AtomOrigin<A>, b: AtomOrigin<A>) -> (AtomOrigin<A>, AtomOrigin<A>, bool)
 where
     A: std::ops::Deref<Target = Atom>,
 {
