@@ -109,6 +109,26 @@ impl System {
     ///   where `m` is the number of atoms in the system and `n` is the number of available elements.
     /// - If an error (not a warning!) is returned, the `System` structure is not modified.
     pub fn guess_elements(&mut self, elements: Elements) -> Result<(), ElementError> {
+        self.guess_elements_partial(elements, true)
+    }
+
+    /// Guess elements of the atoms in the system which do not have an assigned element
+    /// based on the provided `Elements` structure.
+    ///
+    /// Behaves similarly to [`System::guess_elements`] but only assigns elements to atoms
+    /// that do not have assigned elements already.
+    /// No properties are guessed for atoms which already have elements assigned.
+    pub fn guess_elements_unknown(&mut self, elements: Elements) -> Result<(), ElementError> {
+        self.guess_elements_partial(elements, false)
+    }
+
+    /// Guess elements either for all atoms (for_all == true) or only for atoms which are not assigned
+    /// an element (for_all == false).
+    fn guess_elements_partial(
+        &mut self,
+        elements: Elements,
+        for_all: bool,
+    ) -> Result<(), ElementError> {
         // check that all select trees are valid
         // this has to be done before modifying the system because
         // an error should not cause the system to be in an undefined state
@@ -122,6 +142,14 @@ impl System {
         let mut multiple_elements: IndexMap<Vec<String>, Vec<usize>> = IndexMap::new();
 
         for a in 0..self.get_n_atoms() {
+            if !for_all {
+                let atom = self.get_atom(a).unwrap();
+                // if the atom is already assigned an element, skip it
+                if atom.get_element_name().is_some() || atom.get_element_symbol().is_some() {
+                    continue;
+                }
+            }
+
             // get all elements matching the atom
             let matched_elements =
                 elements
@@ -1029,6 +1057,106 @@ mod tests {
         assert_eq!(atom.get_vdw(), None);
         assert_eq!(atom.get_expected_max_bonds(), None);
         assert_eq!(atom.get_expected_min_bonds(), None);
+
+        // CL in CL5271
+        let atom = system.get_atom(32816).unwrap();
+        assert_eq!(atom.get_element_name().unwrap(), "chlorine");
+        assert_eq!(atom.get_element_symbol().unwrap(), "Cl");
+        assert_approx_eq!(f32, atom.get_mass().unwrap(), 35.453);
+        assert_eq!(atom.get_vdw(), None);
+        assert_eq!(atom.get_expected_max_bonds(), None);
+        assert_eq!(atom.get_expected_min_bonds(), None);
+    }
+
+    #[test]
+    fn guess_elements_unknown() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+
+        system.get_atom_mut(0).unwrap().set_mass(19.1);
+        system.get_atom_mut(0).unwrap().set_element_symbol("Uk");
+        system.get_atom_mut(0).unwrap().set_vdw(0.24);
+        system.get_atom_mut(360).unwrap().set_expected_max_bonds(7);
+        system.get_atom_mut(14184).unwrap().set_vdw(0.20);
+        system.get_atom_mut(32795).unwrap().set_mass(19.1);
+        system
+            .get_atom_mut(32795)
+            .unwrap()
+            .set_element_name("Unknown");
+
+        system.guess_elements_unknown(Elements::default()).unwrap();
+
+        // N in SER1
+        let atom = system.get_atom(0).unwrap();
+        println!("{:?}", atom);
+        assert!(atom.get_element_name().is_none());
+        assert_eq!(atom.get_element_symbol().unwrap(), "Uk");
+        assert_approx_eq!(f32, atom.get_mass().unwrap(), 19.1);
+        assert_approx_eq!(f32, atom.get_vdw().unwrap(), 0.24);
+        assert!(atom.get_expected_max_bonds().is_none());
+        assert!(atom.get_expected_min_bonds().is_none());
+
+        // H1 in SER1
+        let atom = system.get_atom(1).unwrap();
+        assert_eq!(atom.get_element_name().unwrap(), "hydrogen");
+        assert_eq!(atom.get_element_symbol().unwrap(), "H");
+        assert_approx_eq!(f32, atom.get_mass().unwrap(), 1.0079);
+        assert_approx_eq!(f32, atom.get_vdw().unwrap(), 0.1);
+        assert_eq!(atom.get_expected_max_bonds().unwrap(), 1);
+        assert_eq!(atom.get_expected_min_bonds().unwrap(), 1);
+
+        // C in SER23
+        let atom = system.get_atom(360).unwrap();
+        assert_eq!(atom.get_element_name().unwrap(), "carbon");
+        assert_eq!(atom.get_element_symbol().unwrap(), "C");
+        assert_approx_eq!(f32, atom.get_mass().unwrap(), 12.0107);
+        assert_approx_eq!(f32, atom.get_vdw().unwrap(), 0.17);
+        assert_eq!(atom.get_expected_max_bonds().unwrap(), 7);
+        assert_eq!(atom.get_expected_min_bonds().unwrap(), 2);
+
+        // O31 in POPC44
+        let atom = system.get_atom(3081).unwrap();
+        assert_eq!(atom.get_element_name().unwrap(), "oxygen");
+        assert_eq!(atom.get_element_symbol().unwrap(), "O");
+        assert_approx_eq!(f32, atom.get_mass().unwrap(), 15.9994);
+        assert_approx_eq!(f32, atom.get_vdw().unwrap(), 0.15);
+        assert_eq!(atom.get_expected_max_bonds().unwrap(), 2);
+        assert_eq!(atom.get_expected_min_bonds().unwrap(), 1);
+
+        // P in POPC127
+        let atom = system.get_atom(14184).unwrap();
+        assert_eq!(atom.get_element_name().unwrap(), "phosphorus");
+        assert_eq!(atom.get_element_symbol().unwrap(), "P");
+        assert_approx_eq!(f32, atom.get_mass().unwrap(), 30.9738);
+        assert_approx_eq!(f32, atom.get_vdw().unwrap(), 0.20);
+        assert_eq!(atom.get_expected_max_bonds().unwrap(), 5);
+        assert_eq!(atom.get_expected_min_bonds().unwrap(), 2);
+
+        // HW1 in SOL4827
+        let atom = system.get_atom(31541).unwrap();
+        assert_eq!(atom.get_element_name().unwrap(), "hydrogen");
+        assert_eq!(atom.get_element_symbol().unwrap(), "H");
+        assert_approx_eq!(f32, atom.get_mass().unwrap(), 1.0079);
+        assert_approx_eq!(f32, atom.get_vdw().unwrap(), 0.1);
+        assert_eq!(atom.get_expected_max_bonds().unwrap(), 1);
+        assert_eq!(atom.get_expected_min_bonds().unwrap(), 1);
+
+        // OW in SOL177
+        let atom = system.get_atom(17590).unwrap();
+        assert_eq!(atom.get_element_name().unwrap(), "oxygen");
+        assert_eq!(atom.get_element_symbol().unwrap(), "O");
+        assert_approx_eq!(f32, atom.get_mass().unwrap(), 15.9994);
+        assert_approx_eq!(f32, atom.get_vdw().unwrap(), 0.15);
+        assert_eq!(atom.get_expected_max_bonds().unwrap(), 2);
+        assert_eq!(atom.get_expected_min_bonds().unwrap(), 1);
+
+        // NA in NA5250
+        let atom = system.get_atom(32795).unwrap();
+        assert_eq!(atom.get_element_name().unwrap(), "Unknown");
+        assert!(atom.get_element_symbol().is_none());
+        assert_approx_eq!(f32, atom.get_mass().unwrap(), 19.1);
+        assert!(atom.get_vdw().is_none());
+        assert!(atom.get_expected_max_bonds().is_none());
+        assert!(atom.get_expected_min_bonds().is_none());
 
         // CL in CL5271
         let atom = system.get_atom(32816).unwrap();

@@ -51,6 +51,7 @@
 - Introduced `System::groups_member` function which returns a vector of all group names an atom with specified index is a member of.
 - Values in the `GridMap` can be now cleared using `GridMap::clear`.
 - The loading of `GridMaps` from files has been reworked. It should no longer be possible to load a grid map with invalid coordinates.
+- Introduced `System::guess_elements_unknown` for assigning elements only to atoms which are not already assigned an element.
 - Bug fix: Regex operators can be now used in regular expression blocks without raising an InvalidOperator error.
 
 ***
