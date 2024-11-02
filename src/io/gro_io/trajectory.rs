@@ -333,6 +333,7 @@ impl System {
     ///   are both left unchanged.
     /// - `GroReader` supports progress printing. However, this only works properly if the time and step information are provided.
     /// - `GroReader` checks whether the number of atoms in the system corresponds to the number of atoms in each frame of the gro file.
+    /// - `GroReader` does NOT check consistency of the atom/residue names/numbers between the individual frames of the trajectory.
     /// - The `System` structure is modified while iterating through the gro file.
     /// - The `force` information is set to `None` for all atoms as it is not available in the gro file.
     /// - If `velocity` information is available, it is used. Otherwise it is set to `None`.
