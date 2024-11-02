@@ -33,7 +33,8 @@
 - **Breaking change**: `System::traj_iter_map_reduce` now requires the user to provide the initial `Data` structure. `Data` structure no longer needs to implement `Default`, but needs to implement `Clone`.
 - `System::traj_iter_map_reduce` now properly propagates errors and failures from the individual threads into the master-thread `ProgressPrinter`.
 
-#### New iterators
+#### Atom iterators
+- **Breaking change:** Renamed `MasterAtomIterator` trait to `AtomIteratorWithBox` and `MasterMutAtomIterator` trait to `MutAtomIteratorWithBox`.
 - Added `AtomPairIterator` and `MutAtomPairIterator` to enable iteration over pairs of atoms. These iterators currently support iterating over molecule bonds and can be created via `System::molecule_bonds_iter` and `System::molecule_bonds_iter_mut` for immutable and mutable access, respectively.
 - Note: The design of these iterators and the structure of atom pairs are subject to future refinement and potential expansion in functionality.
 

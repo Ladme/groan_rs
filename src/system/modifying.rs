@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use std::ops::Deref;
 
 use crate::errors::{AtomError, GroupError, PositionError};
-use crate::structures::iterators::MasterMutAtomIterator;
+use crate::structures::iterators::MutAtomIteratorWithBox;
 use crate::structures::{
     atom::Atom,
     simbox::{simbox_check, SimBox},

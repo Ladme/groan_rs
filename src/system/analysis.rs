@@ -6,7 +6,7 @@
 use ndarray::Array2;
 
 use crate::errors::{AtomError, GroupError};
-use crate::structures::iterators::MasterAtomIterator;
+use crate::structures::iterators::AtomIteratorWithBox;
 use crate::structures::simbox::simbox_check;
 use crate::structures::{dimension::Dimension, vector3d::Vector3D};
 use crate::system::System;

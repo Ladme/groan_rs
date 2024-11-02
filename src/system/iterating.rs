@@ -499,7 +499,7 @@ mod tests {
     use crate::{
         structures::{
             dimension::Dimension,
-            iterators::{MasterAtomIterator, MasterMutAtomIterator},
+            iterators::{AtomIteratorWithBox, MutAtomIteratorWithBox},
             shape::*,
             vector3d::Vector3D,
         },

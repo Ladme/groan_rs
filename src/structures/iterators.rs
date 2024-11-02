@@ -65,7 +65,7 @@ impl<'a> AtomIterator<'a> {
     }
 }
 
-impl<'a> MasterAtomIterator<'a> for AtomIterator<'a> {
+impl<'a> AtomIteratorWithBox<'a> for AtomIterator<'a> {
     #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
         self.simbox
@@ -116,7 +116,7 @@ impl<'a> OwnedAtomIterator<'a> {
     }
 }
 
-impl<'a> MasterAtomIterator<'a> for OwnedAtomIterator<'a> {
+impl<'a> AtomIteratorWithBox<'a> for OwnedAtomIterator<'a> {
     #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
         self.simbox
@@ -139,7 +139,7 @@ where
     simbox: SimBox,
 }
 
-impl<'a, I, S> MasterAtomIterator<'a> for FilterAtomIterator<'a, I, S>
+impl<'a, I, S> AtomIteratorWithBox<'a> for FilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a Atom>,
     S: Shape,
@@ -198,7 +198,7 @@ impl<'a> MoleculeIterator<'a> {
     }
 }
 
-impl<'a> MasterAtomIterator<'a> for MoleculeIterator<'a> {
+impl<'a> AtomIteratorWithBox<'a> for MoleculeIterator<'a> {
     #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
         self.simbox
@@ -253,7 +253,7 @@ impl<'a> MutAtomIterator<'a> {
     }
 }
 
-impl<'a> MasterMutAtomIterator<'a> for MutAtomIterator<'a> {
+impl<'a> MutAtomIteratorWithBox<'a> for MutAtomIterator<'a> {
     #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
         self.simbox
@@ -303,7 +303,7 @@ impl<'a> OwnedMutAtomIterator<'a> {
     }
 }
 
-impl<'a> MasterMutAtomIterator<'a> for OwnedMutAtomIterator<'a> {
+impl<'a> MutAtomIteratorWithBox<'a> for OwnedMutAtomIterator<'a> {
     #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
         self.simbox
@@ -339,7 +339,7 @@ where
     simbox: SimBox,
 }
 
-impl<'a, I, S> MasterMutAtomIterator<'a> for MutFilterAtomIterator<'a, I, S>
+impl<'a, I, S> MutAtomIteratorWithBox<'a> for MutFilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a mut Atom>,
     S: Shape,
@@ -395,7 +395,7 @@ impl<'a> MutMoleculeIterator<'a> {
     }
 }
 
-impl<'a> MasterMutAtomIterator<'a> for MutMoleculeIterator<'a> {
+impl<'a> MutAtomIteratorWithBox<'a> for MutMoleculeIterator<'a> {
     #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
         self.simbox
@@ -418,11 +418,11 @@ impl<'a> Iterator for MutMoleculeIterator<'a> {
 }
 
 /**************************/
-/* MASTER ITERATOR TRAITS */
+/*     ITERATOR TRAITS    */
 /**************************/
 
-/// Trait implemented by all immutable AtomIterators.
-pub trait MasterAtomIterator<'a>: Iterator<Item = &'a Atom> + Sized {
+/// Trait implemented by all immutable iterators over atoms that contain information about the simulation box.
+pub trait AtomIteratorWithBox<'a>: Iterator<Item = &'a Atom> + Sized {
     /// Get reference to the simulation box inside the iterator.
     /// Returns an option.
     fn get_simbox(&self) -> Option<&SimBox>;
@@ -639,7 +639,8 @@ pub trait MasterAtomIterator<'a>: Iterator<Item = &'a Atom> + Sized {
     }
 }
 
-pub trait MasterMutAtomIterator<'a>: Iterator<Item = &'a mut Atom> + Sized {
+/// Trait implemented by all mutable iterators over atoms that contain information about the simulation box.
+pub trait MutAtomIteratorWithBox<'a>: Iterator<Item = &'a mut Atom> + Sized {
     /// Get reference to the simulation box inside the iterator.
     /// Returns an option.
     fn get_simbox(&self) -> Option<&SimBox>;
