@@ -72,6 +72,8 @@ impl<'a> AtomIteratorWithBox<'a> for AtomIterator<'a> {
     }
 }
 
+impl<'a> OrderedAtomIterator<'a> for AtomIterator<'a> {}
+
 /// Immutable iterator over atoms. Same as `AtomIterator` but can be constructed for the system
 /// without having to create a group. Constructed using `System::selection_iter()`.
 /// Note that the `OwnedAtomIterator` still does NOT own the atoms of the system.
@@ -123,6 +125,8 @@ impl<'a> AtomIteratorWithBox<'a> for OwnedAtomIterator<'a> {
     }
 }
 
+impl<'a> OrderedAtomIterator<'a> for OwnedAtomIterator<'a> {}
+
 /// Immutable iterator over atoms with applied geometry filter.
 /// Constructed by calling `filter_geometry` method on `AtomIterator` or `FilterAtomIterator`.
 ///
@@ -169,6 +173,13 @@ where
                 )
         })
     }
+}
+
+impl<'a, I, S> OrderedAtomIterator<'a> for FilterAtomIterator<'a, I, S>
+where
+    I: Iterator<Item = &'a Atom>,
+    S: Shape,
+{
 }
 
 /// Immutable iterator over atoms of a molecule.
@@ -219,6 +230,147 @@ impl<'a> Iterator for MoleculeIterator<'a> {
         }
     }
 }
+
+#[derive(Debug, Clone, Copy)]
+enum IteratorOrigin {
+    First,
+    Second,
+}
+
+/// Structure storing an atom and what iterator it was yielded by.
+#[derive(Debug, Clone)]
+struct AtomOrigin<'a> {
+    atom: &'a Atom,
+    origin: IteratorOrigin,
+}
+
+impl<'a> AtomOrigin<'a> {
+    fn try_new(atom: Option<&Atom>, origin: IteratorOrigin) -> Option<AtomOrigin> {
+        match atom {
+            Some(x) => Some(AtomOrigin {
+                atom: x,
+                origin: origin,
+            }),
+            None => None,
+        }
+    }
+}
+
+/// Sort two atoms based on their index.
+fn sort_atoms<'a>(a: AtomOrigin<'a>, b: AtomOrigin<'a>) -> (AtomOrigin<'a>, AtomOrigin<'a>, bool) {
+    if a.atom.get_index() < b.atom.get_index() {
+        (a, b, false)
+    } else if a.atom.get_index() > b.atom.get_index() {
+        (b, a, false)
+    } else {
+        (a, b, true)
+    }
+}
+
+/// Immutable iterator over atoms of two iterators.
+/// The atoms are guaranteed to be yielded in the order in which they are defined in the System.
+/// Every atom will be yielded at most once.
+#[derive(Debug)]
+pub struct UnionAtomIterator<'a, I1, I2>
+where
+    I1: OrderedAtomIterator<'a> + AtomIteratorWithBox<'a>,
+    I2: OrderedAtomIterator<'a> + AtomIteratorWithBox<'a>,
+{
+    iterator_1: I1,
+    iterator_2: I2,
+    buffer: Option<AtomOrigin<'a>>,
+}
+
+impl<'a, I1, I2> Iterator for UnionAtomIterator<'a, I1, I2>
+where
+    I1: OrderedAtomIterator<'a> + AtomIteratorWithBox<'a>,
+    I2: OrderedAtomIterator<'a> + AtomIteratorWithBox<'a>,
+{
+    type Item = &'a Atom;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.buffer.clone() {
+            // if we have any value stored in the buffer, we propagate the other iterator and get a second value
+            Some(a) => {
+                let b = match a.origin {
+                    IteratorOrigin::First => {
+                        AtomOrigin::try_new(self.iterator_2.next(), IteratorOrigin::Second)
+                    }
+                    IteratorOrigin::Second => {
+                        AtomOrigin::try_new(self.iterator_1.next(), IteratorOrigin::First)
+                    }
+                };
+
+                match b {
+                    // compare the new yielded value with the buffer, yield the atom with lower index and store the other in the buffer
+                    Some(b) => {
+                        let (min, max, same) = sort_atoms(a, b);
+
+                        // store the other atom into the buffer
+                        if !same {
+                            self.buffer = Some(max);
+                        // clear the buffer if both atoms have the same index (can't be yielded twice)
+                        } else {
+                            self.buffer = None;
+                        }
+
+                        Some(min.atom)
+                    }
+                    // we return the value from the buffer and clear the buffer the buffer
+                    None => {
+                        self.buffer = None;
+                        Some(a.atom)
+                    }
+                }
+            }
+
+            // if there is no value in the buffer, propagate both iterators and select the lower atom from them
+            None => {
+                let first = AtomOrigin::try_new(self.iterator_1.next(), IteratorOrigin::First);
+                let second = AtomOrigin::try_new(self.iterator_2.next(), IteratorOrigin::Second);
+
+                match (first, second) {
+                    (None, None) => None,
+                    (Some(a), None) => Some(a.atom), // buffer is already empty
+                    (None, Some(b)) => Some(b.atom),
+                    (Some(a), Some(b)) => {
+                        let (min, max, same) = sort_atoms(a, b);
+
+                        // store the other atom into the buffer
+                        if !same {
+                            self.buffer = Some(max);
+                        }
+
+                        Some(min.atom)
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl<'a, I1, I2> AtomIteratorWithBox<'a> for UnionAtomIterator<'a, I1, I2>
+where
+    I1: OrderedAtomIterator<'a> + AtomIteratorWithBox<'a>,
+    I2: OrderedAtomIterator<'a> + AtomIteratorWithBox<'a>,
+{
+    #[inline(always)]
+    fn get_simbox(&self) -> Option<&SimBox> {
+        self.iterator_1.get_simbox()
+    }
+}
+
+impl<'a, I1, I2> OrderedAtomIterator<'a> for UnionAtomIterator<'a, I1, I2>
+where
+    I1: OrderedAtomIterator<'a> + AtomIteratorWithBox<'a>,
+    I2: OrderedAtomIterator<'a> + AtomIteratorWithBox<'a>,
+{
+}
+
+/// Immutable iterator over atoms shared by two iterators.
+/// The atoms are guaranteed to be yielded in the order in which they are defined in the System.
+/// Every atom will be yielded at most once.
+pub struct IntersectionAtomIterator {}
 
 /**************************/
 /*    MUTABLE ITERATORS   */
@@ -744,6 +896,32 @@ pub trait MutAtomIteratorWithBox<'a>: Iterator<Item = &'a mut Atom> + Sized {
     }
 }
 
+/// Trait implemented by immutable iterators which yield atoms in the order
+/// in which they are defined in the parent System.
+pub trait OrderedAtomIterator<'a>: Iterator<Item = &'a Atom> + AtomIteratorWithBox<'a> {
+    fn union<T>(self, other: T) -> UnionAtomIterator<'a, Self, T>
+    where
+        Self: Sized,
+        T: OrderedAtomIterator<'a> + Sized,
+    {
+        UnionAtomIterator {
+            iterator_1: self,
+            iterator_2: other,
+            buffer: None,
+        }
+    }
+
+    /*fn intersection(self, other: impl OrderedAtomIterator<'a>) -> IntersectionAtomIterator<'a>
+    where
+        Self: Sized,
+    {
+        IntersectionAtomIterator {
+            iterator_1: Box::new(self),
+            iterator_2: Box::new(other),
+        }
+    }*/
+}
+
 /**************************/
 /*     PAIR ITERATORS     */
 /**************************/
@@ -828,6 +1006,7 @@ mod tests {
     use float_cmp::assert_approx_eq;
 
     use crate::{
+        prelude::{Cylinder, Dimension},
         structures::{element::Elements, shape::Sphere},
         system::System,
     };
@@ -955,6 +1134,147 @@ mod tests {
                 assert!(pos.y >= 1000.0);
                 assert!(pos.z >= 1000.0);
             }
+        }
+    }
+
+    #[test]
+    fn iterator_union() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.group_create("None", "not all").unwrap();
+        let iterator1 = system.group_iter("None").unwrap();
+        let iterator2 = system.group_iter("None").unwrap();
+        assert!(iterator1.union(iterator2).next().is_none());
+
+        let iterator1 = system.group_iter("None").unwrap();
+        let iterator2 = system.selection_iter("serial 1 2 3 7 8 13").unwrap();
+        let expected = [1, 2, 3, 7, 8, 13];
+        for (atom, expected) in iterator1.union(iterator2).zip(expected.into_iter()) {
+            assert_eq!(atom.get_atom_number(), expected);
+        }
+
+        system.group_create("Group", "serial 1 2 3 7 8 13").unwrap();
+        let iterator1 = system.group_iter("Group").unwrap();
+        let iterator2 = system.selection_iter("serial 1 2 3 7 8 13").unwrap();
+        let expected = [1, 2, 3, 7, 8, 13];
+        for (atom, expected) in iterator1.union(iterator2).zip(expected.into_iter()) {
+            assert_eq!(atom.get_atom_number(), expected);
+        }
+
+        let iterator1 = system.selection_iter("serial 1 2 3 7 8 13").unwrap();
+        let iterator2 = system
+            .selection_iter("serial 10 11 12 13 14 5 6 7 8")
+            .unwrap();
+        let expected = [1, 2, 3, 5, 6, 7, 8, 10, 11, 12, 13, 14];
+        for (atom, expected) in iterator1.union(iterator2).zip(expected.into_iter()) {
+            assert_eq!(atom.get_atom_number(), expected);
+        }
+    }
+
+    #[test]
+    fn iterator_union_filter_geometry() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        let iterator1 = system.selection_iter("@membrane").unwrap();
+        let iterator2 = system.selection_iter("@water").unwrap();
+
+        let cylinder = Cylinder::new(
+            system.group_get_center("Protein").unwrap(),
+            2.5,
+            4.0,
+            Dimension::Z,
+        );
+
+        for (a1, a2) in iterator1
+            .union(iterator2)
+            .filter_geometry(cylinder.clone())
+            .zip(
+                system
+                    .selection_iter("@membrane or @water")
+                    .unwrap()
+                    .filter_geometry(cylinder),
+            )
+        {
+            assert_eq!(a1.get_index(), a2.get_index());
+        }
+    }
+
+    #[test]
+    fn iterator_filter_geometry_union() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        let zcylinder = Cylinder::new(
+            system.group_get_center("Protein").unwrap(),
+            2.5,
+            4.0,
+            Dimension::Z,
+        );
+
+        let xcylinder = Cylinder::new(
+            system.group_get_center("Protein").unwrap(),
+            3.5,
+            2.0,
+            Dimension::X,
+        );
+
+        system
+            .group_create_from_geometry("Zcylinder", "@membrane", zcylinder.clone())
+            .unwrap();
+
+        system
+            .group_create_from_geometry("Xcylinder", "@membrane", xcylinder.clone())
+            .unwrap();
+
+        system
+            .group_union("Xcylinder", "Zcylinder", "Geometry")
+            .unwrap();
+
+        let iterator1 = system
+            .selection_iter("@membrane")
+            .unwrap()
+            .filter_geometry(zcylinder);
+        let iterator2 = system
+            .selection_iter("@membrane")
+            .unwrap()
+            .filter_geometry(xcylinder);
+
+        for (a1, a2) in iterator1
+            .union(iterator2)
+            .zip(system.group_iter("Geometry").unwrap())
+        {
+            assert_eq!(a1.get_index(), a2.get_index());
+        }
+    }
+
+    #[test]
+    fn iterator_union_union() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system
+            .group_create("ProtMemWat", "@protein or @membrane or @water")
+            .unwrap();
+
+        let iterator1 = system.selection_iter("@protein").unwrap();
+        let iterator2 = system.selection_iter("@water").unwrap();
+        let iterator3 = system.selection_iter("@membrane").unwrap();
+
+        for (a1, a2) in iterator1
+            .clone()
+            .union(iterator2.clone())
+            .union(iterator3.clone())
+            .zip(system.group_iter("ProtMemWat").unwrap())
+        {
+            assert_eq!(a1.get_index(), a2.get_index());
+        }
+
+        for (a1, a2) in iterator3
+            .clone()
+            .union(iterator1.clone())
+            .union(iterator2.clone())
+            .zip(system.group_iter("ProtMemWat").unwrap())
+        {
+            assert_eq!(a1.get_index(), a2.get_index());
         }
     }
 }

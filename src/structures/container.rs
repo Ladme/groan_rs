@@ -3,7 +3,7 @@
 
 //! Implementation of the AtomContainer structure and its methods.
 
-use std::cmp;
+use std::{cmp, fmt::Debug};
 
 /// Structure describing a group of atoms.
 /// Guaranteed to only contain valid atom indices.
