@@ -9,6 +9,14 @@
 - **Breaking change:** Keyword `atomid` in the Groan Selection Language has been removed as to not confuse it with the new `index` field. Use `atomnum` instead.
 - `PositionError` and `MassError` now report atom index instead of atom number.
 
+#### RMSD calculation
+- Introduced `System::calc_rmsd` allowing to calculate RMSD between current and some reference structure.
+
+#### Reading gro trajectories
+- Trajectories in 'gro' format can be now read using `System::gro_iter`.
+- `with_step` method can be used with the 'gro' iterator, but `with_range` method is not available since gro trajectories are not guaranteed to contain information about the simulation time.
+- `System` can be now constructed by calling `System::from_file` on a trajectory in 'gro' format. Only the first frame will be read and the system will be constructed based on the atoms in this frame.
+
 #### Getters and Setters
 - **Breaking changes:**
   - Many 'setter' and 'getter' methods have been renamed, namely:
@@ -25,9 +33,6 @@
     - `get_labeled_atom_as_mut` -> `get_labeled_atom_mut`
   - `get_atoms_mut` no longer returns a mutable vector `&mut Vec<Atom>` but only a mutable slice `&mut [Atom]` preventing the user from adding and removing atoms.
   - Signatures of several 'getter' methods originally returning `&str` or `Option<&str>` have been changed to return `&String` or `Option<&String>` which may cause minor issues, e.g. when comparing strings.
-
-#### RMSD calculation
-- Introduced `System::calc_rmsd` allowing to calculate RMSD between current and some reference structure.
 
 #### Changes to `System::traj_iter_map_reduce`
 - **Breaking change**: `System::traj_iter_map_reduce` now requires the user to provide the initial `Data` structure. `Data` structure no longer needs to implement `Default`, but needs to implement `Clone`.

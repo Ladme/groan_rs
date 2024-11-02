@@ -1,7 +1,7 @@
 // Released under MIT License.
 // Copyright (c) 2023-2024 Ladislav Bartos
 
-//! Implementation of functions for reading and writing gro files.
+//! Implementation of functions for reading and writing gro structure files.
 
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
@@ -9,10 +9,10 @@ use std::path::Path;
 
 use crate::auxiliary::{GRO_MAX_COORDINATE, GRO_MIN_COORDINATE};
 use crate::errors::{ParseGroError, WriteGroError};
-use crate::structures::{atom::Atom, simbox::SimBox};
+use crate::structures::atom::Atom;
 use crate::system::System;
 
-use super::check_coordinate_sizes;
+use super::super::check_coordinate_sizes;
 
 /// ## Methods for writing gro files.
 impl System {
@@ -176,62 +176,40 @@ pub fn read_gro(filename: impl AsRef<Path>) -> Result<System, ParseGroError> {
     let mut buffer = BufReader::new(file);
 
     // get title and number of atoms
-    let title = get_title(&mut buffer, filename.as_ref())?;
-    let n_atoms = get_natoms(&mut buffer, filename.as_ref())?;
-    let mut simulation_box = None;
+    let title = super::get_title(&mut buffer, filename.as_ref())?;
+    let n_atoms = super::get_natoms(&mut buffer, filename.as_ref())?;
 
     let mut atoms: Vec<Atom> = Vec::with_capacity(n_atoms);
 
-    // parse all remaining lines
-    for (gmx_index, raw_line) in buffer.lines().enumerate() {
-        let line = match raw_line {
-            Ok(x) => x,
-            Err(_) => return Err(ParseGroError::LineNotFound(Box::from(filename.as_ref()))),
-        };
-
-        if gmx_index == n_atoms {
-            simulation_box = Some(line_as_box(&line)?);
-            if simulation_box.as_ref().unwrap().is_zero() {
-                simulation_box = None;
-            }
-        } else {
-            let atom = line_as_atom(&line)?;
-            atoms.push(atom);
+    // parse atom lines
+    let mut line = String::new();
+    for _ in 0..n_atoms {
+        line.clear();
+        buffer
+            .read_line(&mut line)
+            .map_err(|_| ParseGroError::LineNotFound(Box::from(filename.as_ref())))?;
+        if line.ends_with('\n') {
+            line.truncate(line.len() - 1);
         }
+
+        let atom = line_as_atom(&line)?;
+        atoms.push(atom);
     }
 
-    if atoms.len() != n_atoms {
-        return Err(ParseGroError::LineNotFound(Box::from(filename.as_ref())));
+    line.clear();
+    // parse box
+    buffer
+        .read_line(&mut line)
+        .map_err(|_| ParseGroError::LineNotFound(Box::from(filename.as_ref())))?;
+    if line.ends_with('\n') {
+        line.truncate(line.len() - 1);
+    }
+    let mut simulation_box = Some(super::line_as_box(&line)?);
+    if simulation_box.as_ref().unwrap().is_zero() {
+        simulation_box = None;
     }
 
     Ok(System::new(&title, atoms, simulation_box))
-}
-
-/// Read the next line in the provided buffer and parse it as a title.
-fn get_title(
-    buffer: &mut BufReader<File>,
-    filename: impl AsRef<Path>,
-) -> Result<String, ParseGroError> {
-    let mut title = String::new();
-    match buffer.read_line(&mut title) {
-        Ok(0) | Err(_) => return Err(ParseGroError::LineNotFound(Box::from(filename.as_ref()))),
-        Ok(_) => return Ok(title.trim().to_string()),
-    };
-}
-
-/// Read the next line in the provided buffer and parse it as the number of atoms.
-fn get_natoms(
-    buffer: &mut BufReader<File>,
-    filename: impl AsRef<Path>,
-) -> Result<usize, ParseGroError> {
-    let mut line = String::new();
-    match buffer.read_line(&mut line) {
-        Ok(0) | Err(_) => Err(ParseGroError::LineNotFound(Box::from(filename.as_ref()))),
-        Ok(_) => match line.trim().parse::<usize>() {
-            Ok(x) => Ok(x),
-            Err(_) => Err(ParseGroError::ParseLineErr(line.trim().to_string())),
-        },
-    }
 }
 
 /// Parse a line as atom.
@@ -277,7 +255,7 @@ fn line_as_atom(line: &str) -> Result<Atom, ParseGroError> {
     let atom = Atom::new(resid, &resname, atomid, &atomname).with_position(position.into());
 
     // parse velocity, if present
-    if line.len() >= 68 {
+    if line.trim_end().len() >= 68 {
         let mut velocity = [0.0; 3];
 
         for (i, item) in velocity.iter_mut().enumerate() {
@@ -292,30 +270,6 @@ fn line_as_atom(line: &str) -> Result<Atom, ParseGroError> {
     } else {
         Ok(atom)
     }
-}
-
-/// Parse a line as simulation box dimensions.
-fn line_as_box(line: &str) -> Result<SimBox, ParseGroError> {
-    let mut simulation_box = [0.0f32; 9];
-    let mut i = 0usize;
-    for split in line.split_whitespace() {
-        simulation_box[i] = split
-            .trim()
-            .parse::<f32>()
-            .map_err(|_| ParseGroError::ParseBoxLineErr(line.to_string()))?;
-        i += 1;
-    }
-
-    if i != 3 && i != 9 {
-        Err(ParseGroError::ParseBoxLineErr(line.to_string()))?;
-    }
-
-    // check that the simulation box is valid
-    if simulation_box[3] != 0.0 || simulation_box[4] != 0.0 || simulation_box[6] != 0.0 {
-        return Err(ParseGroError::UnsupportedBox(line.to_string()));
-    }
-
-    Ok(simulation_box.into())
 }
 
 /// Write gro file header into an open gro file.
@@ -668,6 +622,8 @@ mod tests_read {
 
 #[cfg(test)]
 mod tests_write {
+    use crate::prelude::SimBox;
+
     use super::*;
     use file_diff;
     use tempfile::NamedTempFile;
