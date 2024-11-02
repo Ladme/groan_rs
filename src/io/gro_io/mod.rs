@@ -11,6 +11,7 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 pub use structure::read_gro;
+pub use trajectory::GroReader;
 
 use crate::errors::ParseGroError;
 use crate::prelude::SimBox;

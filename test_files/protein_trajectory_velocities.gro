@@ -126,7 +126,7 @@ INSANE! Membrane UpperLeaflet>POPC=1 LowerLeaflet>POPC=1
    29CYS     BB   60   9.772   2.772   3.451  0.0382  0.2008 -0.0467
    29CYS    SC1   61  10.139   2.700   3.399  0.4322 -0.0352 -0.4651
   13.08382  13.08382  11.15924
-INSANE! Membrane UpperLeaflet>POPC=1 LowerLeaflet>POPC=1 t= 480.00000 step= 24000
+Protein System t= 480.00000 step= 24000
    61
     1GLY     BB    1   9.397   1.819   7.376 -0.4574  0.1132 -0.1017
     2LYS     BB    2   9.538   2.062   7.245 -0.1691 -0.0082 -0.0254

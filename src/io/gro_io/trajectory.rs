@@ -187,6 +187,8 @@ impl FrameData for GroFrameData {
                 Some(x) => atom.set_velocity(Vector3D::from(x)),
                 None => atom.reset_velocity(),
             }
+
+            atom.reset_force();
         }
 
         // update the system
@@ -275,6 +277,65 @@ impl<'a> TrajStepRead<'a> for GroReader<'a> {
 }
 
 impl System {
+    /// Create an `GroReader` structure which is an iterator over a gro file.
+    ///
+    /// ## Returns
+    /// `TrajReader<GroReader>` if the gro file exists and matches the structure file.
+    /// Else returns `ReadTrajError`.
+    ///
+    /// ## Examples
+    /// Iterating through a gro trajectory and calculating
+    /// and printing the current center of geometry of the system.
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// # use groan_rs::errors::ReadTrajError;
+    /// # fn hidden_function() -> Result<(), ReadTrajError> {
+    /// #
+    /// // load system from gro trajectory
+    /// let mut system = System::from_file("trajectory.gro").unwrap();
+    ///
+    /// // iterate through all the frames of the trajectory (incl. the first one)
+    /// for raw_frame in system.gro_iter("trajectory.gro")? {
+    ///     let frame = raw_frame?;
+    ///     println!("{:?}", frame.group_get_center("all"));
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Similarly to `XtcReader` and `TrrReader`, you can also skip over some frames of the trajectory.
+    /// Here, only every 10th frame of the trajectory will be read.
+    /// Note however that the `with_step` method for `GroReader` is much less efficient
+    /// than for the `XtcReader` and `TrrReader`.
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// # use groan_rs::errors::ReadTrajError;
+    /// # fn hidden_function() -> Result<(), ReadTrajError> {
+    /// #
+    /// // load system from gro trajectory
+    /// let mut system = System::from_file("trajectory.gro").unwrap();
+    ///
+    /// // iterate through all the frames of the trajectory (incl. the first one)
+    /// for raw_frame in system.gro_iter("trajectory.gro")?.with_step(10)? {
+    ///     let frame = raw_frame?;
+    ///     println!("{:?}", frame.group_get_center("all"));
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## Notes
+    /// - The `GroReader` attempts to obtain information about the simulation time and step from the title of each frame.
+    ///   The expected format of the title is `Some Arbitrarily Long Title (...) t= SIMULATION_TIME step= SIMULATION_STEP`.
+    ///   For instance, if the title of the frame is `System t= 100.00000 step= 5000`, the simulation time will be set to 100 ps and
+    ///   the simulation step to 5000.
+    ///   In case either the simulation time or step is missing or the title could not be parsed properly, the simulation time and step
+    ///   are both left unchanged.
+    /// - `GroReader` supports progress printing. However, this only works properly if the time and step information are provided.
+    /// - `GroReader` checks whether the number of atoms in the system corresponds to the number of atoms in each frame of the gro file.
+    /// - The `System` structure is modified while iterating through the gro file.
+    /// - The `force` information is set to `None` for all atoms as it is not available in the gro file.
+    /// - If `velocity` information is available, it is used. Otherwise it is set to `None`.
     pub fn gro_iter(
         &mut self,
         filename: impl AsRef<Path>,
@@ -459,8 +520,7 @@ mod tests {
         match system
             .gro_iter("test_files/protein_trajectory_missing_natoms.gro")
             .unwrap()
-            .skip(1)
-            .next()
+            .nth(1)
         {
             Some(Ok(_)) => panic!("Function should have failed."),
             Some(Err(ReadTrajError::FrameNotFound)) => (),
@@ -494,8 +554,7 @@ mod tests {
         match system
             .gro_iter("test_files/protein_trajectory_missing_title.gro")
             .unwrap()
-            .skip(1)
-            .next()
+            .nth(1)
         {
             Some(Ok(_)) => panic!("Function should have failed."),
             Some(Err(ReadTrajError::FrameNotFound)) => (),
@@ -511,8 +570,7 @@ mod tests {
         match system
             .gro_iter("test_files/protein_trajectory_incomplete_line.gro")
             .unwrap()
-            .skip(1)
-            .next()
+            .nth(1)
         {
             Some(Ok(_)) => panic!("Function should have failed."),
             Some(Err(ReadTrajError::FrameNotFound)) => (),

@@ -62,7 +62,7 @@ INSANE! Membrane UpperLeaflet>POPC=1 LowerLeaflet>POPC=1 t=   0.00000 step= 0
    29CYS     BB   60   6.530   7.630   3.720
    29CYS    SC1   61   6.830   7.580   3.780
   13.03454  13.03454  11.22816
-INSANE! Membrane UpperLeaflet>POPC=1 LowerLeaflet>POPC=1 t= 100.00000 step= 5000
+System t= 100.00000 step= 5000
    61
     1GLY     BB    1   5.750   6.660   7.410
     2LYS     BB    2   5.500   6.700   7.230
@@ -318,7 +318,7 @@ INSANE! Membrane UpperLeaflet>POPC=1 LowerLeaflet>POPC=1 t= 400.00000
    29CYS     BB   60   6.490   7.170   3.780
    29CYS    SC1   61   6.720   7.050   3.590
   12.94480  12.94480  11.37809
-INSANE! Membrane UpperLeaflet>POPC=1 LowerLeaflet>POPC=1 t= 500.00000 step= 25000
+Another System t= 500.00000 step= 25000
    61
     1GLY     BB    1   5.390   6.350   7.510
     2LYS     BB    2   5.190   6.430   7.290
