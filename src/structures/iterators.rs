@@ -270,11 +270,11 @@ fn sort_atoms<'a>(a: AtomOrigin<'a>, b: AtomOrigin<'a>) -> (AtomOrigin<'a>, Atom
 /// Immutable iterator over atoms of two iterators.
 /// The atoms are guaranteed to be yielded in the order in which they are defined in the System.
 /// Every atom will be yielded at most once.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UnionAtomIterator<'a, I1, I2>
 where
-    I1: OrderedAtomIterator<'a> + AtomIteratorWithBox<'a>,
-    I2: OrderedAtomIterator<'a> + AtomIteratorWithBox<'a>,
+    I1: OrderedAtomIterator<'a>,
+    I2: OrderedAtomIterator<'a>,
 {
     iterator_1: I1,
     iterator_2: I2,
@@ -283,67 +283,50 @@ where
 
 impl<'a, I1, I2> Iterator for UnionAtomIterator<'a, I1, I2>
 where
-    I1: OrderedAtomIterator<'a> + AtomIteratorWithBox<'a>,
-    I2: OrderedAtomIterator<'a> + AtomIteratorWithBox<'a>,
+    I1: OrderedAtomIterator<'a>,
+    I2: OrderedAtomIterator<'a>,
 {
     type Item = &'a Atom;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.buffer.clone() {
-            // if we have any value stored in the buffer, we propagate the other iterator and get a second value
-            Some(a) => {
-                let b = match a.origin {
+        // determine the next atom to compare with the buffered atom
+        let (a, b) = match self.buffer.take() {
+            // if we have a buffered atom, get the next atom from the opposite iterator
+            Some(a) => (
+                Some(a.clone()),
+                match a.origin {
                     IteratorOrigin::First => {
                         AtomOrigin::try_new(self.iterator_2.next(), IteratorOrigin::Second)
                     }
                     IteratorOrigin::Second => {
                         AtomOrigin::try_new(self.iterator_1.next(), IteratorOrigin::First)
                     }
-                };
+                },
+            ),
+            // if no buffered atom, get atoms from both iterators
+            None => (
+                AtomOrigin::try_new(self.iterator_1.next(), IteratorOrigin::First),
+                AtomOrigin::try_new(self.iterator_2.next(), IteratorOrigin::Second),
+            ),
+        };
 
-                match b {
-                    // compare the new yielded value with the buffer, yield the atom with lower index and store the other in the buffer
-                    Some(b) => {
-                        let (min, max, same) = sort_atoms(a, b);
-
-                        // store the other atom into the buffer
-                        if !same {
-                            self.buffer = Some(max);
-                        // clear the buffer if both atoms have the same index (can't be yielded twice)
-                        } else {
-                            self.buffer = None;
-                        }
-
-                        Some(min.atom)
-                    }
-                    // we return the value from the buffer and clear the buffer the buffer
-                    None => {
-                        self.buffer = None;
-                        Some(a.atom)
-                    }
-                }
+        // handle different combinations of available atoms
+        match (a, b) {
+            (None, None) => None, // both iterators exhausted
+            (Some(atom), None) | (None, Some(atom)) => {
+                // only one atom available, clear the buffer
+                self.buffer = None;
+                Some(atom.atom)
             }
+            (Some(a), Some(b)) => {
+                let (min, max, same) = sort_atoms(a, b);
 
-            // if there is no value in the buffer, propagate both iterators and select the lower atom from them
-            None => {
-                let first = AtomOrigin::try_new(self.iterator_1.next(), IteratorOrigin::First);
-                let second = AtomOrigin::try_new(self.iterator_2.next(), IteratorOrigin::Second);
-
-                match (first, second) {
-                    (None, None) => None,
-                    (Some(a), None) => Some(a.atom), // buffer is already empty
-                    (None, Some(b)) => Some(b.atom),
-                    (Some(a), Some(b)) => {
-                        let (min, max, same) = sort_atoms(a, b);
-
-                        // store the other atom into the buffer
-                        if !same {
-                            self.buffer = Some(max);
-                        }
-
-                        Some(min.atom)
-                    }
+                // store the higher-index atom in the buffer if they are different
+                if !same {
+                    self.buffer = Some(max);
                 }
+
+                Some(min.atom)
             }
         }
     }
@@ -351,8 +334,8 @@ where
 
 impl<'a, I1, I2> AtomIteratorWithBox<'a> for UnionAtomIterator<'a, I1, I2>
 where
-    I1: OrderedAtomIterator<'a> + AtomIteratorWithBox<'a>,
-    I2: OrderedAtomIterator<'a> + AtomIteratorWithBox<'a>,
+    I1: OrderedAtomIterator<'a>,
+    I2: OrderedAtomIterator<'a>,
 {
     #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
@@ -362,15 +345,73 @@ where
 
 impl<'a, I1, I2> OrderedAtomIterator<'a> for UnionAtomIterator<'a, I1, I2>
 where
-    I1: OrderedAtomIterator<'a> + AtomIteratorWithBox<'a>,
-    I2: OrderedAtomIterator<'a> + AtomIteratorWithBox<'a>,
+    I1: OrderedAtomIterator<'a>,
+    I2: OrderedAtomIterator<'a>,
 {
 }
 
 /// Immutable iterator over atoms shared by two iterators.
 /// The atoms are guaranteed to be yielded in the order in which they are defined in the System.
 /// Every atom will be yielded at most once.
-pub struct IntersectionAtomIterator {}
+#[derive(Debug, Clone)]
+pub struct IntersectionAtomIterator<'a, I1, I2>
+where
+    I1: OrderedAtomIterator<'a>,
+    I2: OrderedAtomIterator<'a>,
+{
+    iterator_1: I1,
+    iterator_2: I2,
+    _phantom: PhantomData<&'a Atom>,
+}
+
+impl<'a, I1, I2> Iterator for IntersectionAtomIterator<'a, I1, I2>
+where
+    I1: OrderedAtomIterator<'a> + AtomIteratorWithBox<'a>,
+    I2: OrderedAtomIterator<'a> + AtomIteratorWithBox<'a>,
+{
+    type Item = &'a Atom;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // get the next atoms from both iterators, if available
+        let mut a = self.iterator_1.next()?;
+        let mut b = self.iterator_2.next()?;
+
+        loop {
+            match a.get_index().cmp(&b.get_index()) {
+                std::cmp::Ordering::Equal => {
+                    // if the indices are equal, return the shared atom
+                    return Some(a);
+                }
+                std::cmp::Ordering::Less => {
+                    // advance iterator_1 to catch up with iterator_2
+                    a = self.iterator_1.next()?;
+                }
+                std::cmp::Ordering::Greater => {
+                    // advance iterator_2 to catch up with iterator_1
+                    b = self.iterator_2.next()?;
+                }
+            }
+        }
+    }
+}
+
+impl<'a, I1, I2> AtomIteratorWithBox<'a> for IntersectionAtomIterator<'a, I1, I2>
+where
+    I1: OrderedAtomIterator<'a>,
+    I2: OrderedAtomIterator<'a>,
+{
+    #[inline(always)]
+    fn get_simbox(&self) -> Option<&SimBox> {
+        self.iterator_1.get_simbox()
+    }
+}
+
+impl<'a, I1, I2> OrderedAtomIterator<'a> for IntersectionAtomIterator<'a, I1, I2>
+where
+    I1: OrderedAtomIterator<'a>,
+    I2: OrderedAtomIterator<'a>,
+{
+}
 
 /**************************/
 /*    MUTABLE ITERATORS   */
@@ -911,15 +952,17 @@ pub trait OrderedAtomIterator<'a>: Iterator<Item = &'a Atom> + AtomIteratorWithB
         }
     }
 
-    /*fn intersection(self, other: impl OrderedAtomIterator<'a>) -> IntersectionAtomIterator<'a>
+    fn intersection<T>(self, other: T) -> IntersectionAtomIterator<'a, Self, T>
     where
         Self: Sized,
+        T: OrderedAtomIterator<'a> + Sized,
     {
         IntersectionAtomIterator {
-            iterator_1: Box::new(self),
-            iterator_2: Box::new(other),
+            iterator_1: self,
+            iterator_2: other,
+            _phantom: PhantomData,
         }
-    }*/
+    }
 }
 
 /**************************/
@@ -964,7 +1007,7 @@ pub struct MutAtomPairIterator<'a> {
     atoms: *mut [Atom],
     container: Vec<(usize, usize)>,
     current_index: usize,
-    phantom: PhantomData<&'a Atom>, // remove, if we ever use simbox here
+    _phantom: PhantomData<&'a Atom>, // remove, if we ever use simbox here
 }
 
 impl<'a> MutAtomPairIterator<'a> {
@@ -973,7 +1016,7 @@ impl<'a> MutAtomPairIterator<'a> {
             atoms: atoms as *mut [Atom],
             container,
             current_index: 0,
-            phantom: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -1255,7 +1298,7 @@ mod tests {
             .group_create("ProtMemWat", "@protein or @membrane or @water")
             .unwrap();
 
-        let iterator1 = system.selection_iter("@protein").unwrap();
+        let iterator1 = system.selection_iter("@protein or @water").unwrap();
         let iterator2 = system.selection_iter("@water").unwrap();
         let iterator3 = system.selection_iter("@membrane").unwrap();
 
@@ -1274,6 +1317,170 @@ mod tests {
             .union(iterator2.clone())
             .zip(system.group_iter("ProtMemWat").unwrap())
         {
+            assert_eq!(a1.get_index(), a2.get_index());
+        }
+    }
+
+    #[test]
+    fn iterator_intersection() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system.group_create("None", "not all").unwrap();
+        let iterator1 = system.group_iter("None").unwrap();
+        let iterator2 = system.group_iter("None").unwrap();
+        assert!(iterator1.intersection(iterator2).next().is_none());
+
+        let iterator1 = system.group_iter("None").unwrap();
+        let iterator2 = system.selection_iter("serial 1 2 3 7 8 13").unwrap();
+        assert!(iterator1.intersection(iterator2).next().is_none());
+
+        system.group_create("Group", "serial 1 2 3 7 8 13").unwrap();
+        let iterator1 = system.group_iter("Group").unwrap();
+        let iterator2 = system.selection_iter("serial 1 2 3 7 8 13").unwrap();
+        let expected = [1, 2, 3, 7, 8, 13];
+        for (atom, expected) in iterator1.intersection(iterator2).zip(expected.into_iter()) {
+            assert_eq!(atom.get_atom_number(), expected);
+        }
+
+        let iterator1 = system.selection_iter("serial 1 2 3 7 8 13").unwrap();
+        let iterator2 = system
+            .selection_iter("serial 10 11 12 13 14 5 6 7 8")
+            .unwrap();
+        let expected = [7, 8, 13];
+        for (atom, expected) in iterator1.intersection(iterator2).zip(expected.into_iter()) {
+            assert_eq!(atom.get_atom_number(), expected);
+        }
+    }
+
+    #[test]
+    fn iterator_intersection_filter_geometry() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        let iterator1 = system.selection_iter("@membrane").unwrap();
+        let iterator2 = system.selection_iter("name PO4 GL1 GL2").unwrap();
+
+        let cylinder = Cylinder::new(
+            system.group_get_center("Protein").unwrap(),
+            2.5,
+            4.0,
+            Dimension::Z,
+        );
+
+        for (a1, a2) in iterator1
+            .intersection(iterator2)
+            .filter_geometry(cylinder.clone())
+            .zip(
+                system
+                    .selection_iter("@membrane and name PO4 GL1 GL2")
+                    .unwrap()
+                    .filter_geometry(cylinder),
+            )
+        {
+            assert_eq!(a1.get_index(), a2.get_index());
+        }
+    }
+
+    #[test]
+    fn iterator_filter_geometry_intersection() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        let zcylinder = Cylinder::new(
+            system.group_get_center("Protein").unwrap(),
+            2.5,
+            4.0,
+            Dimension::Z,
+        );
+
+        let xcylinder = Cylinder::new(
+            system.group_get_center("Protein").unwrap(),
+            3.5,
+            2.0,
+            Dimension::X,
+        );
+
+        system
+            .group_create_from_geometry("Zcylinder", "@membrane", zcylinder.clone())
+            .unwrap();
+
+        system
+            .group_create_from_geometry("Xcylinder", "@membrane", xcylinder.clone())
+            .unwrap();
+
+        system
+            .group_intersection("Xcylinder", "Zcylinder", "Geometry")
+            .unwrap();
+
+        let iterator1 = system
+            .selection_iter("@membrane")
+            .unwrap()
+            .filter_geometry(zcylinder);
+        let iterator2 = system
+            .selection_iter("@membrane")
+            .unwrap()
+            .filter_geometry(xcylinder);
+
+        for (a1, a2) in iterator1
+            .intersection(iterator2)
+            .zip(system.group_iter("Geometry").unwrap())
+        {
+            assert_eq!(a1.get_index(), a2.get_index());
+        }
+    }
+
+    #[test]
+    fn iterator_intersection_intersection() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system
+            .group_create(
+                "SomePhosphates",
+                "@membrane and resid >500 and (name PO4 or @protein)",
+            )
+            .unwrap();
+
+        let iterator1 = system.selection_iter("@membrane").unwrap();
+        let iterator2 = system.selection_iter("resid > 500").unwrap();
+        let iterator3 = system.selection_iter("name PO4 or @protein").unwrap();
+
+        for (a1, a2) in iterator1
+            .clone()
+            .intersection(iterator2.clone())
+            .intersection(iterator3.clone())
+            .zip(system.group_iter("SomePhosphates").unwrap())
+        {
+            assert_eq!(a1.get_index(), a2.get_index());
+        }
+
+        for (a1, a2) in iterator3
+            .clone()
+            .intersection(iterator1.clone())
+            .intersection(iterator2.clone())
+            .zip(system.group_iter("SomePhosphates").unwrap())
+        {
+            assert_eq!(a1.get_index(), a2.get_index());
+        }
+    }
+
+    #[test]
+    fn iterator_union_intersection() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system
+            .group_create(
+                "SomeSelection",
+                "@membrane and resid > 500 or (name PO4 or @protein)",
+            )
+            .unwrap();
+
+        system.group_create("Resids", "resid > 500").unwrap();
+
+        let iterator = system
+            .selection_iter("@membrane")
+            .unwrap()
+            .intersection(system.group_iter("Resids").unwrap())
+            .union(system.selection_iter("name PO4 or @protein").unwrap());
+
+        for (a1, a2) in iterator.zip(system.group_iter("SomeSelection").unwrap()) {
             assert_eq!(a1.get_index(), a2.get_index());
         }
     }
