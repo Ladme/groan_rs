@@ -1028,6 +1028,14 @@ pub trait OrderedAtomIterator<'a>: Iterator<Item = Self::AtomRef> + HasBox {
     // AtomRef is either &'a Atom or &'a mut Atom
     type AtomRef: std::ops::Deref<Target = Atom> + 'a;
 
+    /// Create a new iterator that is the union of the provided iterators.
+    ///
+    /// ## Notes
+    /// - Both iterators have to iterate over atoms of the same system,
+    ///   otherwise the behavior of this function is undefined.
+    /// - The atoms are guaranteed to be yielded in the same order in which they
+    ///   are defined in the `System` structure.
+    /// - Each atom will be yielded at most once.
     fn union<T>(self, other: T) -> UnionAtomIterator<'a, Self::AtomRef, Self, T>
     where
         Self: Sized,
@@ -1041,6 +1049,14 @@ pub trait OrderedAtomIterator<'a>: Iterator<Item = Self::AtomRef> + HasBox {
         }
     }
 
+    /// Create a new iterator that is the intersection of the provided iterators.
+    ///
+    /// ## Notes
+    /// - Both iterators have to iterate over atoms of the same system,
+    ///   otherwise the behavior of this function is undefined.
+    /// - The atoms are guaranteed to be yielded in the same order in which they
+    ///   are defined in the `System` structure.
+    /// - Each atom will be yielded at most once.
     fn intersection<T>(self, other: T) -> IntersectionAtomIterator<'a, Self::AtomRef, Self, T>
     where
         Self: Sized,
