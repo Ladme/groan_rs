@@ -61,15 +61,6 @@ fn extract_time_step(string: &str) -> Option<(f32, u64)> {
     }
 }
 
-/// Attempt to extract frame time and step from the title of the frame.
-/// Returns `None` if the time or step is not present.
-fn read_time_step(reader: &mut GroFile) -> Result<Option<(f32, u64)>, ReadTrajError> {
-    let title = super::get_title(&mut reader.buffer, reader.filename.clone())
-        .map_err(|_| ReadTrajError::FrameNotFound)?;
-
-    Ok(extract_time_step(&title))
-}
-
 /// Get the position (and velocity, if present) of an atom from a single line of a gro file.
 fn read_position_velocity(
     reader: &mut GroFile,
@@ -133,10 +124,17 @@ impl FrameData for GroFrameData {
     where
         Self: Sized,
     {
-        let (time, step) = match read_time_step(traj_file) {
-            Ok(Some((x, y))) => (Some(x), Some(y)),
-            Ok(None) => (None, None),
-            Err(e) => return Some(Err(e)),
+        // read title
+        let mut title = String::new();
+        match traj_file.buffer.read_line(&mut title) {
+            Ok(0) => return None,
+            Ok(_) => (),
+            Err(_) => return Some(Err(ReadTrajError::FrameNotFound)),
+        }
+
+        let (time, step) = match extract_time_step(&title) {
+            Some((x, y)) => (Some(x), Some(y)),
+            None => (None, None),
         };
 
         let n_atoms = match super::get_natoms(&mut traj_file.buffer, traj_file.filename.clone()) {
@@ -387,6 +385,28 @@ mod tests {
             {
                 compare_atoms(a1, a2);
             }
+        }
+    }
+
+    #[test]
+    fn gro_iter_no_zip() {
+        let mut system = System::from_file("test_files/protein_trajectory.gro").unwrap();
+
+        let expected_times = [
+            0.0, 100.0, 200.0, 300.0, 300.0, 500.0, 500.0, 700.0, 800.0, 900.0, 1000.0,
+        ];
+        let expected_steps = [
+            0, 5000, 10000, 15000, 15000, 25000, 25000, 35000, 40000, 45000, 50000,
+        ];
+
+        for (i, frame) in system
+            .gro_iter("test_files/protein_trajectory.gro")
+            .unwrap()
+            .enumerate()
+        {
+            let frame = frame.unwrap();
+            assert_eq!(frame.get_simulation_step(), expected_steps[i]);
+            assert_approx_eq!(f32, frame.get_simulation_time(), expected_times[i]);
         }
     }
 
