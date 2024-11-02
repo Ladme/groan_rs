@@ -101,7 +101,7 @@ impl<
     ///     (0.1, 0.02),  // dimensions of each grid tile (x, y)
     ///     average);     // converter function
     ///
-    /// // the map vill be filled with empty vectors
+    /// // the map will be filled with empty vectors
     /// ```
     ///
     /// Converter function can also be a closure:
