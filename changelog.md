@@ -35,9 +35,9 @@
 
 #### Changes to atom iterators
 - **Breaking change:** Renamed `MasterAtomIterator` trait to `AtomIteratorWithBox` and `MasterMutAtomIterator` trait to `MutAtomIteratorWithBox`.
-- Added a new trait `OrderedAtomIterator` which is implemented by all immutable iterators which yield atoms in the order in which they are present in the molecular system. Analogously, implemented `MutOrderedAtomIterator`.
-- Iterator unions and intersections can be constructed for iterators implementing `OrderedAtomIterator`(`MutOrderedAtomIterator`) using `(Mut)OrderedAtomIterator::union` and `(Mut)OrderedAtomIterator::intersection` respectively.
-- Added `AtomPairIterator` and `MutAtomPairIterator` to enable iteration over pairs of atoms. These iterators currently support iterating over molecule bonds and can be created via `System::molecule_bonds_iter` and `System::molecule_bonds_iter_mut` for immutable and mutable access, respectively.
+- Added a new trait `OrderedAtomIterator` which is implemented by all immutable and mutable iterators yielding atoms in the order in which they are present in the molecular system.
+- Iterator unions and intersections can be constructed for iterators implementing `OrderedAtomIterator` using `OrderedAtomIterator::union` and `OrderedAtomIterator::intersection` respectively.
+- Added `AtomPairIterator` and `MutAtomPairIterator` to enable iterating over pairs of atoms. These iterators currently support iterating over molecule bonds and can be created via `System::molecule_bonds_iter` and `System::molecule_bonds_iter_mut` for immutable and mutable access, respectively.
 - Note: The design of these iterators and the structure of atom pairs are subject to future refinement and potential expansion in functionality.
 
 #### Bug fixes and other changes

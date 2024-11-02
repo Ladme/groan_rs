@@ -65,14 +65,18 @@ impl<'a> AtomIterator<'a> {
     }
 }
 
-impl<'a> AtomIteratorWithBox<'a> for AtomIterator<'a> {
+impl<'a> HasBox for AtomIterator<'a> {
     #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
         self.simbox
     }
 }
 
-impl<'a> OrderedAtomIterator<'a> for AtomIterator<'a> {}
+impl<'a> AtomIteratorWithBox<'a> for AtomIterator<'a> {}
+
+impl<'a> OrderedAtomIterator<'a> for AtomIterator<'a> {
+    type AtomRef = &'a Atom;
+}
 
 /// Immutable iterator over atoms. Same as `AtomIterator` but can be constructed for the system
 /// without having to create a group. Constructed using `System::selection_iter()`.
@@ -118,14 +122,18 @@ impl<'a> OwnedAtomIterator<'a> {
     }
 }
 
-impl<'a> AtomIteratorWithBox<'a> for OwnedAtomIterator<'a> {
+impl<'a> HasBox for OwnedAtomIterator<'a> {
     #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
         self.simbox
     }
 }
 
-impl<'a> OrderedAtomIterator<'a> for OwnedAtomIterator<'a> {}
+impl<'a> AtomIteratorWithBox<'a> for OwnedAtomIterator<'a> {}
+
+impl<'a> OrderedAtomIterator<'a> for OwnedAtomIterator<'a> {
+    type AtomRef = &'a Atom;
+}
 
 /// Immutable iterator over atoms with applied geometry filter.
 /// Constructed by calling `filter_geometry` method on `AtomIterator` or `FilterAtomIterator`.
@@ -143,7 +151,7 @@ where
     simbox: SimBox,
 }
 
-impl<'a, I, S> AtomIteratorWithBox<'a> for FilterAtomIterator<'a, I, S>
+impl<'a, I, S> HasBox for FilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a Atom>,
     S: Shape,
@@ -152,6 +160,13 @@ where
     fn get_simbox(&self) -> Option<&SimBox> {
         Some(&self.simbox)
     }
+}
+
+impl<'a, I, S> AtomIteratorWithBox<'a> for FilterAtomIterator<'a, I, S>
+where
+    I: Iterator<Item = &'a Atom>,
+    S: Shape,
+{
 }
 
 impl<'a, I, S> Iterator for FilterAtomIterator<'a, I, S>
@@ -180,6 +195,7 @@ where
     I: Iterator<Item = &'a Atom>,
     S: Shape,
 {
+    type AtomRef = &'a Atom;
 }
 
 /// Immutable iterator over atoms of a molecule.
@@ -209,12 +225,14 @@ impl<'a> MoleculeIterator<'a> {
     }
 }
 
-impl<'a> AtomIteratorWithBox<'a> for MoleculeIterator<'a> {
+impl<'a> HasBox for MoleculeIterator<'a> {
     #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
         self.simbox
     }
 }
+
+impl<'a> AtomIteratorWithBox<'a> for MoleculeIterator<'a> {}
 
 /// Iteration over atoms of the molecule.
 impl<'a> Iterator for MoleculeIterator<'a> {
@@ -229,188 +247,6 @@ impl<'a> Iterator for MoleculeIterator<'a> {
             None
         }
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-enum IteratorOrigin {
-    First,
-    Second,
-}
-
-/// Structure storing an atom and what iterator it was yielded by.
-#[derive(Debug, Clone)]
-struct AtomOrigin<'a> {
-    atom: &'a Atom,
-    origin: IteratorOrigin,
-}
-
-impl<'a> AtomOrigin<'a> {
-    fn try_new(atom: Option<&Atom>, origin: IteratorOrigin) -> Option<AtomOrigin> {
-        match atom {
-            Some(x) => Some(AtomOrigin {
-                atom: x,
-                origin: origin,
-            }),
-            None => None,
-        }
-    }
-}
-
-/// Sort two atoms based on their index.
-fn sort_atoms<'a>(a: AtomOrigin<'a>, b: AtomOrigin<'a>) -> (AtomOrigin<'a>, AtomOrigin<'a>, bool) {
-    if a.atom.get_index() < b.atom.get_index() {
-        (a, b, false)
-    } else if a.atom.get_index() > b.atom.get_index() {
-        (b, a, false)
-    } else {
-        (a, b, true)
-    }
-}
-
-/// Immutable iterator over atoms of two iterators.
-/// The atoms are guaranteed to be yielded in the order in which they are defined in the System.
-/// Every atom will be yielded at most once.
-#[derive(Debug, Clone)]
-pub struct UnionAtomIterator<'a, I1, I2>
-where
-    I1: OrderedAtomIterator<'a>,
-    I2: OrderedAtomIterator<'a>,
-{
-    iterator_1: I1,
-    iterator_2: I2,
-    buffer: Option<AtomOrigin<'a>>,
-}
-
-impl<'a, I1, I2> Iterator for UnionAtomIterator<'a, I1, I2>
-where
-    I1: OrderedAtomIterator<'a>,
-    I2: OrderedAtomIterator<'a>,
-{
-    type Item = &'a Atom;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // determine the next atom to compare with the buffered atom
-        let (a, b) = match self.buffer.take() {
-            // if we have a buffered atom, get the next atom from the opposite iterator
-            Some(a) => (
-                Some(a.clone()),
-                match a.origin {
-                    IteratorOrigin::First => {
-                        AtomOrigin::try_new(self.iterator_2.next(), IteratorOrigin::Second)
-                    }
-                    IteratorOrigin::Second => {
-                        AtomOrigin::try_new(self.iterator_1.next(), IteratorOrigin::First)
-                    }
-                },
-            ),
-            // if no buffered atom, get atoms from both iterators
-            None => (
-                AtomOrigin::try_new(self.iterator_1.next(), IteratorOrigin::First),
-                AtomOrigin::try_new(self.iterator_2.next(), IteratorOrigin::Second),
-            ),
-        };
-
-        // handle different combinations of available atoms
-        match (a, b) {
-            (None, None) => None, // both iterators exhausted
-            (Some(atom), None) | (None, Some(atom)) => {
-                // only one atom available, clear the buffer
-                self.buffer = None;
-                Some(atom.atom)
-            }
-            (Some(a), Some(b)) => {
-                let (min, max, same) = sort_atoms(a, b);
-
-                // store the higher-index atom in the buffer if they are different
-                if !same {
-                    self.buffer = Some(max);
-                }
-
-                Some(min.atom)
-            }
-        }
-    }
-}
-
-impl<'a, I1, I2> AtomIteratorWithBox<'a> for UnionAtomIterator<'a, I1, I2>
-where
-    I1: OrderedAtomIterator<'a>,
-    I2: OrderedAtomIterator<'a>,
-{
-    #[inline(always)]
-    fn get_simbox(&self) -> Option<&SimBox> {
-        self.iterator_1.get_simbox()
-    }
-}
-
-impl<'a, I1, I2> OrderedAtomIterator<'a> for UnionAtomIterator<'a, I1, I2>
-where
-    I1: OrderedAtomIterator<'a>,
-    I2: OrderedAtomIterator<'a>,
-{
-}
-
-/// Immutable iterator over atoms shared by two iterators.
-/// The atoms are guaranteed to be yielded in the order in which they are defined in the System.
-/// Every atom will be yielded at most once.
-#[derive(Debug, Clone)]
-pub struct IntersectionAtomIterator<'a, I1, I2>
-where
-    I1: OrderedAtomIterator<'a>,
-    I2: OrderedAtomIterator<'a>,
-{
-    iterator_1: I1,
-    iterator_2: I2,
-    _phantom: PhantomData<&'a Atom>,
-}
-
-impl<'a, I1, I2> Iterator for IntersectionAtomIterator<'a, I1, I2>
-where
-    I1: OrderedAtomIterator<'a> + AtomIteratorWithBox<'a>,
-    I2: OrderedAtomIterator<'a> + AtomIteratorWithBox<'a>,
-{
-    type Item = &'a Atom;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // get the next atoms from both iterators, if available
-        let mut a = self.iterator_1.next()?;
-        let mut b = self.iterator_2.next()?;
-
-        loop {
-            match a.get_index().cmp(&b.get_index()) {
-                std::cmp::Ordering::Equal => {
-                    // if the indices are equal, return the shared atom
-                    return Some(a);
-                }
-                std::cmp::Ordering::Less => {
-                    // advance iterator_1 to catch up with iterator_2
-                    a = self.iterator_1.next()?;
-                }
-                std::cmp::Ordering::Greater => {
-                    // advance iterator_2 to catch up with iterator_1
-                    b = self.iterator_2.next()?;
-                }
-            }
-        }
-    }
-}
-
-impl<'a, I1, I2> AtomIteratorWithBox<'a> for IntersectionAtomIterator<'a, I1, I2>
-where
-    I1: OrderedAtomIterator<'a>,
-    I2: OrderedAtomIterator<'a>,
-{
-    #[inline(always)]
-    fn get_simbox(&self) -> Option<&SimBox> {
-        self.iterator_1.get_simbox()
-    }
-}
-
-impl<'a, I1, I2> OrderedAtomIterator<'a> for IntersectionAtomIterator<'a, I1, I2>
-where
-    I1: OrderedAtomIterator<'a>,
-    I2: OrderedAtomIterator<'a>,
-{
 }
 
 /**************************/
@@ -446,12 +282,14 @@ impl<'a> MutAtomIterator<'a> {
     }
 }
 
-impl<'a> MutAtomIteratorWithBox<'a> for MutAtomIterator<'a> {
+impl<'a> HasBox for MutAtomIterator<'a> {
     #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
         self.simbox
     }
 }
+
+impl<'a> MutAtomIteratorWithBox<'a> for MutAtomIterator<'a> {}
 
 impl<'a> Iterator for MutAtomIterator<'a> {
     type Item = &'a mut Atom;
@@ -464,6 +302,10 @@ impl<'a> Iterator for MutAtomIterator<'a> {
             None
         }
     }
+}
+
+impl<'a> OrderedAtomIterator<'a> for MutAtomIterator<'a> {
+    type AtomRef = &'a mut Atom;
 }
 
 /// Mutable iterator over atoms. Same as `MutAtomIterator` but can be constructed for the system
@@ -496,12 +338,14 @@ impl<'a> OwnedMutAtomIterator<'a> {
     }
 }
 
-impl<'a> MutAtomIteratorWithBox<'a> for OwnedMutAtomIterator<'a> {
+impl<'a> HasBox for OwnedMutAtomIterator<'a> {
     #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
         self.simbox
     }
 }
+
+impl<'a> MutAtomIteratorWithBox<'a> for OwnedMutAtomIterator<'a> {}
 
 impl<'a> Iterator for OwnedMutAtomIterator<'a> {
     type Item = &'a mut Atom;
@@ -514,6 +358,10 @@ impl<'a> Iterator for OwnedMutAtomIterator<'a> {
             None
         }
     }
+}
+
+impl<'a> OrderedAtomIterator<'a> for OwnedMutAtomIterator<'a> {
+    type AtomRef = &'a mut Atom;
 }
 
 /// Mutable iterator over atoms with applied geometry filter.
@@ -532,7 +380,7 @@ where
     simbox: SimBox,
 }
 
-impl<'a, I, S> MutAtomIteratorWithBox<'a> for MutFilterAtomIterator<'a, I, S>
+impl<'a, I, S> HasBox for MutFilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a mut Atom>,
     S: Shape,
@@ -541,6 +389,13 @@ where
     fn get_simbox(&self) -> Option<&SimBox> {
         Some(&self.simbox)
     }
+}
+
+impl<'a, I, S> MutAtomIteratorWithBox<'a> for MutFilterAtomIterator<'a, I, S>
+where
+    I: Iterator<Item = &'a mut Atom>,
+    S: Shape,
+{
 }
 
 impl<'a, I, S> Iterator for MutFilterAtomIterator<'a, I, S>
@@ -559,6 +414,14 @@ where
                     .expect("FATAL GROAN ERROR | MutFilterAtomIterator::next | Atom should have position."), 
                 &self.simbox))
     }
+}
+
+impl<'a, I, S> OrderedAtomIterator<'a> for MutFilterAtomIterator<'a, I, S>
+where
+    I: Iterator<Item = &'a mut Atom>,
+    S: Shape,
+{
+    type AtomRef = &'a mut Atom;
 }
 
 /// Mutable iterator over atoms of a molecule.
@@ -588,12 +451,14 @@ impl<'a> MutMoleculeIterator<'a> {
     }
 }
 
-impl<'a> MutAtomIteratorWithBox<'a> for MutMoleculeIterator<'a> {
+impl<'a> HasBox for MutMoleculeIterator<'a> {
     #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
         self.simbox
     }
 }
+
+impl<'a> MutAtomIteratorWithBox<'a> for MutMoleculeIterator<'a> {}
 
 /// Iteration over atoms of the molecule.
 impl<'a> Iterator for MutMoleculeIterator<'a> {
@@ -611,15 +476,239 @@ impl<'a> Iterator for MutMoleculeIterator<'a> {
 }
 
 /**************************/
+/* HIGHER-LEVEL ITERATORS */
+/**************************/
+
+#[derive(Debug, Clone, Copy)]
+enum IteratorOrigin {
+    First,
+    Second,
+}
+
+/// Structure storing an atom and what iterator it was yielded by.
+#[derive(Debug, Clone)]
+struct AtomOrigin<A> {
+    atom: A,
+    origin: IteratorOrigin,
+}
+
+impl<'a, A> AtomOrigin<A> {
+    fn try_new(atom: Option<A>, origin: IteratorOrigin) -> Option<AtomOrigin<A>> {
+        atom.map(|x| AtomOrigin { atom: x, origin })
+    }
+}
+
+/// Sort two atoms based on their index.
+fn sort_atoms<'a, A>(a: AtomOrigin<A>, b: AtomOrigin<A>) -> (AtomOrigin<A>, AtomOrigin<A>, bool)
+where
+    A: std::ops::Deref<Target = Atom>,
+{
+    match a.atom.get_index().cmp(&b.atom.get_index()) {
+        std::cmp::Ordering::Less => (a, b, false),
+        std::cmp::Ordering::Greater => (b, a, false),
+        std::cmp::Ordering::Equal => (a, b, true),
+    }
+}
+
+/// Iterator over atoms of two iterators.
+/// The atoms are guaranteed to be yielded in the order in which they are defined in the System.
+/// Every atom will be yielded at most once.
+#[derive(Debug, Clone)]
+pub struct UnionAtomIterator<'a, A, I1, I2>
+where
+    I1: OrderedAtomIterator<'a, AtomRef = A>,
+    I2: OrderedAtomIterator<'a, AtomRef = A>,
+    A: std::ops::Deref<Target = Atom> + 'a,
+{
+    iterator_1: I1,
+    iterator_2: I2,
+    buffer: Option<AtomOrigin<A>>,
+    _phantom: PhantomData<&'a Atom>,
+}
+
+impl<'a, A, I1, I2> Iterator for UnionAtomIterator<'a, A, I1, I2>
+where
+    I1: OrderedAtomIterator<'a, AtomRef = A>,
+    I2: OrderedAtomIterator<'a, AtomRef = A>,
+    A: std::ops::Deref<Target = Atom> + 'a,
+{
+    type Item = A;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // determine the next atom to compare with the buffered atom
+        let (a, b) = match self.buffer.take() {
+            // if we have a buffered atom, get the next atom from the opposite iterator
+            Some(a) => {
+                let b = match a.origin {
+                    IteratorOrigin::First => {
+                        AtomOrigin::try_new(self.iterator_2.next(), IteratorOrigin::Second)
+                    }
+                    IteratorOrigin::Second => {
+                        AtomOrigin::try_new(self.iterator_1.next(), IteratorOrigin::First)
+                    }
+                };
+
+                (Some(a), b)
+            }
+            // if no buffered atom, get atoms from both iterators
+            None => (
+                AtomOrigin::try_new(self.iterator_1.next(), IteratorOrigin::First),
+                AtomOrigin::try_new(self.iterator_2.next(), IteratorOrigin::Second),
+            ),
+        };
+
+        // handle different combinations of available atoms
+        match (a, b) {
+            (None, None) => None, // both iterators exhausted
+            (Some(atom), None) | (None, Some(atom)) => {
+                // only one atom available, clear the buffer
+                self.buffer = None;
+                Some(atom.atom)
+            }
+            (Some(a), Some(b)) => {
+                let (min, max, same) = sort_atoms(a, b);
+
+                // store the higher-index atom in the buffer if they are different
+                if !same {
+                    self.buffer = Some(max);
+                }
+
+                Some(min.atom)
+            }
+        }
+    }
+}
+
+impl<'a, A, I1, I2> HasBox for UnionAtomIterator<'a, A, I1, I2>
+where
+    I1: OrderedAtomIterator<'a, AtomRef = A>,
+    I2: OrderedAtomIterator<'a, AtomRef = A>,
+    A: std::ops::Deref<Target = Atom> + 'a,
+{
+    #[inline(always)]
+    fn get_simbox(&self) -> Option<&SimBox> {
+        self.iterator_1.get_simbox()
+    }
+}
+
+impl<'a, I1, I2> AtomIteratorWithBox<'a> for UnionAtomIterator<'a, &'a Atom, I1, I2>
+where
+    I1: OrderedAtomIterator<'a, AtomRef = &'a Atom>,
+    I2: OrderedAtomIterator<'a, AtomRef = &'a Atom>,
+{
+}
+
+impl<'a, I1, I2> MutAtomIteratorWithBox<'a> for UnionAtomIterator<'a, &'a mut Atom, I1, I2>
+where
+    I1: OrderedAtomIterator<'a, AtomRef = &'a mut Atom>,
+    I2: OrderedAtomIterator<'a, AtomRef = &'a mut Atom>,
+{
+}
+
+impl<'a, A, I1, I2> OrderedAtomIterator<'a> for UnionAtomIterator<'a, A, I1, I2>
+where
+    I1: OrderedAtomIterator<'a, AtomRef = A>,
+    I2: OrderedAtomIterator<'a, AtomRef = A>,
+    A: std::ops::Deref<Target = Atom> + 'a + Clone,
+{
+    type AtomRef = A;
+}
+
+/// Iterator over atoms shared by two iterators.
+/// The atoms are guaranteed to be yielded in the order in which they are defined in the System.
+/// Every atom will be yielded at most once.
+#[derive(Debug, Clone)]
+pub struct IntersectionAtomIterator<'a, A, I1, I2>
+where
+    I1: OrderedAtomIterator<'a, AtomRef = A>,
+    I2: OrderedAtomIterator<'a, AtomRef = A>,
+    A: std::ops::Deref<Target = Atom> + 'a,
+{
+    iterator_1: I1,
+    iterator_2: I2,
+    _phantom: PhantomData<&'a Atom>,
+}
+
+impl<'a, A, I1, I2> Iterator for IntersectionAtomIterator<'a, A, I1, I2>
+where
+    I1: OrderedAtomIterator<'a, AtomRef = A>,
+    I2: OrderedAtomIterator<'a, AtomRef = A>,
+    A: std::ops::Deref<Target = Atom> + 'a,
+{
+    type Item = A;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // get the next atoms from both iterators, if available
+        let mut a = self.iterator_1.next()?;
+        let mut b = self.iterator_2.next()?;
+
+        loop {
+            match a.get_index().cmp(&b.get_index()) {
+                std::cmp::Ordering::Equal => {
+                    // if the indices are equal, return the shared atom
+                    return Some(a);
+                }
+                std::cmp::Ordering::Less => {
+                    // advance iterator_1 to catch up with iterator_2
+                    a = self.iterator_1.next()?;
+                }
+                std::cmp::Ordering::Greater => {
+                    // advance iterator_2 to catch up with iterator_1
+                    b = self.iterator_2.next()?;
+                }
+            }
+        }
+    }
+}
+
+impl<'a, A, I1, I2> HasBox for IntersectionAtomIterator<'a, A, I1, I2>
+where
+    I1: OrderedAtomIterator<'a, AtomRef = A>,
+    I2: OrderedAtomIterator<'a, AtomRef = A>,
+    A: std::ops::Deref<Target = Atom> + 'a,
+{
+    #[inline(always)]
+    fn get_simbox(&self) -> Option<&SimBox> {
+        self.iterator_1.get_simbox()
+    }
+}
+
+impl<'a, I1, I2> AtomIteratorWithBox<'a> for IntersectionAtomIterator<'a, &'a Atom, I1, I2>
+where
+    I1: OrderedAtomIterator<'a, AtomRef = &'a Atom>,
+    I2: OrderedAtomIterator<'a, AtomRef = &'a Atom>,
+{
+}
+
+impl<'a, I1, I2> MutAtomIteratorWithBox<'a> for IntersectionAtomIterator<'a, &'a mut Atom, I1, I2>
+where
+    I1: OrderedAtomIterator<'a, AtomRef = &'a mut Atom>,
+    I2: OrderedAtomIterator<'a, AtomRef = &'a mut Atom>,
+{
+}
+
+impl<'a, A, I1, I2> OrderedAtomIterator<'a> for IntersectionAtomIterator<'a, A, I1, I2>
+where
+    I1: OrderedAtomIterator<'a, AtomRef = A>,
+    I2: OrderedAtomIterator<'a, AtomRef = A>,
+    A: std::ops::Deref<Target = Atom> + 'a + Clone,
+{
+    type AtomRef = A;
+}
+
+/**************************/
 /*     ITERATOR TRAITS    */
 /**************************/
 
-/// Trait implemented by all immutable iterators over atoms that contain information about the simulation box.
-pub trait AtomIteratorWithBox<'a>: Iterator<Item = &'a Atom> + Sized {
+/// Trait implemented by all iterators over atoms that contain information about the simulation box.
+pub trait HasBox {
     /// Get reference to the simulation box inside the iterator.
     /// Returns an option.
     fn get_simbox(&self) -> Option<&SimBox>;
+}
 
+/// Trait implemented by all IMMUTABLE iterators over atoms that contain information about the simulation box.
+pub trait AtomIteratorWithBox<'a>: Iterator<Item = &'a Atom> + Sized + HasBox {
     /// Get reference to the simulation box inside the iterator.
     ///
     /// ## Panics
@@ -832,12 +921,8 @@ pub trait AtomIteratorWithBox<'a>: Iterator<Item = &'a Atom> + Sized {
     }
 }
 
-/// Trait implemented by all mutable iterators over atoms that contain information about the simulation box.
-pub trait MutAtomIteratorWithBox<'a>: Iterator<Item = &'a mut Atom> + Sized {
-    /// Get reference to the simulation box inside the iterator.
-    /// Returns an option.
-    fn get_simbox(&self) -> Option<&SimBox>;
-
+/// Trait implemented by all MUTABLE iterators over atoms that contain information about the simulation box.
+pub trait MutAtomIteratorWithBox<'a>: Iterator<Item = &'a mut Atom> + Sized + HasBox {
     /// Get reference to the simulation box inside the iterator.
     ///
     /// ## Panics
@@ -937,25 +1022,29 @@ pub trait MutAtomIteratorWithBox<'a>: Iterator<Item = &'a mut Atom> + Sized {
     }
 }
 
-/// Trait implemented by immutable iterators which yield atoms in the order
+/// Trait implemented by mutable or immutable iterators which yield atoms in the order
 /// in which they are defined in the parent System.
-pub trait OrderedAtomIterator<'a>: Iterator<Item = &'a Atom> + AtomIteratorWithBox<'a> {
-    fn union<T>(self, other: T) -> UnionAtomIterator<'a, Self, T>
+pub trait OrderedAtomIterator<'a>: Iterator<Item = Self::AtomRef> + HasBox {
+    // AtomRef is either &'a Atom or &'a mut Atom
+    type AtomRef: std::ops::Deref<Target = Atom> + 'a;
+
+    fn union<T>(self, other: T) -> UnionAtomIterator<'a, Self::AtomRef, Self, T>
     where
         Self: Sized,
-        T: OrderedAtomIterator<'a> + Sized,
+        T: OrderedAtomIterator<'a, AtomRef = Self::AtomRef> + Sized,
     {
         UnionAtomIterator {
             iterator_1: self,
             iterator_2: other,
             buffer: None,
+            _phantom: PhantomData,
         }
     }
 
-    fn intersection<T>(self, other: T) -> IntersectionAtomIterator<'a, Self, T>
+    fn intersection<T>(self, other: T) -> IntersectionAtomIterator<'a, Self::AtomRef, Self, T>
     where
         Self: Sized,
-        T: OrderedAtomIterator<'a> + Sized,
+        T: OrderedAtomIterator<'a, AtomRef = Self::AtomRef> + Sized,
     {
         IntersectionAtomIterator {
             iterator_1: self,
