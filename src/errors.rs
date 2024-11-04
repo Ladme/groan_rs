@@ -401,6 +401,9 @@ pub enum WriteTrajError {
     /// Used when the group of atoms selected to be written into the trajectory file does not exist.
     #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
     GroupNotFound(String),
+    /// Used when a coordinate of an atom is too large to fit into the GRO format.
+    #[error("{} a coordinate is too large to be written in GRO format (supported range: {} to {} nm)", "error:".red().bold(), GRO_MIN_COORDINATE, GRO_MAX_COORDINATE)]
+    CoordinateTooLarge,
 }
 
 /// Errors that can occur when parsing atom selection query.

@@ -7,14 +7,15 @@ pub mod structure;
 pub mod trajectory;
 
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 
 pub use structure::read_gro;
 pub use trajectory::GroReader;
 
-use crate::errors::ParseGroError;
+use crate::errors::{ParseGroError, WriteGroError};
 use crate::prelude::SimBox;
+use crate::system::System;
 
 /// Read the next line in the provided buffer and parse it as a title.
 fn get_title(
@@ -65,4 +66,108 @@ fn line_as_box(line: &str) -> Result<SimBox, ParseGroError> {
     }
 
     Ok(simulation_box.into())
+}
+
+/// Write box dimensions into an open gro file.
+fn write_box(simbox: Option<&SimBox>, writer: &mut BufWriter<File>) -> Result<(), WriteGroError> {
+    match simbox {
+        Some(simbox) if simbox.is_orthogonal() => {
+            writeln!(
+                writer,
+                " {:9.5} {:9.5} {:9.5}",
+                simbox.x, simbox.y, simbox.z
+            )
+            .map_err(|_| WriteGroError::CouldNotWrite)?;
+        }
+        Some(simbox) => {
+            writeln!(
+                writer,
+                " {:9.5} {:9.5} {:9.5} {:9.5} {:9.5} {:9.5} {:9.5} {:9.5} {:9.5}",
+                simbox.x,
+                simbox.y,
+                simbox.z,
+                simbox.v1y,
+                simbox.v1z,
+                simbox.v2x,
+                simbox.v2z,
+                simbox.v3x,
+                simbox.v3y
+            )
+            .map_err(|_| WriteGroError::CouldNotWrite)?;
+        }
+        None => {
+            let x = 0.0;
+            writeln!(writer, " {x:9.5} {x:9.5} {x:9.5}",)
+                .map_err(|_| WriteGroError::CouldNotWrite)?;
+        }
+    }
+    Ok(())
+}
+
+/// Write gro file header into an open gro file.
+#[inline(always)]
+fn write_header(
+    writer: &mut BufWriter<File>,
+    title: &str,
+    n_atoms: usize,
+) -> Result<(), WriteGroError> {
+    writeln!(writer, "{}", title).map_err(|_| WriteGroError::CouldNotWrite)?;
+    writeln!(writer, "{:>5}", n_atoms).map_err(|_| WriteGroError::CouldNotWrite)?;
+
+    Ok(())
+}
+
+/// Determine the title to use for the gro frame.
+#[inline(always)]
+fn determine_title(system: &System, group: &str, is_trajectory: bool) -> String {
+    let title = match group {
+        "all" => system.get_name().to_owned(),
+        _ => format!("Group `{}` from {}", group, system.get_name()),
+    };
+
+    if is_trajectory {
+        format!(
+            "{} t={} step={}",
+            title,
+            system.get_simulation_time(),
+            system.get_simulation_step()
+        )
+    } else {
+        title
+    }
+}
+
+/// Write a single simulation frame in gro format.
+/// Does not check coordinate sizes.
+/// Panics if the group does not exist.
+fn write_frame(
+    system: &System,
+    writer: &mut BufWriter<File>,
+    group: &str,
+    write_velocities: bool,
+    is_trajectory: bool,
+) -> Result<(), WriteGroError> {
+    // write gro file header
+    write_header(
+        writer,
+        &determine_title(system, group, is_trajectory),
+        system.group_get_n_atoms(group).unwrap(),
+    )?;
+
+    // write atoms
+    for atom in system.group_iter(group).unwrap_or_else(|_| {
+        panic!(
+            "FATAL GROAN ERROR | gro_io::write_frame | Group `{}` should exist.",
+            group
+        )
+    }) {
+        atom.write_gro(writer, write_velocities)?;
+    }
+
+    // write simulation box
+    write_box(system.get_box(), writer)?;
+
+    writer.flush().map_err(|_| WriteGroError::CouldNotWrite)?;
+
+    Ok(())
 }

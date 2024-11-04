@@ -3,7 +3,7 @@
 
 //! Implementation of functions for reading and writing gro files as trajectories.
 
-use std::io::BufRead;
+use std::io::{BufRead, BufWriter};
 use std::marker::PhantomData;
 use std::path::Path;
 use std::str::FromStr;
@@ -11,12 +11,19 @@ use std::{fs::File, io::BufReader};
 
 use regex::Regex;
 
-use crate::prelude::{TrajRead, TrajReadOpen, TrajReader, TrajStepRead, Vector3D};
+use crate::auxiliary::{GRO_MAX_COORDINATE, GRO_MIN_COORDINATE};
+use crate::errors::WriteTrajError;
+use crate::io::check_coordinate_sizes;
+use crate::prelude::{TrajRead, TrajReadOpen, TrajReader, TrajStepRead, TrajWrite, Vector3D};
 use crate::{
     errors::ReadTrajError,
     prelude::{FrameData, SimBox, TrajFile},
     system::System,
 };
+
+/**************************/
+/*      READING GRO       */
+/**************************/
 
 #[derive(Debug)]
 pub struct GroReader<'a> {
@@ -45,7 +52,7 @@ pub struct GroFrameData {
 /// Extract time and step from string. Returns `None` if time and step could not be read.
 fn extract_time_step(string: &str) -> Option<(f32, u64)> {
     let re = Regex::new(r"t=\s*([\d\.\-]+)\s+step=\s*(\d+)").expect(
-        "FATAL GROAN ERROR | gro_io::extract_time_step | Could not construct regular expression.",
+        "FATAL GROAN ERROR | gro_io::trajectory::extract_time_step | Could not construct regular expression.",
     );
 
     if let Some(caps) = re.captures(string) {
@@ -329,6 +336,7 @@ impl System {
     ///   the simulation step to 5000.
     ///   In case either the simulation time or step is missing or the title could not be parsed properly, the simulation time and step
     ///   are both left unchanged.
+    /// - Title of the system is not modified based on the title of the frame.
     /// - `GroReader` supports progress printing. However, this only works properly if the time and step information are provided.
     /// - `GroReader` checks whether the number of atoms in the system corresponds to the number of atoms in each frame of the gro file.
     /// - `GroReader` does NOT check consistency of the atom/residue names/numbers between the individual frames of the trajectory.
@@ -343,8 +351,68 @@ impl System {
     }
 }
 
+/**************************/
+/*       WRITING GRO      */
+/**************************/
+
+pub struct GroWriter {
+    system: *const System,
+    gro: BufWriter<File>,
+    write_velocities: bool,
+}
+
+impl GroWriter {
+    /// Write the velocities of the atoms into the output.
+    /// If not specified, the velocities will not be written.
+    pub fn with_velocities(mut self) -> Self {
+        self.write_velocities = true;
+        self
+    }
+}
+
+impl TrajWrite for GroWriter {
+    /// Does not write velocities by default.
+    fn new(system: &System, filename: impl AsRef<Path>) -> Result<Self, WriteTrajError>
+    where
+        Self: Sized,
+    {
+        let output = File::create(&filename)
+            .map_err(|_| WriteTrajError::CouldNotCreate(Box::from(filename.as_ref())))?;
+
+        let writer = BufWriter::new(output);
+
+        Ok(GroWriter {
+            system: system as *const System,
+            gro: writer,
+            write_velocities: false,
+        })
+    }
+
+    fn write_frame(&mut self) -> Result<(), WriteTrajError> {
+        // check that coordinates of the atoms are in the range supported by the data format
+        if !check_coordinate_sizes(
+            unsafe { (*self.system).atoms_iter() },
+            GRO_MIN_COORDINATE,
+            GRO_MAX_COORDINATE,
+        ) {
+            return Err(WriteTrajError::CoordinateTooLarge);
+        }
+
+        super::write_frame(
+            unsafe { &*self.system },
+            &mut self.gro,
+            "all",
+            self.write_velocities,
+            true,
+        )
+        .map_err(|_| WriteTrajError::CouldNotWrite)?;
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
-mod tests {
+mod tests_read {
     use float_cmp::assert_approx_eq;
 
     use crate::test_utilities::utilities::{
@@ -598,5 +666,71 @@ mod tests {
             Some(Err(e)) => panic!("Unexpected error type `{}` returned.", e),
             None => panic!("Iterator is empty."),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests_write {
+    use tempfile::NamedTempFile;
+
+    use super::*;
+
+    #[test]
+    fn gro_writer_no_velocities() {
+        let mut system = System::from_file("test_files/protein.gro").unwrap();
+
+        let gro_output = NamedTempFile::new().unwrap();
+        let path_to_output = gro_output.path();
+
+        let mut writer = GroWriter::new(&system, &path_to_output).unwrap();
+
+        for frame in system
+            .xtc_iter("test_files/short_trajectory_protein.xtc")
+            .unwrap()
+            .take(3)
+        {
+            let _ = frame.unwrap();
+
+            writer.write_frame().unwrap();
+        }
+
+        // we must close the file, otherwise metadata do not get updated
+        drop(writer);
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/expected_protein_trajectory.gro").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn gro_write_velocities() {
+        let mut system = System::from_file("test_files/protein.gro").unwrap();
+
+        let gro_output = NamedTempFile::new().unwrap();
+        let path_to_output = gro_output.path();
+
+        let mut writer = GroWriter::new(&system, &path_to_output)
+            .unwrap()
+            .with_velocities();
+
+        for frame in system
+            .gro_iter("test_files/protein_trajectory_velocities.gro")
+            .unwrap()
+            .take(3)
+        {
+            let _ = frame.unwrap();
+
+            writer.write_frame().unwrap();
+        }
+
+        // we must close the file, otherwise metadata do not get updated
+        drop(writer);
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected =
+            File::open("test_files/expected_protein_trajectory_velocities.gro").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
     }
 }

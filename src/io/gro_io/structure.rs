@@ -4,7 +4,7 @@
 //! Implementation of functions for reading and writing gro structure files.
 
 use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::{BufRead, BufReader, BufWriter};
 use std::path::Path;
 
 use crate::auxiliary::{GRO_MAX_COORDINATE, GRO_MIN_COORDINATE};
@@ -104,65 +104,7 @@ impl System {
 
         let mut writer = BufWriter::new(output);
 
-        // write gro file header
-        let title = match group_name {
-            "all" => self.get_name().to_owned(),
-            _ => format!("Group `{}` from {}", group_name, self.get_name()),
-        };
-
-        write_header(
-            &mut writer,
-            &title,
-            self.group_get_n_atoms(group_name).unwrap(),
-        )?;
-
-        // write atoms
-        for atom in self.group_iter(group_name).unwrap() {
-            atom.write_gro(&mut writer, write_velocities)?;
-        }
-
-        // write simulation box
-        self.write_box(&mut writer)?;
-
-        writer.flush().map_err(|_| WriteGroError::CouldNotWrite)?;
-
-        Ok(())
-    }
-
-    /// Write box dimensions into an open gro file.
-    fn write_box(&self, writer: &mut BufWriter<File>) -> Result<(), WriteGroError> {
-        match self.get_box() {
-            Some(simbox) if simbox.is_orthogonal() => {
-                writeln!(
-                    writer,
-                    " {:9.5} {:9.5} {:9.5}",
-                    simbox.x, simbox.y, simbox.z
-                )
-                .map_err(|_| WriteGroError::CouldNotWrite)?;
-            }
-            Some(simbox) => {
-                writeln!(
-                    writer,
-                    " {:9.5} {:9.5} {:9.5} {:9.5} {:9.5} {:9.5} {:9.5} {:9.5} {:9.5}",
-                    simbox.x,
-                    simbox.y,
-                    simbox.z,
-                    simbox.v1y,
-                    simbox.v1z,
-                    simbox.v2x,
-                    simbox.v2z,
-                    simbox.v3x,
-                    simbox.v3y
-                )
-                .map_err(|_| WriteGroError::CouldNotWrite)?;
-            }
-            None => {
-                let x = 0.0;
-                writeln!(writer, " {x:9.5} {x:9.5} {x:9.5}",)
-                    .map_err(|_| WriteGroError::CouldNotWrite)?;
-            }
-        }
-        Ok(())
+        super::write_frame(self, &mut writer, group_name, write_velocities, false)
     }
 }
 
@@ -270,19 +212,6 @@ fn line_as_atom(line: &str) -> Result<Atom, ParseGroError> {
     } else {
         Ok(atom)
     }
-}
-
-/// Write gro file header into an open gro file.
-fn write_header(
-    writer: &mut BufWriter<File>,
-    title: &str,
-    n_atoms: usize,
-) -> Result<(), WriteGroError> {
-    writeln!(writer, "{}", title).map_err(|_| WriteGroError::CouldNotWrite)?;
-
-    writeln!(writer, "{:>5}", n_atoms).map_err(|_| WriteGroError::CouldNotWrite)?;
-
-    Ok(())
 }
 
 /******************************/
