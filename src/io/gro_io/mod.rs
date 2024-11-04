@@ -14,7 +14,7 @@ pub use structure::read_gro;
 pub use trajectory::GroReader;
 
 use crate::errors::{ParseGroError, WriteGroError};
-use crate::prelude::SimBox;
+use crate::prelude::{AtomIterator, SimBox};
 use crate::system::System;
 
 /// Read the next line in the provided buffer and parse it as a title.
@@ -140,27 +140,28 @@ fn determine_title(system: &System, group: &str, is_trajectory: bool) -> String 
 /// Write a single simulation frame in gro format.
 /// Does not check coordinate sizes.
 /// Panics if the group does not exist.
+///
+// We need to independently provide the iterator
+// since (in case of GroGroupWriter) the group with the given `group_name` is not guaranteed
+// to exist anymore in the system structure.
 fn write_frame(
     system: &System,
     writer: &mut BufWriter<File>,
-    group: &str,
+    group_name: &str,
+    iterator: AtomIterator,
+    n_atoms: usize,
     write_velocities: bool,
     is_trajectory: bool,
 ) -> Result<(), WriteGroError> {
     // write gro file header
     write_header(
         writer,
-        &determine_title(system, group, is_trajectory),
-        system.group_get_n_atoms(group).unwrap(),
+        &determine_title(system, group_name, is_trajectory),
+        n_atoms,
     )?;
 
     // write atoms
-    for atom in system.group_iter(group).unwrap_or_else(|_| {
-        panic!(
-            "FATAL GROAN ERROR | gro_io::write_frame | Group `{}` should exist.",
-            group
-        )
-    }) {
+    for atom in iterator {
         atom.write_gro(writer, write_velocities)?;
     }
 
