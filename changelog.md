@@ -9,6 +9,14 @@
 - **Breaking change:** Keyword `atomid` in the Groan Selection Language has been removed as to not confuse it with the new `index` field. Use `atomnum` instead.
 - `PositionError` and `MassError` now report atom index instead of atom number.
 
+#### Reworked trajectory writing
+- **Breaking changes:**
+  - Trajectory writing has been completely reworked.
+  - Trajectory writers are now attached to `System` structures making them memory safe.
+  - Trajectory writer can be initialized and attached to `System` using `System::traj_writer_init` (or `System::traj_group_writer_init` if you want to write only information about a specific group).
+  - Multiple trajectory writers can be attached to a single `System`.
+  - State of the system can be written into all open output trajectory files using `System::traj_write_frame` or only to a specific file using `System::traj_write_frame_to_file`.
+
 #### RMSD calculation
 - Introduced `System::calc_rmsd` allowing to calculate RMSD between current and some reference structure.
 

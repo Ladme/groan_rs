@@ -358,11 +358,23 @@ impl System {
 /**************************/
 
 impl System {
+    /// Initializes a GRO trajectory writer and associates it with `System`.
+    ///
+    /// This is a convenience method for [`System::traj_writer_init`] with `GroWriter`, writing in GRO format.
+    ///
+    /// ## Notes
+    /// - Velocities of atoms are only written into the output gro file if all the atoms of the system have defined velocities.
     #[inline(always)]
     pub fn gro_writer_init(&mut self, filename: impl AsRef<Path>) -> Result<(), WriteTrajError> {
         self.traj_writer_init::<GroWriter>(filename)
     }
 
+    /// Initializes a GRO trajectory writer for a specific group of atoms within `System`.
+    ///
+    /// This is a convenience method for [`System::traj_group_writer_init`] with `GroWriter`, writing in GRO format.
+    ///
+    /// ## Notes
+    /// - Velocities of atoms are only written into the output gro file if all the atoms of the group have defined velocities.
     #[inline(always)]
     pub fn gro_group_writer_init(
         &mut self,

@@ -391,11 +391,17 @@ impl System {
 /**************************/
 
 impl System {
+    /// Initializes an XTC trajectory writer and associates it with `System`.
+    ///
+    /// This is a convenience method for [`System::traj_writer_init`] with `XtcWriter`, writing in XTC format.
     #[inline(always)]
     pub fn xtc_writer_init(&mut self, filename: impl AsRef<Path>) -> Result<(), WriteTrajError> {
         self.traj_writer_init::<XtcWriter>(filename)
     }
 
+    /// Initializes an XTC trajectory writer for a specific group of atoms within `System`.
+    ///
+    /// This is a convenience method for [`System::traj_group_writer_init`] with `XtcWriter`, writing in XTC format.
     #[inline(always)]
     pub fn xtc_group_writer_init(
         &mut self,

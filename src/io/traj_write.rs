@@ -24,6 +24,83 @@ use super::xtc_io::XtcWriter;
 
 /// Associating trajectory writers with the system.
 impl System {
+    /// Initializes a file for trajectory writing and associates the resulting writer with `System`.
+    ///
+    /// ## Parameters
+    /// - `filename`: The path to the output file that should be opened.
+    /// - `Writer`: A structure implementing `TrajWrite`, determining the output format and behavior.
+    ///
+    /// ## Returns
+    /// - `Ok` if the trajectory writer is successfully created and associated with the `System`.
+    /// - `WriteTrajError` if an error occurs, such as if a writer for the same file already exists.
+    ///
+    /// ## Examples
+    /// To start writing trajectories, initialize a trajectory writer:
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.traj_writer_init::<XtcWriter>("output.xtc").unwrap();
+    /// ```
+    ///
+    /// After initialization, an XTC trajectory writer is now associated with the system, targeting `output.xtc`.
+    /// Additional trajectory writers can be attached to the same system:
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// # let mut system = System::from_file("system.gro").unwrap();
+    /// #
+    /// // attach a TRR trajectory writer
+    /// system.traj_writer_init::<TrrWriter>("output.trr").unwrap();
+    /// // attach an XTC trajectory writer for a specific group
+    /// system.group_create("Protein", "@protein").unwrap();
+    /// system.traj_group_writer_init::<XtcWriter>("output_protein.xtc", "Protein").unwrap();
+    /// ```
+    ///
+    /// Now three writers are associated with the system. To write the current system state into each writer:
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// # let mut system = System::from_file("system.gro").unwrap();
+    /// # system.traj_writer_init::<XtcWriter>("output.xtc").unwrap();
+    /// #
+    /// system.traj_write_frame().unwrap();
+    /// ```
+    ///
+    /// This writes the current system state to `output.xtc` (XTC format) and `output.trr` (TRR format), and
+    /// writes only the `Protein` group state to `output_protein.xtc`.
+    ///
+    /// To write the current system state to a specific writer, specify the writer’s filename:
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// # let mut system = System::from_file("system.gro").unwrap();
+    /// # system.traj_writer_init::<XtcWriter>("output.xtc").unwrap();
+    /// #
+    /// system.traj_write_frame_to_file("output.xtc").unwrap();
+    /// ```
+    /// This writes a frame only to `output.xtc` in XTC format.
+    ///
+    /// Trajectory files close automatically when the `System` goes out of scope. To manually close all writers:
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// # let mut system = System::from_file("system.gro").unwrap();
+    /// # system.traj_writer_init::<XtcWriter>("output.xtc").unwrap();
+    /// #
+    /// system.traj_close();
+    /// ```
+    ///
+    /// To close a specific writer by its filename:
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// # let mut system = System::from_file("system.gro").unwrap();
+    /// # system.traj_writer_init::<XtcWriter>("output.xtc").unwrap();
+    /// #
+    /// system.traj_close_file("output.xtc");
+    /// ```
+    ///
+    /// ## Notes
+    /// - Multiple writers can be associated with the same system.
+    /// - Each writer has a unique name based on the output file path. Attempting to add a writer for the same
+    ///   file will result in an error.
+    /// - See also [System::traj_writer_auto_init], [System::xtc_writer_init], [System::trr_writer_init], and [System::gro_writer_init].
     #[inline]
     pub fn traj_writer_init<Writer>(
         &mut self,
@@ -36,6 +113,26 @@ impl System {
         unsafe { &mut (*writers) }.try_insert::<Writer>(self, filename, None)
     }
 
+    /// Initializes a trajectory writer for a specific group of atoms and associates it with `System`.
+    ///
+    /// This method functions similarly to [`System::traj_writer_init`], but restricts the writer to a specific
+    /// group of atoms within the system.
+    ///
+    /// ## Parameters
+    /// - `filename`: The path to the output file that should be opened.
+    /// - `group`: The name of the atom group for which the trajectory writer will be initialized. This group
+    ///   must already exist within the system.
+    ///
+    /// ## Returns
+    /// - `Ok` if the trajectory writer is successfully created for the specified group and associated
+    ///   with the `System`.
+    /// - `WriteTrajError` if an error occurs, such as if a writer for the same file already exists or
+    ///    if the group does not exist.
+    ///
+    /// ## Notes
+    /// - Once the writer is initialized, the group can be removed from the system. The trajectory writer retains
+    ///   an independent copy of the group’s state, allowing it to function even if the original group is deleted.
+    /// - For more details on general trajectory writer initialization and usage, see [`System::traj_writer_init`].
     #[inline]
     pub fn traj_group_writer_init<Writer>(
         &mut self,
@@ -49,6 +146,12 @@ impl System {
         unsafe { &mut (*writers) }.try_insert::<Writer>(self, filename, Some(group))
     }
 
+    /// Automatically initializes a trajectory writer based on the output file
+    /// extension and associates it with `System`.
+    ///
+    /// This method determines the appropriate writer type (`XtcWriter`, `TrrWriter`, or `GroWriter`)
+    /// based on the file extension and calls [`System::traj_writer_init`].
+    /// Returns an error if the extension is unknown.
     #[inline(always)]
     pub fn traj_writer_auto_init(
         &mut self,
@@ -64,6 +167,12 @@ impl System {
         }
     }
 
+    /// Automatically initializes a trajectory writer for a specific group
+    /// based on the output file extension and associates it with `System`.
+    ///
+    /// This method selects the appropriate writer type (`XtcWriter`, `TrrWriter`, or `GroWriter`)
+    /// based on the file extension and calls [`System::traj_group_writer_init`].
+    /// Returns an error if the extension is unknown.
     #[inline(always)]
     pub fn traj_group_writer_auto_init(
         &mut self,
@@ -80,6 +189,12 @@ impl System {
         }
     }
 
+    /// Writes a single frame to a specified trajectory writer identified by its filename.
+    ///
+    /// This function writes the current state of the `System`
+    /// to the writer associated with `name`.
+    /// If no writer matches `name`, an error is returned.
+    /// For examples, see [`System::traj_writer_init`].
     #[inline(always)]
     pub fn traj_write_frame_to_file(
         &mut self,
@@ -92,18 +207,33 @@ impl System {
             .select_and_write(unsafe { &*system }, &writer_name)
     }
 
+    /// Writes a single frame to all associated trajectory writers.
+    ///
+    /// This function writes the current state of the `System`
+    /// to each trajectory writer attached to it.
+    /// For examples, see [`System::traj_writer_init`].
     #[inline(always)]
     pub fn traj_write_frame(&mut self) -> Result<(), WriteTrajError> {
         let system = self as *const System;
         self.get_writers_mut().write_all(unsafe { &*system })
     }
 
+    /// Closes a specific trajectory writer identified by its filename.
+    ///
+    /// This function closes the trajectory writer associated with `name`.
+    /// If no writer matches `name`, an error is returned.
+    /// For examples, see [`System::traj_writer_init`].
     #[inline(always)]
     pub fn traj_close_file(&mut self, name: impl AsRef<Path>) -> Result<(), WriteTrajError> {
         let writer_name = crate::auxiliary::path2string(&name);
         self.get_writers_mut().select_and_close(&writer_name)
     }
 
+    /// Closes all trajectory writers associated with the `System`.
+    ///
+    /// This function closes every trajectory writer attached to the `System`,
+    /// releasing any resources they hold.
+    /// For examples, see [`System::traj_writer_init`].
     #[inline(always)]
     pub fn traj_close(&mut self) {
         self.get_writers_mut().close_all()
