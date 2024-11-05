@@ -57,6 +57,7 @@
 - Values in the `GridMap` can be now cleared using `GridMap::clear`.
 - The loading of `GridMaps` from files has been reworked. It should no longer be possible to load a grid map with invalid coordinates.
 - Introduced `System::guess_elements_unknown` for assigning elements only to atoms which are not already assigned an element.
+- `ProgressPrinter` now only uses mutex if the `parallel` feature is specified.
 - Bug fix: Regex operators can be now used in regular expression blocks without raising an InvalidOperator error.
 
 ***
