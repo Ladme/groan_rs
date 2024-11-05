@@ -14,10 +14,12 @@ use crate::io::traj_read::{
     TrajStepTimeRead,
 };
 use crate::io::xdrfile::{self, CXdrFile, OpenMode, XdrFile};
+use crate::prelude::AtomIterator;
+use crate::structures::group::Group;
 use crate::structures::{simbox::SimBox, vector3d::Vector3D};
 use crate::system::System;
 
-use super::traj_write::TrajWrite;
+use super::traj_write::{PrivateTrajWrite, TrajWrite};
 
 /**************************/
 /*      READING TRR       */
@@ -389,27 +391,34 @@ impl System {
 
 impl System {
     #[inline(always)]
-    pub fn trr_writer(&mut self, filename: impl AsRef<Path>) -> Result<(), WriteTrajError> {
-        self.traj_writer::<TrrWriter>(filename)
+    pub fn trr_writer_init(&mut self, filename: impl AsRef<Path>) -> Result<(), WriteTrajError> {
+        self.traj_writer_init::<TrrWriter>(filename)
     }
 
     #[inline(always)]
-    pub fn trr_group_writer(
+    pub fn trr_group_writer_init(
         &mut self,
         filename: impl AsRef<Path>,
         group: &str,
     ) -> Result<(), WriteTrajError> {
-        self.traj_group_writer::<TrrWriter>(filename, group)
+        self.traj_group_writer_init::<TrrWriter>(filename, group)
     }
 }
 
 pub struct TrrWriter {
     trr: XdrFile,
-    group: String,
+    // deep copy of the group from `System`
+    group: Group,
 }
 
-impl TrajWrite for TrrWriter {
-    fn new(filename: impl AsRef<Path>, group: Option<&str>) -> Result<Self, WriteTrajError>
+impl TrajWrite for TrrWriter {}
+
+impl PrivateTrajWrite for TrrWriter {
+    fn new(
+        system: &System,
+        filename: impl AsRef<Path>,
+        group: Option<&str>,
+    ) -> Result<Self, WriteTrajError>
     where
         Self: Sized,
     {
@@ -420,25 +429,35 @@ impl TrajWrite for TrrWriter {
             Err(TrajError::InvalidPath(x)) => return Err(WriteTrajError::InvalidPath(x)),
         };
 
-        let group = group.unwrap_or("all").to_owned();
+        // get the requested group from the system or use `all`
+        let group = match group {
+            Some(x) => system
+                .get_groups()
+                .get(x)
+                .ok_or_else(|| WriteTrajError::GroupNotFound(x.to_owned()))?
+                .clone(),
+            None => system
+                .get_groups()
+                .get("all")
+                .expect("FATAL GROAN ERROR | TrrWriter::new | Group `all` should exist.")
+                .clone(),
+        };
 
         Ok(Self { trr, group })
     }
 
     fn write_frame(&mut self, system: &System) -> Result<(), WriteTrajError> {
-        let n_atoms = system
-            .group_get_n_atoms(&self.group)
-            .map_err(|_| WriteTrajError::GroupNotFound(self.group.clone()))?;
+        let n_atoms = self.group.get_n_atoms();
 
         // prepare coordinate, velocity and forces matrix
         let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
         let mut velocities = vec![[0.0, 0.0, 0.0]; n_atoms];
         let mut forces = vec![[0.0, 0.0, 0.0]; n_atoms];
 
-        for atom in system
-            .group_iter(&self.group)
-            .map_err(|_| WriteTrajError::GroupNotFound(self.group.clone()))?
-        {
+        let iterator =
+            AtomIterator::new(system.get_atoms(), self.group.get_atoms(), system.get_box());
+
+        for atom in iterator {
             if let Some(pos) = atom.get_position() {
                 coordinates[atom.get_index()] = [pos.x, pos.y, pos.z];
             }
@@ -1678,7 +1697,7 @@ mod tests {
         let xtc_output = NamedTempFile::new().unwrap();
         let path_to_output = xtc_output.path();
 
-        system.trr_writer(path_to_output).unwrap();
+        system.trr_writer_init(path_to_output).unwrap();
 
         for frame in system.trr_iter("test_files/short_trajectory.trr").unwrap() {
             let frame = frame.unwrap();
@@ -1686,7 +1705,7 @@ mod tests {
             frame.traj_write_frame().unwrap();
         }
 
-        system.traj_close_all();
+        system.traj_close();
 
         check_trr(
             &mut system,
@@ -1700,7 +1719,7 @@ mod tests {
     fn write_invalid_path() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        match system.trr_writer("test_files/nonexistent/output.trr") {
+        match system.trr_writer_init("test_files/nonexistent/output.trr") {
             Err(WriteTrajError::CouldNotCreate(_)) => (),
             _ => panic!("Output TRR file should not have been created."),
         }
@@ -1714,7 +1733,9 @@ mod tests {
         let xtc_output = NamedTempFile::new().unwrap();
         let path_to_output = xtc_output.path();
 
-        system.trr_group_writer(path_to_output, "Protein").unwrap();
+        system
+            .trr_group_writer_init(path_to_output, "Protein")
+            .unwrap();
 
         for frame in system.xtc_iter("test_files/short_trajectory.xtc").unwrap() {
             let frame = frame.unwrap();
@@ -1722,7 +1743,7 @@ mod tests {
             frame.traj_write_frame().unwrap();
         }
 
-        system.traj_close_all();
+        system.traj_close();
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected = File::open("test_files/short_trajectory_protein.trr").unwrap();
@@ -1737,7 +1758,7 @@ mod tests {
         let xtc_output = NamedTempFile::new().unwrap();
         let path_to_output = xtc_output.path();
 
-        system.trr_group_writer(path_to_output, "all").unwrap();
+        system.trr_group_writer_init(path_to_output, "all").unwrap();
 
         for frame in system.trr_iter("test_files/short_trajectory.trr").unwrap() {
             let frame = frame.unwrap();
@@ -1745,7 +1766,7 @@ mod tests {
             frame.traj_write_frame().unwrap();
         }
 
-        system.traj_close_all();
+        system.traj_close();
 
         check_trr(
             &mut system,
@@ -1762,10 +1783,68 @@ mod tests {
         let xtc_output = NamedTempFile::new().unwrap();
         let path_to_output = xtc_output.path();
 
-        match system.trr_group_writer(path_to_output, "Protein") {
+        match system.trr_group_writer_init(path_to_output, "Protein") {
             Err(WriteTrajError::GroupNotFound(g)) => assert_eq!(g, "Protein"),
             _ => panic!("Output XTC file should not have been created."),
         }
+    }
+
+    #[test]
+    fn write_group_trr_replace() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let xtc_output = NamedTempFile::new().unwrap();
+        let path_to_output = xtc_output.path();
+
+        system
+            .trr_group_writer_init(path_to_output, "Protein")
+            .unwrap();
+
+        // replace the protein group with something else; this should not change the output of the trajectory writing
+        if system.group_create("Protein", "serial 1").is_ok() {
+            panic!("Function should return warning but it did not.");
+        }
+
+        for frame in system.xtc_iter("test_files/short_trajectory.xtc").unwrap() {
+            let frame = frame.unwrap();
+            frame.traj_write_frame().unwrap();
+        }
+
+        system.traj_close();
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/short_trajectory_protein.trr").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn write_group_trr_remove() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let xtc_output = NamedTempFile::new().unwrap();
+        let path_to_output = xtc_output.path();
+
+        system
+            .trr_group_writer_init(path_to_output, "Protein")
+            .unwrap();
+
+        // remove the `Protein` group; this should not change the output of the trajectory writing
+        system.group_remove("Protein").unwrap();
+
+        for frame in system.xtc_iter("test_files/short_trajectory.xtc").unwrap() {
+            let frame = frame.unwrap();
+            frame.traj_write_frame().unwrap();
+        }
+
+        system.traj_close();
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/short_trajectory_protein.trr").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
     }
 
     #[test]
@@ -1775,7 +1854,7 @@ mod tests {
         let trr_output = NamedTempFile::new().unwrap();
         let path_to_output = trr_output.path();
 
-        system.trr_writer(path_to_output).unwrap();
+        system.trr_writer_init(path_to_output).unwrap();
 
         for frame in system
             .trr_iter("test_files/triclinic_trajectory.trr")
@@ -1786,7 +1865,7 @@ mod tests {
             frame.traj_write_frame().unwrap();
         }
 
-        system.traj_close_all();
+        system.traj_close();
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected = File::open("test_files/triclinic_trajectory_full.trr").unwrap();
@@ -1801,7 +1880,7 @@ mod tests {
         let trr_output = NamedTempFile::new().unwrap();
         let path_to_output = trr_output.path();
 
-        system.trr_writer(path_to_output).unwrap();
+        system.trr_writer_init(path_to_output).unwrap();
 
         for frame in system
             .trr_iter("test_files/octahedron_trajectory.trr")
@@ -1812,7 +1891,7 @@ mod tests {
             frame.traj_write_frame().unwrap();
         }
 
-        system.traj_close_all();
+        system.traj_close();
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected = File::open("test_files/octahedron_trajectory_full.trr").unwrap();
@@ -1827,7 +1906,7 @@ mod tests {
         let trr_output = NamedTempFile::new().unwrap();
         let path_to_output = trr_output.path();
 
-        system.trr_writer(path_to_output).unwrap();
+        system.trr_writer_init(path_to_output).unwrap();
 
         for frame in system
             .trr_iter("test_files/dodecahedron_trajectory.trr")
@@ -1838,7 +1917,7 @@ mod tests {
             frame.traj_write_frame().unwrap();
         }
 
-        system.traj_close_all();
+        system.traj_close();
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected = File::open("test_files/dodecahedron_trajectory_full.trr").unwrap();

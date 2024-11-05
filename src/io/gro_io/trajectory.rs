@@ -14,8 +14,9 @@ use regex::Regex;
 use crate::auxiliary::{GRO_MAX_COORDINATE, GRO_MIN_COORDINATE};
 use crate::errors::WriteTrajError;
 use crate::io::check_coordinate_sizes;
-use crate::io::traj_write::TrajWrite;
-use crate::prelude::{TrajRead, TrajReadOpen, TrajReader, TrajStepRead, Vector3D};
+use crate::io::traj_write::{PrivateTrajWrite, TrajWrite};
+use crate::prelude::{AtomIterator, TrajRead, TrajReadOpen, TrajReader, TrajStepRead, Vector3D};
+use crate::structures::group::Group;
 use crate::{
     errors::ReadTrajError,
     prelude::{FrameData, SimBox, TrajFile},
@@ -358,28 +359,36 @@ impl System {
 
 impl System {
     #[inline(always)]
-    pub fn gro_writer(&mut self, filename: impl AsRef<Path>) -> Result<(), WriteTrajError> {
-        self.traj_writer::<GroWriter>(filename)
+    pub fn gro_writer_init(&mut self, filename: impl AsRef<Path>) -> Result<(), WriteTrajError> {
+        self.traj_writer_init::<GroWriter>(filename)
     }
 
     #[inline(always)]
-    pub fn gro_group_writer(
+    pub fn gro_group_writer_init(
         &mut self,
         filename: impl AsRef<Path>,
         group: &str,
     ) -> Result<(), WriteTrajError> {
-        self.traj_group_writer::<GroWriter>(filename, group)
+        self.traj_group_writer_init::<GroWriter>(filename, group)
     }
 }
 
 /// Velocities are written only if all atoms have defined velocities.
 pub struct GroWriter {
     gro: BufWriter<File>,
-    group: String,
+    // deep copy of the group from `System`
+    group: Group,
+    group_name: String,
 }
 
-impl TrajWrite for GroWriter {
-    fn new(filename: impl AsRef<Path>, group: Option<&str>) -> Result<Self, WriteTrajError>
+impl TrajWrite for GroWriter {}
+
+impl PrivateTrajWrite for GroWriter {
+    fn new(
+        system: &System,
+        filename: impl AsRef<Path>,
+        group: Option<&str>,
+    ) -> Result<Self, WriteTrajError>
     where
         Self: Sized,
     {
@@ -388,28 +397,44 @@ impl TrajWrite for GroWriter {
 
         let writer = BufWriter::new(output);
 
-        let group = group.unwrap_or("all").to_owned();
+        let group_name = group.to_owned();
 
-        Ok(GroWriter { gro: writer, group })
+        // get the requested group from the system or use `all`
+        let group = match group {
+            Some(x) => system
+                .get_groups()
+                .get(x)
+                .ok_or_else(|| WriteTrajError::GroupNotFound(x.to_owned()))?
+                .clone(),
+            None => system
+                .get_groups()
+                .get("all")
+                .expect("FATAL GROAN ERROR | TrrWriter::new | Group `all` should exist.")
+                .clone(),
+        };
+
+        Ok(GroWriter {
+            gro: writer,
+            group,
+            group_name: group_name.unwrap_or("all").to_owned(),
+        })
     }
 
     fn write_frame(&mut self, system: &System) -> Result<(), WriteTrajError> {
+        let iterator =
+            AtomIterator::new(system.get_atoms(), self.group.get_atoms(), system.get_box());
+
         // check that coordinates of the atoms are in the range supported by the data format
-        // also checks that the group exists
-        if !check_coordinate_sizes(
-            system
-                .group_iter(&self.group)
-                .map_err(|_| WriteTrajError::GroupNotFound(self.group.clone()))?,
-            GRO_MIN_COORDINATE,
-            GRO_MAX_COORDINATE,
-        ) {
+        if !check_coordinate_sizes(iterator.clone(), GRO_MIN_COORDINATE, GRO_MAX_COORDINATE) {
             return Err(WriteTrajError::CoordinateTooLarge);
         }
 
         super::write_frame(
             system,
             &mut self.gro,
-            &self.group,
+            &self.group_name,
+            iterator,
+            self.group.get_n_atoms(),
             system.has_velocities(),
             true,
         )
@@ -688,7 +713,7 @@ mod tests_write {
         let gro_output = NamedTempFile::new().unwrap();
         let path_to_output = gro_output.path();
 
-        system.gro_writer(path_to_output).unwrap();
+        system.gro_writer_init(path_to_output).unwrap();
 
         for frame in system
             .xtc_iter("test_files/short_trajectory_protein.xtc")
@@ -699,7 +724,7 @@ mod tests_write {
             frame.traj_write_frame().unwrap();
         }
 
-        system.traj_close_all();
+        system.traj_close();
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected = File::open("test_files/expected_protein_trajectory.gro").unwrap();
@@ -714,7 +739,7 @@ mod tests_write {
         let gro_output = NamedTempFile::new().unwrap();
         let path_to_output = gro_output.path();
 
-        system.gro_writer(path_to_output).unwrap();
+        system.gro_writer_init(path_to_output).unwrap();
 
         for frame in system
             .gro_iter("test_files/expected_protein_trajectory_velocities.gro")
@@ -725,7 +750,7 @@ mod tests_write {
             frame.traj_write_frame().unwrap();
         }
 
-        system.traj_close_all();
+        system.traj_close();
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected =
@@ -742,7 +767,9 @@ mod tests_write {
         let gro_output = NamedTempFile::new().unwrap();
         let path_to_output = gro_output.path();
 
-        system.gro_group_writer(path_to_output, "Protein").unwrap();
+        system
+            .gro_group_writer_init(path_to_output, "Protein")
+            .unwrap();
 
         for frame in system
             .xtc_iter("test_files/short_trajectory.xtc")
@@ -753,7 +780,7 @@ mod tests_write {
             frame.traj_write_frame().unwrap();
         }
 
-        system.traj_close_all();
+        system.traj_close();
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected = File::open("test_files/expected_protein_trajectory.gro").unwrap();
@@ -769,7 +796,9 @@ mod tests_write {
         let gro_output = NamedTempFile::new().unwrap();
         let path_to_output = gro_output.path();
 
-        system.gro_group_writer(path_to_output, "Protein").unwrap();
+        system
+            .gro_group_writer_init(path_to_output, "Protein")
+            .unwrap();
 
         for frame in system
             .trr_iter("test_files/short_trajectory.trr")
@@ -781,11 +810,77 @@ mod tests_write {
             frame.traj_write_frame().unwrap();
         }
 
-        system.traj_close_all();
+        system.traj_close();
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected =
             File::open("test_files/expected_protein_trajectory_velocities.gro").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn gro_writer_group_replace_group() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        let gro_output = NamedTempFile::new().unwrap();
+        let path_to_output = gro_output.path();
+
+        system
+            .gro_group_writer_init(path_to_output, "Protein")
+            .unwrap();
+
+        // replace the protein group with something else; this should not change the output of the trajectory writing
+        if system.group_create("Protein", "serial 1").is_ok() {
+            panic!("Function should return warning but it did not.");
+        }
+
+        for frame in system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .take(3)
+        {
+            let frame = frame.unwrap();
+            frame.traj_write_frame().unwrap();
+        }
+
+        system.traj_close();
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/expected_protein_trajectory.gro").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn gro_writer_group_remove_group() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        let gro_output = NamedTempFile::new().unwrap();
+        let path_to_output = gro_output.path();
+
+        system
+            .gro_group_writer_init(path_to_output, "Protein")
+            .unwrap();
+
+        // remove the `Protein` group; this should not change the output of the trajectory writing
+        system.group_remove("Protein").unwrap();
+
+        for frame in system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .take(3)
+        {
+            let frame = frame.unwrap();
+            frame.traj_write_frame().unwrap();
+        }
+
+        system.traj_close();
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/expected_protein_trajectory.gro").unwrap();
 
         assert!(file_diff::diff_files(&mut result, &mut expected));
     }

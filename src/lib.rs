@@ -247,7 +247,7 @@
 //!     let mut system = System::from_file("structure.gro")?;
 //!
 //!     // create an output xtc file associated with the system
-//!     system.xtc_writer("output.xtc")?;
+//!     system.xtc_writer_init("output.xtc")?;
 //!     // you can have multiple writers associated with one system
 //!
 //!     // iterate through the trr trajectory
@@ -575,6 +575,7 @@ pub mod prelude {
         TrajRangeStepReader, TrajRead, TrajReadOpen, TrajReader, TrajStepRead, TrajStepReader,
         TrajStepTimeRead,
     };
+    pub use crate::io::traj_write::TrajWrite;
     pub use crate::io::trr_io::{TrrReader, TrrWriter};
     pub use crate::io::xtc_io::{XtcReader, XtcWriter};
     pub use crate::progress::ProgressPrinter;

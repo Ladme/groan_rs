@@ -25,15 +25,19 @@ use super::xtc_io::XtcWriter;
 /// Associating trajectory writers with the system.
 impl System {
     #[inline]
-    pub fn traj_writer<Writer>(&mut self, filename: impl AsRef<Path>) -> Result<(), WriteTrajError>
+    pub fn traj_writer_init<Writer>(
+        &mut self,
+        filename: impl AsRef<Path>,
+    ) -> Result<(), WriteTrajError>
     where
         Writer: TrajWrite + 'static,
     {
-        self.get_writers_mut().try_insert::<Writer>(filename, None)
+        let writers = self.get_writers_mut() as *mut SystemWriters;
+        unsafe { &mut (*writers) }.try_insert::<Writer>(self, filename, None)
     }
 
     #[inline]
-    pub fn traj_group_writer<Writer>(
+    pub fn traj_group_writer_init<Writer>(
         &mut self,
         filename: impl AsRef<Path>,
         group: &str,
@@ -41,21 +45,19 @@ impl System {
     where
         Writer: TrajWrite + 'static,
     {
-        // check that the group exists
-        if !self.group_exists(group) {
-            return Err(WriteTrajError::GroupNotFound(group.to_owned()));
-        }
-
-        self.get_writers_mut()
-            .try_insert::<Writer>(filename, Some(group))
+        let writers = self.get_writers_mut() as *mut SystemWriters;
+        unsafe { &mut (*writers) }.try_insert::<Writer>(self, filename, Some(group))
     }
 
     #[inline(always)]
-    pub fn traj_writer_auto(&mut self, filename: impl AsRef<Path>) -> Result<(), WriteTrajError> {
+    pub fn traj_writer_auto_init(
+        &mut self,
+        filename: impl AsRef<Path>,
+    ) -> Result<(), WriteTrajError> {
         match FileType::from_name(&filename) {
-            FileType::XTC => self.traj_writer::<XtcWriter>(filename),
-            FileType::TRR => self.traj_writer::<TrrWriter>(filename),
-            FileType::GRO => self.traj_writer::<GroWriter>(filename),
+            FileType::XTC => self.traj_writer_init::<XtcWriter>(filename),
+            FileType::TRR => self.traj_writer_init::<TrrWriter>(filename),
+            FileType::GRO => self.traj_writer_init::<GroWriter>(filename),
             _ => Err(WriteTrajError::UnknownExtension(Box::from(
                 filename.as_ref(),
             ))),
@@ -63,20 +65,15 @@ impl System {
     }
 
     #[inline(always)]
-    pub fn traj_group_writer_auto(
+    pub fn traj_group_writer_auto_init(
         &mut self,
         filename: impl AsRef<Path>,
         group: &str,
     ) -> Result<(), WriteTrajError> {
-        // check that the group exists
-        if !self.group_exists(group) {
-            return Err(WriteTrajError::GroupNotFound(group.to_owned()));
-        }
-
         match FileType::from_name(&filename) {
-            FileType::XTC => self.traj_group_writer::<XtcWriter>(filename, group),
-            FileType::TRR => self.traj_group_writer::<TrrWriter>(filename, group),
-            FileType::GRO => self.traj_group_writer::<GroWriter>(filename, group),
+            FileType::XTC => self.traj_group_writer_init::<XtcWriter>(filename, group),
+            FileType::TRR => self.traj_group_writer_init::<TrrWriter>(filename, group),
+            FileType::GRO => self.traj_group_writer_init::<GroWriter>(filename, group),
             _ => Err(WriteTrajError::UnknownExtension(Box::from(
                 filename.as_ref(),
             ))),
@@ -108,7 +105,7 @@ impl System {
     }
 
     #[inline(always)]
-    pub fn traj_close_all(&mut self) {
+    pub fn traj_close(&mut self) {
         self.get_writers_mut().close_all()
     }
 }
@@ -167,6 +164,7 @@ mod single_threaded {
         /// it is not reopened and no writer is added into `SystemWriters`. Instead, an error is returned.
         pub(super) fn try_insert<Writer>(
             &mut self,
+            system: &System,
             filename: impl AsRef<Path>,
             group: Option<&str>,
         ) -> Result<(), WriteTrajError>
@@ -181,7 +179,7 @@ mod single_threaded {
                 return Err(WriteTrajError::WriterAlreadyExists(name.to_owned()));
             }
 
-            let writer = Writer::new(&filename, group)?;
+            let writer = Writer::new(system, &filename, group)?;
 
             self.0.insert(name, Rc::new(RefCell::new(writer)));
 
@@ -261,6 +259,7 @@ mod multi_threaded {
         /// it is not reopened and no writer is added into `SystemWriters`. Instead, an error is returned.
         pub(super) fn try_insert<Writer>(
             &mut self,
+            system: &System,
             filename: impl AsRef<Path>,
             group: Option<&str>,
         ) -> Result<(), WriteTrajError>
@@ -275,7 +274,7 @@ mod multi_threaded {
                 return Err(WriteTrajError::WriterAlreadyExists(name.to_owned()));
             }
 
-            let writer = Writer::new(&filename, group)?;
+            let writer = Writer::new(system, &filename, group)?;
 
             self.0.insert(name, Arc::new(Mutex::new(writer)));
 
@@ -298,14 +297,23 @@ mod multi_threaded {
     }
 }
 
-pub trait TrajWrite {
-    /// Write the current state of the system into an open trajectory file.
-    fn write_frame(&mut self, system: &System) -> Result<(), WriteTrajError>;
+/// Any structure implementing the `TrajWrite` trait can be used as a trajectory writer.
+#[allow(private_bounds)]
+pub trait TrajWrite: PrivateTrajWrite {}
 
+/// Trait containing private methods implemented by all trajectory writers.
+pub(super) trait PrivateTrajWrite {
     /// Create a new trajectory writer.
-    fn new(filename: impl AsRef<Path>, group: Option<&str>) -> Result<Self, WriteTrajError>
+    fn new(
+        system: &System,
+        filename: impl AsRef<Path>,
+        group: Option<&str>,
+    ) -> Result<Self, WriteTrajError>
     where
         Self: Sized;
+
+    /// Write the current state of the system into an open trajectory file.
+    fn write_frame(&mut self, system: &System) -> Result<(), WriteTrajError>;
 }
 
 #[cfg(test)]
@@ -332,12 +340,16 @@ mod tests {
         let (_gro_group, p_gro_group) = create_named_path();
         let (_xtc2, p_xtc2) = create_named_path();
 
-        system.xtc_writer(&p_xtc).unwrap();
-        system.xtc_group_writer(&p_xtc_group, "Protein").unwrap();
-        system.gro_group_writer(&p_gro_group, "Protein").unwrap();
-        system.xtc_writer(&p_xtc2).unwrap();
+        system.xtc_writer_init(&p_xtc).unwrap();
+        system
+            .xtc_group_writer_init(&p_xtc_group, "Protein")
+            .unwrap();
+        system
+            .gro_group_writer_init(&p_gro_group, "Protein")
+            .unwrap();
+        system.xtc_writer_init(&p_xtc2).unwrap();
 
-        match system.trr_writer(&p_xtc) {
+        match system.trr_writer_init(&p_xtc) {
             Ok(_) => panic!("Function should have failed."),
             Err(WriteTrajError::WriterAlreadyExists(x)) => assert_eq!(&x, p_xtc.to_str().unwrap()),
             Err(e) => panic!("Unexpected error type `{}` returned.", e),
@@ -372,7 +384,7 @@ mod tests {
             }
         }
 
-        system.traj_close_all();
+        system.traj_close();
         assert_eq!(system.get_n_writers(), 0);
 
         let mut result = File::open(p_xtc).unwrap();

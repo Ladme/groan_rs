@@ -104,7 +104,15 @@ impl System {
 
         let mut writer = BufWriter::new(output);
 
-        super::write_frame(self, &mut writer, group_name, write_velocities, false)
+        super::write_frame(
+            self,
+            &mut writer,
+            group_name,
+            self.group_iter(group_name).unwrap(),
+            self.group_get_n_atoms(group_name).unwrap(),
+            write_velocities,
+            false,
+        )
     }
 }
 
