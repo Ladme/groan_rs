@@ -144,6 +144,7 @@ impl System {
     ///   That is different from the standard (serial) iteration over trajectories.
     /// - If a single thread encounters an error during the iteration, the entire function returns an error.
     ///   However, this error is propagated only after all the other threads finish their work.
+    #[allow(clippy::too_many_arguments)]
     pub fn traj_iter_map_reduce<'a, Reader, Data, Error>(
         &self,
         trajectory_file: impl AsRef<Path> + Send + Clone,
@@ -242,6 +243,7 @@ impl System {
     }
 
     /// Iterate over a part of the trajectory in a single thread.
+    #[allow(clippy::too_many_arguments)]
     fn thread_iter<'a, Reader, Data, Error>(
         mut self,
         data: &mut Data,
@@ -323,7 +325,7 @@ impl System {
                 }
             };
 
-            if let Err(e) = body(&frame, data) {
+            if let Err(e) = body(frame, data) {
                 return (
                     Err(Box::from(e)),
                     frame.get_simulation_step(),
@@ -505,7 +507,7 @@ mod tests {
 
         fn add(self, rhs: Self) -> Self::Output {
             let mut new = Steps(self.0);
-            new.0.extend(rhs.0.into_iter());
+            new.0.extend(rhs.0);
             new
         }
     }
@@ -1184,7 +1186,7 @@ mod tests {
 
         let count = reader
             .lines()
-            .filter_map(|line| line.ok())
+            .map_while(Result::ok)
             .filter(|line| line.contains(pattern))
             .count();
 

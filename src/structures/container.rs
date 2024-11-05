@@ -1034,7 +1034,7 @@ mod serde_tests {
     fn atomblock_from_yaml() {
         let string = "{ start: 14, end: 22}";
 
-        let block: AtomBlock = serde_yaml::from_str(&string).unwrap();
+        let block: AtomBlock = serde_yaml::from_str(string).unwrap();
 
         assert_eq!(block.start, 14);
         assert_eq!(block.end, 22);
@@ -1064,7 +1064,7 @@ mod serde_tests {
     fn atomcontainer_from_yaml() {
         let string = "atom_blocks: [ { start: 20, end: 32 }, { start: 64, end: 64 }, { start: 84, end: 143 } ]";
 
-        let container: AtomContainer = serde_yaml::from_str(&string).unwrap();
+        let container: AtomContainer = serde_yaml::from_str(string).unwrap();
 
         let ranges = vec![(20, 32), (64, 64), (84, 143)];
         let expected = AtomContainer::from_ranges(ranges, 1028);

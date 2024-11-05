@@ -1524,7 +1524,7 @@ mod serde_tests {
     #[test]
     fn vector3d_from_yaml() {
         let string = "[ 4.376, 2.13, 4.0 ]\n";
-        let vector: Vector3D = serde_yaml::from_str(&string).unwrap();
+        let vector: Vector3D = serde_yaml::from_str(string).unwrap();
 
         assert_approx_eq!(f32, vector.x, 4.376);
         assert_approx_eq!(f32, vector.y, 2.13);

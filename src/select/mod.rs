@@ -3361,7 +3361,7 @@ mod serde_tests {
     #[test]
     fn simple_query_from_yaml() {
         let string = "resid 4 to 11";
-        let select: Select = serde_yaml::from_str(&string).unwrap();
+        let select: Select = serde_yaml::from_str(string).unwrap();
 
         assert_eq!(select, Select::ResidueNumber(vec![(4, 11)]));
     }
@@ -3400,7 +3400,7 @@ mod serde_tests {
     #[test]
     fn complex_query_from_yaml() {
         let string = "  not(!(resname 'POPE' LYS LEU and(!name   BB PO4   D2A) || not name C1A ) ||(resname ION&& name CL) )";
-        let select: Select = serde_yaml::from_str(&string).unwrap();
+        let select: Select = serde_yaml::from_str(string).unwrap();
 
         assert_eq!(
             select,
@@ -3472,7 +3472,7 @@ mod serde_tests {
 -   name   BB SC1   PO4   C1 C2B
 ";
 
-        let selections: Vec<Select> = serde_yaml::from_str(&string).unwrap();
+        let selections: Vec<Select> = serde_yaml::from_str(string).unwrap();
 
         assert_eq!(
             selections[0],
@@ -3510,12 +3510,12 @@ mod serde_tests {
     fn parsing_fail_yaml() {
         let string = "((resname LYS and name SC1)";
 
-        let serde_error = match serde_yaml::from_str::<Select>(&string) {
+        let serde_error = match serde_yaml::from_str::<Select>(string) {
             Ok(_) => panic!("Parsing should have failed. (YAML)"),
             Err(e) => e,
         };
 
-        let select_error = match Select::parse_query(&string) {
+        let select_error = match Select::parse_query(string) {
             Ok(_) => panic!("Parsing should have failed. (QUERY)"),
             Err(e) => e,
         };

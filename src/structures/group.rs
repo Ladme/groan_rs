@@ -466,7 +466,7 @@ print_ndx: true
 print_ndx: true
 ";
 
-        let group: Group = serde_yaml::from_str(&string).unwrap();
+        let group: Group = serde_yaml::from_str(string).unwrap();
 
         let ranges = vec![(20, 32), (64, 64), (84, 143)];
         let expected = Group::from_ranges(ranges, 1028);
