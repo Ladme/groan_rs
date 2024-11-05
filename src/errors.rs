@@ -389,6 +389,12 @@ pub enum ReadTrajError {
 /// Errors that can occur when writing a trajectory file.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum WriteTrajError {
+    /// Used when a writer to the specific file is not associated with the system (i.e. does not exist).
+    #[error("{} writer to file '{}' is not associated with the system", "error:".red().bold(), .0.yellow())]
+    WriterNotFound(String),
+    /// Used when creating a writer to file for which writer is already associated with the system.
+    #[error("{} writer to file '{}' is already associated with the system", "error:".red().bold(), .0.yellow())]
+    WriterAlreadyExists(String),
     /// Used when the path to the trajectory file is invalid (i.e. contains invalid characters).
     #[error("{} unable to work with path '{}'", "error:".red().bold(), path_to_yellow(.0))]
     InvalidPath(Box<Path>),
@@ -404,6 +410,9 @@ pub enum WriteTrajError {
     /// Used when a coordinate of an atom is too large to fit into the GRO format.
     #[error("{} a coordinate is too large to be written in GRO format (supported range: {} to {} nm)", "error:".red().bold(), GRO_MIN_COORDINATE, GRO_MAX_COORDINATE)]
     CoordinateTooLarge,
+    /// Used when the file extension of the output file could not be recognized (i.e. is unsupported).
+    #[error("{} file '{}' has an unknown or unsupported file extension", "error:".red().bold(), path_to_yellow(.0))]
+    UnknownExtension(Box<Path>),
 }
 
 /// Errors that can occur when parsing atom selection query.

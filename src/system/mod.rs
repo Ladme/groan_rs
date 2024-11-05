@@ -12,6 +12,7 @@ use std::path::Path;
 
 use crate::errors::{AtomError, GroupError, ParseFileError, SimBoxError};
 use crate::files::FileType;
+use crate::io::traj_write::SystemWriters;
 use crate::io::{gro_io, pqr_io};
 use crate::io::{pdb_io, tpr_io};
 use crate::structures::{atom::Atom, group::Group, simbox::SimBox, vector3d::Vector3D};
@@ -62,6 +63,9 @@ pub struct System {
     /// All functions changing the topology of the system, must set
     /// `mol_references` to `None`.
     mol_references: Option<Vec<usize>>,
+    /// All trajectory writers associated with the system.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    trajectory_writers: SystemWriters,
 }
 
 /// ## Methods for creating `System` structures and accessing their properties.
@@ -142,6 +146,7 @@ impl System {
             precision: 100u64,
             lambda: 0.0,
             mol_references: None,
+            trajectory_writers: SystemWriters::default(),
         };
 
         match system.group_create_all() {
@@ -554,6 +559,16 @@ impl System {
     #[inline(always)]
     pub unsafe fn get_atom_unchecked_copy(&self, index: usize) -> Atom {
         self.atoms.get_unchecked(index).clone()
+    }
+
+    /// Get the number of writers associated with the system.
+    pub fn get_n_writers(&self) -> usize {
+        self.trajectory_writers.len()
+    }
+
+    /// Get mutable reference to the trajectory writers associated with the system.
+    pub(crate) fn get_writers_mut(&mut self) -> &mut SystemWriters {
+        &mut self.trajectory_writers
     }
 }
 

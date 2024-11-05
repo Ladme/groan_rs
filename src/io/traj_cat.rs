@@ -6,13 +6,13 @@
 use std::marker::PhantomData;
 use std::path::Path;
 
-use crate::{errors::ReadTrajError, io::traj_io::TrajRead, system::System};
+use crate::{errors::ReadTrajError, io::traj_read::TrajRead, system::System};
 
-use crate::io::traj_io::{
+use crate::io::traj_read::{
     FrameData, FrameDataTime, TrajRangeRead, TrajReadOpen, TrajStepRead, TrajStepTimeRead,
 };
 
-use super::traj_io::{TrajFile, TrajReader};
+use super::traj_read::{TrajFile, TrajReader};
 
 pub struct TrajCat<'a, R: TrajRead<'a>> {
     traj_readers: Vec<R>,
@@ -368,7 +368,7 @@ mod tests {
 
     use float_cmp::assert_approx_eq;
 
-    use crate::io::traj_io::TrajMasterRead;
+    use crate::io::traj_read::TrajMasterRead;
     use crate::io::trr_io::TrrReader;
     use crate::io::xtc_io::XtcReader;
     use crate::progress::ProgressPrinter;

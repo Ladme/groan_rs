@@ -14,11 +14,8 @@ use regex::Regex;
 use crate::auxiliary::{GRO_MAX_COORDINATE, GRO_MIN_COORDINATE};
 use crate::errors::WriteTrajError;
 use crate::io::check_coordinate_sizes;
-use crate::prelude::{
-    AtomIterator, TrajGroupWrite, TrajRead, TrajReadOpen, TrajReader, TrajStepRead, TrajWrite,
-    Vector3D,
-};
-use crate::structures::group::Group;
+use crate::io::traj_write::TrajWrite;
+use crate::prelude::{TrajRead, TrajReadOpen, TrajReader, TrajStepRead, Vector3D};
 use crate::{
     errors::ReadTrajError,
     prelude::{FrameData, SimBox, TrajFile},
@@ -359,33 +356,30 @@ impl System {
 /*       WRITING GRO      */
 /**************************/
 
-/// Structure for writing gro trajectory files.
-/// Each `GroWriter` instance is tightly coupled with a corresponding `System` structure.
-/// If you make updates to the `System` structure, such as during iteration with `System::xtc_iter()`,
-/// and subsequently write a GRO frame using `GroWriter::write_frame()`, the modifications
-/// made to the `System` will be reflected in the written frame.
-///
-/// `GroWriter` implements the `TrajWrite` trait.
-///
-/// If you want to write just a singular gro frame, use `System::write_gro()`.
-pub struct GroWriter {
-    system: *const System,
-    gro: BufWriter<File>,
-    write_velocities: bool,
+impl System {
+    #[inline(always)]
+    pub fn gro_writer(&mut self, filename: impl AsRef<Path>) -> Result<(), WriteTrajError> {
+        self.traj_writer::<GroWriter>(filename)
+    }
+
+    #[inline(always)]
+    pub fn gro_group_writer(
+        &mut self,
+        filename: impl AsRef<Path>,
+        group: &str,
+    ) -> Result<(), WriteTrajError> {
+        self.traj_group_writer::<GroWriter>(filename, group)
+    }
 }
 
-impl GroWriter {
-    /// Write the velocities of the atoms into the output.
-    /// If not specified, the velocities will not be written.
-    pub fn with_velocities(mut self) -> Self {
-        self.write_velocities = true;
-        self
-    }
+/// Velocities are written only if all atoms have defined velocities.
+pub struct GroWriter {
+    gro: BufWriter<File>,
+    group: String,
 }
 
 impl TrajWrite for GroWriter {
-    /// Does not write velocities by default.
-    fn new(system: &System, filename: impl AsRef<Path>) -> Result<Self, WriteTrajError>
+    fn new(filename: impl AsRef<Path>, group: Option<&str>) -> Result<Self, WriteTrajError>
     where
         Self: Sized,
     {
@@ -394,124 +388,32 @@ impl TrajWrite for GroWriter {
 
         let writer = BufWriter::new(output);
 
-        Ok(GroWriter {
-            system: system as *const System,
-            gro: writer,
-            write_velocities: false,
-        })
+        let group = group.unwrap_or("all").to_owned();
+
+        Ok(GroWriter { gro: writer, group })
     }
 
-    fn write_frame(&mut self) -> Result<(), WriteTrajError> {
-        let system = unsafe { &*self.system };
-
+    fn write_frame(&mut self, system: &System) -> Result<(), WriteTrajError> {
         // check that coordinates of the atoms are in the range supported by the data format
-        if !check_coordinate_sizes(system.atoms_iter(), GRO_MIN_COORDINATE, GRO_MAX_COORDINATE) {
+        // also checks that the group exists
+        if !check_coordinate_sizes(
+            system
+                .group_iter(&self.group)
+                .map_err(|_| WriteTrajError::GroupNotFound(self.group.clone()))?,
+            GRO_MIN_COORDINATE,
+            GRO_MAX_COORDINATE,
+        ) {
             return Err(WriteTrajError::CoordinateTooLarge);
         }
 
         super::write_frame(
             system,
             &mut self.gro,
-            "all",
-            system.atoms_iter(),
-            system.get_n_atoms(),
-            self.write_velocities,
+            &self.group,
+            system.has_velocities(),
             true,
         )
-        .map_err(|_| WriteTrajError::CouldNotWrite)?;
-
-        Ok(())
-    }
-}
-
-/// Structure for writing groups of atoms into gro trajectory files.
-/// Each `GroGroupWriter` is tightly coupled with a corresponding `Group` from `System` structure.
-/// If you make updates to the `System` structure, such as during the iteration with `System::xtc_iter()`,
-/// and subsequently write a GRO frame using `GroGroupWriter::write_frame()`, the modifications
-/// made to the `System` will be reflected in the written frame.
-///
-/// Note that the purpose of the `GroGroupWriter` is writing valid gro trajectory files with consistent number of atoms.
-/// Therefore, the `GroGroupWriter` always works with the original provided group of atoms.
-/// If you change the meaning of this group after constructing `GroGroupWriter` (by overwriting the group),
-/// `GroGroupWriter` will still use the original group of atoms.
-/// If you completely remove the original group, `GroGroupWriter` will still maintain a working copy of it.
-///
-/// `GroGroupWriter` implements the `TrajGroupWrite` trait.
-///
-/// If you want to write just a singular gro frame, use `System::group_write_gro()`.
-pub struct GroGroupWriter {
-    system: *const System,
-    gro: BufWriter<File>,
-    /// This is a deep copy of the group from the system.
-    /// `GroGroupWriter` must always work, even if the user removes the group from the `System` or overwrites it.
-    group: Group,
-    group_name: String,
-    write_velocities: bool,
-}
-
-impl GroGroupWriter {
-    /// Write the velocities of the atoms into the output.
-    /// If not specified, the velocities will not be written.
-    pub fn with_velocities(mut self) -> Self {
-        self.write_velocities = true;
-        self
-    }
-}
-
-impl TrajGroupWrite for GroGroupWriter {
-    /// Does not write velocities by default.
-    fn new(
-        system: &System,
-        group_name: &str,
-        filename: impl AsRef<Path>,
-    ) -> Result<Self, WriteTrajError>
-    where
-        Self: Sized,
-    {
-        // get copy of the group
-        let group = match system.get_groups().get(group_name) {
-            None => return Err(WriteTrajError::GroupNotFound(group_name.to_owned())),
-            Some(g) => g.clone(),
-        };
-
-        let output = File::create(&filename)
-            .map_err(|_| WriteTrajError::CouldNotCreate(Box::from(filename.as_ref())))?;
-
-        let writer = BufWriter::new(output);
-
-        Ok(GroGroupWriter {
-            system: system as *const System,
-            gro: writer,
-            group,
-            group_name: group_name.to_owned(),
-            write_velocities: false,
-        })
-    }
-
-    fn write_frame(&mut self) -> Result<(), WriteTrajError> {
-        let system = unsafe { &*self.system };
-
-        // create an iterator over the atoms of the group
-        let iterator =
-            AtomIterator::new(system.get_atoms(), self.group.get_atoms(), system.get_box());
-
-        // check that coordinates of the atoms are in the range supported by the data format
-        if !check_coordinate_sizes(iterator.clone(), GRO_MIN_COORDINATE, GRO_MAX_COORDINATE) {
-            return Err(WriteTrajError::CoordinateTooLarge);
-        }
-
-        super::write_frame(
-            system,
-            &mut self.gro,
-            &self.group_name,
-            iterator,
-            self.group.get_n_atoms(),
-            self.write_velocities,
-            true,
-        )
-        .map_err(|_| WriteTrajError::CouldNotWrite)?;
-
-        Ok(())
+        .map_err(|_| WriteTrajError::CouldNotWrite)
     }
 }
 
@@ -786,20 +688,18 @@ mod tests_write {
         let gro_output = NamedTempFile::new().unwrap();
         let path_to_output = gro_output.path();
 
-        let mut writer = GroWriter::new(&system, path_to_output).unwrap();
+        system.gro_writer(path_to_output).unwrap();
 
         for frame in system
             .xtc_iter("test_files/short_trajectory_protein.xtc")
             .unwrap()
             .take(3)
         {
-            let _ = frame.unwrap();
-
-            writer.write_frame().unwrap();
+            let frame = frame.unwrap();
+            frame.traj_write_frame().unwrap();
         }
 
-        // we must close the file, otherwise metadata do not get updated
-        drop(writer);
+        system.traj_close_all();
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected = File::open("test_files/expected_protein_trajectory.gro").unwrap();
@@ -814,21 +714,18 @@ mod tests_write {
         let gro_output = NamedTempFile::new().unwrap();
         let path_to_output = gro_output.path();
 
-        let mut writer = GroWriter::new(&system, path_to_output)
-            .unwrap()
-            .with_velocities();
+        system.gro_writer(path_to_output).unwrap();
 
         for frame in system
             .gro_iter("test_files/expected_protein_trajectory_velocities.gro")
             .unwrap()
         {
-            let _ = frame.unwrap();
+            let frame = frame.unwrap();
 
-            writer.write_frame().unwrap();
+            frame.traj_write_frame().unwrap();
         }
 
-        // we must close the file, otherwise metadata do not get updated
-        drop(writer);
+        system.traj_close_all();
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected =
@@ -845,20 +742,18 @@ mod tests_write {
         let gro_output = NamedTempFile::new().unwrap();
         let path_to_output = gro_output.path();
 
-        let mut writer = GroGroupWriter::new(&system, "Protein", path_to_output).unwrap();
+        system.gro_group_writer(path_to_output, "Protein").unwrap();
 
         for frame in system
             .xtc_iter("test_files/short_trajectory.xtc")
             .unwrap()
             .take(3)
         {
-            let _ = frame.unwrap();
-
-            writer.write_frame().unwrap();
+            let frame = frame.unwrap();
+            frame.traj_write_frame().unwrap();
         }
 
-        // we must close the file, otherwise metadata do not get updated
-        drop(writer);
+        system.traj_close_all();
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected = File::open("test_files/expected_protein_trajectory.gro").unwrap();
@@ -874,9 +769,7 @@ mod tests_write {
         let gro_output = NamedTempFile::new().unwrap();
         let path_to_output = gro_output.path();
 
-        let mut writer = GroGroupWriter::new(&system, "Protein", path_to_output)
-            .unwrap()
-            .with_velocities();
+        system.gro_group_writer(path_to_output, "Protein").unwrap();
 
         for frame in system
             .trr_iter("test_files/short_trajectory.trr")
@@ -884,13 +777,11 @@ mod tests_write {
             .with_step(3)
             .unwrap()
         {
-            let _ = frame.unwrap();
-
-            writer.write_frame().unwrap();
+            let frame = frame.unwrap();
+            frame.traj_write_frame().unwrap();
         }
 
-        // we must close the file, otherwise metadata do not get updated
-        drop(writer);
+        system.traj_close_all();
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected =

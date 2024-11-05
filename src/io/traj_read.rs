@@ -3,7 +3,7 @@
 
 //! Traits for reading generic trajectory files.
 
-use crate::errors::{ReadTrajError, WriteTrajError};
+use crate::errors::ReadTrajError;
 use crate::io::xdrfile::CXdrFile;
 use crate::progress::{ProgressPrinter, ProgressStatus};
 use crate::system::System;
@@ -803,83 +803,6 @@ impl System {
     {
         Ok(TrajReader::wrap_traj(Read::new(self, filename)?))
     }
-}
-
-/**************************/
-/*  WRITING TRAJECTORIES  */
-/**************************/
-
-/// Any structure implementing `TrajWrite` can be used to write a trajectory file.
-pub trait TrajWrite {
-    /// Open a new trajectory file for writing.
-    ///
-    /// ## Example
-    /// Using `TrajWrite::new` in a generic function.
-    /// ```no_run
-    /// # use groan_rs::prelude::*;
-    /// # use std::path::Path;
-    /// #
-    /// // this function can write any trajectory file implementing `TrajWrite` trait
-    /// fn write_trajectory<Writer>(system: &System, file: impl AsRef<Path>)
-    ///     where Writer: TrajWrite
-    /// {
-    ///     // open the trajectory file for writing
-    ///     let mut writer = Writer::new(system, file).unwrap();
-    ///
-    ///     // write frame into the trajectory file
-    ///     writer.write_frame().unwrap();
-    /// }
-    ///
-    /// // `write_trajectory` can be then called to write different trajectory files
-    /// let system = System::from_file("system.gro").unwrap();
-    /// write_trajectory::<XtcWriter>(&system, "trajectory.xtc");
-    /// write_trajectory::<TrrWriter>(&system, "trajectory.trr");
-    /// ```
-    fn new(system: &System, filename: impl AsRef<Path>) -> Result<Self, WriteTrajError>
-    where
-        Self: Sized;
-
-    /// Write the current state of the system into an open trajectory file.
-    fn write_frame(&mut self) -> Result<(), WriteTrajError>;
-}
-
-/// Any structure implementing `TrajGroupWrite` can be used to write a trajectory file.
-pub trait TrajGroupWrite {
-    /// Open a new trajectory file for writing and associate a specific group from a specific system with it.
-    ///
-    /// ## Example
-    /// Using `TrajGroupWrite::new` in a generic function.
-    /// ```no_run
-    /// # use groan_rs::prelude::*;
-    /// # use std::path::Path;
-    /// #
-    /// // this function can write any trajectory file implementing `TrajGroupWrite` trait
-    /// fn write_trajectory_group<Writer>(system: &System, file: impl AsRef<Path>)
-    ///     where Writer: TrajGroupWrite
-    /// {
-    ///     // open the trajectory file for writing
-    ///     let mut writer = Writer::new(system, "Protein", file).unwrap();
-    ///
-    ///     // write frame into the trajectory file
-    ///     writer.write_frame().unwrap();
-    /// }
-    ///
-    /// // `write_trajectory_group` can be then called to write the group `Protein` into different trajectory files
-    /// let mut system = System::from_file("system.gro").unwrap();
-    /// system.group_create("Protein", "@protein").unwrap();
-    /// write_trajectory_group::<XtcGroupWriter>(&system, "trajectory.xtc");
-    /// write_trajectory_group::<TrrGroupWriter>(&system, "trajectory.trr");
-    /// ```
-    fn new(
-        system: &System,
-        group: &str,
-        filename: impl AsRef<Path>,
-    ) -> Result<Self, WriteTrajError>
-    where
-        Self: Sized;
-
-    /// Write the current state of the specified group into an open trajectory file.
-    fn write_frame(&mut self) -> Result<(), WriteTrajError>;
 }
 
 /**************************/

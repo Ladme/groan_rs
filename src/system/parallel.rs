@@ -6,7 +6,7 @@
 use std::{ops::Add, path::Path};
 
 use crate::{
-    io::traj_io::{
+    io::traj_read::{
         FrameDataTime, TrajMasterRead, TrajRangeRead, TrajRead, TrajReadOpen, TrajStepRead,
     },
     progress::{ProgressPrinter, ProgressStatus},

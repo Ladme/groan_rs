@@ -3,7 +3,7 @@
 
 //! Simple, auxiliary functions and constants used through the `groan_rs` library.
 
-use std::f32::consts;
+use std::{f32::consts, path::Path};
 
 use crate::structures::{simbox::SimBox, vector3d::Vector3D};
 
@@ -96,4 +96,17 @@ pub(crate) fn from_circle_to_line(zeta: Vector3D, xi: Vector3D, scaling: &Vector
         theta.y / scaling.y,
         theta.z / scaling.z,
     )
+}
+
+/******************************/
+/*           OTHER            */
+/******************************/
+
+/// Convert `impl AsRef<Path>` to `String` panicking with an error message in case the conversion fails.
+#[inline(always)]
+pub(crate) fn path2string(path: impl AsRef<Path>) -> String {
+    path.as_ref()
+        .to_str()
+        .expect("FATAL GROAN ERROR | auxiliary::path2string | Could not convert Path to &str.")
+        .to_owned()
 }

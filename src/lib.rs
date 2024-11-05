@@ -246,19 +246,18 @@
 //!     // read a gro file
 //!     let mut system = System::from_file("structure.gro")?;
 //!
-//!     // create an output xtc file
-//!     // the `XtcWriter` structure is tightly coupled with the corresponding `System` structure
-//!     // if the `System` is updated, the `XtcWriter` reflects this change
-//!     let mut writer = XtcWriter::new(&system, "output.xtc")?;
+//!     // create an output xtc file associated with the system
+//!     system.xtc_writer("output.xtc")?;
+//!     // you can have multiple writers associated with one system
 //!
 //!     // iterate through the trr trajectory
 //!     // the `trr_iter` (as well as `xtc_iter`) function updates the `System` structure
 //!     // with which it is associated with the properties of the system in the current frame
 //!     for frame in system.trr_iter("input.trr")? {
 //!         // check that the trr frame has been read correctly
-//!         frame?;
-//!         // write the current frame into the output xtc file
-//!         writer.write_frame()?;
+//!         let frame = frame?;
+//!         // write the current frame into all writers associated with the system
+//!         frame.traj_write_frame()?;
 //!     }
 //!
 //!     Ok(())
@@ -570,14 +569,14 @@ mod test_utilities;
 /// Reexported basic `groan_rs` structures and traits.
 pub mod prelude {
     pub use crate::files::FileType;
-    pub use crate::io::gro_io::GroReader;
-    pub use crate::io::traj_io::{
-        FrameData, FrameDataTime, TrajFile, TrajGroupWrite, TrajMasterRead, TrajRangeRead,
-        TrajRangeReader, TrajRangeStepReader, TrajRead, TrajReadOpen, TrajReader, TrajStepRead,
-        TrajStepReader, TrajStepTimeRead, TrajWrite,
+    pub use crate::io::gro_io::{GroReader, GroWriter};
+    pub use crate::io::traj_read::{
+        FrameData, FrameDataTime, TrajFile, TrajMasterRead, TrajRangeRead, TrajRangeReader,
+        TrajRangeStepReader, TrajRead, TrajReadOpen, TrajReader, TrajStepRead, TrajStepReader,
+        TrajStepTimeRead,
     };
-    pub use crate::io::trr_io::{TrrGroupWriter, TrrReader, TrrWriter};
-    pub use crate::io::xtc_io::{XtcGroupWriter, XtcReader, XtcWriter};
+    pub use crate::io::trr_io::{TrrReader, TrrWriter};
+    pub use crate::io::xtc_io::{XtcReader, XtcWriter};
     pub use crate::progress::ProgressPrinter;
     pub use crate::structures::atom::Atom;
     pub use crate::structures::dimension::Dimension;
