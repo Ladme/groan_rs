@@ -28,7 +28,7 @@ impl System {
     ///
     /// ## Parameters
     /// - `filename`: The path to the output file that should be opened.
-    /// - `Writer`: A structure implementing `TrajWrite`, determining the output format and behavior.
+    /// - `Writer`: A type implementing `TrajWrite`, determining the output format and behavior.
     ///
     /// ## Returns
     /// - `Ok` if the trajectory writer is successfully created and associated with the `System`.
@@ -122,6 +122,7 @@ impl System {
     /// - `filename`: The path to the output file that should be opened.
     /// - `group`: The name of the atom group for which the trajectory writer will be initialized. This group
     ///   must already exist within the system.
+    /// - `Writer`: A type implementing `TrajWrite`, determining the output format and behavior.
     ///
     /// ## Returns
     /// - `Ok` if the trajectory writer is successfully created for the specified group and associated
@@ -151,8 +152,8 @@ impl System {
     ///
     /// This method determines the appropriate writer type (`XtcWriter`, `TrrWriter`, or `GroWriter`)
     /// based on the file extension and calls [`System::traj_writer_init`].
-    /// Returns an error if the extension is unknown.
-    #[inline(always)]
+    /// Returns an error if the extension is unknown or unsupported.
+    #[inline]
     pub fn traj_writer_auto_init(
         &mut self,
         filename: impl AsRef<Path>,
@@ -172,8 +173,8 @@ impl System {
     ///
     /// This method selects the appropriate writer type (`XtcWriter`, `TrrWriter`, or `GroWriter`)
     /// based on the file extension and calls [`System::traj_group_writer_init`].
-    /// Returns an error if the extension is unknown.
-    #[inline(always)]
+    /// Returns an error if the extension is unknown or unsupported.
+    #[inline]
     pub fn traj_group_writer_auto_init(
         &mut self,
         filename: impl AsRef<Path>,
@@ -450,12 +451,12 @@ pub(super) trait PrivateTrajWrite {
 mod tests {
     use std::{fs::File, path::PathBuf};
 
-    use tempfile::NamedTempFile;
+    use tempfile::{Builder, NamedTempFile};
 
     use super::*;
 
-    fn create_named_path() -> (NamedTempFile, PathBuf) {
-        let output = NamedTempFile::new().unwrap();
+    fn create_named_path(extension: &str) -> (NamedTempFile, PathBuf) {
+        let output = Builder::new().suffix(extension).tempfile().unwrap();
         let path = output.path().to_owned();
         (output, path)
     }
@@ -465,25 +466,32 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.group_create("Protein", "@protein").unwrap();
 
-        let (_xtc, p_xtc) = create_named_path();
-        let (_xtc_group, p_xtc_group) = create_named_path();
-        let (_gro_group, p_gro_group) = create_named_path();
-        let (_xtc2, p_xtc2) = create_named_path();
+        let (_xtc, p_xtc) = create_named_path(".xtc");
+        let (_xtc_group, p_xtc_group) = create_named_path(".xtc");
+        let (_gro_group, p_gro_group) = create_named_path(".gro");
+        let (_xtc2, p_xtc2) = create_named_path(".xtc");
+        let (_trr, p_trr) = create_named_path(".trr");
 
         system.xtc_writer_init(&p_xtc).unwrap();
         system
-            .xtc_group_writer_init(&p_xtc_group, "Protein")
+            .traj_group_writer_auto_init(&p_xtc_group, "Protein")
             .unwrap();
         system
             .gro_group_writer_init(&p_gro_group, "Protein")
             .unwrap();
-        system.xtc_writer_init(&p_xtc2).unwrap();
+        system.traj_writer_auto_init(&p_xtc2).unwrap();
+
+        system.traj_writer_auto_init(&p_trr).unwrap();
 
         match system.trr_writer_init(&p_xtc) {
             Ok(_) => panic!("Function should have failed."),
             Err(WriteTrajError::WriterAlreadyExists(x)) => assert_eq!(&x, p_xtc.to_str().unwrap()),
             Err(e) => panic!("Unexpected error type `{}` returned.", e),
         }
+
+        assert_eq!(system.get_n_writers(), 5);
+
+        system.traj_close_file(&p_trr).unwrap();
 
         assert_eq!(system.get_n_writers(), 4);
 
