@@ -59,7 +59,35 @@ impl System {
     /// - Neither the current system (`self`) nor the reference system is modified by this method.
     /// - The group does not have to be centered or fully contained inside the simulation box.
     ///   The method itself performs the centering.
+    #[inline]
     pub fn calc_rmsd(&self, reference: &System, group: &str) -> Result<f32, RMSDError> {
+        let (_, _, rmsd) = self.calc_rmsd_rot_trans(reference, group)?;
+        Ok(rmsd)
+    }
+
+    #[inline]
+    pub fn calc_rmsd_and_fit(&mut self, reference: &System, group: &str) -> Result<f32, RMSDError> {
+        let (rot, trans, rmsd) = self.calc_rmsd_rot_trans(reference, group)?;
+
+        let rot_transposed = rot.transpose();
+        //let simbox = self.get_box_copy().unwrap();
+        let box_center = self.get_box_center().unwrap();
+
+        self.atoms_iter_mut().for_each(|atom| {
+            atom.translate_nopbc(&trans).unwrap();
+            atom.rotate_nopbc(&rot_transposed).unwrap();
+            atom.translate_nopbc(&box_center).unwrap();
+        });
+
+        Ok(rmsd)
+    }
+
+    /// Calculate RMSD, rotation matrix and translation vector.
+    fn calc_rmsd_rot_trans(
+        &self,
+        reference: &System,
+        group: &str,
+    ) -> Result<(Matrix3<f32>, Vector3D, f32), RMSDError> {
         // check that the group exists and has a consistent number of atoms
         let n_atoms_target = extract_n_atoms(group, self.group_get_n_atoms(group))?;
         let n_atoms_reference = extract_n_atoms(group, reference.group_get_n_atoms(group))?;
@@ -94,27 +122,26 @@ impl System {
         let reference_coordinates = shift_and_wrap_coordinates(
             extract_coordinates(reference.group_iter(group)),
             &reference_shift,
-            reference
-                .get_box()
-                .expect("FATAL GROAN ERROR | System::calc_rmsd | Reference SimBox should exist."),
+            reference.get_box().expect(
+                "FATAL GROAN ERROR | System::calc_rmsd_rot_trans | Reference SimBox should exist.",
+            ),
         );
 
         let target_coordinates = shift_and_wrap_coordinates(
             extract_coordinates(self.group_iter(group)),
             &target_shift,
-            self.get_box()
-                .expect("FATAL GROAN ERROR | System::calc_rmsd | Current SimBox should exist."),
+            self.get_box().expect(
+                "FATAL GROAN ERROR | System::calc_rmsd_rot_trans | Current SimBox should exist.",
+            ),
         );
 
         // calculate RMSD
-        let (_, _, rmsd) = kabsch_rmsd(
-            &reference_coordinates,
+        Ok(kabsch_rmsd(
             &target_coordinates,
-            &reference_box_center,
+            &reference_coordinates,
             &target_box_center,
-        );
-
-        Ok(rmsd)
+            &reference_box_center,
+        ))
     }
 }
 
