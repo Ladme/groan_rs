@@ -6,6 +6,7 @@
 use std::io::Write;
 
 use getset::{CopyGetters, Getters, Setters};
+use nalgebra::Matrix3;
 
 use crate::auxiliary::{
     GRO_MAX_COORDINATE, GRO_MIN_COORDINATE, PDB_MAX_COORDINATE, PDB_MIN_COORDINATE,
@@ -795,6 +796,42 @@ impl Atom {
             ))),
             Some(ref pos) => Ok(pos.distance(point, dim, sbox)),
         }
+    }
+
+    /// Rotate the atom in space using a rotation matrix.
+    /// Wraps the atom into the simulation box after performing the rotation.
+    ///
+    /// See [Atom::rotate_nopbc], if you want to ignore PBC.
+    #[inline]
+    pub fn rotate(
+        &mut self,
+        rotation_matrix: &Matrix3<f32>,
+        simbox: &SimBox,
+    ) -> Result<(), AtomError> {
+        let pos = self.get_position().cloned().ok_or_else(|| {
+            AtomError::InvalidPosition(PositionError::NoPosition(self.get_index()))
+        })?;
+
+        let mut rotated = pos.rotate(rotation_matrix);
+        rotated.wrap(simbox);
+        self.set_position(rotated);
+
+        Ok(())
+    }
+
+    /// Rotate the atom in space using a rotation matrix. Ignores periodic boundary conditions.
+    ///
+    /// See [Atom::rotate], if you want to take PBC into consideration.
+    #[inline]
+    pub fn rotate_nopbc(&mut self, rotation_matrix: &Matrix3<f32>) -> Result<(), AtomError> {
+        let pos = self.get_position().cloned().ok_or_else(|| {
+            AtomError::InvalidPosition(PositionError::NoPosition(self.get_index()))
+        })?;
+
+        let rotated = pos.rotate(rotation_matrix);
+        self.set_position(rotated);
+
+        Ok(())
     }
 }
 
@@ -1887,6 +1924,31 @@ mod tests {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
             }
         }
+    }
+
+    #[test]
+    fn rotate() {
+        let mut atom = Atom::new(1, "LYS", 1, "BB").with_position(Vector3D::new(1.0, 2.0, 3.0));
+        let rotation = Matrix3::new(0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+
+        atom.rotate(&rotation, &SimBox::from([10.0, 10.0, 10.0]))
+            .unwrap();
+        let pos = atom.get_position().unwrap();
+        assert_approx_eq!(f32, pos.x, 8.0);
+        assert_approx_eq!(f32, pos.y, 1.0);
+        assert_approx_eq!(f32, pos.z, 3.0);
+    }
+
+    #[test]
+    fn rotate_nopbc() {
+        let mut atom = Atom::new(1, "LYS", 1, "BB").with_position(Vector3D::new(1.0, 2.0, 3.0));
+        let rotation = Matrix3::new(0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+
+        atom.rotate_nopbc(&rotation).unwrap();
+        let pos = atom.get_position().unwrap();
+        assert_approx_eq!(f32, pos.x, -2.0);
+        assert_approx_eq!(f32, pos.y, 1.0);
+        assert_approx_eq!(f32, pos.z, 3.0);
     }
 }
 

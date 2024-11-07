@@ -9,7 +9,7 @@ use std::{
 };
 
 use crate::structures::{dimension::Dimension, simbox::SimBox};
-use nalgebra::base::Vector3;
+use nalgebra::{base::Vector3, Matrix3};
 
 /// Describes length and orientation of a vector in space or a position of a point in space.
 /// Since v0.7.0 implemented using `nalgebra`'s Vector3
@@ -76,14 +76,14 @@ impl From<Vector3<f32>> for Vector3D {
 impl Deref for Vector3D {
     type Target = Vector3<f32>;
 
-    #[inline]
+    #[inline(always)]
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
 impl DerefMut for Vector3D {
-    #[inline]
+    #[inline(always)]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
@@ -282,8 +282,8 @@ impl Vector3D {
     ///
     /// ## Warning
     /// Does not take periodic boundary conditions into consideration.
-    /// If you want the vector to fit into simulation box, apply
-    /// `Vector3D::wrap` after shifting.
+    /// If you want the point to fit into the simulation box,
+    /// apply [Vector3D::wrap] after shifting.
     ///
     /// ## Example
     /// Shift a given point in space by 2 nm (in total) along x and y dimensions.
@@ -306,6 +306,58 @@ impl Vector3D {
         let unit = orientation.to_unit();
 
         self.0 += unit.0 * distance;
+    }
+
+    /// Rotate a point in space using a rotation matrix.
+    ///
+    /// ## Warning
+    /// Does not take periodic boundary conditions into consideration.
+    /// If you want the point to fit into the simulation box,
+    /// apply [Vector3D::wrap] after rotating.
+    ///
+    /// ## Exampless
+    /// Rotate the given point by +90° (counterclockwise) around the z-axis:
+    /// ```
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// # use nalgebra::Matrix3;
+    /// #
+    /// let point = Vector3D::new(1.0, 2.0, 3.0);
+    /// let rotation = Matrix3::new(
+    ///     0.0, -1.0,  0.0,
+    ///     1.0,  0.0,  0.0,
+    ///     0.0,  0.0,  1.0,
+    /// );
+    ///
+    /// let rotated = point.rotate(&rotation);
+    /// assert_approx_eq!(f32, rotated.x, -2.0);
+    /// assert_approx_eq!(f32, rotated.y, 1.0);
+    /// assert_approx_eq!(f32, rotated.z, 3.0);
+    /// ```
+    ///
+    /// Rotate the given point by -45° (clockwise) around the x-axis:
+    /// ```
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// # use nalgebra::Matrix3;
+    /// #
+    /// // Clockwise 45° rotation around the X-axis
+    /// let rotation = Matrix3::new(
+    ///    1.0000,  0.0000, 0.0000,
+    ///    0.0000,  0.7071, 0.7071,
+    ///    0.0000, -0.7071, 0.7071,
+    /// );
+    ///
+    /// let point = Vector3D::new(1.0, 2.0, 3.0);
+    /// let rotated = point.rotate(&rotation);
+    ///
+    /// assert_approx_eq!(f32, rotated.x, 1.0000);
+    /// assert_approx_eq!(f32, rotated.y, 3.5355);
+    /// assert_approx_eq!(f32, rotated.z, 0.7071);
+    /// ```
+    #[inline(always)]
+    pub fn rotate(self, rotation_matrix: &Matrix3<f32>) -> Vector3D {
+        Vector3D(rotation_matrix * self.deref())
     }
 
     /// Wrap coordinates of `Vector3D` so that each of them fits into the simulation box.
