@@ -22,7 +22,7 @@ use super::gro_io::GroWriter;
 use super::trr_io::TrrWriter;
 use super::xtc_io::XtcWriter;
 
-/// Associating trajectory writers with the system.
+/// ## Associating trajectory writers with System.
 impl System {
     /// Initializes a file for trajectory writing and associates the resulting writer with `System`.
     ///
@@ -435,6 +435,7 @@ pub trait TrajWrite: PrivateTrajWrite {}
 /// Trait containing private methods implemented by all trajectory writers.
 pub(super) trait PrivateTrajWrite {
     /// Create a new trajectory writer.
+    /// The existence of the group must be checked before the file is created.
     fn new(
         system: &System,
         filename: impl AsRef<Path>,

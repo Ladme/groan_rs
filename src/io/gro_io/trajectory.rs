@@ -404,14 +404,10 @@ impl PrivateTrajWrite for GroWriter {
     where
         Self: Sized,
     {
-        let output = File::create(&filename)
-            .map_err(|_| WriteTrajError::CouldNotCreate(Box::from(filename.as_ref())))?;
-
-        let writer = BufWriter::new(output);
-
         let group_name = group.to_owned();
 
         // get the requested group from the system or use `all`
+        // this has to be done before opening the gro file
         let group = match group {
             Some(x) => system
                 .get_groups()
@@ -421,9 +417,14 @@ impl PrivateTrajWrite for GroWriter {
             None => system
                 .get_groups()
                 .get("all")
-                .expect("FATAL GROAN ERROR | TrrWriter::new | Group `all` should exist.")
+                .expect("FATAL GROAN ERROR | GroWriter::new | Group `all` should exist.")
                 .clone(),
         };
+
+        let output = File::create(&filename)
+            .map_err(|_| WriteTrajError::CouldNotCreate(Box::from(filename.as_ref())))?;
+
+        let writer = BufWriter::new(output);
 
         Ok(GroWriter {
             gro: writer,
@@ -895,5 +896,29 @@ mod tests_write {
         let mut expected = File::open("test_files/expected_protein_trajectory.gro").unwrap();
 
         assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn gro_writer_invalid_path() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        match system.gro_writer_init("test_files/nonexistent/output.gro") {
+            Err(WriteTrajError::CouldNotCreate(_)) => (),
+            _ => panic!("Output GRO file should not have been created."),
+        }
+    }
+
+    #[test]
+    fn gro_group_writer_invalid_group() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        match system.gro_group_writer_init("will_not_be_created.gro", "Protein") {
+            Ok(_) => panic!("Function should have failed but it succeeded."),
+            Err(WriteTrajError::GroupNotFound(x)) => {
+                assert_eq!(x, "Protein");
+                assert!(!Path::new("will_not_be_created.gro").exists());
+            }
+            Err(e) => panic!("Unexpected error type `{}` returned.", e),
+        }
     }
 }

@@ -430,14 +430,8 @@ impl PrivateTrajWrite for XtcWriter {
     where
         Self: Sized,
     {
-        // create the xtc file and save a handle to it
-        let xtc = match XdrFile::open_xdr(filename.as_ref(), OpenMode::Write) {
-            Ok(x) => x,
-            Err(TrajError::FileNotFound(x)) => return Err(WriteTrajError::CouldNotCreate(x)),
-            Err(TrajError::InvalidPath(x)) => return Err(WriteTrajError::InvalidPath(x)),
-        };
-
         // get the requested group from the system or use `all`
+        // this has to be done before opening the xtc file
         let group = match group {
             Some(x) => system
                 .get_groups()
@@ -449,6 +443,13 @@ impl PrivateTrajWrite for XtcWriter {
                 .get("all")
                 .expect("FATAL GROAN ERROR | XtcWriter::new | Group `all` should exist.")
                 .clone(),
+        };
+
+        // create the xtc file and save a handle to it
+        let xtc = match XdrFile::open_xdr(filename.as_ref(), OpenMode::Write) {
+            Ok(x) => x,
+            Err(TrajError::FileNotFound(x)) => return Err(WriteTrajError::CouldNotCreate(x)),
+            Err(TrajError::InvalidPath(x)) => return Err(WriteTrajError::InvalidPath(x)),
         };
 
         Ok(Self { xtc, group })
@@ -1235,11 +1236,11 @@ mod tests {
     fn write_group_xtc_nonexistent() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        let xtc_output = NamedTempFile::new().unwrap();
-        let path_to_output = xtc_output.path();
-
-        match system.xtc_group_writer_init(path_to_output, "Protein") {
-            Err(WriteTrajError::GroupNotFound(g)) => assert_eq!(g, "Protein"),
+        match system.xtc_group_writer_init("will_not_be_created.xtc", "Protein") {
+            Err(WriteTrajError::GroupNotFound(g)) => {
+                assert_eq!(g, "Protein");
+                assert!(!Path::new("will_not_be_created.xtc").exists());
+            }
             _ => panic!("Output XTC file should not have been created."),
         }
     }
