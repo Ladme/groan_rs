@@ -600,4 +600,7 @@ pub enum RMSDError {
     /// Used when the simulation box is invalid.
     #[error("{}", .0)]
     InvalidSimBox(SimBoxError),
+    /// Used when any atom which is to be used for the RMSD calculation has invalid mass.
+    #[error("{}", .0)]
+    InvalidMass(MassError),
 }

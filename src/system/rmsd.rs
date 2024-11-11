@@ -17,6 +17,8 @@ impl System {
     /// Calculate the Root Mean Square Deviation (RMSD) between the specified group of atoms
     /// in the current system and a reference system.
     ///
+    /// Uses mass-weighted Kabsch algorithm.
+    ///
     /// ## Returns
     /// - If successful, returns the minimum RMSD (in nanometers) between the atoms
     ///   of the specified group in `reference` and `self`.
@@ -54,7 +56,7 @@ impl System {
     ///   otherwise, an error will be returned.
     /// - The method performs a rigid-body alignment of the atoms in the specified group using
     ///   the Kabsch algorithm before calculating the RMSD.
-    /// - Mass weighting is **not** performed during the alignment.
+    /// - Mass weighting **is** performed during the alignment.
     /// - The RMSD is calculated in nanometers (nm).
     /// - Neither the current system (`self`) nor the reference system is modified by this method.
     /// - The group does not have to be centered or fully contained inside the simulation box.
@@ -108,12 +110,11 @@ impl System {
         let reference_box_center = reference
             .get_box_center()
             .map_err(RMSDError::InvalidSimBox)?;
-
         let target_box_center = self.get_box_center().map_err(RMSDError::InvalidSimBox)?;
 
-        // get the center of geometry of the reference
-        let reference_center = get_center(reference, group)?;
-        let target_center = get_center(self, group)?;
+        // get the center of mass of the reference
+        let reference_center = get_com(reference, group)?;
+        let target_center = get_com(self, group)?;
 
         // extract the coordinates of the atoms of the group and shift them
         let reference_shift = Vector3D(reference_box_center.deref() - reference_center.deref());
@@ -135,12 +136,27 @@ impl System {
             ),
         );
 
+        // exctract masses
+        let masses = self
+            .group_iter(group)
+            .unwrap()
+            .map(|atom| {
+                atom.get_mass().expect(
+                    "FATAL GROAN ERROR | System::calc_rmsd_rot_trans | Mass should be defined.",
+                )
+            })
+            .collect::<Vec<f32>>();
+
+        let sum_masses = masses.iter().sum::<f32>();
+
         // calculate RMSD
         Ok(kabsch_rmsd(
             &target_coordinates,
             &reference_coordinates,
+            &masses,
             &target_box_center,
             &reference_box_center,
+            sum_masses,
         ))
     }
 }
@@ -188,12 +204,13 @@ fn shift_and_wrap_coordinates(
         .collect::<Vec<Vector3D>>()
 }
 
-/// Auxiliary function for obtaining the center of geometry of the specified group.
+/// Auxiliary function for obtaining the center of mass of the specified group.
 #[inline(always)]
-fn get_center(system: &System, group: &str) -> Result<Vector3D, RMSDError> {
-    match system.group_get_center(group) {
+fn get_com(system: &System, group: &str) -> Result<Vector3D, RMSDError> {
+    match system.group_get_com(group) {
         Ok(x) => Ok(x),
         Err(GroupError::InvalidPosition(x)) => Err(RMSDError::InvalidPosition(x)),
+        Err(GroupError::InvalidMass(x)) => Err(RMSDError::InvalidMass(x)),
         Err(_) => panic!("FATAL GROAN ERROR | rmsd::get_center | Unexpected error type returned from System::group_get_center."),
     }
 }
@@ -204,25 +221,31 @@ fn get_center(system: &System, group: &str) -> Result<Vector3D, RMSDError> {
 /// ## Parameters
 /// - `p`: target vector of points
 /// - `q`: reference vector of points
+/// - `w`: weight (mass) of the individual points
 /// - `centroid_p`: center of geometry (or mass) of points `p`
 /// - `centroid_q`: center of geometry (or mass) of points `q`
+/// - `sum_w`: sum of weights of the individual points
 ///
 /// ## Returns
 /// A tuple containing the optimal rotation matrix, the optimal translation vector, and the RMSD.
 ///
 /// ## Panics
-/// Panics if the number of points `p` does not match the number of points `q`.
+/// - Panics if the number of points `p` does not match the number of points `q`.
+/// - Panics if the number of items in `w` does not match the number of points.
 fn kabsch_rmsd(
     p: &[Vector3D],
     q: &[Vector3D],
+    w: &[f32],
     centroid_p: &Vector3D,
     centroid_q: &Vector3D,
+    sum_w: f32,
 ) -> (Matrix3<f32>, Vector3D, f32) {
     assert_eq!(
         p.len(),
         q.len(),
         "FATAL GROAN ERROR | rmsd::kabsch_rmsd | Number of points `p` and `q` does not match."
     );
+    assert_eq!(p.len(), w.len(), "FATAL GROAN ERROR | rmsd::kabsch_rmsd | Number of points does not match the number of weights.");
 
     // center the points
     let p_centered: Vec<Vector3D> = p.iter().map(|point| point - centroid_p).collect();
@@ -257,9 +280,10 @@ fn kabsch_rmsd(
     let rmsd = (p_rotated
         .iter()
         .zip(q_centered.iter())
-        .map(|(p_r, q_c)| (p_r.deref() - q_c.deref()).norm_squared())
+        .zip(w.iter())
+        .map(|((p_r, q_c), w)| w * (p_r.deref() - q_c.deref()).norm_squared())
         .sum::<f32>()
-        / p.len() as f32)
+        / sum_w)
         .sqrt();
 
     // return the rotation matrix, translation vector, and RMSD
@@ -268,7 +292,7 @@ fn kabsch_rmsd(
 
 #[cfg(test)]
 mod tests {
-    use crate::errors::{PositionError, SimBoxError};
+    use crate::errors::{MassError, PositionError, SimBoxError};
 
     use super::*;
     use float_cmp::assert_approx_eq;
@@ -287,11 +311,15 @@ mod tests {
             Vector3D::new(0.0, 0.0, 1.0),
         ];
 
+        let masses = [1.0, 1.0, 1.0];
+
         let (rotation_matrix, translation_vector, rmsd) = kabsch_rmsd(
             &p,
             &q,
+            &masses,
             &Vector3D::new(0.3333333, 0.3333333, 0.3333333),
             &Vector3D::new(0.3333333, 0.3333333, 0.3333333),
+            3.0,
         );
 
         assert!(rotation_matrix.is_identity(1e-6));
@@ -314,11 +342,15 @@ mod tests {
             Vector3D::new(0.6666667, 0.0, 1.0),
         ];
 
+        let masses = [1.0, 1.0, 1.0];
+
         let (rotation_matrix, translation_vector, rmsd) = kabsch_rmsd(
             &p,
             &q,
+            &masses,
             &Vector3D::new(0.3333333, 0.3333333, 0.3333333),
             &Vector3D::new(0.3333333, 0.3333333, 0.3333333),
+            3.0,
         );
 
         let expected_rotation_matrix =
@@ -343,11 +375,15 @@ mod tests {
             Vector3D::new(1.0, 1.0, 2.0),
         ];
 
+        let masses = [1.0, 1.0, 1.0];
+
         let (rotation_matrix, translation_vector, rmsd) = kabsch_rmsd(
             &p,
             &q,
+            &masses,
             &Vector3D::new(0.3333333, 0.3333333, 0.3333333),
             &Vector3D::new(1.3333333, 1.3333333, 1.3333333),
+            3.0,
         );
 
         assert!(rotation_matrix.is_identity(1e-6));
@@ -371,11 +407,15 @@ mod tests {
             Vector3D::new(1.6666666, 1.0, 2.0),
         ];
 
+        let masses = [1.0, 1.0, 1.0];
+
         let (rotation_matrix, translation_vector, rmsd) = kabsch_rmsd(
             &p,
             &q,
+            &masses,
             &Vector3D::new(0.3333333, 0.3333333, 0.3333333),
             &Vector3D::new(1.3333333, 1.3333333, 1.3333333),
+            3.0,
         );
 
         let expected_rotation_matrix =
@@ -401,10 +441,13 @@ mod tests {
             Vector3D::new(1.3, 9.9, 11.3),
         ];
 
+        let masses = [1.0, 1.0, 1.0];
+
         let center_p = Vector3D::new(2.7, 0.3, 0.16666667);
         let center_q = Vector3D::new(0.7, 3.3666667, 5.4);
 
-        let (rotation_matrix, translation_vector, rmsd) = kabsch_rmsd(&p, &q, &center_p, &center_q);
+        let (rotation_matrix, translation_vector, rmsd) =
+            kabsch_rmsd(&p, &q, &masses, &center_p, &center_q, 3.0);
 
         let expected_rotation_matrix = Matrix3::from([
             [0.8842437, -0.10340805, -0.45543456],
@@ -421,19 +464,19 @@ mod tests {
 
     #[test]
     fn test_calc_rmsd_same_structure() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
         system.group_create("Protein", "@protein").unwrap();
         assert_approx_eq!(
             f32,
             system.calc_rmsd(&system, "Protein").unwrap(),
             0.0,
-            epsilon = 1e-6
+            epsilon = 1e-4
         )
     }
 
     #[test]
     fn test_calc_rmsd_trajectory() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
 
         system.group_create("Protein", "@protein").unwrap();
 
@@ -448,9 +491,9 @@ mod tests {
             .map(|frame| frame.unwrap().calc_rmsd(&reference, "Protein").unwrap())
             .collect::<Vec<f32>>();
 
-        let expected = vec![
-            0.24140519, 0.2684668, 0.26846585, 0.21979603, 0.22441757, 0.20068163, 0.27553108,
-            0.27580568, 0.27042708, 0.24541956, 0.24489026,
+        let expected = [
+            0.23680355, 0.26356277, 0.26030675, 0.21396181, 0.22212411, 0.19429775, 0.26472768,
+            0.27031693, 0.26426846, 0.23497732, 0.24261881,
         ];
 
         assert_eq!(rmsd.len(), expected.len());
@@ -461,7 +504,7 @@ mod tests {
 
     #[test]
     fn test_calc_rmsd_fail_group_does_not_exist_in_reference() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
         let reference = system.clone();
 
         system.group_create("Protein", "@protein").unwrap();
@@ -475,7 +518,7 @@ mod tests {
 
     #[test]
     fn test_calc_rmsd_fail_group_does_not_exist_in_self() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
         system.group_create("Protein", "@protein").unwrap();
         let reference = system.clone();
 
@@ -490,7 +533,7 @@ mod tests {
 
     #[test]
     fn test_calc_rmsd_fail_inconsistent_group() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
         system.group_create("Protein", "@protein").unwrap();
         let mut reference = system.clone();
         match reference.group_create("Protein", "serial 1 to 4") {
@@ -511,7 +554,7 @@ mod tests {
 
     #[test]
     fn test_calc_rmsd_fail_empty_group() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
         system.group_create("Protein", "not all").unwrap();
 
         let reference = system.clone();
@@ -525,7 +568,7 @@ mod tests {
 
     #[test]
     fn test_calc_rmsd_fail_no_position() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
         system.group_create("Protein", "@protein").unwrap();
 
         let reference = system.clone();
@@ -541,7 +584,7 @@ mod tests {
 
     #[test]
     fn test_calc_rmsd_fail_no_box() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
         system.group_create("Protein", "@protein").unwrap();
 
         let mut reference = system.clone();
@@ -551,6 +594,20 @@ mod tests {
         match system.calc_rmsd(&reference, "Protein") {
             Ok(_) => panic!("Function should have failed."),
             Err(RMSDError::InvalidSimBox(SimBoxError::DoesNotExist)) => (),
+            Err(_) => panic!("Function failed but incorrect error type returned."),
+        }
+    }
+
+    #[test]
+    fn test_calc_rmsd_fail_no_mass() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        let reference = system.clone();
+
+        match system.calc_rmsd(&reference, "Protein") {
+            Ok(_) => panic!("Function should have failed."),
+            Err(RMSDError::InvalidMass(MassError::NoMass(_))) => (),
             Err(_) => panic!("Function failed but incorrect error type returned."),
         }
     }
