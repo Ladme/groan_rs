@@ -69,16 +69,21 @@ impl System {
 
     #[inline]
     pub fn calc_rmsd_and_fit(&mut self, reference: &System, group: &str) -> Result<f32, RMSDError> {
-        let (rot, trans, rmsd) = self.calc_rmsd_rot_trans(reference, group)?;
+        let (rot, _, rmsd) = self.calc_rmsd_rot_trans(reference, group)?;
 
-        let rot_transposed = rot.transpose();
-        //let simbox = self.get_box_copy().unwrap();
+        let simbox = self.get_box_copy().unwrap();
         let box_center = self.get_box_center().unwrap();
+        let group_center = self.group_get_com(group).unwrap();
+        let group_center_in_reference = reference.group_get_com(group).unwrap();
+        let shift2 = Vector3D::new(-box_center.x, -box_center.y, -box_center.z);
+        let shift = box_center - group_center;
 
         self.atoms_iter_mut().for_each(|atom| {
-            atom.translate_nopbc(&trans).unwrap();
-            atom.rotate_nopbc(&rot_transposed).unwrap();
-            atom.translate_nopbc(&box_center).unwrap();
+            atom.translate(&shift, &simbox).unwrap();
+
+            atom.translate_nopbc(&shift2).unwrap();
+            atom.rotate_nopbc(&rot).unwrap();
+            atom.translate_nopbc(&group_center_in_reference).unwrap();
         });
 
         Ok(rmsd)
@@ -151,11 +156,11 @@ impl System {
 
         // calculate RMSD
         Ok(kabsch_rmsd(
-            &target_coordinates,
             &reference_coordinates,
+            &target_coordinates,
             &masses,
-            &target_box_center,
             &reference_box_center,
+            &target_box_center,
             sum_masses,
         ))
     }
@@ -492,8 +497,8 @@ mod tests {
             .collect::<Vec<f32>>();
 
         let expected = [
-            0.23680355, 0.26356277, 0.26030675, 0.21396181, 0.22212411, 0.19429775, 0.26472768,
-            0.27031693, 0.26426846, 0.23497732, 0.24261881,
+            0.23680364, 0.26356384, 0.26030704, 0.2139618, 0.2221243, 0.19429797, 0.26472777,
+            0.27031714, 0.26426855, 0.23497728, 0.2426188,
         ];
 
         assert_eq!(rmsd.len(), expected.len());
