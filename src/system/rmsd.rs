@@ -686,7 +686,7 @@ mod tests {
 
         system.group_create("Protein", "@protein").unwrap();
 
-        match system.calc_rmsd(&reference, "Protein") {
+        match system.calc_rmsd_rot_trans(&reference, "Protein") {
             Ok(_) => panic!("Function should have failed."),
             Err(RMSDError::NonexistentGroup(x)) => assert_eq!(x, "Protein"),
             Err(_) => panic!("Function failed but incorrect error type returned."),
@@ -701,7 +701,7 @@ mod tests {
 
         system.group_remove("Protein").unwrap();
 
-        match system.calc_rmsd(&reference, "Protein") {
+        match system.calc_rmsd_rot_trans(&reference, "Protein") {
             Ok(_) => panic!("Function should have failed."),
             Err(RMSDError::NonexistentGroup(x)) => assert_eq!(x, "Protein"),
             Err(_) => panic!("Function failed but incorrect error type returned."),
@@ -718,7 +718,7 @@ mod tests {
             _ => panic!("Group could not be created or was created without warning."),
         }
 
-        match system.calc_rmsd(&reference, "Protein") {
+        match system.calc_rmsd_rot_trans(&reference, "Protein") {
             Ok(_) => panic!("Function should have failed."),
             Err(RMSDError::InconsistentGroup(x, i, j)) => {
                 assert_eq!(x, "Protein");
@@ -736,7 +736,7 @@ mod tests {
 
         let reference = system.clone();
 
-        match system.calc_rmsd(&reference, "Protein") {
+        match system.calc_rmsd_rot_trans(&reference, "Protein") {
             Ok(_) => panic!("Function should have failed."),
             Err(RMSDError::EmptyGroup(x)) => assert_eq!(x, "Protein"),
             Err(_) => panic!("Function failed but incorrect error type returned."),
@@ -752,7 +752,7 @@ mod tests {
 
         system.get_atom_mut(14).unwrap().reset_position();
 
-        match system.calc_rmsd(&reference, "Protein") {
+        match system.calc_rmsd_rot_trans(&reference, "Protein") {
             Ok(_) => panic!("Function should have failed."),
             Err(RMSDError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 14),
             Err(_) => panic!("Function failed but incorrect error type returned."),
@@ -768,7 +768,7 @@ mod tests {
 
         reference.reset_box();
 
-        match system.calc_rmsd(&reference, "Protein") {
+        match system.calc_rmsd_rot_trans(&reference, "Protein") {
             Ok(_) => panic!("Function should have failed."),
             Err(RMSDError::InvalidSimBox(SimBoxError::DoesNotExist)) => (),
             Err(_) => panic!("Function failed but incorrect error type returned."),
@@ -782,7 +782,7 @@ mod tests {
 
         let reference = system.clone();
 
-        match system.calc_rmsd(&reference, "Protein") {
+        match system.calc_rmsd_rot_trans(&reference, "Protein") {
             Ok(_) => panic!("Function should have failed."),
             Err(RMSDError::InvalidMass(MassError::NoMass(_))) => (),
             Err(_) => panic!("Function failed but incorrect error type returned."),
