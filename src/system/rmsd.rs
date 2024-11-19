@@ -527,7 +527,6 @@ mod tests {
     #[test]
     fn test_calc_rmsd_trajectory() {
         let mut system = System::from_file("test_files/example.tpr").unwrap();
-
         system.group_create("Protein", "@protein").unwrap();
 
         let mut reference = system.clone();
@@ -550,6 +549,52 @@ mod tests {
         for (x, y) in rmsd.into_iter().zip(expected.into_iter()) {
             assert_approx_eq!(f32, x, y);
         }
+    }
+
+    #[test]
+    fn test_calc_rmsd_partial() {
+        // the reference system does not have to contain all the atoms of the target system
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        let mut reference = System::new(
+            "Reference system",
+            system.group_extract("Protein").unwrap(),
+            system.get_box_copy(),
+        );
+        reference.group_create("Protein", "all").unwrap();
+
+        assert_approx_eq!(
+            f32,
+            system.calc_rmsd(&reference, "Protein").unwrap(),
+            0.0,
+            epsilon = 1e-4
+        );
+    }
+
+    #[test]
+    fn test_calc_rmsd_broken_at_pbc() {
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        let mut reference = system.clone();
+        // break peptide at PBC
+        reference
+            .atoms_translate(&Vector3D::new(3.2, -2.1, -4.6))
+            .unwrap();
+
+        assert_approx_eq!(
+            f32,
+            system.calc_rmsd(&reference, "Protein").unwrap(),
+            0.0,
+            epsilon = 1e-4
+        );
+        assert_approx_eq!(
+            f32,
+            reference.calc_rmsd(&system, "Protein").unwrap(),
+            0.0,
+            epsilon = 1e-4
+        );
     }
 
     fn compare_positions_with_wrapping(pos1: &Vector3D, pos2: &Vector3D, simbox: &SimBox) {
@@ -675,6 +720,83 @@ mod tests {
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected = File::open("test_files/short_trajectory_fit.xtc").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn test_rmsd_fit_trajectory_partial() {
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        let mut reference = System::new(
+            "Reference system",
+            system.group_extract("Protein").unwrap(),
+            system.get_box_copy(),
+        );
+        reference.group_create("Protein", "@protein").unwrap();
+
+        let xtc_output = NamedTempFile::new().unwrap();
+        let path_to_output = xtc_output.path();
+        system.xtc_writer_init(path_to_output).unwrap();
+
+        let rmsd = system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .map(|frame| {
+                let frame = frame.unwrap();
+                let rmsd = frame.calc_rmsd_and_fit(&reference, "Protein").unwrap();
+                frame.traj_write_frame().unwrap();
+
+                rmsd
+            })
+            .collect::<Vec<f32>>();
+
+        // close the output xtc file
+        system.traj_close();
+
+        let expected = [
+            0.23680364, 0.26356384, 0.26030704, 0.2139618, 0.2221243, 0.19429797, 0.26472777,
+            0.27031714, 0.26426855, 0.23497728, 0.2426188,
+        ];
+
+        assert_eq!(rmsd.len(), expected.len());
+        for (x, y) in rmsd.into_iter().zip(expected.into_iter()) {
+            assert_approx_eq!(f32, x, y);
+        }
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/short_trajectory_fit.xtc").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
+    fn test_rmsd_fit_trajectory_broken_at_pbc() {
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        let mut reference = system.clone();
+        // break peptide at PBC
+        reference
+            .atoms_translate(&Vector3D::new(3.2, -2.1, -4.6))
+            .unwrap();
+
+        let xtc_output = NamedTempFile::new().unwrap();
+        let path_to_output = xtc_output.path();
+        system.xtc_writer_init(path_to_output).unwrap();
+
+        for frame in system.xtc_iter("test_files/short_trajectory.xtc").unwrap() {
+            let frame = frame.unwrap();
+            frame.calc_rmsd_and_fit(&reference, "Protein").unwrap();
+            frame.traj_write_frame().unwrap();
+        }
+
+        // close the output xtc file
+        system.traj_close();
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/short_trajectory_broken_fit.xtc").unwrap();
 
         assert!(file_diff::diff_files(&mut result, &mut expected));
     }
