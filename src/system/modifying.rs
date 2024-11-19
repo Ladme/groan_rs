@@ -18,6 +18,7 @@ use crate::system::System;
 /// ## Methods for modifying the properties of the system.
 impl System {
     /// Translate all atoms of a group by target vector.
+    /// Atoms are wrapped into the simulation box.
     ///
     /// ## Returns
     /// - `Ok` if everything was successful.
@@ -51,6 +52,7 @@ impl System {
     }
 
     /// Translate all atoms in the system by target vector.
+    /// Atoms are wrapped into the simulation box.
     ///
     /// ## Returns
     /// - `Ok` if everything was successful.

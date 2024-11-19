@@ -15,9 +15,9 @@ use nalgebra::Matrix3;
 
 impl System {
     /// Calculate the Root Mean Square Deviation (RMSD) between the specified group of atoms
-    /// in the current system and a reference system.
+    /// in the current system and the reference system.
     ///
-    /// Uses mass-weighted Kabsch algorithm.
+    /// Uses the mass-weighted Kabsch algorithm.
     ///
     /// ## Returns
     /// - If successful, returns the minimum RMSD (in nanometers) between the atoms
@@ -60,30 +60,72 @@ impl System {
     /// - The RMSD is calculated in nanometers (nm).
     /// - Neither the current system (`self`) nor the reference system is modified by this method.
     /// - The group does not have to be centered or fully contained inside the simulation box.
-    ///   The method itself performs the centering.
     #[inline]
     pub fn calc_rmsd(&self, reference: &System, group: &str) -> Result<f32, RMSDError> {
         let (_, _, rmsd) = self.calc_rmsd_rot_trans(reference, group)?;
         Ok(rmsd)
     }
 
+    /// Fits the selected `group` from the system to the `reference` structure.
+    /// Also returns the Root Mean Square Deviation (RMSD) between the specified group of atoms
+    /// in the current system and the reference system.
+    ///
+    /// Uses the mass-weighted Kabsch algorithm.
+    ///
+    /// ## Returns
+    /// - If successful, returns the minimum RMSD (in nanometers) between the atoms
+    ///   of the specified group in `reference` and `self`.
+    /// - Returns an `RMSDError` if the calculation fails. In this case, `self` is not modified.
+    ///
+    /// ## Example
+    /// Fitting a protein structure to a reference:
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// fn rmsd_fit() -> Result<System, Box<dyn std::error::Error + Send + Sync>> {
+    ///     // load the reference structure, which contains only the atoms of the protein
+    ///     // (in general, the reference may of course also contain other atoms)
+    ///     let mut reference = System::from_file("protein.gro")?;
+    ///     reference.group_create("Protein", "all")?;
+    ///
+    ///     // load the target structure, which may also contain other atoms besides the protein
+    ///     let mut system = System::from_file("protein_in_membrane.gro")?;
+    ///     system.group_create("Protein", "@protein")?;
+    ///
+    ///     // fit the system to the reference
+    ///     let rmsd = system.calc_rmsd_and_fit(&reference, "Protein")?;
+    ///
+    ///     println!("{}", rmsd);
+    ///
+    ///     Ok(system)
+    /// }
+    /// ```
+    /// ## Notes
+    /// - This method requires both systems to have a valid orthogonal simulation box;
+    ///   otherwise, an error will be returned.
+    /// - The method performs a rigid-body alignment of the atoms in the specified group using
+    ///   the Kabsch algorithm before calculating the RMSD.
+    /// - Mass weighting **is** performed during the alignment.
+    /// - The RMSD is calculated in nanometers (nm).
+    /// - The reference system is not modified by this function.
+    /// - The group does not need to be centered or fully contained within the simulation box.
     #[inline]
     pub fn calc_rmsd_and_fit(&mut self, reference: &System, group: &str) -> Result<f32, RMSDError> {
-        let (rot, _, rmsd) = self.calc_rmsd_rot_trans(reference, group)?;
+        let (rotation, _, rmsd) = self.calc_rmsd_rot_trans(reference, group)?;
 
-        let simbox = self.get_box_copy().unwrap();
+        let system_box = self.get_box_copy().unwrap();
         let box_center = self.get_box_center().unwrap();
-        let group_center = self.group_get_com(group).unwrap();
-        let group_center_in_reference = reference.group_get_com(group).unwrap();
-        let shift2 = Vector3D::new(-box_center.x, -box_center.y, -box_center.z);
-        let shift = box_center - group_center;
+        let group_com = self.group_get_com(group).unwrap();
+        let ref_group_com = reference.group_get_com(group).unwrap();
+        let inverse_box_center = Vector3D::new(-box_center.x, -box_center.y, -box_center.z);
+        let shift_to_box_center = box_center - group_com;
 
         self.atoms_iter_mut().for_each(|atom| {
-            atom.translate(&shift, &simbox).unwrap();
+            atom.translate(&shift_to_box_center, &system_box).unwrap();
 
-            atom.translate_nopbc(&shift2).unwrap();
-            atom.rotate_nopbc(&rot).unwrap();
-            atom.translate_nopbc(&group_center_in_reference).unwrap();
+            atom.translate_nopbc(&inverse_box_center).unwrap();
+            atom.rotate_nopbc(&rotation).unwrap();
+            atom.translate_nopbc(&ref_group_com).unwrap();
         });
 
         Ok(rmsd)
@@ -297,10 +339,13 @@ fn kabsch_rmsd(
 
 #[cfg(test)]
 mod tests {
+    use std::fs::File;
+
     use crate::errors::{MassError, PositionError, SimBoxError};
 
     use super::*;
-    use float_cmp::assert_approx_eq;
+    use float_cmp::{approx_eq, assert_approx_eq};
+    use tempfile::NamedTempFile;
 
     #[test]
     fn test_kabsch_no_rotation_no_translation() {
@@ -505,6 +550,133 @@ mod tests {
         for (x, y) in rmsd.into_iter().zip(expected.into_iter()) {
             assert_approx_eq!(f32, x, y);
         }
+    }
+
+    fn compare_positions_with_wrapping(pos1: &Vector3D, pos2: &Vector3D, simbox: &SimBox) {
+        if !approx_eq!(f32, pos1.x, pos2.x, epsilon = 1e-3)
+            && !approx_eq!(f32, pos1.x + simbox.x, pos2.x, epsilon = 1e-3)
+            && !approx_eq!(f32, pos1.x - simbox.x, pos2.x, epsilon = 1e-3)
+        {
+            panic!(
+                "Assertion failed: {} != {} even after wrapping",
+                pos1.x, pos2.x
+            );
+        }
+
+        if !approx_eq!(f32, pos1.y, pos2.y, epsilon = 1e-3)
+            && !approx_eq!(f32, pos1.y + simbox.y, pos2.y, epsilon = 1e-3)
+            && !approx_eq!(f32, pos1.y - simbox.y, pos2.y, epsilon = 1e-3)
+        {
+            panic!(
+                "Assertion failed: {} != {} even after wrapping",
+                pos1.y, pos2.y
+            );
+        }
+
+        if !approx_eq!(f32, pos1.z, pos2.z, epsilon = 1e-3)
+            && !approx_eq!(f32, pos1.z + simbox.z, pos2.z, epsilon = 1e-3)
+            && !approx_eq!(f32, pos1.z - simbox.z, pos2.z, epsilon = 1e-3)
+        {
+            panic!(
+                "Assertion failed: {} != {} even after wrapping",
+                pos1.z, pos2.z
+            );
+        }
+    }
+
+    #[test]
+    fn test_rmsd_fit_same_structure() {
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        let reference = system.clone();
+
+        let rmsd = system.calc_rmsd_and_fit(&reference, "Protein").unwrap();
+        assert_approx_eq!(f32, rmsd, 0.0, epsilon = 1e-4);
+
+        let simbox = system.get_box().unwrap();
+
+        for (pos1, pos2) in reference
+            .atoms_iter()
+            .map(|atom| atom.get_position().unwrap())
+            .zip(system.atoms_iter().map(|atom| atom.get_position().unwrap()))
+        {
+            compare_positions_with_wrapping(pos1, pos2, simbox);
+        }
+    }
+
+    #[test]
+    fn test_rmsd_fit_shifted_and_rotated_copy() {
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        let reference = system.clone();
+
+        system
+            .atoms_translate(&Vector3D::new(-1.1, 3.4, 2.7))
+            .unwrap();
+        let rotation_matrix = Matrix3::new(0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+        system
+            .atoms_iter_mut()
+            .for_each(|atom| atom.rotate_nopbc(&rotation_matrix).unwrap());
+
+        let rmsd = system.calc_rmsd_and_fit(&reference, "Protein").unwrap();
+        assert_approx_eq!(f32, rmsd, 0.0, epsilon = 1e-4);
+
+        let simbox = system.get_box().unwrap();
+
+        for (pos1, pos2) in reference
+            .atoms_iter()
+            .map(|atom| atom.get_position().unwrap())
+            .zip(system.atoms_iter().map(|atom| atom.get_position().unwrap()))
+        {
+            compare_positions_with_wrapping(pos1, pos2, simbox);
+        }
+    }
+
+    #[test]
+    fn test_rmsd_fit_trajectory() {
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        let mut reference = system.clone();
+
+        let xtc_output = NamedTempFile::new().unwrap();
+        let path_to_output = xtc_output.path();
+        system.xtc_writer_init(path_to_output).unwrap();
+
+        // should work even if we remove position of some atom that is not in the group
+        reference.get_atom_mut(176).unwrap().reset_position();
+
+        let rmsd = system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .map(|frame| {
+                let frame = frame.unwrap();
+                let rmsd = frame.calc_rmsd_and_fit(&reference, "Protein").unwrap();
+                frame.traj_write_frame().unwrap();
+
+                rmsd
+            })
+            .collect::<Vec<f32>>();
+
+        // close the output xtc file
+        system.traj_close();
+
+        let expected = [
+            0.23680364, 0.26356384, 0.26030704, 0.2139618, 0.2221243, 0.19429797, 0.26472777,
+            0.27031714, 0.26426855, 0.23497728, 0.2426188,
+        ];
+
+        assert_eq!(rmsd.len(), expected.len());
+        for (x, y) in rmsd.into_iter().zip(expected.into_iter()) {
+            assert_approx_eq!(f32, x, y);
+        }
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/short_trajectory_fit.xtc").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
     }
 
     #[test]

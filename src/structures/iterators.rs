@@ -966,6 +966,7 @@ pub trait MutAtomIteratorWithBox<'a>: Iterator<Item = &'a mut Atom> + Sized + Ha
     }
 
     /// Translate atoms of the iterator by target vector.
+    /// Atoms are wrapped into the simulation box.
     ///
     /// ## Returns
     /// - `Ok` if everything was successful.
