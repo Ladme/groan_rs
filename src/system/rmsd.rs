@@ -7,7 +7,7 @@ use std::ops::Deref;
 
 use crate::{
     errors::{GroupError, RMSDError},
-    prelude::SimBox,
+    prelude::{SimBox, TrajRead, TrajReader},
     structures::{atom::Atom, vector3d::Vector3D},
     system::System,
 };
@@ -26,6 +26,7 @@ impl System {
     ///
     /// ## Example
     /// Calculating RMSD for every 10th frame of an XTC trajectory.
+    /// Note that it is much faster to use [`RMSDIterator`] for this kind of calculation.
     /// ```no_run
     /// # use groan_rs::prelude::*;
     /// #
@@ -54,9 +55,10 @@ impl System {
     /// ## Notes
     /// - This method requires both systems to have a valid orthogonal simulation box;
     ///   otherwise, an error will be returned.
+    /// - Atoms for which RMSD is calculated must be assigned masses in both systems.
     /// - The method performs a rigid-body alignment of the atoms in the specified group using
     ///   the Kabsch algorithm before calculating the RMSD.
-    /// - Mass weighting **is** performed during the alignment.
+    /// - Mass weighting **is** performed during the alignment. The reference structure must be assigned masses.
     /// - The RMSD is calculated in nanometers (nm).
     /// - Neither the current system (`self`) nor the reference system is modified by this method.
     /// - The group does not have to be centered or fully contained inside the simulation box.
@@ -103,6 +105,7 @@ impl System {
     /// ## Notes
     /// - This method requires both systems to have a valid orthogonal simulation box;
     ///   otherwise, an error will be returned.
+    /// - Atoms for which RMSD is calculated must be assigned masses in both systems.
     /// - The method performs a rigid-body alignment of the atoms in the specified group using
     ///   the Kabsch algorithm before calculating the RMSD.
     /// - Mass weighting **is** performed during the alignment.
@@ -137,63 +140,15 @@ impl System {
         reference: &System,
         group: &str,
     ) -> Result<(Matrix3<f32>, Vector3D, f32), RMSDError> {
-        // check that the group exists and has a consistent number of atoms
-        let n_atoms_target = extract_n_atoms(group, self.group_get_n_atoms(group))?;
-        let n_atoms_reference = extract_n_atoms(group, reference.group_get_n_atoms(group))?;
+        let (reference_coordinates, reference_box_center) =
+            extract_data_from_system(reference, group)?;
+        let (target_coordinates, target_box_center) = extract_data_from_system(self, group)?;
 
-        if n_atoms_target != n_atoms_reference {
-            return Err(RMSDError::InconsistentGroup(
-                group.to_owned(),
-                n_atoms_reference,
-                n_atoms_target,
-            ));
-        }
+        // check that the group has a consistent number of atoms
+        number_of_positions_consistent(&reference_coordinates, &target_coordinates, group)?;
 
-        if n_atoms_target == 0 {
-            return Err(RMSDError::EmptyGroup(group.to_owned()));
-        }
-
-        // check that the simulation box is defined and orthogonal & extract box center
-        let reference_box_center = reference
-            .get_box_center()
-            .map_err(RMSDError::InvalidSimBox)?;
-        let target_box_center = self.get_box_center().map_err(RMSDError::InvalidSimBox)?;
-
-        // get the center of mass of the reference
-        let reference_center = get_com(reference, group)?;
-        let target_center = get_com(self, group)?;
-
-        // extract the coordinates of the atoms of the group and shift them
-        let reference_shift = Vector3D(reference_box_center.deref() - reference_center.deref());
-        let target_shift = Vector3D(target_box_center.deref() - target_center.deref());
-
-        let reference_coordinates = shift_and_wrap_coordinates(
-            extract_coordinates(reference.group_iter(group)),
-            &reference_shift,
-            reference.get_box().expect(
-                "FATAL GROAN ERROR | System::calc_rmsd_rot_trans | Reference SimBox should exist.",
-            ),
-        );
-
-        let target_coordinates = shift_and_wrap_coordinates(
-            extract_coordinates(self.group_iter(group)),
-            &target_shift,
-            self.get_box().expect(
-                "FATAL GROAN ERROR | System::calc_rmsd_rot_trans | Current SimBox should exist.",
-            ),
-        );
-
-        // exctract masses
-        let masses = self
-            .group_iter(group)
-            .unwrap()
-            .map(|atom| {
-                atom.get_mass().expect(
-                    "FATAL GROAN ERROR | System::calc_rmsd_rot_trans | Mass should be defined.",
-                )
-            })
-            .collect::<Vec<f32>>();
-
+        // extract masses from reference
+        let masses = extract_masses(reference.group_iter(group));
         let sum_masses = masses.iter().sum::<f32>();
 
         // calculate RMSD
@@ -208,18 +163,148 @@ impl System {
     }
 }
 
-/// Auxiliary function for extracting the number of atoms in a group from system.
-#[inline(always)]
-fn extract_n_atoms(group: &str, result: Result<usize, GroupError>) -> Result<usize, RMSDError> {
-    match result {
-            Ok(0) => Err(RMSDError::EmptyGroup(group.to_owned())),
-            Ok(x) => Ok(x),
-            Err(GroupError::NotFound(_)) => Err(RMSDError::NonexistentGroup(group.to_owned())),
-            Err(_) => panic!("FATAL GROAN ERROR | rmsd::extract_n_atoms | System::group_get_n_atoms returned an unexpected error."),
-        }
+/// Structure for efficient calculation of RMSD from trajectories.
+/// `RMSDIterator` is a trajectory converter that returns both the
+/// current state of the system and the current RMSD value.
+pub struct RMSDIterator<'a, R>
+where
+    R: TrajRead<'a>,
+{
+    // precomputed, extracted and shifted reference coordinates
+    reference_coordinates: Vec<Vector3D>,
+    // center of the reference simulation box
+    reference_center: Vector3D,
+    // extracted masses of the relevant atoms
+    masses: Vec<f32>,
+    // sum of the extracted masses
+    sum_masses: f32,
+    // name of the group to work with
+    group: String,
+    // trajectory reader to work with
+    reader: TrajReader<'a, R>,
 }
 
-/// Auxiliary function for extracting the coordinates of relevant atoms from the system.
+impl<'a, R> TrajReader<'a, R>
+where
+    R: TrajRead<'a>,
+{
+    pub fn calc_rmsd(
+        self,
+        reference: &System,
+        group: &str,
+    ) -> Result<RMSDIterator<'a, R>, RMSDError> {
+        let (coordinates, center) = extract_data_from_system(reference, group)?;
+        let masses = extract_masses(reference.group_iter(group));
+        let sum_masses = masses.iter().sum::<f32>();
+
+        Ok(RMSDIterator {
+            reference_coordinates: coordinates,
+            reference_center: center,
+            masses,
+            sum_masses,
+            group: group.to_owned(),
+            reader: self,
+        })
+    }
+}
+
+impl<'a, R: TrajRead<'a>> Iterator for RMSDIterator<'a, R> {
+    type Item = Result<(&'a mut System, f32), RMSDError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let frame = match self.reader.next()? {
+            Ok(x) => x,
+            Err(e) => return Some(Err(RMSDError::TrajectoryError(e))),
+        };
+
+        let (target_coordinates, target_center) = match extract_data_from_system(frame, &self.group)
+        {
+            Ok(x) => x,
+            Err(e) => return Some(Err(e)),
+        };
+
+        match number_of_positions_consistent(
+            &self.reference_coordinates,
+            &target_coordinates,
+            &self.group,
+        ) {
+            Ok(x) => x,
+            Err(e) => return Some(Err(e)),
+        };
+
+        let (_, _, rmsd) = kabsch_rmsd(
+            &self.reference_coordinates,
+            &target_coordinates,
+            &self.masses,
+            &self.reference_center,
+            &target_center,
+            self.sum_masses,
+        );
+
+        Some(Ok((frame, rmsd)))
+    }
+}
+
+/// Auxiliary function for checking consistency in the number of positions.
+#[inline(always)]
+fn number_of_positions_consistent(
+    reference: &Vec<Vector3D>,
+    target: &Vec<Vector3D>,
+    group: &str,
+) -> Result<(), RMSDError> {
+    let n_atoms_ref = reference.len();
+    let n_atoms_target = target.len();
+
+    if n_atoms_ref != n_atoms_target {
+        Err(RMSDError::InconsistentGroup(
+            group.to_owned(),
+            n_atoms_ref,
+            n_atoms_target,
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+/// Auxiliary function for extracting data required for the RMSD calculation from system.
+fn extract_data_from_system(
+    system: &System,
+    group: &str,
+) -> Result<(Vec<Vector3D>, Vector3D), RMSDError> {
+    // check that the simulation box is defined and orthogonal & extract box center
+    let box_center = system.get_box_center().map_err(RMSDError::InvalidSimBox)?;
+
+    // get the center of mass of the group
+    let group_center = get_com(system, group)?;
+
+    // extract the coordinates of the atoms of the group and shift them
+    let shift = Vector3D(box_center.deref() - group_center.deref());
+    let coordinates = shift_and_wrap_coordinates(
+        extract_coordinates(system.group_iter(group)),
+        &shift,
+        system.get_box().expect(
+            "FATAL GROAN ERROR | rmsd::extract_data_from_system | Simulation box should exist.",
+        ),
+    );
+
+    Ok((coordinates, box_center))
+}
+
+/// Auxiliary function for extracting masses of relevant atoms from system.
+#[inline(always)]
+fn extract_masses<'a, I>(iter: Result<I, GroupError>) -> Vec<f32>
+where
+    I: Iterator<Item = &'a Atom>,
+{
+    iter.expect("FATAL GROAN ERROR | rmsd::extract_masses | Group should exist.")
+        .map(|atom| {
+            atom.get_mass()
+                .expect("FATAL GROAN ERROR | System::calc_rmsd_rot_trans | Mass should be defined.")
+        })
+        .collect::<Vec<f32>>()
+}
+
+/// Auxiliary function for extracting the coordinates of relevant atoms from system.
 #[inline(always)]
 fn extract_coordinates<'a, I>(iter: Result<I, GroupError>) -> Vec<Vector3D>
 where
@@ -256,9 +341,11 @@ fn shift_and_wrap_coordinates(
 fn get_com(system: &System, group: &str) -> Result<Vector3D, RMSDError> {
     match system.group_get_com(group) {
         Ok(x) => Ok(x),
+        Err(GroupError::NotFound(x)) => Err(RMSDError::NonexistentGroup(x)),
         Err(GroupError::InvalidPosition(x)) => Err(RMSDError::InvalidPosition(x)),
         Err(GroupError::InvalidMass(x)) => Err(RMSDError::InvalidMass(x)),
-        Err(_) => panic!("FATAL GROAN ERROR | rmsd::get_center | Unexpected error type returned from System::group_get_center."),
+        Err(GroupError::EmptyGroup(x)) => Err(RMSDError::EmptyGroup(x)),
+        Err(_) => panic!("FATAL GROAN ERROR | rmsd::get_center | Unexpected error type returned from System::group_get_com."),
     }
 }
 
@@ -547,6 +634,33 @@ mod tests {
 
         assert_eq!(rmsd.len(), expected.len());
         for (x, y) in rmsd.into_iter().zip(expected.into_iter()) {
+            assert_approx_eq!(f32, x, y);
+        }
+    }
+
+    #[test]
+    fn test_rmsd_iterator() {
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        let reference = system.clone();
+
+        let rmsd = system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .map(|frame| frame.unwrap().calc_rmsd(&reference, "Protein").unwrap())
+            .collect::<Vec<f32>>();
+
+        let rmsd2 = system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .calc_rmsd(&reference, "Protein")
+            .unwrap()
+            .map(|result| result.unwrap().1)
+            .collect::<Vec<f32>>();
+
+        assert_eq!(rmsd.len(), rmsd2.len());
+        for (x, y) in rmsd.into_iter().zip(rmsd2.into_iter()) {
             assert_approx_eq!(f32, x, y);
         }
     }

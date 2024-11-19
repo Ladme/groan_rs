@@ -603,4 +603,7 @@ pub enum RMSDError {
     /// Used when any atom which is to be used for the RMSD calculation has invalid mass.
     #[error("{}", .0)]
     InvalidMass(MassError),
+    /// Used when an error occured on the level of trajectory reading.
+    #[error("{}", .0)]
+    TrajectoryError(ReadTrajError),
 }
