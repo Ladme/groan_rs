@@ -9,7 +9,7 @@ repository = "https://github.com/Ladme/groan_rs"
 keywords = ["gromacs", "molecular-dynamics"]
 categories = ["command-line-utilities", "science"]
 build = "build.rs"
-exclude = ["/test_files", "/.vscode"]
+exclude = ["test_files", ".vscode", "book"]
 
 [dependencies]
 colored = "2.1"
