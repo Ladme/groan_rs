@@ -108,6 +108,7 @@ impl System {
     /// - Unless an error is returned, the time complexity of this function is _always_ O(m * n + n),
     ///   where `m` is the number of atoms in the system and `n` is the number of available elements.
     /// - If an error (not a warning!) is returned, the `System` structure is not modified.
+    #[inline(always)]
     pub fn guess_elements(&mut self, elements: Elements) -> Result<(), ElementError> {
         self.guess_elements_partial(elements, true)
     }
@@ -118,6 +119,7 @@ impl System {
     /// Behaves similarly to [`System::guess_elements`] but only assigns elements to atoms
     /// that do not have assigned elements already.
     /// No properties are guessed for atoms which already have elements assigned.
+    #[inline(always)]
     pub fn guess_elements_unknown(&mut self, elements: Elements) -> Result<(), ElementError> {
         self.guess_elements_partial(elements, false)
     }
