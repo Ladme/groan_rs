@@ -11,9 +11,11 @@ use crate::{
     system::System,
 };
 
-/// Generic structure for trajectory converters.
-/// Trajectory converters can be constructed from any trajectory iterator.
-/// They can be used to iterate over the trajectory and return frames that are modified in some way.
+/// A generic structure for trajectory converters.
+///
+/// Trajectory converter can be built on top of any trajectory iterator.
+/// Converter provides an interface for iterating through a trajectory, modifying
+/// each frame in a defined way, and returning the modified frames.
 pub struct TrajConverter<'a, Reader, Converter>
 where
     Reader: ConvertableTrajRead<'a>,
@@ -24,7 +26,7 @@ where
     _phantom: PhantomData<&'a Reader>,
 }
 
-/// Trait implemented by structures that can be uses as trajectory converters.
+/// Trait implemented by structures that can be used as trajectory converters.
 pub trait FrameConvert {
     type Error: std::error::Error + Send + Sync + Eq + PartialEq + 'static;
 
@@ -55,10 +57,11 @@ where
     }
 }
 
-/// Generic structure for trajectory analyzers.
-/// Trajectory analyzers can be constructed from any trajectory iterator.
-/// They can be used to iterate over the trajectory, but apart from the read structure,
-/// they also return some property of this structure.
+/// A generic structure for trajectory analyzers.
+///
+/// Trajectory analyzer can be built on top of any trajectory iterator.
+/// Analyzer allows iterating through a trajectory while analyzing each frame
+/// and returning both the frame and a computed property associated with it.
 pub struct TrajAnalyzer<'a, Reader, Analyzer>
 where
     Reader: ConvertableTrajRead<'a>,
@@ -69,7 +72,7 @@ where
     _phantom: PhantomData<&'a Reader>,
 }
 
-/// Trait implemented by structures that can be uses as trajectory converters.
+/// Trait implemented by structures that can be used as trajectory analyzers.
 pub trait FrameAnalyze {
     type Error: std::error::Error + Send + Sync + Eq + PartialEq + 'static;
     type AnalysisResult;
@@ -102,9 +105,12 @@ where
     }
 }
 
-/// Generic structure for trajectory converter-analyzers.
-/// Trajectory converter-analyzers combine properties of trajectory converters and trajectory analyzers.
-/// They can modify the current frame while also analyzing it and returning the result.
+/// A generic structure for trajectory converter-analyzers.
+///
+/// Trajectory converter-analyzers combine the functionality of both
+/// trajectory converters and analyzers. They allow modifying each frame
+/// in a trajectory and simultaneously analyzing the frame to return
+/// both the modified frame and the associated analysis result.
 pub struct TrajConverterAnalyzer<'a, Reader, ConverterAnalyzer>
 where
     Reader: ConvertableTrajRead<'a>,
@@ -115,7 +121,7 @@ where
     _phantom: PhantomData<&'a Reader>,
 }
 
-/// Trait implemented by structures that can be uses as trajectory converters.
+/// Trait implemented by structures that can be used as trajectory converter-analyzers.
 pub trait FrameConvertAnalyze {
     type Error: std::error::Error + Send + Sync + Eq + PartialEq + 'static;
     type AnalysisResult;
