@@ -34,7 +34,7 @@ impl System {
     /// ## Example
     /// Calculating RMSD for every 10th frame of an XTC trajectory.
     /// Note that it is faster to use `RMSDIterator` for this kind of calculation.
-    /// See [`TrajReader::calc_rmsd`] for more information.
+    /// See [`RMSDTrajRead::calc_rmsd`] for more information.
     /// ```no_run
     /// # use groan_rs::prelude::*;
     /// #
@@ -81,6 +81,8 @@ impl System {
     /// in the current system and the reference system.
     ///
     /// Uses the mass-weighted Kabsch algorithm.
+    ///
+    /// If you want to perform an RMSD fit for an entire trajectory, it is better to use [`RMSDTrajRead::calc_rmsd_and_fit`].
     ///
     /// ## Returns
     /// - If successful, returns the minimum RMSD (in nanometers) between the atoms
@@ -167,7 +169,7 @@ pub struct RMSDConverterAnalyzer {
     reference_coordinates: Vec<Vector3D>,
     // Center of the reference simulation box.
     reference_center: Vector3D,
-    // Center of the group in the reference.
+    // Center of the group in the original reference system (before shifting).
     reference_group_center: Vector3D,
     // Extracted masses of the relevant atoms.
     masses: Vec<f32>,
@@ -280,7 +282,11 @@ pub trait RMSDTrajRead<'a>: ConvertableTrajRead<'a> {
     ///
     ///     // iterate over every 10th frame of the xtc trajectory and calculate RMSD
     ///     let mut all_rmsd = Vec::new();
-    ///     for result in system.xtc_iter("trajectory.xtc")?.with_step(10)?.calc_rmsd(&reference, "Protein")? {
+    ///     for result in system
+    ///         .xtc_iter("trajectory.xtc")?
+    ///         .with_step(10)?
+    ///         .calc_rmsd(&reference, "Protein")?
+    ///     {
     ///         let (_, rmsd) = result?;
     ///         all_rmsd.push(rmsd);
     ///     }
@@ -363,6 +369,17 @@ pub trait RMSDTrajRead<'a>: ConvertableTrajRead<'a> {
     ///     // the RMSD-fitted trajectory has been written to `trajectory_fit.xtc`
     /// }
     /// ```
+    ///
+    /// ## Notes
+    /// - This method requires both systems to have a valid orthogonal simulation box;
+    ///   otherwise, an error will be returned.
+    /// - Atoms for which RMSD is calculated must be assigned masses in both systems.
+    /// - The method performs a rigid-body alignment of the atoms in the specified group using
+    ///   the Kabsch algorithm before calculating the RMSD.
+    /// - Mass weighting **is** performed during the alignment.
+    /// - The RMSD is calculated in nanometers (nm).
+    /// - The reference system is not modified by this function.
+    /// - The group does not need to be centered or fully contained within the simulation box.
     #[inline(always)]
     fn calc_rmsd_and_fit(
         self,
