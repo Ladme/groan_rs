@@ -16,8 +16,8 @@ colored = "2.1"
 float-cmp = "0.10.0"
 indexmap = { version = "2.6", features = ["serde"] }
 regex = "1.11.1"
-thiserror = "1.0.65"
-serde = { version = "1.0.214", features = ["derive"] }
+thiserror = "2.0.3"
+serde = { version = "1.0.215", features = ["derive"] }
 serde_yaml = "0.9"
 fancy-regex = "0.14.0"
 nalgebra = "0.33.2"
@@ -29,12 +29,13 @@ parking_lot = { version = "0.12.3", optional = true }
 
 [dev-dependencies]
 file_diff = "1.0.0"
-tempfile = "3.13.0"
+tempfile = "3.14.0"
 rand = "0.8.5"
 criterion = "0.5.1"
+paste = "1.0.15"
 
 [build-dependencies]
-cc = { version = "1.1.31", features = ["parallel"] }
+cc = { version = "1.2.1", features = ["parallel"] }
 
 [features]
 serde = ["ndarray/serde", "hashbrown/serde"]

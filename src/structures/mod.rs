@@ -12,4 +12,5 @@ pub mod group;
 pub mod iterators;
 pub mod shape;
 pub mod simbox;
+pub mod traj_convert;
 pub mod vector3d;

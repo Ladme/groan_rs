@@ -592,5 +592,6 @@ pub mod prelude {
     pub use crate::structures::shape::{Cylinder, Rectangular, Shape, Sphere, TriangularPrism};
     pub use crate::structures::simbox::SimBox;
     pub use crate::structures::vector3d::Vector3D;
+    pub use crate::system::rmsd::RMSDTrajRead;
     pub use crate::system::System;
 }

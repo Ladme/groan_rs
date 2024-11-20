@@ -607,3 +607,46 @@ pub enum RMSDError {
     #[error("{}", .0)]
     TrajectoryError(ReadTrajError),
 }
+
+
+/// Errors originating from trajectory converters.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum TrajConvertError<ConvertError: std::error::Error> {
+    /// Used when the sanity check for the converter failed.
+    #[error("{}", .0)]
+    InvalidConverter(ConvertError),
+    /// Used when frame of the trajectory could not be read.
+    #[error("{}", .0)]
+    ReadingError(ReadTrajError),
+    /// Used when frame of the trajectory could not be converted.
+    #[error("{}", .0)]
+    ConversionError(ConvertError),
+}
+
+/// Errors originating from trajectory analyzers.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum TrajAnalysisError<AnalyzerError: std::error::Error> {
+    /// Used when the sanity check for the analyzer failed.
+    #[error("{}", .0)]
+    InvalidAnalyzer(AnalyzerError),
+    /// Used when frame of the trajectory could not be read.
+    #[error("{}", .0)]
+    ReadingError(ReadTrajError),
+    /// Used when frame of the trajectory could not be analyzed.
+    #[error("{}", .0)]
+    AnalysisError(AnalyzerError),
+}
+
+/// Errors originating from trajectory converter-analyzers.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum TrajConvertAnalysisError<ConvertAnalyzerError: std::error::Error> {
+    /// Used when the sanity check for the analyzer-converter failed.
+    #[error("{}", .0)]
+    InvalidConverterAnalyzer(ConvertAnalyzerError),
+    /// Used when frame of the trajectory could not be read.
+    #[error("{}", .0)]
+    ReadingError(ReadTrajError),
+    /// Used when frame of the trajectory could not be converted or analyzed.
+    #[error("{}", .0)]
+    ConversionAnalysisError(ConvertAnalyzerError),
+}

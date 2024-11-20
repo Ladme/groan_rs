@@ -19,6 +19,8 @@
 
 #### RMSD calculation
 - Introduced `System::calc_rmsd` allowing to calculate RMSD between current and some reference structure.
+- RMSD-fit of a structure to a reference structure can be performed using `System::calc_rmsd_and_fit`.
+- Calculating RMSD and RMSD-fit for trajectories is more efficient using `TrajMasterRead::calc_rmsd` and `TrajMasterRead::calc_rmsd_and_fit` which is implemented for all trajectory readers.
 
 #### Reading gro trajectories
 - Trajectories in 'gro' format can be now read using `System::gro_iter`.
@@ -67,6 +69,7 @@
 - Introduced `System::guess_elements_unknown` for assigning elements only to atoms which are not already assigned an element.
 - `ProgressPrinter` now only uses mutex if the `parallel` feature is specified.
 - Introduced `Vector3D::rotate`, `Atom::rotate`, and `Atom::rotate_nopbc` for performing rotations using rotation matrices.
+- Introduced trajectory converters and analyzers which are trajectory readers that also modify and/or analyze the currently read simulation frame. See `TrajConverter`, `TrajAnalyzer`, and `TrajConverterAnalyzer` for more information. These structures are mostly for internal use in the `groan_rs` crate.
 - Bug fix: Regex operators can be now used in regular expression blocks without raising an InvalidOperator error.
 
 ***
