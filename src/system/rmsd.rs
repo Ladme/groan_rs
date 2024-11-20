@@ -26,7 +26,8 @@ impl System {
     ///
     /// ## Example
     /// Calculating RMSD for every 10th frame of an XTC trajectory.
-    /// Note that it is much faster to use [`RMSDIterator`] for this kind of calculation.
+    /// Note that it is faster to use [`RMSDIterator`] for this kind of calculation.
+    /// See [`TrajReader::calc_rmsd`] for more information.
     /// ```no_run
     /// # use groan_rs::prelude::*;
     /// #
@@ -58,11 +59,11 @@ impl System {
     /// - Atoms for which RMSD is calculated must be assigned masses in both systems.
     /// - The method performs a rigid-body alignment of the atoms in the specified group using
     ///   the Kabsch algorithm before calculating the RMSD.
-    /// - Mass weighting **is** performed during the alignment. The reference structure must be assigned masses.
+    /// - Mass weighting **is** performed during the alignment.
     /// - The RMSD is calculated in nanometers (nm).
     /// - Neither the current system (`self`) nor the reference system is modified by this method.
     /// - The group does not have to be centered or fully contained inside the simulation box.
-    #[inline]
+    #[inline(always)]
     pub fn calc_rmsd(&self, reference: &System, group: &str) -> Result<f32, RMSDError> {
         let (_, _, rmsd) = self.calc_rmsd_rot_trans(reference, group)?;
         Ok(rmsd)
@@ -165,7 +166,8 @@ impl System {
 
 /// Structure for efficient calculation of RMSD from trajectories.
 /// `RMSDIterator` is a trajectory converter that returns both the
-/// current state of the system and the current RMSD value.
+/// current unmodified state of the system and the current RMSD value.
+/// See [`TrajReader::calc_rmsd`] for more information.
 pub struct RMSDIterator<'a, R>
 where
     R: TrajRead<'a>,
@@ -188,11 +190,65 @@ impl<'a, R> TrajReader<'a, R>
 where
     R: TrajRead<'a>,
 {
+    /// Calculate the Root Mean Square Deviation (RMSD) for each frame of
+    /// a trajectory while returning both the unmodified frame and calculated RMSD.
+    ///
+    /// Uses the mass-weighted Kabsch algorithm.
+    ///
+    /// If you want to calculate RMSD for only two structures, see [`System::calc_rmsd`].
+    ///
+    /// ## Returns
+    /// - Returns an [`RMSDIterator`], which is a trajectory converter that can be iterated over.
+    /// Each iteration yields the current unmodified frame of the trajectory along with the
+    /// corresponding RMSD value.
+    /// - In case of an error, returns an `RMSDError`.
+    ///
+    /// ## Example
+    /// Calculating RMSD for every 10th frame of an XTC trajectory.
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// fn calculate_rmsd() -> Result<Vec<f32>, Box<dyn std::error::Error + Send + Sync>> {
+    ///     let mut system = System::from_file("system.gro")?;
+    ///
+    ///     // create a group `Protein` for which the RMSD will be calculated
+    ///     system.group_create("Protein", "@protein")?;
+    ///
+    ///     // use the input structure file as a reference structure
+    ///     let reference = system.clone();
+    ///
+    ///     // iterate over every 10th frame of the xtc trajectory and calculate RMSD
+    ///     let mut all_rmsd = Vec::new();
+    ///     for result in system.xtc_iter("trajectory.xtc")?.with_step(10)?.calc_rmsd(&reference, "Protein") {
+    ///         let (_, rmsd) = result?;
+    ///         all_rmsd.push(rmsd);
+    ///     }
+    ///
+    ///     // return the collected data
+    ///     Ok(rmsd)
+    /// }
+    ///
+    /// ```
+    ///
+    /// ## Notes
+    /// - This method requires both systems to have a valid orthogonal simulation box;
+    ///   otherwise, an error will be returned.
+    /// - Atoms for which RMSD is calculated must be assigned masses in both systems.
+    /// - The method performs a rigid-body alignment of the atoms in the specified group using
+    ///   the Kabsch algorithm before calculating the RMSD.
+    /// - Mass weighting **is** performed during the alignment.
+    /// - The RMSD is calculated in nanometers (nm).
+    /// - Neither the current frame of the system nor the reference system is modified by this method.
+    /// - The group does not have to be centered or fully contained inside the simulation box.
     pub fn calc_rmsd(
         self,
         reference: &System,
         group: &str,
     ) -> Result<RMSDIterator<'a, R>, RMSDError> {
+        // extract information and perform sanity checks for the reference system
+        // we could also performs some checks on the target system (we have access to it as `R::get_system`)
+        // but we will have to perform these sanity checks during the iteration (for each frame) anyway
+        // this behavior should not be tested anywhere nor documented (=> not relied upon), so it can be changed at any time
         let (coordinates, center) = extract_data_from_system(reference, group)?;
         let masses = extract_masses(reference.group_iter(group));
         let sum_masses = masses.iter().sum::<f32>();
@@ -211,6 +267,13 @@ where
 impl<'a, R: TrajRead<'a>> Iterator for RMSDIterator<'a, R> {
     type Item = Result<(&'a mut System, f32), RMSDError>;
 
+    /// Get next frame in the trajectory and calculate the RMSD for it.
+    ///
+    /// ## Returns
+    /// - If successful, returns both the current simulation frame and RMSD of this frame.
+    ///   `Some(Ok((frame, rmsd)))`
+    /// - If not successful, returns `Some(Err(RMSDError))`.
+    /// - If there is nothing more to read, returns `None`.
     fn next(&mut self) -> Option<Self::Item> {
         let frame = match self.reader.next()? {
             Ok(x) => x,
@@ -425,7 +488,7 @@ fn kabsch_rmsd(
 }
 
 #[cfg(test)]
-mod tests {
+mod tests_system {
     use std::fs::File;
 
     use crate::errors::{MassError, PositionError, SimBoxError};
@@ -634,33 +697,6 @@ mod tests {
 
         assert_eq!(rmsd.len(), expected.len());
         for (x, y) in rmsd.into_iter().zip(expected.into_iter()) {
-            assert_approx_eq!(f32, x, y);
-        }
-    }
-
-    #[test]
-    fn test_rmsd_iterator() {
-        let mut system = System::from_file("test_files/example.tpr").unwrap();
-        system.group_create("Protein", "@protein").unwrap();
-
-        let reference = system.clone();
-
-        let rmsd = system
-            .xtc_iter("test_files/short_trajectory.xtc")
-            .unwrap()
-            .map(|frame| frame.unwrap().calc_rmsd(&reference, "Protein").unwrap())
-            .collect::<Vec<f32>>();
-
-        let rmsd2 = system
-            .xtc_iter("test_files/short_trajectory.xtc")
-            .unwrap()
-            .calc_rmsd(&reference, "Protein")
-            .unwrap()
-            .map(|result| result.unwrap().1)
-            .collect::<Vec<f32>>();
-
-        assert_eq!(rmsd.len(), rmsd2.len());
-        for (x, y) in rmsd.into_iter().zip(rmsd2.into_iter()) {
             assert_approx_eq!(f32, x, y);
         }
     }
@@ -1019,6 +1055,185 @@ mod tests {
         let reference = system.clone();
 
         match system.calc_rmsd_rot_trans(&reference, "Protein") {
+            Ok(_) => panic!("Function should have failed."),
+            Err(RMSDError::InvalidMass(MassError::NoMass(_))) => (),
+            Err(_) => panic!("Function failed but incorrect error type returned."),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests_iterators {
+    use crate::errors::{MassError, PositionError, SimBoxError};
+
+    use super::*;
+    use float_cmp::assert_approx_eq;
+
+    #[test]
+    fn test_rmsd_iterator() {
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        let reference = system.clone();
+
+        let rmsd = system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .map(|frame| frame.unwrap().calc_rmsd(&reference, "Protein").unwrap())
+            .collect::<Vec<f32>>();
+
+        let rmsd2 = system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .calc_rmsd(&reference, "Protein")
+            .unwrap()
+            .map(|result| result.unwrap().1)
+            .collect::<Vec<f32>>();
+
+        assert_eq!(rmsd.len(), rmsd2.len());
+        for (x, y) in rmsd.into_iter().zip(rmsd2.into_iter()) {
+            assert_approx_eq!(f32, x, y);
+        }
+    }
+
+    #[test]
+    fn test_rmsd_iterator_fail_group_does_not_exist_in_reference() {
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
+        let reference = system.clone();
+
+        system.group_create("Protein", "@protein").unwrap();
+
+        match system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .calc_rmsd(&reference, "Protein")
+        {
+            Ok(_) => panic!("Function should have failed."),
+            Err(RMSDError::NonexistentGroup(x)) => assert_eq!(x, "Protein"),
+            Err(_) => panic!("Function failed but incorrect error type returned."),
+        }
+    }
+
+    #[test]
+    fn test_rmsd_iterator_fail_group_does_not_exist_in_self() {
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+        let reference = system.clone();
+
+        system.group_remove("Protein").unwrap();
+
+        let mut iterator = system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .calc_rmsd(&reference, "Protein")
+            .unwrap();
+
+        match iterator.next() {
+            Some(Err(RMSDError::NonexistentGroup(x))) => assert_eq!(x, "Protein"),
+            Some(Err(e)) => panic!("Function failed but incorrect error type `{}` returned.", e),
+            Some(Ok(_)) => panic!("Function should have failed."),
+            None => panic!("Function should have returned an error, not None."),
+        }
+    }
+
+    #[test]
+    fn test_rmsd_iterator_fail_inconsistent_group() {
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+        let mut reference = system.clone();
+        match reference.group_create("Protein", "serial 1 to 4") {
+            Err(GroupError::AlreadyExistsWarning(_)) => (),
+            _ => panic!("Group could not be created or was created without warning."),
+        }
+
+        let mut iterator = system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .calc_rmsd(&reference, "Protein")
+            .unwrap();
+
+        match iterator.next() {
+            Some(Err(RMSDError::InconsistentGroup(x, i, j))) => {
+                assert_eq!(x, "Protein");
+                assert_eq!(i, 4);
+                assert_eq!(j, 61);
+            }
+            Some(Err(e)) => panic!("Function failed but incorrect error type `{}` returned.", e),
+            Some(Ok(_)) => panic!("Function should have failed."),
+            None => panic!("Function should have returned an error, not None."),
+        }
+    }
+
+    #[test]
+    fn test_rmsd_iterator_fail_empty_group() {
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
+        system.group_create("Protein", "not all").unwrap();
+
+        let reference = system.clone();
+
+        match system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .calc_rmsd(&reference, "Protein")
+        {
+            Ok(_) => panic!("Function should have failed."),
+            Err(RMSDError::EmptyGroup(x)) => assert_eq!(x, "Protein"),
+            Err(_) => panic!("Function failed but incorrect error type returned."),
+        }
+    }
+
+    #[test]
+    fn test_rmsd_iterator_fail_no_position() {
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        let mut reference = system.clone();
+
+        reference.get_atom_mut(14).unwrap().reset_position();
+
+        match system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .calc_rmsd(&reference, "Protein")
+        {
+            Ok(_) => panic!("Function should have failed."),
+            Err(RMSDError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 14),
+            Err(_) => panic!("Function failed but incorrect error type returned."),
+        }
+    }
+
+    #[test]
+    fn test_rmsd_iterator_fail_no_box() {
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        let mut reference = system.clone();
+
+        reference.reset_box();
+
+        match system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .calc_rmsd(&reference, "Protein")
+        {
+            Ok(_) => panic!("Function should have failed."),
+            Err(RMSDError::InvalidSimBox(SimBoxError::DoesNotExist)) => (),
+            Err(_) => panic!("Function failed but incorrect error type returned."),
+        }
+    }
+
+    #[test]
+    fn test_rmsd_iterator_fail_no_mass() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("Protein", "@protein").unwrap();
+
+        let reference = system.clone();
+
+        match system
+            .xtc_iter("test_files/short_trajectory.xtc")
+            .unwrap()
+            .calc_rmsd(&reference, "Protein")
+        {
             Ok(_) => panic!("Function should have failed."),
             Err(RMSDError::InvalidMass(MassError::NoMass(_))) => (),
             Err(_) => panic!("Function failed but incorrect error type returned."),
