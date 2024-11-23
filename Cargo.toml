@@ -1,7 +1,7 @@
 [package]
 name = "groan_rs"
 description = "Gromacs Analysis Library for Rust"
-version = "0.9.0-dev.1"
+version = "0.9.0-dev.2"
 license = "MIT"
 edition = "2021"
 authors = ["Ladislav Bartos"]
@@ -9,7 +9,7 @@ repository = "https://github.com/Ladme/groan_rs"
 keywords = ["gromacs", "molecular-dynamics"]
 categories = ["command-line-utilities", "science"]
 build = "build.rs"
-exclude = ["test_files", ".vscode", "book"]
+exclude = ["test_files", ".vscode", "book", "validation"]
 
 [dependencies]
 colored = "2.1"
