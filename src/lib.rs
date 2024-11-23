@@ -41,25 +41,25 @@
 //!
 //! ## Examples
 //!
-//! #### Analyzing a structure file
+//! #### Analyzing structure files
 //!
-//! Read a gro file and an ndx file and calculate the center of geometry of a protein.
+//! You can read structure files in various formats (GRO, PDB, PQR, TPR),
+//! add groups from NDX files, and perform analyses.
 //!
 //! ```no_run
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
 //! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-//!     // read a gro file
+//!     // read a structure file (in GRO, PDB, PQR, or TPR format)
 //!     let mut system = System::from_file("system.gro")?;
-//!     // `groan_rs` also supports pdb, pqr, and tpr files which
-//!     // can be read using the same function as above
 //!
-//!     // read an ndx file
+//!     // read an NDX file
+//!     // NDX groups will be automatically created inside `system`
 //!     system.read_ndx("index.ndx")?;
 //!
 //!     // calculate the center of geometry of a protein
-//!     // note that the ndx file `index.ndx` must contain a group `Protein` for this to work
+//!     // 'Protein' is the name of a group from the NDX file
 //!     let center = system.group_get_center("Protein")?;
 //!
 //!     // print the result
@@ -67,333 +67,225 @@
 //!
 //!     Ok(())
 //! }
-//!
 //! ```
 //!
-//! #### Selecting atoms and creating groups
+//! #### Selecting atoms
 //!
-//! Read a gro file and select atoms belonging to specific parts of the system.
-//! `groan_rs` uses groan selection language (GSL) to select atoms.
-//! GSL is similar to VMD query language, see below.
+//! You can select atoms using a query language similar to VMD (see 'groan selection language' below).
 //!
 //! ```no_run
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
 //! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-//!     // read a gro file
+//!     let system = System::from_file("system.gro")?;
+//!
+//!     // select some atoms using the groan selection language and iterate through them
+//!     for atom in system.selection_iter("serial 1-23 or (resname POPC and name P)")? {
+//!         // perform some operation with the atom
+//!     }
+//!
+//!     // you can temporarily store the selection iterator in a variable
+//!     // see the `@protein` query? => groan can autodetect common structures
+//!     // like atoms of membrane lipids or proteins
+//!     let iterator = system.selection_iter("@protein")?;
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! #### Creating groups
+//!
+//! You can select atoms and save them into a group. This group is stored inside the system
+//! and can be quickly accessed multiple times.
+//!
+//! ```no_run
+//! use groan_rs::prelude::*;
+//! use std::error::Error;
+//!
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 //!     let mut system = System::from_file("system.gro")?;
 //!
-//!     // select atoms using groan selection language creating a group 'My Group'
-//!     system.group_create("My Group", "serial 25-28 or (resname POPC and name P)")?;
-//!     // the group 'My Group' is now tightly associated with the system
+//!     // select atoms and store them into a group 'Selected'
+//!     system.group_create("Selected", "serial 1-23 or (resname POPC and name P)")?;
 //!
-//!     // we can now use the previously created group to construct another group
-//!     // note that
-//!     // a) each atom can be in any number of groups
-//!     // b) the group names are case-sensitive
-//!     system.group_create("my group", "'My Group' || resid 87 to 124")?;
+//!     // iterate through the selected atoms
+//!     for atom in system.group_iter("Selected")? {
+//!         // perform some operation with the atom
+//!     }
 //!
-//!     // we can then perform operations with the groups, e.g. write them into separate pdb files
-//!     system.group_write_pdb("My Group", "My_Group.pdb", false)?;
-//!     system.group_write_pdb("my group", "my_group.pdb", false)?;
+//!     // use the previously created group to construct another group
+//!     system.group_create("Some Atoms", "Selected || resid 87 to 124")?;
 //!
-//!     // each system also by default contains two groups consisting of all atoms in the system
-//!     // these groups are called 'All' and 'all'
+//!     // modify the atoms in the group 'Some Atoms'
+//!     for atom in system.group_iter_mut("Some Atoms")? {
+//!         atom.set_residue_name("RES");
+//!     }
+//!
+//!     // each system always contains two groups called 'all' and 'All'
+//!     // these groups contain all the atoms in the system
 //!     assert!(system.group_exists("all"));
 //!     assert!(system.group_exists("All"));
 //!
-//!     // if you read an ndx file into the system like this:
-//!     system.read_ndx("index.ndx")?;
-//!     // the groups defined in the ndx file will be associated
-//!     // with the system in the same way as the manually created groups
-//!
 //!     Ok(())
 //! }
 //! ```
 //!
-//! #### Analyzing a trajectory file
+//! #### Writing output structure files
 //!
-//! Read an xtc file and calculate distance between two groups of atoms for each frame
-//! starting at time 100 ns and ending at time 300 ns.
-//! _(`groan_rs` supports procedural as well as functional approaches.)_
+//! You can write structure files in GRO, PDB, or PQR format.
 //!
-//! Procedural approach:
 //! ```no_run
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
 //! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-//!     // read a gro file
-//!     let mut system = System::from_file("structure.gro")?;
+//!     let mut system = System::from_file("system.gro")?;
 //!
-//!     // create the groups we are interested in
-//!     // `groan_rs` uses VMD-like selection language for specifying groups of atoms
-//!     system.group_create("group 1", "serial 1 to 5")?;
-//!     system.group_create("group 2", "resid 45")?;
+//!     // write the entire system as a PDB file
+//!     system.write_pdb("system.pdb", false)?;
 //!
-//!     // prepare a vector for the calculated distances
-//!     let mut distances = Vec::new();
+//!     // write only DNA atoms as a GRO file
+//!     system.group_create("DNA", "@dna")?;
+//!     system.write_gro("dna.gro", false)?;
 //!
-//!     // read the trajectory calculating the distance between the groups for each frame
-//!     for frame in system
-//!         .xtc_iter("files/md_short.xtc")?
-//!         // we are only interested in frames between 100 and 300 ns
-//!         .with_range(100_000.0, 300_000.)?
-//!    {
-//!         // check that the xtc frame has been read correctly
-//!         let frame = frame?;
-//!         // calculate the distance and put it into the vector
-//!         distances.push(
-//!             frame
-//!             .group_distance("group 1", "group 2", Dimension::XYZ)
-//!             .expect("Groups do not exist but they should."),
-//!         );
+//!     Ok(())
+//! }
+//! ```
+//!
+//! #### Geometry filtering of atoms
+//!
+//! You can select atoms based on geometric conditions.
+//!
+//! ```no_run
+//! use groan_rs::prelude::*;
+//! use std::error::Error;
+//!
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
+//!     // when reading a TPR file, you get information about
+//!     // the masses of atoms and connectivity between atoms
+//!     let mut system = System::from_file("system.tpr")?;
+//!
+//!     // load groups into the system
+//!     system.read_ndx("index.ndx")?;
+//!
+//!     // get the center of mass of the group 'Protein'
+//!     let protein_com = system.group_get_com("Protein")?;
+//!
+//!     // construct a cylinder with its base in the protein center of mass,
+//!     // a radius of 2 nm, height of 4 nm, and oriented along the z-axis
+//!     let cylinder = Cylinder::new(protein_com, 2.0, 4.0, Dimension::Z);
+//!
+//!     // iterate over atoms of water molecules located inside the cylinder
+//!     for atom in system.group_iter("Water")?.filter_geometry(cylinder) {
+//!         // perform some operation with the atom
 //!     }
 //!
-//!     // print the calculated distances
-//!     println!("{:?}", distances);
-//!
 //!     Ok(())
 //! }
 //! ```
 //!
-//! Functional approach:
-//! ```no_run
-//! use groan_rs::prelude::*;
-//! use std::error::Error;
+//! #### Analyzing trajectory files
 //!
-//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-//!     // read a gro file
-//!     let mut system = System::from_file("structure.gro")?;
-//!
-//!     // create the groups we are interested in
-//!     // `groan_rs` uses VMD-like selection language for specifying groups of atoms
-//!     system.group_create("group 1", "serial 1 to 5")?;
-//!     system.group_create("group 2", "resid 45")?;
-//!
-//!     // read the trajectory calculating distance between the groups
-//!     // for each frame in the time range 100-300 ns
-//!     // and collect the results into a vector
-//!     let distances: Vec<f32> = system
-//!         // read an xtc trajectory
-//!         .xtc_iter("trajectory.xtc")?
-//!         // we are only interested in frames between 100 and 300 ns
-//!         .with_range(100_000.0, 300_000.)?
-//!         // calculate distance between the groups for each frame
-//!         .map(|frame| {
-//!             // check that the xtc frame has been read correctly
-//!             let frame = frame?;
-//!             // calculate the distance
-//!             Ok(frame
-//!                 .group_distance("group 1", "group 2", Dimension::XYZ)
-//!                 .expect("Groups do not exist but they should."))
-//!         })
-//!         // collect the calculated distances
-//!         // if any error occured while reading the trajectory, propagate it
-//!         .collect::<Result<Vec<f32>, Box<dyn Error + Send + Sync>>>()?;
-//!
-//!     // print the calculated distances
-//!     println!("{:?}", distances);
-//!
-//!     Ok(())
-//! }
-//! ```
-//!
-//! Note that `with_range` is a very efficient method and will skip xtc frames that are not
-//! in the specified range without actually reading properties of the atoms from these frames.
-//!
-//! You can also let the trajectory iterator print information about trajectory reading to the standard output:
-//! ```no_run
-//! use groan_rs::prelude::*;
-//! use std::error::Error;
-//!
-//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-//!     let mut system = System::from_file("structure.gro")?;
-//!
-//!     system.group_create("group 1", "serial 1 to 5")?;
-//!     system.group_create("group 2", "resid 45")?;
-//!
-//!     // create default progress printer
-//!     let printer = ProgressPrinter::new();
-//!
-//!     let distances: Vec<f32> = system
-//!         .xtc_iter("trajectory.xtc")?
-//!         // attach progress printer to the iterator
-//!         .print_progress(printer)
-//!         .map(|frame| {
-//!             let frame = frame?;
-//!             Ok(frame
-//!                 .group_distance("group 1", "group 2", Dimension::XYZ)
-//!                 .expect("Groups do not exist but they should."))
-//!         })
-//!         .collect::<Result<Vec<f32>, Box<dyn Error + Send + Sync>>>()?;
-//!
-//!     println!("{:?}", distances);
-//!
-//!     Ok(())
-//! }
-//! ```
-//!
-//! #### Converting between trr and xtc files
-//!
-//! Read a trr file and write the positions of particles into a new xtc file.
+//! You can read trajectory files in XTC, TRR, or GRO format.
 //!
 //! ```no_run
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
 //! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-//!     // read a gro file
-//!     let mut system = System::from_file("structure.gro")?;
+//!     let mut system = System::from_file("system.gro")?;
 //!
-//!     // create an output xtc file associated with the system
-//!     system.xtc_writer_init("output.xtc")?;
-//!     // you can have multiple writers associated with one system
+//!     // load groups into the system
+//!     system.read_ndx("index.ndx")?;
 //!
-//!     // iterate through the trr trajectory
-//!     // the `trr_iter` (as well as `xtc_iter`) function updates the `System` structure
-//!     // with which it is associated with the properties of the system in the current frame
-//!     for frame in system.trr_iter("input.trr")? {
-//!         // check that the trr frame has been read correctly
+//!     for frame in system.xtc_iter("trajectory.xtc")? {
+//!         // check that the frame has been read correctly
 //!         let frame = frame?;
-//!         // write the current frame into all writers associated with the system
+//!
+//!         // calculate distance between two groups of atoms
+//!         let distance = frame.group_distance("Protein1", "Protein2", Dimension::XYZ)?;
+//!     }
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! You can also read only part of the trajectory file and/or skip some trajectory frames.
+//! You can concatenate trajectory files and print the progress of any trajectory iteration.
+//!
+//! ```no_run
+//! use groan_rs::prelude::*;
+//! use std::error::Error;
+//!
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
+//!     let mut system = System::from_file("system.gro")?;
+//!
+//!     // read multiple trajectory files with additional options
+//!     for frame in system
+//!         .xtc_cat_iter(&["md1.xtc", "md2.xtc", "md3.xtc"])?
+//!         .with_range(50_000.0, 225_000.0)? // start at 50 ns, end at 225 ns
+//!         .with_step(3)?                    // read every 3rd step
+//!         .print_progress(ProgressPrinter::default()) {
+//!
+//!         // check that the frame has been read correctly
+//!         let frame = frame?;
+//!
+//!         // continue working with the frame
+//!     }
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! #### Calculating RMSD
+//!
+//! You can calculate RMSD for two systems or for entire trajectories.
+//!
+//! ```no_run
+//! use groan_rs::prelude::*;
+//! use std::error::Error;
+//!
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
+//!     let mut system = System::from_file("system.gro")?;
+//!     let system2 = System::from_file("system2.gro")?;
+//!
+//!     // calculate RMSD between all atoms of `system` and `system2`
+//!     let rmsd = system.calc_rmsd(&system2, "all")?;
+//!
+//!     // calculate RMSD for an entire trajectory
+//!     let reference = system.clone();
+//!     for frame_data in system.xtc_iter("trajectory.xtc")?.calc_rmsd(&reference, "all")? {
+//!         let (frame, rmsd) = frame_data?;
+//!
+//!         println!("{}: {}", frame.get_simulation_time(), rmsd);
+//!     }
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! #### Writing trajectory files
+//!
+//! You can not only read but also write trajectory files in XTC, TRR, or GRO format.
+//!
+//! ```no_run
+//! use groan_rs::prelude::*;
+//! use std::error::Error;
+//!
+//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
+//!     let mut system = System::from_file("system.gro")?;
+//!
+//!     // open an XTC file as output trajectory file
+//!     system.xtc_writer_init("trajectory.xtc")?;
+//!
+//!     // read frames from a TRR trajectory and write them in an XTC format
+//!     for frame in system.trr_iter("trajectory.trr")? {
+//!         let frame = frame?;
+//!
+//!         // write the frame into all open trajectory files associated with the system
 //!         frame.traj_write_frame()?;
 //!     }
-//!
-//!     Ok(())
-//! }
-//! ```
-//!
-//! #### Iterating over atoms
-//!
-//! Iterate over atoms in two different groups, collecting information about them or modifying them.
-//!
-//! Procedural approach:
-//! ```no_run
-//! use groan_rs::prelude::*;
-//! use std::error::Error;
-//!
-//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-//!     // read a gro file and an ndx file
-//!     let mut system = System::from_file("system.gro")?;
-//!     system.read_ndx("index.ndx")?;
-//!
-//!     // immutably iterate over atoms of the group 'Protein' collecting atom names
-//!     let mut names = Vec::new();
-//!     for atom in system.group_iter("Protein")? {
-//!         names.push(atom.get_atom_name().to_owned());
-//!     }
-//!     // (you can also iterate over all the atoms in the system using `System::atoms_iter`)
-//!
-//!     // print the names
-//!     println!("{:?}", names);
-//!
-//!     // mutably iterate over atoms of the group 'Membrane' changing their residue names
-//!     for atom in system.group_iter_mut("Membrane")? {
-//!         atom.set_residue_name("MEMB");
-//!     }
-//!     // (you can also iterate over all the atoms in the system using `System::atoms_iter_mut`)
-//!
-//!     Ok(())
-//! }
-//! ```
-//!
-//! Functional approach:
-//! ```no_run
-//! use groan_rs::prelude::*;
-//! use std::error::Error;
-//!
-//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-//!     // read a gro file and an ndx file
-//!     let mut system = System::from_file("system.gro")?;
-//!     system.read_ndx("index.ndx")?;
-//!
-//!     // immutably iterate over atoms of the group 'Protein' collecting atom names
-//!     let names: Vec<String> = system
-//!         .group_iter("Protein")?
-//!         .map(|atom| atom.get_atom_name().to_owned())
-//!         .collect();
-//!     // (you can also iterate over all the atoms in the system using `System::atoms_iter`)
-//!
-//!     // print the names
-//!     println!("{:?}", names);
-//!
-//!     // mutably iterate over atoms of the group 'Membrane' changing their residue names
-//!     system
-//!         .group_iter_mut("Membrane")?
-//!         .for_each(|atom| atom.set_residue_name("MEMB"));
-//!     // (you can also iterate over all the atoms in the system using `System::atoms_iter_mut`)
-//!
-//!     Ok(())
-//! }
-//! ```
-//!
-//! #### Filtering and extracting atoms based on geometric criteria
-//!
-//! Filter atoms located inside a cylinder with specified position and dimensions and extract them into a separate vector.
-//!
-//! Procedural approach:
-//! ```no_run
-//! use groan_rs::prelude::*;
-//! use std::error::Error;
-//!
-//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-//!     // read a gro file
-//!     let system = System::from_file("system.gro")?;
-//!
-//!     // extract atoms that are located inside a specified cylinder
-//!     let mut inside_cylinder = Vec::new();
-//!     // the cylinder has its center of the base at x = 1.5, y = 2.5, z = 3.5 (in nm)
-//!     // the cylinder has radius of 2.1 nm and height of 4.3 nm
-//!     // the cylinder has its main axis oriented along the z-axis of the system
-//!     let cylinder = Cylinder::new([1.5, 2.5, 3.5].into(), 2.1, 4.3, Dimension::Z);
-//!
-//!     for atom in system.atoms_iter() {
-//!         if cylinder.inside(atom.get_position().unwrap(), system.get_box().unwrap()) {
-//!             inside_cylinder.push(atom.clone());
-//!         }
-//!     }
-//!
-//!     // atoms in the `inside_cylinder` vector are fully independent copies
-//!     // of the original atoms in the `System` structure
-//!
-//!     // print the number of extracted atoms
-//!     println!("{:?}", inside_cylinder.len());
-//!
-//!     Ok(())
-//! }
-//! ```
-//!
-//! Functional approach:
-//! ```no_run
-//! use groan_rs::prelude::*;
-//! use std::error::Error;
-//!
-//! fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-//!     // read a gro file
-//!     let system = System::from_file("system.gro")?;
-//!
-//!     // extract atoms that are located inside a specified cylinder
-//!     let inside_cylinder: Vec<Atom> = system
-//!         .atoms_iter()
-//!         // the cylinder has its center of the base at x = 1.5, y = 2.5, z = 3.5 (in nm)
-//!         // the cylinder has radius of 2.1 nm and height of 4.3 nm
-//!         // the cylinder has its main axis oriented along the z-axis of the system
-//!         .filter_geometry(Cylinder::new(
-//!             [1.5, 2.5, 3.5].into(),
-//!             2.1,
-//!             4.3,
-//!             Dimension::Z,
-//!         ))
-//!         .cloned()
-//!         .collect();
-//!
-//!     // atoms in the `inside_cylinder` vector are fully independent copies
-//!     // of the original atoms in the `System` structure
-//!
-//!     // print the number of extracted atoms
-//!     println!("{}", inside_cylinder.len());
 //!
 //!     Ok(())
 //! }
