@@ -3,33 +3,33 @@
 
 ### Version 0.9.0
 
-#### Atom index
-- Introduced a new `Atom` field `index` which corresponds to the index of the atom in the system (starting from 0). This field can be accessed using `Atom::get_index` and is only valid if the atom is part of a system.
-- Several functions have been reworked to be more efficient by using the new `index` field.
-- **Breaking change:** Keyword `atomid` in the Groan Selection Language has been removed as to not confuse it with the new `index` field. Use `atomnum` instead.
-- `PositionError` and `MassError` now report atom index instead of atom number.
+#### Atom Index
+- Introduced a new `Atom` field `index`, which corresponds to the index of the atom in the system (starting from 0). This field can be accessed using `Atom::get_index` and is only valid if the atom is part of a system.
+- Several functions have been reworked to improve efficiency by utilizing the new `index` field.
+- **Breaking change:** The keyword `atomid` in the Groan Selection Language has been removed to avoid confusion with the new `index` field. Use `atomnum` instead.
+- `PositionError` and `MassError` now report the atom index instead of the atom number.
 
-#### Reworked trajectory writing
+#### Reworked Trajectory Writing
 - **Breaking changes:**
   - Trajectory writing has been completely reworked.
-  - Trajectory writers are now attached to `System` structures making them memory safe.
-  - Trajectory writer can be initialized and attached to `System` using `System::traj_writer_init` (or `System::traj_group_writer_init` if you want to write only information about a specific group).
+  - Trajectory writers are now attached to `System` structures, making them memory safe.
+  - A trajectory writer can be initialized and attached to a `System` using `System::traj_writer_init` (or `System::traj_group_writer_init` to write information about a specific group).
   - Multiple trajectory writers can be attached to a single `System`.
-  - State of the system can be written into all open output trajectory files using `System::traj_write_frame` or only to a specific file using `System::traj_write_frame_to_file`.
+  - The system state can be written into all open output trajectory files using `System::traj_write_frame` or to a specific file using `System::traj_write_frame_to_file`.
 
-#### RMSD calculation
-- Introduced `System::calc_rmsd` allowing to calculate RMSD between current and some reference structure.
-- RMSD-fit of a structure to a reference structure can be performed using `System::calc_rmsd_and_fit`.
-- Calculating RMSD and RMSD-fit for trajectories is more efficient using `TrajMasterRead::calc_rmsd` and `TrajMasterRead::calc_rmsd_and_fit` which is implemented for all trajectory readers.
+#### RMSD Calculation
+- Introduced `System::calc_rmsd` to calculate RMSD between the current and a reference structure.
+- RMSD-fitting of a structure to a reference structure can be performed using `System::calc_rmsd_and_fit`.
+- Calculating RMSD and RMSD-fitting for trajectories is more efficient with `RMSDTrajRead::calc_rmsd` and `RMSDTrajRead::calc_rmsd_and_fit`, implemented for all trajectory readers.
 
-#### Reading gro trajectories
-- Trajectories in 'gro' format can be now read using `System::gro_iter`.
-- `with_step` method can be used with the 'gro' iterator, but `with_range` method is not available since gro trajectories are not guaranteed to contain information about the simulation time.
-- `System` can be now constructed by calling `System::from_file` on a trajectory in 'gro' format. Only the first frame will be read and the system will be constructed based on the atoms in this frame.
+#### Reading GRO Trajectories
+- Trajectories in 'gro' format can now be read using `System::gro_iter`.
+- The `with_step` method can be used with the 'gro' iterator, but the `with_range` method is unavailable since 'gro' trajectories do not guarantee simulation time information.
+- A `System` can now be constructed by calling `System::from_file` on a trajectory in 'gro' format. Only the first frame is read, and the system is constructed based on the atoms in this frame.
 
 #### Getters and Setters
 - **Breaking changes:**
-  - Many 'setter' and 'getter' methods have been renamed, namely:
+  - Many 'setter' and 'getter' methods have been renamed:
     - `get_atoms_as_ref` -> `get_atoms`
     - `get_atoms_as_mut` -> `get_atoms_mut`
     - `get_groups_as_ref` -> `get_groups`
@@ -41,36 +41,36 @@
     - `get_atom_unchecked_as_mut` -> `get_atom_unchecked_mut`
     - `get_labeled_atom_as_ref` -> `get_labeled_atom`
     - `get_labeled_atom_as_mut` -> `get_labeled_atom_mut`
-  - `get_atoms_mut` no longer returns a mutable vector `&mut Vec<Atom>` but only a mutable slice `&mut [Atom]` preventing the user from adding and removing atoms.
-  - Signatures of several 'getter' methods originally returning `&str` or `Option<&str>` have been changed to return `&String` or `Option<&String>` which may cause minor issues, e.g. when comparing strings.
+  - `get_atoms_mut` now returns a mutable slice `&mut [Atom]` instead of a mutable vector `&mut Vec<Atom>`, preventing users from adding or removing atoms.
+  - Signatures of several 'getter' methods originally returning `&str` or `Option<&str>` have been changed to return `&String` or `Option<&String>`, which may cause minor compatibility issues, for instance when comparing strings.
 
 #### Changes to `System::traj_iter_map_reduce`
-- **Breaking change**: `System::traj_iter_map_reduce` now requires the user to provide the initial `Data` structure. `Data` structure no longer needs to implement `Default`, but needs to implement `Clone`.
-- `System::traj_iter_map_reduce` now properly propagates errors and failures from the individual threads into the master-thread `ProgressPrinter`.
+- **Breaking change:** `System::traj_iter_map_reduce` now requires the user to provide the initial `Data` structure. The `Data` structure no longer needs to implement `Default` but must implement `Clone`.
+- `System::traj_iter_map_reduce` now properly propagates errors and failures from individual threads to the master thread's `ProgressPrinter`.
 
-#### Changes to atom iterators
-- **Breaking change:** Renamed `MasterAtomIterator` trait to `AtomIteratorWithBox` and `MasterMutAtomIterator` trait to `MutAtomIteratorWithBox`.
-- Added a new trait `OrderedAtomIterator` which is implemented by all immutable and mutable iterators yielding atoms in the order in which they are present in the molecular system.
-- Iterator unions and intersections can be constructed for iterators implementing `OrderedAtomIterator` using `OrderedAtomIterator::union` and `OrderedAtomIterator::intersection` respectively.
-- Added `AtomPairIterator` and `MutAtomPairIterator` to enable iterating over pairs of atoms. These iterators currently support iterating over molecule bonds and can be created via `System::molecule_bonds_iter` and `System::molecule_bonds_iter_mut` for immutable and mutable access, respectively.
-- Note: The design of these iterators and the structure of atom pairs are subject to future refinement and potential expansion in functionality.
+#### Changes to Atom Iterators
+- **Breaking change:** Renamed `MasterAtomIterator` to `AtomIteratorWithBox` and `MasterMutAtomIterator` to `MutAtomIteratorWithBox`.
+- Added a new trait `OrderedAtomIterator`, implemented by all immutable and mutable iterators yielding atoms in the order they appear in the molecular system.
+- Iterator unions and intersections can be constructed for iterators implementing `OrderedAtomIterator` using `OrderedAtomIterator::union` and `OrderedAtomIterator::intersection`.
+- Added `AtomPairIterator` and `MutAtomPairIterator` for iterating over pairs of atoms. These iterators currently support iterating over molecule bonds and can be created using `System::molecule_bonds_iter` and `System::molecule_bonds_iter_mut` for immutable and mutable access, respectively.
+- Note: The design of these iterators and the structure of atom pairs are subject to future refinement and potential expansion.
 
-#### Bug fixes and other changes
-- Introduced `System::make_group_whole` for making a group "whole" in the system (similar to `System::make_molecules_whole`).
+#### Bug Fixes and Other Changes
+- Introduced `System::make_group_whole` to make a group "whole" in the system (similar to `System::make_molecules_whole`).
 - **Breaking change:** `System::group_all_distances` now returns ndarray's `Array2` instead of a vector of vectors.
 - `FileType` is now part of the prelude.
-- Implemented `Deref` and `DerefMut` for `Vector3D` properly, so accessing the methods of `nalgebra::Vector3` should be easier.
-- `AtomContainer::isin` (and consequently `System::group_isin`) should be now faster.
+- Properly implemented `Deref` and `DerefMut` for `Vector3D`, simplifying access to methods from `nalgebra::Vector3`.
+- Improved the performance of `AtomContainer::isin` (and consequently `System::group_isin`).
 - `Vector3D` now implements the `Display` trait.
-- Introduced `Vector3D::average` function to calculate average 3D vector from a collection of vectors.
-- Introduced `System::groups_member` function which returns a vector of all group names an atom with specified index is a member of.
-- Values in the `GridMap` can be now cleared using `GridMap::clear`.
-- The loading of `GridMaps` from files has been reworked. It should no longer be possible to load a grid map with invalid coordinates.
-- Introduced `System::guess_elements_unknown` for assigning elements only to atoms which are not already assigned an element.
-- `ProgressPrinter` now only uses mutex if the `parallel` feature is specified.
+- Introduced `Vector3D::average` for calculating the average 3D vector from a collection of vectors.
+- Introduced `System::groups_member` to return a vector of all group names an atom with a specified index is a member of.
+- Values in `GridMap` can now be cleared using `GridMap::clear`.
+- Reworked the loading of `GridMaps` from files, ensuring invalid coordinates cannot be loaded.
+- Introduced `System::guess_elements_unknown` to assign elements only to atoms without an assigned element.
+- `ProgressPrinter` now uses a mutex only if the `parallel` feature is enabled.
 - Introduced `Vector3D::rotate`, `Atom::rotate`, and `Atom::rotate_nopbc` for performing rotations using rotation matrices.
-- Introduced trajectory converters and analyzers which are trajectory readers that also modify and/or analyze the currently read simulation frame. See `TrajConverter`, `TrajAnalyzer`, and `TrajConverterAnalyzer` for more information. These structures are mostly for internal use in the `groan_rs` crate.
-- Bug fix: Regex operators can be now used in regular expression blocks without raising an InvalidOperator error.
+- Added trajectory converters and analyzers, which are trajectory readers that modify and/or analyze the current simulation frame. See `TrajConverter`, `TrajAnalyzer`, and `TrajConverterAnalyzer` for more details. These structures are primarily for internal use in the `groan_rs` crate.
+- **Bug fix:** Regex operators can now be used in regular expression blocks without raising an `InvalidOperator` error.
 
 ***
 
