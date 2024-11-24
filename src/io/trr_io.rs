@@ -13,7 +13,7 @@ use crate::io::traj_read::{
     FrameData, FrameDataTime, TrajRangeRead, TrajRead, TrajReadOpen, TrajReader, TrajStepRead,
     TrajStepTimeRead,
 };
-use crate::io::xdrfile::{self, CXdrFile, OpenMode, XdrFile};
+use crate::io::xdrfile::{self, OpenMode, XdrFile};
 use crate::prelude::AtomIterator;
 use crate::structures::group::Group;
 use crate::structures::{simbox::SimBox, vector3d::Vector3D};
@@ -38,7 +38,7 @@ pub struct TrrFrameData {
 }
 
 impl FrameData for TrrFrameData {
-    type TrajFile = CXdrFile;
+    type TrajFile = XdrFile;
 
     /// Read `TrrFrameData` from a trr frame.
     ///
@@ -60,7 +60,7 @@ impl FrameData for TrrFrameData {
 
         unsafe {
             let return_code = xdrfile::read_trr(
-                xdrfile,
+                xdrfile.handle,
                 system.get_n_atoms() as c_int,
                 &mut step,
                 &mut time,
@@ -153,8 +153,8 @@ impl<'a> TrajRead<'a> for TrrReader<'a> {
         self.system
     }
 
-    fn get_file_handle(&mut self) -> &mut CXdrFile {
-        unsafe { self.trr.handle.as_mut().unwrap() }
+    fn get_file_handle(&mut self) -> &mut XdrFile {
+        &mut self.trr
     }
 }
 
@@ -194,7 +194,8 @@ impl<'a> TrajReadOpen<'a> for TrrReader<'a> {
 impl<'a> TrajRangeRead<'a> for TrrReader<'a> {
     fn jump_to_start(&mut self, start_time: f32) -> Result<(), ReadTrajError> {
         unsafe {
-            if xdrfile::trr_jump_to_start(self.get_file_handle(), start_time as c_float) != 0 {
+            if xdrfile::trr_jump_to_start(self.get_file_handle().handle, start_time as c_float) != 0
+            {
                 Err(ReadTrajError::StartNotFound(start_time.to_string()))
             } else {
                 Ok(())
@@ -206,7 +207,7 @@ impl<'a> TrajRangeRead<'a> for TrrReader<'a> {
 impl<'a> TrajStepRead<'a> for TrrReader<'a> {
     fn skip_frame(&mut self) -> Result<bool, ReadTrajError> {
         unsafe {
-            match xdrfile::trr_skip_frame(self.get_file_handle()) {
+            match xdrfile::trr_skip_frame(self.get_file_handle().handle) {
                 0 => Ok(true),
                 1 => Err(ReadTrajError::SkipFailed),
                 2 => Ok(false),
@@ -224,7 +225,7 @@ impl<'a> TrajStepTimeRead<'a> for TrrReader<'a> {
         unsafe {
             let mut time: c_float = 0.0;
 
-            match xdrfile::trr_skip_frame_with_time(self.get_file_handle(), &mut time as *mut c_float) {
+            match xdrfile::trr_skip_frame_with_time(self.get_file_handle().handle, &mut time as *mut c_float) {
                 0 => Ok(Some(time)),
                 1 => Err(ReadTrajError::SkipFailed),
                 2 => Ok(None),

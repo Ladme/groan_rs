@@ -71,6 +71,7 @@
 - Introduced `Vector3D::rotate`, `Atom::rotate`, and `Atom::rotate_nopbc` for performing rotations using rotation matrices.
 - Added trajectory converters and analyzers, which are trajectory readers that modify and/or analyze the current simulation frame. See `TrajConverter`, `TrajAnalyzer`, and `TrajConverterAnalyzer` for more details. These structures are primarily for internal use in the `groan_rs` crate.
 - **Bug fix:** Regex operators can now be used in regular expression blocks without raising an `InvalidOperator` error.
+- **Breaking change:** `XdrFile::open_xdr` is no longer public.
 
 ***
 

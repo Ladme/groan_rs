@@ -4,7 +4,6 @@
 //! Traits for reading generic trajectory files.
 
 use crate::errors::ReadTrajError;
-use crate::io::xdrfile::CXdrFile;
 use crate::progress::{ProgressPrinter, ProgressStatus};
 use crate::system::System;
 use std::marker::PhantomData;
@@ -42,7 +41,6 @@ fn sanity_check_timerange(start_time: f32, end_time: f32) -> Result<(), ReadTraj
 /// Note that the exact nature of the trajectory file is not relevant,
 /// but the `FrameData::from_frame` function must be able to read it.
 pub trait TrajFile {}
-impl TrajFile for CXdrFile {}
 
 /*****************************/
 /*  TrajRead and TrajReader  */

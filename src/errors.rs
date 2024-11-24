@@ -384,6 +384,9 @@ pub enum ReadTrajError {
     /// Used when a trajectory iterator for parallel reading could not be constructed.
     #[error("{} could not construct a parallel trajectory iterator for file '{}'", "error:".red().bold(), path_to_yellow(.0))]
     InvalidParallelIteration(Box<Path>),
+    /// Used when information about the length of the trajectory (file size) could not be obtained.
+    #[error("{} could not get length of the trajectory '{}'", "error:".red().bold(), path_to_yellow(.0))]
+    CouldNotGetTrajLen(Box<Path>),
 }
 
 /// Errors that can occur when writing a trajectory file.

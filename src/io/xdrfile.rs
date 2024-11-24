@@ -10,6 +10,7 @@ use std::{
 };
 
 use crate::errors::{ReadTrajError, TrajError};
+use crate::prelude::TrajFile;
 use crate::structures::simbox::SimBox;
 
 #[repr(C)]
@@ -129,6 +130,8 @@ impl XdrFile {
         }
     }
 }
+
+impl TrajFile for XdrFile {}
 
 /// Convert Rust path to null-terminated C string.
 pub fn path2cstring(path: impl AsRef<Path>) -> Result<CString, NulError> {
