@@ -416,9 +416,9 @@ static int do_trn(XDRFILE *xd, mybool bRead, int *step, float *t, float *lambda,
     if (!bRead)
     {
         sh->box_size = (NULL != box) ? sizeof(matrix) : 0;
-        sh->x_size = ((NULL != x) ? (*natoms * sizeof(x[0])) : 0);
-        sh->v_size = ((NULL != v) ? (*natoms * sizeof(v[0])) : 0);
-        sh->f_size = ((NULL != f) ? (*natoms * sizeof(f[0])) : 0);
+        sh->x_size = ((NULL != x) ? ((unsigned int)*natoms * sizeof(x[0])) : 0);
+        sh->v_size = ((NULL != v) ? ((unsigned int)*natoms * sizeof(v[0])) : 0);
+        sh->f_size = ((NULL != f) ? ((unsigned int)*natoms * sizeof(f[0])) : 0);
         sh->natoms = *natoms;
         sh->step = *step;
         sh->nre = 0;
