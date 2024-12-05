@@ -109,11 +109,11 @@ int do_trnheader(XDRFILE *xd, mybool bRead, t_trnheader *sh)
         return exdrINT;
     if (xdrfile_read_int(&sh->sym_size, 1, xd) != 1)
         return exdrINT;
-    if (xdrfile_read_int(&sh->x_size, 1, xd) != 1)
+    if (xdrfile_read_uint(&sh->x_size, 1, xd) != 1)
         return exdrINT;
-    if (xdrfile_read_int(&sh->v_size, 1, xd) != 1)
+    if (xdrfile_read_uint(&sh->v_size, 1, xd) != 1)
         return exdrINT;
-    if (xdrfile_read_int(&sh->f_size, 1, xd) != 1)
+    if (xdrfile_read_uint(&sh->f_size, 1, xd) != 1)
         return exdrINT;
     if (xdrfile_read_int(&sh->natoms, 1, xd) != 1)
         return exdrINT;
