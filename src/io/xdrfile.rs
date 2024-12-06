@@ -10,6 +10,7 @@ use std::{
 };
 
 use crate::errors::{ReadTrajError, TrajError};
+use crate::prelude::TrajFile;
 use crate::structures::simbox::SimBox;
 
 #[repr(C)]
@@ -112,7 +113,7 @@ impl Drop for XdrFile {
 
 impl XdrFile {
     /// Open an xdr file returning a handle to the file.
-    pub fn open_xdr(filename: impl AsRef<Path>, mode: OpenMode) -> Result<Self, TrajError> {
+    pub(super) fn open_xdr(filename: impl AsRef<Path>, mode: OpenMode) -> Result<Self, TrajError> {
         unsafe {
             let c_path = match path2cstring(filename.as_ref()) {
                 Ok(x) => x,
@@ -129,6 +130,8 @@ impl XdrFile {
         }
     }
 }
+
+impl TrajFile for XdrFile {}
 
 /// Convert Rust path to null-terminated C string.
 pub fn path2cstring(path: impl AsRef<Path>) -> Result<CString, NulError> {

@@ -25,13 +25,13 @@ use super::check_coordinate_sizes;
 /// - Reading ends once `ENDMDL`, `END`, or the end of file is reached.
 ///
 /// - In case multiple TITLE lines are provided, the **last one** is used as the
-/// name of the system. If no TITLE line is provided, "Unknown" is used as the name.
+///   name of the system. If no TITLE line is provided, "Unknown" is used as the name.
 ///
 /// - In case multiple CRYST1 lines are provided, information from the **last one** is used.
-/// If no CRYST1 line is provided, the simulation box is undefined.
+///   If no CRYST1 line is provided, the simulation box is undefined.
 ///
 /// - If you want to load connectivity from the PDB file,
-/// use [`System::add_bonds_from_pdb`] after constructing the `System` structure.
+///   use [`System::add_bonds_from_pdb`] after constructing the `System` structure.
 pub fn read_pdb(filename: impl AsRef<Path>) -> Result<System, ParsePdbError> {
     let file = match File::open(filename.as_ref()) {
         Ok(x) => x,
@@ -80,9 +80,9 @@ impl System {
     /// ## Returns
     /// - `Ok` if the connectivity was read correctly.
     /// - `ParsePdbConnectivityError::NoBondsWarning` is the file was read successfully
-    /// but no bonds have been found. The `System` structure is still modified.
+    ///   but no bonds have been found. The `System` structure is still modified.
     /// - Other `ParsePdbConnectivityError` if an error occured.
-    /// If an error occurs, the `System` structure is not changed.
+    ///   If an error occurs, the `System` structure is not changed.
     ///
     /// ## Example
     /// ```no_run
@@ -119,11 +119,11 @@ impl System {
     /// - Reading ends once `END` keyword or the end of file is reached.
     /// - Unlike with `read_pdb`, the `ENDMDL` keyword is ignored by this function.
     /// - Note that the PDB file with the connectivity information can but does not have to contain information about the atoms.
-    /// All lines other than those starting with the `CONECT` (or `END`) keyword are ignored.
+    ///   All lines other than those starting with the `CONECT` (or `END`) keyword are ignored.
     /// - This function can read `CONECT` lines of any length, i.e. it is not limited by the traditional requirement
-    /// of using at most 4 bonds in a single `CONECT` line.
+    ///   of using at most 4 bonds in a single `CONECT` line.
     /// - This function resets the reference atoms for molecules (`mol_references`) in the system
-    /// if it completes without an error. (Warning still causes reset of the reference atoms.)
+    ///   if it completes without an error. (Warning still causes reset of the reference atoms.)
     pub fn add_bonds_from_pdb(
         &mut self,
         filename: impl AsRef<Path>,
@@ -151,8 +151,7 @@ impl System {
         // create a mapping from atom numbers to their indices for quick lookup
         let atom_number_to_index: HashMap<usize, usize> = self
             .atoms_iter()
-            .enumerate()
-            .map(|(index, atom)| (atom.get_atom_number(), index))
+            .map(|atom| (atom.get_atom_number(), atom.get_index()))
             .collect();
 
         // create vector for temporary storing of connectivity information
@@ -226,12 +225,12 @@ impl System {
     /// ## Notes on connectivity
     /// - The function will attempt to write connectivity into the PDB file if `write_connectivity` is true.
     /// - Connectivity block can only be written for systems with fewer than 100,000 atoms
-    /// and for systems in which each atom has a unique number. In case these requirements
-    /// are not fulfilled and the `write_connectivity` is `true`, an error is returned
-    /// and no output PDB file is written.
+    ///   and for systems in which each atom has a unique number. In case these requirements
+    ///   are not fulfilled and the `write_connectivity` is `true`, an error is returned
+    ///   and no output PDB file is written.
     /// - Even though `groan_rs` library can read `CONECT` lines of any length,
-    /// this function prints at most 4 bonds on a single `CONECT` line as is traditionally requested.
-    /// If the atom is bonded to more atoms, multiple `CONECT` lines will be written for it.
+    ///   this function prints at most 4 bonds on a single `CONECT` line as is traditionally requested.
+    ///   If the atom is bonded to more atoms, multiple `CONECT` lines will be written for it.
     /// - If simulation box is undefined, it is not written out.
     pub fn write_pdb(
         &self,
@@ -271,12 +270,12 @@ impl System {
     /// ## Notes on connectivity
     /// - The function will attempt to write connectivity into the PDB file if `write_connectivity` is true.
     /// - Connectivity block can only be written for systems with fewer than 100,000 atoms
-    /// and for systems in which each atom has a unique number. In case these requirements
-    /// are not fulfilled and the `write_connectivity` is `true`, an error is returned
-    /// and no output PDB file is written.
+    ///   and for systems in which each atom has a unique number. In case these requirements
+    ///   are not fulfilled and the `write_connectivity` is `true`, an error is returned
+    ///   and no output PDB file is written.
     /// - Even though `groan_rs` library can read `CONECT` lines of any length,
-    /// this function prints at most 4 bonds on a single `CONECT` line as is traditionally requested.
-    /// If the atom is bonded to more atoms, multiple `CONECT` lines will be written for it.
+    ///   this function prints at most 4 bonds on a single `CONECT` line as is traditionally requested.
+    ///   If the atom is bonded to more atoms, multiple `CONECT` lines will be written for it.
     /// - If the simulation box is undefined, it is not written out.
     pub fn group_write_pdb(
         &self,
@@ -319,7 +318,7 @@ impl System {
             _ => format!("Group `{}` from {}", group_name, self.get_name()),
         };
 
-        write_header(&mut writer, &title, self.get_box_as_ref())?;
+        write_header(&mut writer, &title, self.get_box())?;
 
         for atom in self.group_iter(group_name).expect(
             "FATAL GROAN ERROR | System::group_write_pdb | Group should exist but it does not.",
@@ -601,7 +600,7 @@ fn write_connectivity_section(
             }
 
             let bonded_number = system
-                .get_atom_as_ref(bonded_index)
+                .get_atom(bonded_index)
                 .expect("FATAL GROAN ERROR | pdb_io::write_connectivity_section | Invalid atom index.")
                 .get_atom_number();
 
@@ -641,7 +640,7 @@ mod tests_read {
         assert_eq!(system.get_n_atoms(), 50);
 
         // check box size
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
         assert_approx_eq!(f32, simbox.x, 6.0861);
         assert_approx_eq!(f32, simbox.y, 6.0861);
         assert_approx_eq!(f32, simbox.z, 6.0861);
@@ -654,7 +653,7 @@ mod tests_read {
         assert_eq!(simbox.v3x, 0.0f32);
         assert_eq!(simbox.v3y, 0.0f32);
 
-        let atoms = system.get_atoms_as_ref();
+        let atoms = system.get_atoms();
 
         // check the first atom
         let first = &atoms[0];
@@ -728,16 +727,16 @@ mod tests_read {
 
         assert_eq!(system_chain.get_name(), system_nochain.get_name());
         assert_eq!(
-            system_chain.get_box_as_ref().unwrap().x,
-            system_nochain.get_box_as_ref().unwrap().x
+            system_chain.get_box().unwrap().x,
+            system_nochain.get_box().unwrap().x
         );
         assert_eq!(
-            system_chain.get_box_as_ref().unwrap().y,
-            system_nochain.get_box_as_ref().unwrap().y
+            system_chain.get_box().unwrap().y,
+            system_nochain.get_box().unwrap().y
         );
         assert_eq!(
-            system_chain.get_box_as_ref().unwrap().z,
-            system_nochain.get_box_as_ref().unwrap().z
+            system_chain.get_box().unwrap().z,
+            system_nochain.get_box().unwrap().z
         );
 
         for (ac, anc) in system_chain.atoms_iter().zip(system_nochain.atoms_iter()) {
@@ -764,7 +763,7 @@ mod tests_read {
         assert_eq!(system.get_n_atoms(), 50);
 
         // check box size
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
         assert_approx_eq!(f32, simbox.x, 6.0861);
         assert_approx_eq!(f32, simbox.y, 6.0861);
         assert_approx_eq!(f32, simbox.z, 6.0861);
@@ -777,7 +776,7 @@ mod tests_read {
         assert_eq!(simbox.v3x, 0.0f32);
         assert_eq!(simbox.v3y, 0.0f32);
 
-        let atoms = system.get_atoms_as_ref();
+        let atoms = system.get_atoms();
 
         // check the first atom
         let first = &atoms[0];
@@ -831,7 +830,7 @@ mod tests_read {
         assert_eq!(system.get_n_atoms(), 50);
 
         // check box size
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
         assert_approx_eq!(f32, simbox.x, 6.0861);
         assert_approx_eq!(f32, simbox.y, 6.0861);
         assert_approx_eq!(f32, simbox.z, 6.0861);
@@ -845,7 +844,7 @@ mod tests_read {
         assert_eq!(system.get_n_atoms(), 50);
 
         // check box size
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
         assert_approx_eq!(f32, simbox.x, 6.0861);
         assert_approx_eq!(f32, simbox.y, 6.0861);
         assert_approx_eq!(f32, simbox.z, 6.0861);
@@ -870,7 +869,7 @@ mod tests_read {
         assert_eq!(system.get_n_atoms(), 50);
 
         // check box size
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
         assert_approx_eq!(f32, simbox.x, 6.0861);
         assert_approx_eq!(f32, simbox.y, 6.0861);
         assert_approx_eq!(f32, simbox.z, 6.0861);
@@ -884,7 +883,7 @@ mod tests_read {
         assert_eq!(system.get_n_atoms(), 50);
 
         // check box size
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
         assert_approx_eq!(f32, simbox.x, 5.0861);
         assert_approx_eq!(f32, simbox.y, 5.0861);
         assert_approx_eq!(f32, simbox.z, 5.0861);
@@ -948,19 +947,15 @@ mod tests_read {
             vec![],
         ];
 
-        for (a, atom) in system.atoms_iter().enumerate() {
-            let expected = expected_bonded.get(a).unwrap();
+        for atom in system.atoms_iter() {
+            let expected = expected_bonded.get(atom.get_index()).unwrap();
             for index in atom.get_bonded().iter() {
-                let bonded = system
-                    .get_atoms_as_ref()
-                    .get(index)
-                    .unwrap()
-                    .get_atom_number();
+                let bonded = system.get_atoms().get(index).unwrap().get_atom_number();
                 assert!(expected.contains(&bonded));
             }
         }
 
-        assert_eq!(system.get_atom_as_ref(49).unwrap().get_n_bonded(), 0);
+        assert_eq!(system.get_atom(49).unwrap().get_n_bonded(), 0);
     }
 
     #[test]
@@ -1105,7 +1100,7 @@ mod tests_read {
                 match system.add_bonds_from_pdb($file_bonds) {
                     Err($variant(e)) => {
                         assert_eq!(e, $expected);
-                        for atom in system.get_atoms_as_ref() {
+                        for atom in system.get_atoms() {
                             assert_eq!(atom.get_n_bonded(), 0);
                         }
                     }
@@ -1186,7 +1181,7 @@ mod tests_read {
     #[test]
     fn pdb_bonds_duplicate_numbers() {
         let mut system = read_pdb("test_files/example.pdb").unwrap();
-        system.get_atom_as_mut(10).unwrap().set_atom_number(25);
+        system.get_atom_mut(10).unwrap().set_atom_number(25);
 
         match system.add_bonds_from_pdb("test_files/bonds_inconsistency.pdb") {
             Err(ParsePdbConnectivityError::DuplicateAtomNumbers) => (),
@@ -1203,8 +1198,8 @@ mod tests_read {
         let system_pdb = read_pdb("test_files/triclinic.pdb").unwrap();
         let system_gro = read_gro("test_files/triclinic.gro").unwrap();
 
-        let box_pdb = system_pdb.get_box_as_ref().unwrap();
-        let box_gro = system_gro.get_box_as_ref().unwrap();
+        let box_pdb = system_pdb.get_box().unwrap();
+        let box_gro = system_gro.get_box().unwrap();
 
         assert_approx_eq!(f32, box_pdb.v1x, box_gro.v1x, epsilon = 0.001);
         assert_approx_eq!(f32, box_pdb.v1y, box_gro.v1y, epsilon = 0.001);
@@ -1226,8 +1221,8 @@ mod tests_read {
         let system_pdb = read_pdb("test_files/dodecahedron.pdb").unwrap();
         let system_gro = read_gro("test_files/dodecahedron.gro").unwrap();
 
-        let box_pdb = system_pdb.get_box_as_ref().unwrap();
-        let box_gro = system_gro.get_box_as_ref().unwrap();
+        let box_pdb = system_pdb.get_box().unwrap();
+        let box_gro = system_gro.get_box().unwrap();
 
         assert_approx_eq!(f32, box_pdb.v1x, box_gro.v1x, epsilon = 0.001);
         assert_approx_eq!(f32, box_pdb.v1y, box_gro.v1y, epsilon = 0.001);
@@ -1249,8 +1244,8 @@ mod tests_read {
         let system_pdb = read_pdb("test_files/octahedron.pdb").unwrap();
         let system_gro = read_gro("test_files/octahedron.gro").unwrap();
 
-        let box_pdb = system_pdb.get_box_as_ref().unwrap();
-        let box_gro = system_gro.get_box_as_ref().unwrap();
+        let box_pdb = system_pdb.get_box().unwrap();
+        let box_gro = system_gro.get_box().unwrap();
 
         assert_approx_eq!(f32, box_pdb.v1x, box_gro.v1x, epsilon = 0.001);
         assert_approx_eq!(f32, box_pdb.v1y, box_gro.v1y, epsilon = 0.001);
@@ -1471,7 +1466,7 @@ mod tests_write {
         let mut system = System::from_file("test_files/conect.pdb").unwrap();
         system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
 
-        system.get_atom_as_mut(10).unwrap().set_atom_number(4);
+        system.get_atom_mut(10).unwrap().set_atom_number(4);
 
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();
@@ -1491,7 +1486,7 @@ mod tests_write {
         let mut system = System::from_file("test_files/conect.pdb").unwrap();
         system.add_bonds_from_pdb("test_files/conect.pdb").unwrap();
 
-        system.get_atom_as_mut(10).unwrap().set_atom_number(100_000);
+        system.get_atom_mut(10).unwrap().set_atom_number(100_000);
 
         let pdb_output = NamedTempFile::new().unwrap();
         let path_to_output = pdb_output.path();
@@ -1571,7 +1566,7 @@ mod tests_write {
     fn write_too_large_coordinate_1() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        system.get_atom_as_mut(16).unwrap().set_position_x(1000.0);
+        system.get_atom_mut(16).unwrap().set_position_x(1000.0);
 
         match system.write_pdb("will_not_be_created_1.pdb", false) {
             Err(WritePdbError::CoordinateTooLarge) => (),
@@ -1584,7 +1579,7 @@ mod tests_write {
     fn write_too_large_coordinate_2() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        system.get_atom_as_mut(16).unwrap().set_position_y(-999.0);
+        system.get_atom_mut(16).unwrap().set_position_y(-999.0);
 
         match system.group_write_pdb("all", "will_not_be_created_2.pdb", false) {
             Err(WritePdbError::CoordinateTooLarge) => (),

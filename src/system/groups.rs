@@ -49,7 +49,7 @@ impl System {
             Err(e) => return Err(GroupError::InvalidQuery(e)),
         };
 
-        match self.get_groups_as_mut().insert(name.to_string(), group) {
+        match self.get_groups_mut().insert(name.to_string(), group) {
             None => Ok(()),
             Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
@@ -64,7 +64,7 @@ impl System {
     /// - `GroupError::InvalidName` if the name of the group is invalid (no group created).
     /// - `GroupError::InvalidQuery` if the query could not be parsed.
     /// - `GroupError::InvalidSimBox` if the system has no simulation box or if the
-    /// simulation box is not orthogonal.
+    ///   simulation box is not orthogonal.
     ///
     /// ## Example
     /// Select phosphori atoms which are inside a z-axis oriented cylinder
@@ -84,9 +84,9 @@ impl System {
     ///
     /// ## Warning
     /// - If you construct the group and then iterate through a trajectory, the group will still contain
-    /// the same atoms as initially. In other words, the group is NOT dynamically updated.
+    ///   the same atoms as initially. In other words, the group is NOT dynamically updated.
     /// - If you want to choose atoms dynamically, it is better to use [`AtomIterator`](`crate::system::System::atoms_iter`)
-    /// and [`filter_geometry`](`crate::structures::iterators::MasterAtomIterator::filter_geometry`) function while iterating through the trajectory.
+    ///   and [`filter_geometry`](`crate::structures::iterators::AtomIteratorWithBox::filter_geometry`) function while iterating through the trajectory.
     /// - Atoms with undefined positions will never be selected.
     ///
     /// ## Notes
@@ -107,7 +107,7 @@ impl System {
             return Err(GroupError::InvalidSimBox(SimBoxError::DoesNotExist));
         }
 
-        if !self.get_box_as_ref().unwrap().is_orthogonal() {
+        if !self.get_box().unwrap().is_orthogonal() {
             return Err(GroupError::InvalidSimBox(SimBoxError::NotOrthogonal));
         }
 
@@ -116,7 +116,7 @@ impl System {
             Err(e) => return Err(GroupError::InvalidQuery(e)),
         };
 
-        match self.get_groups_as_mut().insert(name.to_string(), group) {
+        match self.get_groups_mut().insert(name.to_string(), group) {
             None => Ok(()),
             Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
@@ -131,7 +131,7 @@ impl System {
     /// - `GroupError::InvalidName` if the name of the group is invalid (no group created).
     /// - `GroupError::InvalidQuery` if the query could not be parsed.
     /// - `GroupError::InvalidSimBox` if the system has no simulation box or if the
-    /// simulation box is not orthogonal.
+    ///   simulation box is not orthogonal.
     ///
     /// ## Example
     /// Select phosphori atoms which are inside a z-axis oriented cylinder
@@ -157,9 +157,9 @@ impl System {
     ///
     /// ## Warning
     /// - If you construct the group and then iterate through a trajectory, the group will still contain
-    /// the same atoms as initially. In other words, the group is NOT dynamically updated.
+    ///   the same atoms as initially. In other words, the group is NOT dynamically updated.
     /// - If you want to choose atoms dynamically, it is better to use [`AtomIterator`](`crate::system::System::atoms_iter`)
-    /// and [`filter_geometry`](`crate::structures::iterators::MasterAtomIterator::filter_geometry`) function while iterating through the trajectory.
+    ///   and [`filter_geometry`](`crate::structures::iterators::AtomIteratorWithBox::filter_geometry`) function while iterating through the trajectory.
     /// - Atoms with undefined positions will never be selected.
     ///
     /// ## Notes
@@ -180,7 +180,7 @@ impl System {
             return Err(GroupError::InvalidSimBox(SimBoxError::DoesNotExist));
         }
 
-        if !self.get_box_as_ref().unwrap().is_orthogonal() {
+        if !self.get_box().unwrap().is_orthogonal() {
             return Err(GroupError::InvalidSimBox(SimBoxError::NotOrthogonal));
         }
 
@@ -189,7 +189,7 @@ impl System {
             Err(e) => return Err(GroupError::InvalidQuery(e)),
         };
 
-        match self.get_groups_as_mut().insert(name.to_string(), group) {
+        match self.get_groups_mut().insert(name.to_string(), group) {
             None => Ok(()),
             Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
@@ -229,7 +229,7 @@ impl System {
         }
 
         let group = Group::from_indices(atom_indices, self.get_n_atoms());
-        match self.get_groups_as_mut().insert(name.to_string(), group) {
+        match self.get_groups_mut().insert(name.to_string(), group) {
             None => Ok(()),
             Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
@@ -270,7 +270,7 @@ impl System {
 
         let group = Group::from_ranges(atom_ranges, self.get_n_atoms());
 
-        match self.get_groups_as_mut().insert(name.to_string(), group) {
+        match self.get_groups_mut().insert(name.to_string(), group) {
             None => Ok(()),
             Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
@@ -327,7 +327,7 @@ impl System {
             Err(e) => return Err(GroupError::InvalidQuery(e)),
         };
 
-        match self.get_groups_as_mut().insert(name.to_string(), group) {
+        match self.get_groups_mut().insert(name.to_string(), group) {
             None => Ok(()),
             Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
         }
@@ -415,25 +415,20 @@ impl System {
     pub fn group_split_by_resid(&mut self, name: &str) -> (Result<(), GroupError>, Vec<String>) {
         let mut groups: IndexMap<String, Vec<usize>> = IndexMap::new();
 
-        let group = match self.get_groups_as_ref().get(name) {
-            Some(x) => x,
-            None => return (Err(GroupError::NotFound(name.to_string())), Vec::new()),
+        let iterator = match self.group_iter(name) {
+            Ok(x) => x,
+            Err(e) => return (Err(e), Vec::new()),
         };
 
         // collect atoms into groups
-        // Note: we have to iterate through all the atoms to get their correct indices
-        for (atomid, atom) in self.atoms_iter().enumerate() {
-            if !group.get_atoms().isin(atomid) {
-                continue;
-            }
-
+        for atom in iterator {
             let res = atom.get_residue_number();
             let group_name = format!("resid {}", res);
 
             match groups.get_mut(&group_name) {
-                Some(group) => group.push(atomid),
+                Some(group) => group.push(atom.get_index()),
                 None => {
-                    groups.insert(group_name, vec![atomid]);
+                    groups.insert(group_name, vec![atom.get_index()]);
                 }
             }
         }
@@ -543,23 +538,20 @@ impl System {
     pub fn group_split_by_resname(&mut self, name: &str) -> (Result<(), GroupError>, Vec<String>) {
         let mut groups: IndexMap<String, Vec<usize>> = IndexMap::new();
 
-        let group = match self.get_groups_as_ref().get(name) {
-            Some(x) => x,
-            None => return (Err(GroupError::NotFound(name.to_string())), Vec::new()),
+        let iterator = match self.group_iter(name) {
+            Ok(x) => x,
+            Err(e) => return (Err(e), Vec::new()),
         };
 
-        for (atomid, atom) in self.atoms_iter().enumerate() {
-            if !group.get_atoms().isin(atomid) {
-                continue;
-            }
-
+        // collect atoms into groups
+        for atom in iterator {
             let res = atom.get_residue_name();
             let group_name = format!("resname {}", res);
 
             match groups.get_mut(&group_name) {
-                Some(group) => group.push(atomid),
+                Some(group) => group.push(atom.get_index()),
                 None => {
-                    groups.insert(group_name, vec![atomid]);
+                    groups.insert(group_name, vec![atom.get_index()]);
                 }
             }
         }
@@ -594,7 +586,7 @@ impl System {
     /// ## Returns
     /// `Ok` if successful, `GroupError::NotFound` in case the group does not exist.
     pub fn group_make_writable(&mut self, name: &str) -> Result<(), GroupError> {
-        match self.get_groups_as_mut().get_mut(name) {
+        match self.get_groups_mut().get_mut(name) {
             None => return Err(GroupError::NotFound(name.to_owned())),
             Some(group) => group.print_ndx = true,
         }
@@ -607,7 +599,7 @@ impl System {
     /// ## Returns
     /// `Ok` if successful, `GroupError::NotFound` in case the group does not exist.
     pub fn group_make_nonwritable(&mut self, name: &str) -> Result<(), GroupError> {
-        match self.get_groups_as_mut().get_mut(name) {
+        match self.get_groups_mut().get_mut(name) {
             None => return Err(GroupError::NotFound(name.to_owned())),
             Some(group) => group.print_ndx = false,
         }
@@ -630,7 +622,7 @@ impl System {
     /// - Time complexity is O(n).
     #[allow(dead_code)]
     pub(crate) fn group_remove(&mut self, name: &str) -> Result<(), GroupError> {
-        if self.get_groups_as_mut().shift_remove(name).is_none() {
+        if self.get_groups_mut().shift_remove(name).is_none() {
             Err(GroupError::NotFound(name.to_owned()))
         } else {
             Ok(())
@@ -650,20 +642,20 @@ impl System {
     ///
     /// ## Notes
     /// - Note that if the `new` name already matches name of another group in the `System`,
-    /// the previous group with this name is overwritten and `GroupError::AlreadyExistsWarning` is returned.
+    ///   the previous group with this name is overwritten and `GroupError::AlreadyExistsWarning` is returned.
     /// - This function maintains the order of the groups in the system, except for the renamed group
-    /// which is placed to the last position.
+    ///   which is placed to the last position.
     /// - Time complexity is O(n).
     #[allow(dead_code)]
     pub(crate) fn group_rename(&mut self, old: &str, new: &str) -> Result<(), GroupError> {
         // get the old group
-        let group = match self.get_groups_as_mut().shift_remove(old) {
+        let group = match self.get_groups_mut().shift_remove(old) {
             Some(x) => x,
             None => return Err(GroupError::NotFound(old.to_owned())),
         };
 
         // reinsert the group with the new name
-        match self.get_groups_as_mut().insert(new.to_owned(), group) {
+        match self.get_groups_mut().insert(new.to_owned(), group) {
             Some(_) => Err(GroupError::AlreadyExistsWarning(new.to_owned())),
             None => Ok(()),
         }
@@ -671,7 +663,7 @@ impl System {
 
     /// Check whether a group with a given name exists in the system.
     pub fn group_exists(&self, name: &str) -> bool {
-        self.get_groups_as_ref().contains_key(name)
+        self.get_groups().contains_key(name)
     }
 
     /// Check whether the target group contains the atom of target index.
@@ -682,12 +674,12 @@ impl System {
     ///
     /// ## Notes
     /// - Note that `index` corresponds to the atom index in the `System` structure.
-    /// The atoms in `System` are numbered starting from 0.
+    ///   The atoms in `System` are numbered starting from 0.
     /// - The time complexity of this operation is somewhere between `O(1)` and `O(n)`
-    /// where `n` is the number of atoms in the group.
+    ///   where `n` is the number of atoms in the group.
     pub fn group_isin(&self, name: &str, index: usize) -> Result<bool, GroupError> {
         let group = self
-            .get_groups_as_ref()
+            .get_groups()
             .get(name)
             .ok_or(GroupError::NotFound(name.to_string()))?;
 
@@ -701,9 +693,9 @@ impl System {
     ///
     /// ## Notes
     /// - This is NOT an `O(1)` operation. In fact, the complexity of this operation
-    /// depends on the complexity of the group. Length of a group composed
-    /// of a continuous block of atoms will be computed more quickly
-    /// than the length of a group composed of a large number of separate atoms.
+    ///   depends on the complexity of the group. Length of a group composed
+    ///   of a continuous block of atoms will be computed more quickly
+    ///   than the length of a group composed of a large number of separate atoms.
     ///
     /// - The time complexity of this operation is thus somewhere between `O(1)` and `O(n)`.
     ///
@@ -717,7 +709,7 @@ impl System {
     /// ```
     pub fn group_get_n_atoms(&self, name: &str) -> Result<usize, GroupError> {
         let group = self
-            .get_groups_as_ref()
+            .get_groups()
             .get(name)
             .ok_or(GroupError::NotFound(name.to_string()))?;
 
@@ -741,17 +733,17 @@ impl System {
         union: &str,
     ) -> Result<(), GroupError> {
         let group1 = self
-            .get_groups_as_ref()
+            .get_groups()
             .get(group1)
             .ok_or(GroupError::NotFound(group1.to_string()))?;
         let group2 = self
-            .get_groups_as_ref()
+            .get_groups()
             .get(group2)
             .ok_or(GroupError::NotFound(group2.to_string()))?;
 
         let group = Group::union(group1, group2);
 
-        match self.get_groups_as_mut().insert(union.to_string(), group) {
+        match self.get_groups_mut().insert(union.to_string(), group) {
             None => Ok(()),
             Some(_) => Err(GroupError::AlreadyExistsWarning(union.to_string())),
         }
@@ -774,18 +766,18 @@ impl System {
         intersection: &str,
     ) -> Result<(), GroupError> {
         let group1 = self
-            .get_groups_as_ref()
+            .get_groups()
             .get(group1)
             .ok_or(GroupError::NotFound(group1.to_string()))?;
         let group2 = self
-            .get_groups_as_ref()
+            .get_groups()
             .get(group2)
             .ok_or(GroupError::NotFound(group2.to_string()))?;
 
         let group = Group::intersection(group1, group2);
 
         match self
-            .get_groups_as_mut()
+            .get_groups_mut()
             .insert(intersection.to_string(), group)
         {
             None => Ok(()),
@@ -826,13 +818,10 @@ impl System {
     /// assert!(names.contains(&"All".to_string()));
     /// ```
     pub fn group_names(&self) -> Vec<String> {
-        self.get_groups_as_ref()
-            .keys()
-            .map(|key| key.to_owned())
-            .collect()
+        self.get_groups().keys().map(|key| key.to_owned()).collect()
     }
 
-    /// Get all group names assocaited with the system excluding ndx-nonwritable (default) groups.
+    /// Get all group names associated with the system excluding ndx-nonwritable (default) groups.
     ///
     /// ## Example
     /// ```no_run
@@ -850,15 +839,10 @@ impl System {
     /// assert!(!names.contains(&"All".to_string()));
     /// ```
     pub fn group_names_writable(&self) -> Vec<String> {
-        self.get_groups_as_ref()
+        self.get_groups()
             .iter()
-            .filter_map(|(key, group)| {
-                if group.print_ndx {
-                    Some(key.to_owned())
-                } else {
-                    None
-                }
-            })
+            .filter(|(_, group)| group.print_ndx)
+            .map(|(key, _)| key.to_owned())
             .collect()
     }
 
@@ -870,11 +854,23 @@ impl System {
     /// - `GroupError` if the group does not exist.
     pub fn group_isempty(&self, name: &str) -> Result<bool, GroupError> {
         let group = self
-            .get_groups_as_ref()
+            .get_groups()
             .get(name)
             .ok_or(GroupError::NotFound(name.to_string()))?;
 
         Ok(group.get_atoms().is_empty())
+    }
+
+    /// Collect names of all groups the atom at target index is a member of.
+    /// Atoms are indexed starting from 0.
+    /// In case the index is out of range, returns an empty vector.
+    /// The names are returned in their order of insertion.
+    pub fn groups_member(&self, index: usize) -> Vec<String> {
+        self.get_groups()
+            .iter()
+            .filter(|(_, group)| group.get_atoms().isin(index))
+            .map(|(name, _)| name.to_owned())
+            .collect()
     }
 }
 
@@ -1275,7 +1271,7 @@ mod tests {
 
         system.group_create(
             "Complex Group", 
-            "((serial 1 - 15 or atomid 13 14 15 16 || atomnum 62 64 to 70) && Protein ION) or 
+            "((serial 1 - 15 or atomnum 13 14 15 16 || atomnum 62 64 to 70) && Protein ION) or 
             (resid 11179 to 13000 or resnum 5400) and (resname W or (resname GLY LEU and (name BB or atomname SC1)))").unwrap();
         assert_eq!(system.group_get_n_atoms("Complex Group").unwrap(), 2);
 
@@ -1289,7 +1285,7 @@ mod tests {
         let mut system = System::from_file("test_files/example_renumbered.gro").unwrap();
 
         system.group_create("Serial 6", "serial 6").unwrap();
-        system.group_create("Atomid 6", "atomid 6").unwrap();
+        system.group_create("Atomid 6", "atomnum 6").unwrap();
         system.group_create("Atomnum 6", "atomnum 6").unwrap();
 
         assert_eq!(
@@ -1310,7 +1306,7 @@ mod tests {
             assert_eq!(atom.get_atom_number(), 49);
         }
 
-        system.group_create("Atomid 49", "atomid 49").unwrap();
+        system.group_create("Atomid 49", "atomnum 49").unwrap();
         assert_eq!(system.group_get_n_atoms("Atomid 49").unwrap(), 3);
 
         assert!(system.group_isin("Atomid 49", 9).unwrap());
@@ -1320,7 +1316,7 @@ mod tests {
         system.group_create("Atomnum 133", "atomnum 133").unwrap();
         assert_eq!(system.group_get_n_atoms("Atomnum 133").unwrap(), 1);
 
-        system.group_create("Atomid 10", "atomid 10").unwrap();
+        system.group_create("Atomid 10", "atomnum 10").unwrap();
         assert_eq!(system.group_get_n_atoms("Atomid 10").unwrap(), 0);
     }
 
@@ -1374,10 +1370,7 @@ mod tests {
 
         for atom in system.group_iter("Selected Membrane").unwrap() {
             assert_eq!(atom.get_residue_name(), "POPC");
-            assert!(cylinder.inside(
-                atom.get_position().unwrap(),
-                system.get_box_as_ref().unwrap()
-            ));
+            assert!(cylinder.inside(atom.get_position().unwrap(), system.get_box().unwrap()));
         }
     }
 
@@ -1397,10 +1390,7 @@ mod tests {
 
         for atom in system.group_iter("Selected Water").unwrap() {
             assert_eq!(atom.get_residue_name(), "W");
-            assert!(sphere.inside(
-                atom.get_position().unwrap(),
-                system.get_box_as_ref().unwrap()
-            ));
+            assert!(sphere.inside(atom.get_position().unwrap(), system.get_box().unwrap()));
         }
     }
 
@@ -1427,10 +1417,7 @@ mod tests {
                     || resname == "LYS"
                     || resname == "CYS"
             );
-            assert!(rectangular.inside(
-                atom.get_position().unwrap(),
-                system.get_box_as_ref().unwrap()
-            ));
+            assert!(rectangular.inside(atom.get_position().unwrap(), system.get_box().unwrap()));
         }
     }
 
@@ -1455,10 +1442,9 @@ mod tests {
         for atom in system.group_iter("Selected Water").unwrap() {
             let resname = atom.get_residue_name();
             assert_eq!(resname, "W");
-            assert!(triangular_prism.inside(
-                atom.get_position().unwrap(),
-                system.get_box_as_ref().unwrap()
-            ));
+            assert!(
+                triangular_prism.inside(atom.get_position().unwrap(), system.get_box().unwrap())
+            );
         }
     }
 
@@ -1622,18 +1608,9 @@ mod tests {
         for (i, atom) in system.group_iter("Selected Membrane").unwrap().enumerate() {
             assert_eq!(atom.get_atom_number(), expected_numbers[i]);
 
-            assert!(rectangular.inside(
-                atom.get_position().unwrap(),
-                system.get_box_as_ref().unwrap()
-            ));
-            assert!(sphere.inside(
-                atom.get_position().unwrap(),
-                system.get_box_as_ref().unwrap()
-            ));
-            assert!(cylinder.inside(
-                atom.get_position().unwrap(),
-                system.get_box_as_ref().unwrap()
-            ));
+            assert!(rectangular.inside(atom.get_position().unwrap(), system.get_box().unwrap()));
+            assert!(sphere.inside(atom.get_position().unwrap(), system.get_box().unwrap()));
+            assert!(cylinder.inside(atom.get_position().unwrap(), system.get_box().unwrap()));
         }
     }
 
@@ -1812,6 +1789,26 @@ mod tests {
 
         assert!(system.group_isin("Group3", 0).unwrap());
         assert!(system.group_isin("Group3", 6204).unwrap());
+    }
+
+    #[test]
+    fn group_create_regex_with_operator() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        system
+            .group_create(
+                "Selection",
+                "resname POPC and (name r'C[1234]A|C[1234]B' or name D2A)",
+            )
+            .unwrap();
+
+        assert!(system.group_exists("Selection"));
+        assert_eq!(system.group_get_n_atoms("Selection").unwrap(), 4096);
+
+        assert!(system.group_isin("Selection", 78).unwrap());
+        assert!(system.group_isin("Selection", 79).unwrap());
+        assert!(system.group_isin("Selection", 80).unwrap());
+        assert!(system.group_isin("Selection", 81).unwrap());
     }
 
     #[test]
@@ -2434,9 +2431,9 @@ mod tests {
     #[test]
     fn group_make_writable() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
-        assert!(!system.get_groups_as_ref().get("all").unwrap().print_ndx);
+        assert!(!system.get_groups().get("all").unwrap().print_ndx);
         system.group_make_writable("all").unwrap();
-        assert!(system.get_groups_as_ref().get("all").unwrap().print_ndx);
+        assert!(system.get_groups().get("all").unwrap().print_ndx);
     }
 
     #[test]
@@ -2454,9 +2451,9 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.group_create("Group", "resid 1").unwrap();
 
-        assert!(system.get_groups_as_ref().get("Group").unwrap().print_ndx);
+        assert!(system.get_groups().get("Group").unwrap().print_ndx);
         system.group_make_nonwritable("Group").unwrap();
-        assert!(!system.get_groups_as_ref().get("Group").unwrap().print_ndx);
+        assert!(!system.get_groups().get("Group").unwrap().print_ndx);
     }
 
     #[test]
@@ -2788,5 +2785,35 @@ mod tests {
             Err(GroupError::NotFound(x)) => assert_eq!(x, "Nonexistent"),
             Err(e) => panic!("Incorrect error type returned: {:?}", e),
         }
+    }
+
+    #[test]
+    fn groups_member() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let expected_groups = vec![
+            "all",
+            "All",
+            "System",
+            "Protein",
+            "Protein-H",
+            "SideChain",
+            "SideChain-H",
+            "Prot-Masses",
+            "Transmembrane_all",
+            "Transmembrane",
+            "Protein_Membrane",
+        ];
+        let groups = system.groups_member(1);
+
+        assert_eq!(expected_groups.len(), groups.len());
+        for (expected, result) in expected_groups.into_iter().zip(groups.iter()) {
+            assert_eq!(expected, result)
+        }
+
+        // index out of range is part of no groups
+        let groups = system.groups_member(16844);
+        assert!(groups.is_empty());
     }
 }

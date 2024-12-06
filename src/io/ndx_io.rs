@@ -28,11 +28,11 @@ impl System {
     /// ## Notes
     /// - Overwrites all groups with the same names in the system, returning a warning.
     /// - In case duplicate groups are present in the ndx file, the last one
-    /// is input into the system
+    ///   is input into the system
     /// - The indices in an ndx file do not correspond to atom numbers
-    /// from a gro file, but to actual atom numbers as used by gromacs.
+    ///   from a gro file, but to actual atom numbers as used by gromacs.
     /// - In case an error other than `ParseNdxError::DuplicateGroupsWarning` or
-    /// `ParseNdxError::InvalidNamesWarning` occurs, the system is not changed.
+    ///   `ParseNdxError::InvalidNamesWarning` occurs, the system is not changed.
     /// - Atom numbers can be in any order and will be properly reordered.
     /// - Duplicate atom numbers are ignored.
     /// - Empty lines are skipped.
@@ -76,7 +76,7 @@ impl System {
 
             // read standard line
             } else {
-                atom_indices.extend(parse_ndx_line(&line, self.get_atoms_as_ref())?);
+                atom_indices.extend(parse_ndx_line(&line, self.get_atoms())?);
             }
         }
 
@@ -135,9 +135,9 @@ impl System {
     /// ## Notes
     /// - Overwrites the contents of any previously existing file with the same `filename`.
     /// - Default System groups such as `all` and `All` are not written out unless a new
-    /// group with such name has been created.
+    ///   group with such name has been created.
     /// - Groups are written out in the same order as in which they were added into the System,
-    /// unless further manipulated.
+    ///   unless further manipulated.
     pub fn write_ndx(&self, filename: impl AsRef<Path>) -> Result<(), WriteNdxError> {
         let output = match File::create(&filename) {
             Ok(x) => x,
@@ -146,7 +146,7 @@ impl System {
 
         let mut writer = BufWriter::new(output);
 
-        for (name, group) in self.get_groups_as_ref() {
+        for (name, group) in self.get_groups() {
             // skip default groups
             if group.print_ndx {
                 group.write_ndx(&mut writer, name)?

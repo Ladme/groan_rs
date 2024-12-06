@@ -1,0 +1,8 @@
+# This is an example of an invalid GridMap.
+@   x   |   y   |   values
+   3.5  |  0.0  |   10
+   3.5  |  0.0  |   5  4 
+   3.5  |  0.0  |   43  23  21
+   3.5  |  0.0  |   4  8  12
+   3.5  |  0.0  |   2  5
+   3.5  |  0.0  |   

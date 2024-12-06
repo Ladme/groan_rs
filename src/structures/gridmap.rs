@@ -3,6 +3,8 @@
 
 //! Implementation of a higher-level utility GridMap structure for use in `groan_rs` programs.
 
+use float_cmp::approx_eq;
+use getset::CopyGetters;
 use ndarray::{Array2, ShapeBuilder};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -46,17 +48,20 @@ pub enum DataOrder {
 /// 1 2   4   6   8 9
 ///
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, CopyGetters)]
 pub struct GridMap<
     RawValue: Default + Clone + std::fmt::Debug,
     VisValue: Display,
     Converter: Fn(&RawValue) -> VisValue,
 > {
     /// Span of the map in the x-dimension.
+    #[getset(get_copy = "pub")]
     span_x: (f32, f32),
     /// Span of the map in the y-dimension.
+    #[getset(get_copy = "pub")]
     span_y: (f32, f32),
     /// Dimensions of a single grid tile.
+    #[getset(get_copy = "pub")]
     tile_dim: (f32, f32),
     /// All values of the individual grid tiles.
     values: Array2<RawValue>,
@@ -96,7 +101,7 @@ impl<
     ///     (0.1, 0.02),  // dimensions of each grid tile (x, y)
     ///     average);     // converter function
     ///
-    /// // the map vill be filled with empty vectors
+    /// // the map will be filled with empty vectors
     /// ```
     ///
     /// Converter function can also be a closure:
@@ -176,7 +181,7 @@ impl<
     /// 3. The serialized `RawValue`
     ///
     /// Elements can be provided in row-major or in column-major order, the function can recognize the order used.
-    /// The spacing between coordinates must be consistent. The coordinates should
+    /// The spacing between coordinates must be consistent. The coordinates must
     /// be ordered and going from the lowest to the highest.
     ///
     /// ### Examples
@@ -264,15 +269,12 @@ impl<
 
             values.push(z);
 
-            if !x_coords.contains(&x) {
-                x_coords.push(x);
-                // check for column-major order
-                if x_coords.len() == 2 && y_coords.len() == 1 {
-                    data_order = DataOrder::ColumnMajor;
-                }
-            }
-            if !y_coords.contains(&y) {
-                y_coords.push(y);
+            x_coords.push(x);
+            y_coords.push(y);
+
+            // check for column-major order
+            if y_coords.len() == 2 && y_coords[0] == y_coords[1] {
+                data_order = DataOrder::ColumnMajor;
             }
         }
 
@@ -280,8 +282,8 @@ impl<
             return Err(GridMapError::EmptyGridMap);
         }
 
-        let (span_x, tile_x) = Self::properties_from_coords(&x_coords)?;
-        let (span_y, tile_y) = Self::properties_from_coords(&y_coords)?;
+        let (span_x, span_y, (tile_x, tile_y)) =
+            Self::validate_and_get_span(&x_coords, &y_coords, data_order)?;
 
         GridMap::from_vec(
             span_x,
@@ -293,15 +295,191 @@ impl<
         )
     }
 
-    /// Get map span and grid tile height/width from a vector coordinates.
-    fn properties_from_coords(coords: &[f32]) -> Result<((f32, f32), f32), GridMapError> {
-        let min = *coords.first().expect("FATAL GROAN ERROR | GridMap::properties_from_coords | First coordinate value should exist.");
-        let second = *coords.get(1).expect("FATAL GROAN ERROR | GridMap::properties_from_coords | Second coordinate value should exist.");
-        let max = *coords.last().expect("FATAL GROAN ERROR | GridMap::properties_from_coords | Last coordinate value should exist.");
+    /// Check that the x and y coordinates used for the construction of the GridMap are valid.
+    /// Also get the span of the grid map.
+    #[allow(clippy::type_complexity)]
+    fn validate_and_get_span(
+        x_coords: &[f32],
+        y_coords: &[f32],
+        data_order: DataOrder,
+    ) -> Result<((f32, f32), (f32, f32), (f32, f32)), GridMapError> {
+        // choose which coordinates are fast or slow changing based on data order
+        let (fast_changing_coords, slow_changing_coords) = match data_order {
+            DataOrder::ColumnMajor => (x_coords, y_coords),
+            DataOrder::RowMajor => (y_coords, x_coords),
+        };
 
-        let tile = second - min;
+        // validate the slow-changing coordinates
+        let (min_s, second_s, max_s, block_size) =
+            Self::validate_slow_changing_coords(slow_changing_coords)?;
 
-        Ok(((min, max), tile))
+        // validate the fast-changing coordinates
+        let (min_f, second_f, max_f) =
+            Self::validate_fast_changing_coords(fast_changing_coords, block_size)?;
+
+        // check that the order of fast-changing coordinates is increasing
+        Self::check_order_increasing(
+            fast_changing_coords,
+            slow_changing_coords,
+            data_order,
+            block_size,
+        )?;
+
+        // calculate the tile sizes
+        let tile_f = second_f - min_f;
+        let tile_s = second_s - min_s;
+
+        // return the appropriate spans based on the data order
+        match data_order {
+            DataOrder::ColumnMajor => Ok(((min_f, max_f), (min_s, max_s), (tile_f, tile_s))),
+            DataOrder::RowMajor => Ok(((min_s, max_s), (min_f, max_f), (tile_s, tile_f))),
+        }
+    }
+
+    /// Validate slow-changing coordinates, calculate their span, and determine block size.
+    fn validate_slow_changing_coords(
+        slow_changing_coords: &[f32],
+    ) -> Result<(f32, f32, f32, usize), GridMapError> {
+        let mut previous_slow = *slow_changing_coords.first().expect(
+        "FATAL GROAN ERROR | GridMap::validate_slow_changing_coords | First coordinate value should exist.",
+    );
+        let mut counter = 0;
+        let mut block_size = None;
+        let (mut min_s, mut second_s, mut max_s) = (f32::MAX, f32::MAX, f32::MIN);
+
+        Self::update_min_max(previous_slow, &mut min_s, &mut second_s, &mut max_s);
+
+        for &s in slow_changing_coords.iter().skip(1) {
+            counter += 1;
+
+            if !approx_eq!(f32, s, previous_slow) {
+                if previous_slow > s {
+                    return Err(GridMapError::NotIncreasing(
+                        s.to_string(),
+                        previous_slow.to_string(),
+                    ));
+                }
+
+                match block_size {
+                    Some(block) => match counter.cmp(&block) {
+                        std::cmp::Ordering::Less => {
+                            return Err(GridMapError::InvalidCoordinates(s.to_string()));
+                        }
+                        std::cmp::Ordering::Greater => {
+                            panic!("FATAL GROAN ERROR | GridMap::validate_slow_changing_coords | Invalid slow-changing coordinate detected but this should have been handled elsewhere.");
+                        }
+                        std::cmp::Ordering::Equal => {
+                            previous_slow = s;
+                            Self::update_min_max(
+                                previous_slow,
+                                &mut min_s,
+                                &mut second_s,
+                                &mut max_s,
+                            );
+                        }
+                    },
+                    None => {
+                        block_size = Some(counter);
+                        previous_slow = s;
+                        Self::update_min_max(previous_slow, &mut min_s, &mut second_s, &mut max_s);
+                    }
+                }
+
+                counter = 0;
+                continue;
+            }
+
+            if block_size.is_some() && counter >= block_size.unwrap() {
+                return Err(GridMapError::InvalidCoordinates(s.to_string()));
+            }
+        }
+
+        let unwrapped_block_size = block_size
+            .ok_or_else(|| GridMapError::InvalidCoordinates(previous_slow.to_string()))?;
+
+        Ok((min_s, second_s, max_s, unwrapped_block_size))
+    }
+
+    /// Validate fast-changing coordinates and calculate their span.
+    fn validate_fast_changing_coords(
+        fast_changing_coords: &[f32],
+        block_size: usize,
+    ) -> Result<(f32, f32, f32), GridMapError> {
+        let (mut min_f, mut second_f, mut max_f) = (f32::MAX, f32::MAX, f32::MIN);
+
+        for i in 0..block_size {
+            let coord_i = *fast_changing_coords.get(i).expect(
+            "FATAL GROAN ERROR | GridMap::validate_fast_changing_coords | Access to fast-changing coordinates is out of range. (1)",
+        );
+
+            Self::update_min_max(coord_i, &mut min_f, &mut second_f, &mut max_f);
+
+            let mut j = i + block_size;
+            while j < fast_changing_coords.len() {
+                let coord_j = fast_changing_coords.get(j).expect(
+                "FATAL GROAN ERROR | GridMap::validate_fast_changing_coords | Access to fast-changing coordinates is out of range. (2)",
+            );
+
+                if !approx_eq!(f32, coord_i, *coord_j) {
+                    return Err(GridMapError::InvalidCoordinates(coord_j.to_string()));
+                }
+
+                j += block_size;
+            }
+        }
+
+        Ok((min_f, second_f, max_f))
+    }
+
+    /// Check if fast-changing coordinates are in increasing order.
+    fn check_order_increasing(
+        fast_changing_coords: &[f32],
+        slow_changing_coords: &[f32],
+        data_order: DataOrder,
+        block_size: usize,
+    ) -> Result<(), GridMapError> {
+        for i in 0..(block_size - 1) {
+            let coord1 = fast_changing_coords.get(i).unwrap();
+            let coord2 = fast_changing_coords.get(i + 1).unwrap();
+
+            if coord1 > coord2 {
+                return Err(GridMapError::NotIncreasing(
+                    coord2.to_string(),
+                    coord1.to_string(),
+                ));
+            }
+
+            if approx_eq!(f32, *coord1, *coord2) {
+                let slow_changing = slow_changing_coords.get(i).expect(
+                "FATAL GROAN ERROR | GridMap::check_order_increasing | Could not find slow-changing coordinate which should exist.",
+            );
+                let (x, y) = match data_order {
+                    DataOrder::ColumnMajor => (coord1, slow_changing),
+                    DataOrder::RowMajor => (slow_changing, coord1),
+                };
+
+                return Err(GridMapError::PointDefinedMultipleTimes(
+                    x.to_string(),
+                    y.to_string(),
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Update the min, second_min, and max values.
+    fn update_min_max(current: f32, min: &mut f32, second_min: &mut f32, max: &mut f32) {
+        if current < *min {
+            *second_min = *min;
+            *min = current;
+        } else if current < *second_min {
+            *second_min = current;
+        }
+
+        if current > *max {
+            *max = current;
+        }
     }
 
     /// Creates a new grid map from grid map span, grid tile dimensions, and a vector of values.
@@ -343,6 +521,13 @@ impl<
         })
     }
 
+    /// Set all raw values in the gridmap to the default values.
+    pub fn clear(&mut self) {
+        self.values
+            .iter_mut()
+            .for_each(|x| *x = RawValue::default())
+    }
+
     /// Get the total number of tiles in the grid map.
     #[inline(always)]
     pub fn n_tiles(&self) -> usize {
@@ -359,24 +544,6 @@ impl<
     #[inline(always)]
     pub fn n_tiles_y(&self) -> usize {
         self.values.ncols()
-    }
-
-    /// Get the span of the map along the x-dimension.
-    #[inline(always)]
-    pub fn span_x(&self) -> (f32, f32) {
-        self.span_x
-    }
-
-    /// Get the span of the map along the y-dimension.
-    #[inline(always)]
-    pub fn span_y(&self) -> (f32, f32) {
-        self.span_y
-    }
-
-    /// Get the grid tile dimensions.
-    #[inline(always)]
-    pub fn tile_dim(&self) -> (f32, f32) {
-        self.tile_dim
     }
 
     /// Get the coordinates of tile target point is located in.
@@ -615,7 +782,7 @@ mod tests {
         assert_eq!(gridmap.n_tiles(), 61 * 16);
         assert_eq!(gridmap.n_tiles_x(), 61);
         assert_eq!(gridmap.n_tiles_y(), 16);
-        assert_eq!(gridmap.values[(5, 8)], vec![]);
+        assert_eq!(gridmap.values[(5, 8)], Vec::<f32>::new());
     }
 
     #[test]
@@ -687,7 +854,7 @@ mod tests {
         assert_eq!(gridmap.n_tiles(), 68 * 101);
         assert_eq!(gridmap.n_tiles_x(), 68);
         assert_eq!(gridmap.n_tiles_y(), 101);
-        assert_eq!(gridmap.values[(5, 8)], vec![]);
+        assert_eq!(gridmap.values[(5, 8)], Vec::<f32>::new());
     }
 
     #[test]
@@ -775,7 +942,95 @@ mod tests {
         assert_eq!(*gridmap.get_at(2.0, 0.0).unwrap(), vec![43, 23, 21]);
         assert_eq!(*gridmap.get_at(0.0, 1.0).unwrap(), vec![4, 8, 12]);
         assert_eq!(*gridmap.get_at(1.0, 1.0).unwrap(), vec![2, 5]);
-        assert_eq!(*gridmap.get_at(2.0, 1.0).unwrap(), vec![]);
+        assert_eq!(*gridmap.get_at(2.0, 1.0).unwrap(), Vec::<usize>::new());
+    }
+
+    #[test]
+    fn from_file_column_major_not_increasing() {
+        match GridMap::from_file(
+            "test_files/gridmaps/map_column_major_decreasing.dat",
+            sum_usize,
+            &['|'],
+            parse_vec,
+            &["@", "#"],
+        ) {
+            Ok(_) => panic!("Should have failed, but succeeded."),
+            Err(GridMapError::NotIncreasing(x, y)) => {
+                assert_eq!(x, String::from("1"));
+                assert_eq!(y, String::from("2"));
+            }
+            Err(e) => panic!("Invalid error type returned: '{}'", e),
+        }
+    }
+
+    #[test]
+    fn from_file_column_major_not_fully_increasing() {
+        match GridMap::from_file(
+            "test_files/gridmaps/map_column_major_not_fully_increasing.dat",
+            sum_usize,
+            &['|'],
+            parse_vec,
+            &["@", "#"],
+        ) {
+            Ok(_) => panic!("Should have failed, but succeeded."),
+            Err(GridMapError::NotIncreasing(x, y)) => {
+                assert_eq!(x, String::from("0"));
+                assert_eq!(y, String::from("1"));
+            }
+            Err(e) => panic!("Invalid error type returned: '{}'", e),
+        }
+    }
+
+    #[test]
+    fn from_file_column_major_x_inconsistency() {
+        match GridMap::from_file(
+            "test_files/gridmaps/map_column_major_x_inconsistency.dat",
+            sum_usize,
+            &['|'],
+            parse_vec,
+            &["@", "#"],
+        ) {
+            Ok(_) => panic!("Should have failed, but succeeded."),
+            Err(GridMapError::InvalidCoordinates(x)) => {
+                assert_eq!(x, String::from("2"));
+            }
+            Err(e) => panic!("Invalid error type returned: '{}'", e),
+        }
+    }
+
+    #[test]
+    fn from_file_column_major_y_inconsistency() {
+        match GridMap::from_file(
+            "test_files/gridmaps/map_column_major_y_inconsistency.dat",
+            sum_usize,
+            &['|'],
+            parse_vec,
+            &["@", "#"],
+        ) {
+            Ok(_) => panic!("Should have failed, but succeeded."),
+            Err(GridMapError::InvalidCoordinates(x)) => {
+                assert_eq!(x, String::from("3.5"));
+            }
+            Err(e) => panic!("Invalid error type returned: '{}'", e),
+        }
+    }
+
+    #[test]
+    fn from_file_column_major_redefinition() {
+        match GridMap::from_file(
+            "test_files/gridmaps/map_column_major_redefinition.dat",
+            sum_usize,
+            &['|'],
+            parse_vec,
+            &["@", "#"],
+        ) {
+            Ok(_) => panic!("Should have failed, but succeeded."),
+            Err(GridMapError::PointDefinedMultipleTimes(x, y)) => {
+                assert_eq!(x, String::from("0"));
+                assert_eq!(y, String::from("0"));
+            }
+            Err(e) => panic!("Invalid error type returned: '{}'", e),
+        }
     }
 
     #[test]
@@ -794,7 +1049,123 @@ mod tests {
         assert_eq!(*gridmap.get_at(2.0, 0.0).unwrap(), vec![43, 23, 21]);
         assert_eq!(*gridmap.get_at(0.0, 1.0).unwrap(), vec![4, 8, 12]);
         assert_eq!(*gridmap.get_at(1.0, 1.0).unwrap(), vec![2, 5]);
-        assert_eq!(*gridmap.get_at(2.0, 1.0).unwrap(), vec![]);
+        assert_eq!(*gridmap.get_at(2.0, 1.0).unwrap(), Vec::<usize>::new());
+    }
+
+    #[test]
+    fn from_file_row_major_not_increasing() {
+        match GridMap::from_file(
+            "test_files/gridmaps/map_row_major_decreasing.dat",
+            sum_usize,
+            &['|'],
+            parse_vec,
+            &["@", "#"],
+        ) {
+            Ok(_) => panic!("Should have failed, but succeeded."),
+            Err(GridMapError::NotIncreasing(x, y)) => {
+                assert_eq!(x, String::from("1"));
+                assert_eq!(y, String::from("2"));
+            }
+            Err(e) => panic!("Invalid error type returned: '{}'", e),
+        }
+    }
+
+    #[test]
+    fn from_file_row_major_x_inconsistency() {
+        match GridMap::from_file(
+            "test_files/gridmaps/map_row_major_x_inconsistency.dat",
+            sum_usize,
+            &['|'],
+            parse_vec,
+            &["@", "#"],
+        ) {
+            Ok(_) => panic!("Should have failed, but succeeded."),
+            Err(GridMapError::InvalidCoordinates(x)) => {
+                assert_eq!(x, String::from("1"));
+            }
+            Err(e) => panic!("Invalid error type returned: '{}'", e),
+        }
+    }
+
+    #[test]
+    fn from_file_row_major_y_inconsistency() {
+        match GridMap::from_file(
+            "test_files/gridmaps/map_row_major_y_inconsistency.dat",
+            sum_usize,
+            &['|'],
+            parse_vec,
+            &["@", "#"],
+        ) {
+            Ok(_) => panic!("Should have failed, but succeeded."),
+            Err(GridMapError::InvalidCoordinates(x)) => {
+                assert_eq!(x, String::from("0"));
+            }
+            Err(e) => panic!("Invalid error type returned: '{}'", e),
+        }
+    }
+
+    #[test]
+    fn from_file_row_major_redefinition() {
+        match GridMap::from_file(
+            "test_files/gridmaps/map_row_major_redefinition.dat",
+            sum_usize,
+            &['|'],
+            parse_vec,
+            &["@", "#"],
+        ) {
+            Ok(_) => panic!("Should have failed, but succeeded."),
+            Err(GridMapError::PointDefinedMultipleTimes(x, y)) => {
+                assert_eq!(x, String::from("0"));
+                assert_eq!(y, String::from("1"));
+            }
+            Err(e) => panic!("Invalid error type returned: '{}'", e),
+        }
+    }
+
+    #[test]
+    fn all_coordinates_same() {
+        match GridMap::from_file(
+            "test_files/gridmaps/all_coordinates_same.dat",
+            sum_usize,
+            &['|'],
+            parse_vec,
+            &["@", "#"],
+        ) {
+            Ok(_) => panic!("Should have failed, but succeeded."),
+            Err(GridMapError::InvalidCoordinates(x)) => {
+                assert_eq!(x, String::from("0"));
+            }
+            Err(e) => panic!("Invalid error type returned: '{}'", e),
+        }
+    }
+
+    #[test]
+    fn clear() {
+        let values = vec![1, 2, 3, 4, 5, 6, 7, 8];
+        let mut gridmap = GridMap::from_vec(
+            (1.0, 2.0),
+            (1.0, 2.5),
+            (1.0, 0.5),
+            values,
+            DataOrder::ColumnMajor,
+            usize::to_owned,
+        )
+        .unwrap();
+
+        gridmap.clear();
+        assert!(gridmap.values.iter().all(|&x| x == 0));
+
+        let mut gridmap = GridMap::from_file(
+            "test_files/gridmaps/map_column_major.dat",
+            sum_usize,
+            &['|'],
+            parse_vec,
+            &["@", "#"],
+        )
+        .unwrap();
+
+        gridmap.clear();
+        assert!(gridmap.values.iter().all(|x| x.is_empty()));
     }
 
     #[test]

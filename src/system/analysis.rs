@@ -3,8 +3,10 @@
 
 //! Implementation of various methods for analysis of `System`.
 
+use ndarray::Array2;
+
 use crate::errors::{AtomError, GroupError};
-use crate::structures::iterators::MasterAtomIterator;
+use crate::structures::iterators::{AtomIterable, AtomIteratorWithBox};
 use crate::structures::simbox::simbox_check;
 use crate::structures::{dimension::Dimension, vector3d::Vector3D};
 use crate::system::System;
@@ -19,13 +21,8 @@ impl System {
     /// - `GroupError::NotFound` if the group does not exist.
     /// - `GroupError::EmptyGroup` if the group contains no atoms.
     /// - `GroupError::InvalidSimBox` if the system has no simulation box
-    /// or the simulation box is not orthogonal.
+    ///   or the simulation box is not orthogonal.
     /// - `GroupError::InvalidPosition` if any of the atoms in the group has no position.
-    ///
-    /// ## Notes
-    /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
-    /// - It is able to calculate correct center of geometry for any distribution of atoms
-    /// that is not completely homogeneous.
     ///
     /// ## Example
     /// ```no_run
@@ -43,6 +40,12 @@ impl System {
     ///     }
     /// };
     /// ```
+    ///
+    /// ## Notes
+    /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
+    /// - It is able to calculate correct center of geometry for any distribution of atoms
+    ///   that is not completely homogeneous.
+    /// - If you do **not** want to consider periodic boundary conditions during the calculation, use [`System::group_get_center_naive`].
     pub fn group_get_center(&self, name: &str) -> Result<Vector3D, GroupError> {
         if self.group_isempty(name)? {
             return Err(GroupError::EmptyGroup(name.to_owned()));
@@ -56,7 +59,51 @@ impl System {
             Ok(x) => Ok(x),
             Err(AtomError::InvalidSimBox(e)) => Err(GroupError::InvalidSimBox(e)),
             Err(AtomError::InvalidPosition(e)) => Err(GroupError::InvalidPosition(e)),
-            _ => panic!("FATAL GROAN ERROR | System::group_get_center | Invalid error type returned from `System::iterator_get_center`."),
+            _ => panic!("FATAL GROAN ERROR | System::group_get_center | Invalid error type returned from `AtomIteratorWithBox::get_center`."),
+        }
+    }
+
+    /// Calculate center of geometry of a group in `System`.
+    /// This method **does not account for periodic boundary conditions**.
+    ///
+    /// If you want to consider PBC, use [`System::group_get_center`].
+    ///
+    /// ## Returns
+    /// - `Vector3D` corresponding to the geometric center of the group.
+    /// - `GroupError::NotFound` if the group does not exist.
+    /// - `GroupError::EmptyGroup` if the group contains no atoms.
+    /// - `GroupError::InvalidPosition` if any of the atoms in the group has no position.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.read_ndx("index.ndx").unwrap();
+    ///
+    /// // calculate NAIVE center of geometry for group "Group"
+    /// // (without taking periodic boundaries into consideration)
+    /// let center = match system.group_get_center_naive("Group") {
+    ///     Ok(x) => x,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;    
+    ///     }
+    /// };
+    /// ```
+    pub fn group_get_center_naive(&self, name: &str) -> Result<Vector3D, GroupError> {
+        if self.group_isempty(name)? {
+            return Err(GroupError::EmptyGroup(name.to_owned()));
+        }
+
+        let iterator = self
+            .group_iter(name)
+            .expect("FATAL GROAN ERROR | System::group_get_center_naive | Group does not exist but this should have been handled before.");
+
+        match iterator.get_center_naive() {
+            Ok(x) => Ok(x),
+            Err(AtomError::InvalidPosition(e)) => Err(GroupError::InvalidPosition(e)),
+            _ => panic!("FATAL GROAN ERROR | System::group_get_center_naive | Invalid error type returned from `AtomIterable::get_center_naive`.")
         }
     }
 
@@ -68,23 +115,16 @@ impl System {
     /// - `GroupError::NotFound` if the group does not exist.
     /// - `GroupError::EmptyGroup` if the group contains no atoms.
     /// - `GroupError::InvalidSimBox` if the system has no simulation box
-    /// or the simulation box is not orthogonal.
+    ///   or the simulation box is not orthogonal.
     /// - `GroupError::InvalidPosition` if any of the atoms in the group has no position.
     /// - `GroupError::InvalidMass` if any of the atoms in the group has no mass.
-    ///
-    /// ## Notes
-    /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
-    /// - It is able to calculate correct center of mass for any distribution of atoms
-    /// that is not completely homogeneous.
     ///
     /// ## Example
     /// ```no_run
     /// # use groan_rs::prelude::*;
     /// #
-    /// let mut system = System::from_file("system.gro").unwrap();
+    /// let mut system = System::from_file("system.tpr").unwrap();
     /// system.read_ndx("index.ndx").unwrap();
-    ///
-    /// // ... assign masses to atoms ...
     ///
     /// // calculate center of mass for group "Group"
     /// let center = match system.group_get_com("Group") {
@@ -95,6 +135,12 @@ impl System {
     ///     }
     /// };
     /// ```
+    ///
+    /// ## Notes
+    /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
+    /// - It is able to calculate correct center of mass for any distribution of atoms
+    ///   that is not completely homogeneous.
+    /// - If you do **not** want to consider periodic boundary conditions during the calculation, use [`System::group_get_com_naive`].
     pub fn group_get_com(&self, name: &str) -> Result<Vector3D, GroupError> {
         if self.group_isempty(name)? {
             return Err(GroupError::EmptyGroup(name.to_owned()));
@@ -109,7 +155,53 @@ impl System {
             Err(AtomError::InvalidSimBox(e)) => Err(GroupError::InvalidSimBox(e)),
             Err(AtomError::InvalidPosition(e)) => Err(GroupError::InvalidPosition(e)),
             Err(AtomError::InvalidMass(e)) => Err(GroupError::InvalidMass(e)),
-            _ => panic!("FATAL GROAN ERROR | System::group_get_com | Invalid error type returned from `System::iterator_get_com`."),
+            _ => panic!("FATAL GROAN ERROR | System::group_get_com | Invalid error type returned from `AtomIteratorWithBox::get_com`."),
+        }
+    }
+
+    /// Calculate center of mass of a group in `System`.
+    /// This method **does not account for periodic boundary conditions**.
+    ///
+    /// If you want to consider PBC, use [`System::group_get_com`].
+    ///
+    /// ## Returns
+    /// - `Vector3D` corresponding to the center of mass of the group.
+    /// - `GroupError::NotFound` if the group does not exist.
+    /// - `GroupError::EmptyGroup` if the group contains no atoms.
+    /// - `GroupError::InvalidPosition` if any of the atoms in the group has no position.
+    /// - `GroupError::InvalidMass` if any of the atoms in the group has no mass.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.tpr").unwrap();
+    /// system.read_ndx("index.ndx").unwrap();
+    ///
+    /// // calculate NAIVE center of mass for group "Group"
+    /// // (without taking periodic boundaries into consideration)
+    /// let center = match system.group_get_com_naive("Group") {
+    ///     Ok(x) => x,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;    
+    ///     }
+    /// };
+    /// ```
+    pub fn group_get_com_naive(&self, name: &str) -> Result<Vector3D, GroupError> {
+        if self.group_isempty(name)? {
+            return Err(GroupError::EmptyGroup(name.to_owned()));
+        }
+
+        let iterator = self
+            .group_iter(name)
+            .expect("FATAL GROAN ERROR | System::group_get_com_naive | Group does not exist but this should have been handled before.");
+
+        match iterator.get_com_naive() {
+            Ok(x) => Ok(x),
+            Err(AtomError::InvalidPosition(e)) => Err(GroupError::InvalidPosition(e)),
+            Err(AtomError::InvalidMass(e)) => Err(GroupError::InvalidMass(e)),
+            _ => panic!("FATAL GROAN ERROR | System::group_get_com_naive | Invalid error type returned from `AtomIterable::get_com_naive`.")
         }
     }
 
@@ -120,7 +212,7 @@ impl System {
     /// - `f32` corresponding to the distance between the groups.
     /// - `GroupError::NotFound` if any of the groups does not exist.
     /// - `GroupError::InvalidSimBox` if the system has no simulation box
-    /// or the simulation box is not orthogonal.
+    ///   or the simulation box is not orthogonal.
     /// - `GroupError::InvalidPosition` if any of the atoms in the groups has no position.
     ///
     /// ## Example
@@ -148,7 +240,7 @@ impl System {
         let group1_center = self.group_get_center(group1)?;
         let group2_center = self.group_get_center(group2)?;
 
-        let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?;
+        let simbox = simbox_check(self.get_box()).map_err(GroupError::InvalidSimBox)?;
 
         Ok(group1_center.distance(&group2_center, dim, simbox))
     }
@@ -157,22 +249,23 @@ impl System {
     /// Oriented distances are used for 1D problems.
     ///
     /// ## Returns
-    /// - Two dimensional vector of distances.
+    /// - Two dimensional array of distances.
     /// - `GroupError::NotFound` if any of the groups does not exist.
     /// - `GroupError::InvalidSimBox` if the system has no simulation box
-    /// or the simulation box is not orthogonal.
+    ///   or the simulation box is not orthogonal.
     /// - `GroupError::InvalidPosition` if any of the atoms in the groups has no position.
     ///
     /// ## Example
     /// Calculate distances between atoms of group 'Protein' and 'Membrane'.
     /// ```no_run
     /// # use groan_rs::prelude::*;
+    /// # use ndarray::Array2;
     /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.read_ndx("index.ndx").unwrap();
     ///
     /// // calculate the matrix of distances
-    /// let distances: Vec<Vec<f32>> = match system.group_all_distances("Protein", "Membrane", Dimension::XYZ) {
+    /// let distances: Array2<f32> = match system.group_all_distances("Protein", "Membrane", Dimension::XYZ) {
     ///     Ok(x) => x,
     ///     Err(e) => {
     ///         eprintln!("{}", e);
@@ -181,39 +274,38 @@ impl System {
     /// };
     ///
     /// // get the maximal distance between the atoms
-    /// let max = distances
+    /// let max = *distances
     ///     .iter()
-    ///     .flatten()
-    ///     .fold(f32::NEG_INFINITY, |max, &current| max.max(current));
+    ///     .max_by(|x, y| x.partial_cmp(y).unwrap())
+    ///     .unwrap();
     /// // get the minimal distance between the atoms
-    /// let min = distances
+    /// let min = *distances
     ///     .iter()
-    ///     .flatten()
-    ///     .fold(f32::INFINITY, |min, &current| min.min(current));
+    ///     .min_by(|x, y| x.partial_cmp(y).unwrap())
+    ///     .unwrap();
     /// ```
     pub fn group_all_distances(
         &self,
         group1: &str,
         group2: &str,
         dim: Dimension,
-    ) -> Result<Vec<Vec<f32>>, GroupError> {
+    ) -> Result<Array2<f32>, GroupError> {
         let n_atoms_group1 = self.group_get_n_atoms(group1)?;
         let n_atoms_group2 = self.group_get_n_atoms(group2)?;
 
-        let simbox = simbox_check(self.get_box_as_ref()).map_err(GroupError::InvalidSimBox)?;
+        let simbox = simbox_check(self.get_box()).map_err(GroupError::InvalidSimBox)?;
 
-        let mut distances = Vec::with_capacity(n_atoms_group1);
+        let mut distances = Array2::default((n_atoms_group1, n_atoms_group2));
 
         for (i, atom1) in self.group_iter(group1)?.enumerate() {
-            distances.push(Vec::with_capacity(n_atoms_group2));
-            for atom2 in self.group_iter(group2)? {
+            for (j, atom2) in self.group_iter(group2)?.enumerate() {
                 let dist = match atom1.distance(atom2, dim, simbox) {
                     Ok(x) => x,
                     Err(AtomError::InvalidPosition(e)) => return Err(GroupError::InvalidPosition(e)),
                     _ => panic!("FATAL GROAN ERROR | System::group_all_distances | Invalid error type returned by Atom::distance."),
                 };
 
-                distances[i].push(dist);
+                distances[(i, j)] = dist;
             }
         }
 
@@ -229,7 +321,7 @@ impl System {
     /// - `f32` corresponding to the distance between the atoms.
     /// - `AtomError::OutOfRange` if any of the atom indices is out of range.
     /// - `AtomError::InvalidSimBox` if the system has no simulation box
-    /// or the simulation box is not orthogonal.
+    ///   or the simulation box is not orthogonal.
     /// - `AtomError::InvalidPosition` if any of the atoms has no position.
     ///
     /// ## Example
@@ -256,10 +348,10 @@ impl System {
         index2: usize,
         dim: Dimension,
     ) -> Result<f32, AtomError> {
-        let atom1 = self.get_atom_as_ref(index1)?;
-        let atom2 = self.get_atom_as_ref(index2)?;
+        let atom1 = self.get_atom(index1)?;
+        let atom2 = self.get_atom(index2)?;
 
-        let simbox = simbox_check(self.get_box_as_ref()).map_err(AtomError::InvalidSimBox)?;
+        let simbox = simbox_check(self.get_box()).map_err(AtomError::InvalidSimBox)?;
 
         atom1.distance(atom2, dim, simbox)
     }
@@ -427,10 +519,10 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        system.get_atom_as_mut(15).unwrap().reset_position();
+        system.get_atom_mut(15).unwrap().reset_position();
 
         match system.group_get_center("Protein") {
-            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
             Ok(_) => panic!("Calculating center should have failed, but it was successful."),
             Err(e) => panic!(
                 "Failed successfully but incorrect error type `{:?}` was returned.",
@@ -445,6 +537,70 @@ mod tests {
         system.group_create("Empty", "resname NON").unwrap();
 
         match system.group_get_center("Empty") {
+            Err(GroupError::EmptyGroup(x)) => assert_eq!(x, "Empty"),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn center_real_system_naive() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let center_mem = system.group_get_center_naive("Membrane").unwrap();
+        let center_prot = system.group_get_center_naive("Protein").unwrap();
+
+        assert_approx_eq!(f32, center_mem.x, 6.47077, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_mem.y, 6.52237, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_mem.z, 5.77978, epsilon = 0.0001);
+
+        assert_approx_eq!(f32, center_prot.x, 9.85718, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_prot.y, 2.46213, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_prot.z, 5.45931, epsilon = 0.0001);
+    }
+
+    #[test]
+    fn center_real_system_naive_fail_invalid_group() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.group_get_center_naive("Nonexistent") {
+            Err(GroupError::NotFound(e)) => assert_eq!(e, "Nonexistent"),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn center_real_system_naive_fail_invalid_position() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        system.get_atom_mut(15).unwrap().reset_position();
+
+        match system.group_get_center_naive("Protein") {
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn center_real_system_naive_fail_empty_group() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("Empty", "resname NON").unwrap();
+
+        match system.group_get_center_naive("Empty") {
             Err(GroupError::EmptyGroup(x)) => assert_eq!(x, "Empty"),
             Ok(_) => panic!("Calculating center should have failed, but it was successful."),
             Err(e) => panic!(
@@ -655,10 +811,10 @@ mod tests {
             atom.set_mass(10.3);
         }
 
-        system.get_atom_as_mut(15).unwrap().reset_position();
+        system.get_atom_mut(15).unwrap().reset_position();
 
         match system.group_get_com("Protein") {
-            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
             Ok(_) => panic!("Calculating center should have failed, but it was successful."),
             Err(e) => panic!(
                 "Failed successfully but incorrect error type `{:?}` was returned.",
@@ -673,7 +829,7 @@ mod tests {
         system.read_ndx("test_files/index.ndx").unwrap();
 
         match system.group_get_com("Protein") {
-            Err(GroupError::InvalidMass(MassError::NoMass(x))) => assert_eq!(x, 1),
+            Err(GroupError::InvalidMass(MassError::NoMass(x))) => assert_eq!(x, 0),
             Ok(_) => panic!("Calculating center should have failed, but it was successful."),
             Err(e) => panic!(
                 "Failed successfully but incorrect error type `{:?}` was returned.",
@@ -688,6 +844,89 @@ mod tests {
         system.group_create("Empty", "resname NON").unwrap();
 
         match system.group_get_com("Empty") {
+            Err(GroupError::EmptyGroup(x)) => assert_eq!(x, "Empty"),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn com_real_system_naive() {
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let center_mem = system.group_get_com_naive("Membrane").unwrap();
+        let center_prot = system.group_get_com_naive("Protein").unwrap();
+
+        assert_approx_eq!(f32, center_mem.x, 6.47081, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_mem.y, 6.52297, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_mem.z, 5.77975, epsilon = 0.0001);
+
+        assert_approx_eq!(f32, center_prot.x, 9.85456, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_prot.y, 2.44974, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_prot.z, 5.51983, epsilon = 0.0001);
+    }
+
+    #[test]
+    fn com_real_system_naive_fail_invalid_group() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.group_get_com_naive("Nonexistent") {
+            Err(GroupError::NotFound(e)) => assert_eq!(e, "Nonexistent"),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn com_real_system_naive_fail_invalid_position() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        for atom in system.atoms_iter_mut() {
+            atom.set_mass(10.3);
+        }
+
+        system.get_atom_mut(15).unwrap().reset_position();
+
+        match system.group_get_com_naive("Protein") {
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn com_real_system_naive_fail_invalid_mass() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.group_get_com_naive("Protein") {
+            Err(GroupError::InvalidMass(MassError::NoMass(x))) => assert_eq!(x, 0),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn com_real_system_naive_fail_empty_group() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("Empty", "resname NON").unwrap();
+
+        match system.group_get_com_naive("Empty") {
             Err(GroupError::EmptyGroup(x)) => assert_eq!(x, "Empty"),
             Ok(_) => panic!("Calculating center should have failed, but it was successful."),
             Err(e) => panic!(
@@ -836,10 +1075,10 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
 
-        system.get_atom_as_mut(15).unwrap().reset_position();
+        system.get_atom_mut(15).unwrap().reset_position();
 
         match system.group_distance("Protein", "Membrane", Dimension::XYZ) {
-            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
             Ok(_) => panic!("Calculating center should have failed, but it was successful."),
             Err(e) => panic!(
                 "Failed successfully but incorrect error type `{:?}` was returned.",
@@ -858,29 +1097,28 @@ mod tests {
             .group_all_distances("Protein", "Protein", Dimension::XYZ)
             .unwrap();
 
-        assert_eq!(distances.len(), n_atoms);
-        assert_eq!(distances[0].len(), n_atoms);
+        assert_eq!(distances.len(), n_atoms * n_atoms);
 
         for i in 0..n_atoms {
             for j in 0..n_atoms {
-                assert_approx_eq!(f32, distances[i][j], distances[j][i]);
+                assert_approx_eq!(f32, distances[(i, j)], distances[(j, i)]);
 
                 if i == j {
-                    assert_eq!(distances[i][j], 0.0);
+                    assert_eq!(distances[(i, j)], 0.0);
                 }
             }
         }
 
         // get maximal value
-        let max = distances
+        let max = *distances
             .iter()
-            .flatten()
-            .fold(f32::NEG_INFINITY, |max, &current| max.max(current));
+            .max_by(|x, y| x.partial_cmp(y).unwrap())
+            .unwrap();
         assert_approx_eq!(f32, max, 4.597961);
 
-        assert_approx_eq!(f32, distances[0][1], 0.31040135);
-        assert_approx_eq!(f32, distances[n_atoms - 1][0], 4.266728);
-        assert_approx_eq!(f32, distances[n_atoms - 1][n_atoms - 2], 0.31425142);
+        assert_approx_eq!(f32, distances[(0, 1)], 0.31040135);
+        assert_approx_eq!(f32, distances[(n_atoms - 1, 0)], 4.266728);
+        assert_approx_eq!(f32, distances[(n_atoms - 1, n_atoms - 2)], 0.31425142);
     }
 
     #[test]
@@ -893,38 +1131,37 @@ mod tests {
             .group_all_distances("Protein", "Protein", Dimension::Z)
             .unwrap();
 
-        assert_eq!(distances.len(), n_atoms);
-        assert_eq!(distances[0].len(), n_atoms);
+        assert_eq!(distances.len(), n_atoms * n_atoms);
 
         for i in 0..n_atoms {
             for j in 0..n_atoms {
-                assert_approx_eq!(f32, distances[i][j], -distances[j][i]);
+                assert_approx_eq!(f32, distances[(i, j)], -distances[(j, i)]);
 
                 if i == j {
-                    assert_eq!(distances[i][j], 0.0);
+                    assert_eq!(distances[(i, j)], 0.0);
                 }
             }
         }
 
         // get maximal value
-        let max = distances
+        let max = *distances
             .iter()
-            .flatten()
-            .fold(f32::NEG_INFINITY, |max, &current| max.max(current));
+            .max_by(|x, y| x.partial_cmp(y).unwrap())
+            .unwrap();
         assert_approx_eq!(f32, max, 4.383, epsilon = 0.00001);
 
         // get the minimal value
-        let min = distances
+        let min = *distances
             .iter()
-            .flatten()
-            .fold(f32::INFINITY, |min, &current| min.min(current));
+            .min_by(|x, y| x.partial_cmp(y).unwrap())
+            .unwrap();
         assert_approx_eq!(f32, min, -4.383, epsilon = 0.00001);
 
-        assert_approx_eq!(f32, distances[0][1], 0.0900, epsilon = 0.00001);
-        assert_approx_eq!(f32, distances[n_atoms - 1][0], -4.213, epsilon = 0.00001);
+        assert_approx_eq!(f32, distances[(0, 1)], 0.0900, epsilon = 0.00001);
+        assert_approx_eq!(f32, distances[(n_atoms - 1, 0)], -4.213, epsilon = 0.00001);
         assert_approx_eq!(
             f32,
-            distances[n_atoms - 1][n_atoms - 2],
+            distances[(n_atoms - 1, n_atoms - 2)],
             -0.101,
             epsilon = 0.00001
         );
@@ -941,27 +1178,26 @@ mod tests {
             .group_all_distances("Membrane", "Protein", Dimension::XY)
             .unwrap();
 
-        assert_eq!(distances.len(), n_atoms_membrane);
-        assert_eq!(distances[0].len(), n_atoms_protein);
+        assert_eq!(distances.len(), n_atoms_membrane * n_atoms_protein);
 
         // get maximal value
-        let max = distances
+        let max = *distances
             .iter()
-            .flatten()
-            .fold(f32::NEG_INFINITY, |max, &current| max.max(current));
+            .max_by(|x, y| x.partial_cmp(y).unwrap())
+            .unwrap();
         assert_approx_eq!(f32, max, 9.190487, epsilon = 0.00001);
 
         // get the minimal value
-        let min = distances
+        let min = *distances
             .iter()
-            .flatten()
-            .fold(f32::INFINITY, |min, &current| min.min(current));
+            .min_by(|x, y| x.partial_cmp(y).unwrap())
+            .unwrap();
         assert_approx_eq!(f32, min, 0.02607, epsilon = 0.00001);
 
-        assert_approx_eq!(f32, distances[0][0], 3.747651);
-        assert_approx_eq!(f32, distances[1240][12], 3.7207017);
-        assert_approx_eq!(f32, distances[12][34], 6.2494035);
-        assert_approx_eq!(f32, distances[6143][60], 4.7850933);
+        assert_approx_eq!(f32, distances[(0, 0)], 3.747651);
+        assert_approx_eq!(f32, distances[(1240, 12)], 3.7207017);
+        assert_approx_eq!(f32, distances[(12, 34)], 6.2494035);
+        assert_approx_eq!(f32, distances[(6143, 60)], 4.7850933);
     }
 
     #[test]
@@ -1014,10 +1250,10 @@ mod tests {
     fn group_all_distances_fail_position() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
-        system.get_atom_as_mut(15).unwrap().reset_position();
+        system.get_atom_mut(15).unwrap().reset_position();
 
         match system.group_all_distances("Membrane", "Protein", Dimension::XYZ) {
-            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
             Ok(_) => panic!("Calculating center should have failed, but it was successful."),
             Err(e) => panic!(
                 "Failed successfully but incorrect error type `{:?}` was returned.",
@@ -1095,11 +1331,11 @@ mod tests {
     fn atoms_distance_fail_position() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        system.get_atom_as_mut(15).unwrap().reset_position();
+        system.get_atom_mut(15).unwrap().reset_position();
 
         match system.atoms_distance(12, 15, Dimension::XYZ) {
             Ok(_) => panic!("Function should have failed but it succeeded."),
-            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
             Err(e) => panic!(
                 "Function failed successfully but incorrect error type `{:?}` was returned.",
                 e

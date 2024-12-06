@@ -3,6 +3,8 @@
 
 //! Implementation of some higher level functions for `groan_rs` programs.
 
+use std::ops::Deref;
+
 use crate::errors::{AtomError, GroupError, ParseNdxError};
 use crate::structures::{dimension::Dimension, vector3d::Vector3D};
 use crate::system::System;
@@ -108,12 +110,7 @@ impl System {
         let reference_center = self.group_get_center(reference)?;
 
         let box_center = self.get_box_center().map_err(GroupError::InvalidSimBox)?;
-        let mut shift: Vector3D = [
-            box_center.x - reference_center.x,
-            box_center.y - reference_center.y,
-            box_center.z - reference_center.z,
-        ]
-        .into();
+        let mut shift = Vector3D(box_center.deref() - reference_center.deref());
 
         shift.filter(dimension);
         match self.atoms_translate(&shift) {
@@ -168,12 +165,7 @@ impl System {
         let reference_com = self.group_get_com(reference)?;
 
         let box_center = self.get_box_center().map_err(GroupError::InvalidSimBox)?;
-        let mut shift: Vector3D = [
-            box_center.x - reference_com.x,
-            box_center.y - reference_com.y,
-            box_center.z - reference_com.z,
-        ]
-        .into();
+        let mut shift = Vector3D(box_center.deref() - reference_com.deref());
 
         shift.filter(dimension);
         match self.atoms_translate(&shift) {
@@ -570,11 +562,11 @@ mod tests {
     fn atoms_center_fail_position() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
-        system.get_atom_as_mut(15).unwrap().reset_position();
+        system.get_atom_mut(15).unwrap().reset_position();
 
         match system.atoms_center("Protein", Dimension::XYZ) {
             Ok(_) => panic!("Function should have failed."),
-            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
             Err(e) => panic!(
                 "Function failed successfully, but incorrect error type `{:?}` was returned.",
                 e
@@ -847,11 +839,11 @@ mod tests {
         let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
         system.guess_elements(Elements::default()).unwrap();
         system.group_create("Protein", "@protein").unwrap();
-        system.get_atom_as_mut(15).unwrap().reset_position();
+        system.get_atom_mut(15).unwrap().reset_position();
 
         match system.atoms_center_mass("Protein", Dimension::XYZ) {
             Ok(_) => panic!("Function should have failed."),
-            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 16),
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
             Err(e) => panic!(
                 "Function failed successfully, but incorrect error type `{:?}` was returned.",
                 e
@@ -866,7 +858,7 @@ mod tests {
 
         match system.atoms_center_mass("Protein", Dimension::XYZ) {
             Ok(_) => panic!("Function should have failed."),
-            Err(GroupError::InvalidMass(MassError::NoMass(x))) => assert_eq!(x, 1),
+            Err(GroupError::InvalidMass(MassError::NoMass(x))) => assert_eq!(x, 0),
             Err(e) => panic!(
                 "Function failed successfully, but incorrect error type `{:?}` was returned.",
                 e

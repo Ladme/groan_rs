@@ -43,17 +43,17 @@ extern "C"
    typedef struct /* This struct describes the order and the	*/
    /* sizes of the structs in a trjfile, sizes are given in bytes.	*/
    {
-      mybool bDouble; /* Double precision?                            */
-      int ir_size;    /* Backward compatibility		        */
-      int e_size;     /* Backward compatibility		        */
-      int box_size;   /* Non zero if a box is present			*/
-      int vir_size;   /* Backward compatibility		        */
-      int pres_size;  /* Backward compatibility		        */
-      int top_size;   /* Backward compatibility		        */
-      int sym_size;   /* Backward compatibility		        */
-      int x_size;     /* Non zero if coordinates are present		*/
-      int v_size;     /* Non zero if velocities are present		*/
-      int f_size;     /* Non zero if forces are present		*/
+      mybool bDouble;      /* Double precision?                            */
+      int ir_size;         /* Backward compatibility		        */
+      int e_size;          /* Backward compatibility		        */
+      int box_size;        /* Non zero if a box is present			*/
+      int vir_size;        /* Backward compatibility		        */
+      int pres_size;       /* Backward compatibility		        */
+      int top_size;        /* Backward compatibility		        */
+      int sym_size;        /* Backward compatibility		        */
+      unsigned int x_size; /* Non zero if coordinates are present		*/
+      unsigned int v_size; /* Non zero if velocities are present		*/
+      unsigned int f_size; /* Non zero if forces are present		*/
 
       int natoms;     /* The total number of atoms			*/
       int step;       /* Current step number				*/

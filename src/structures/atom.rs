@@ -5,6 +5,9 @@
 
 use std::io::Write;
 
+use getset::{CopyGetters, Getters, Setters};
+use nalgebra::Matrix3;
+
 use crate::auxiliary::{
     GRO_MAX_COORDINATE, GRO_MIN_COORDINATE, PDB_MAX_COORDINATE, PDB_MIN_COORDINATE,
 };
@@ -14,29 +17,44 @@ use crate::structures::{
     container::AtomContainer, dimension::Dimension, simbox::SimBox, vector3d::Vector3D,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Setters, Getters, CopyGetters)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct Atom {
-    /// Number (index) of the residue this atom is part of.
+    /// Position (index) of the atom in the system. Guaranteed to be unique.
+    /// Undefined if the atom is not part of a system.
+    #[getset(get_copy = "pub with_prefix", set = "pub(crate)")]
+    #[cfg_attr(feature = "serde", serde(skip))]
+    index: usize,
+    /// Number of the residue this atom is part of.
+    #[getset(get_copy = "pub with_prefix", set = "pub")]
     residue_number: usize,
     /// Name of the residue this atom is part of.
+    #[getset(get = "pub with_prefix")]
     residue_name: String,
-    /// Number (index) of the atom.
+    /// Number of the atom. Not guaranteed to be unique.
+    #[getset(get_copy = "pub with_prefix", set = "pub")]
     atom_number: usize,
     /// Name of the atom.
+    #[getset(get = "pub with_prefix")]
     atom_name: String,
     /// Identifier of the chain this atom is part of. (Optional)
+    #[getset(get_copy = "pub with_prefix")]
     chain: Option<char>,
     /// Charge of the atom. (Optional)
+    #[getset(get_copy = "pub with_prefix")]
     charge: Option<f32>,
     /// Mass of the atom. (Optional)
+    #[getset(get_copy = "pub with_prefix")]
     mass: Option<f32>,
     /// Van der Waals radius of the atom. (Optional)
+    #[getset(get_copy = "pub with_prefix")]
     vdw: Option<f32>,
     /// Expected maximal number of bonded atoms. (Optional.)
+    #[getset(get_copy = "pub with_prefix")]
     expected_max_bonds: Option<u8>,
     /// Expected minimal number of bonded atoms. (Optional.)
+    #[getset(get_copy = "pub with_prefix")]
     expected_min_bonds: Option<u8>,
     /// Name of the element of the atom. (Optional.)
     element_name: Option<String>,
@@ -57,8 +75,9 @@ impl Atom {
     ///
     /// ## Notes
     /// - By default, atom is constructed with `position`, `velocity`, `force`, `chain`, `charge`,
-    /// `mass`, `vdw`, `expected_max_bonds`, `expected_min_bonds`, `element_name`, and `element_symbol`
-    /// set to `None`. You can provide this information using the `Atom::with_*` methods.
+    ///   `mass`, `vdw`, `expected_max_bonds`, `expected_min_bonds`, `element_name`, and `element_symbol`
+    ///   set to `None`. You can provide this information using the `Atom::with_*` methods.
+    /// - Index of an atom after construction is 0. Valid index is only assigned once the atom is added to a System.
     pub fn new(
         residue_number: usize,
         residue_name: &str,
@@ -66,6 +85,7 @@ impl Atom {
         atom_name: &str,
     ) -> Self {
         Atom {
+            index: 0,
             residue_number,
             residue_name: residue_name.to_string(),
             atom_number,
@@ -151,49 +171,14 @@ impl Atom {
         self
     }
 
-    /// Get the number of the residue to which the atom belongs.
-    pub fn get_residue_number(&self) -> usize {
-        self.residue_number
-    }
-
-    /// Set the number of the residue to which the atom belongs.
-    pub fn set_residue_number(&mut self, resnum: usize) {
-        self.residue_number = resnum;
-    }
-
-    /// Get the name of the residue to which the atom belongs.
-    pub fn get_residue_name(&self) -> &str {
-        &self.residue_name
-    }
-
     /// Set the name of the residue to which the atom belongs.
     pub fn set_residue_name(&mut self, resname: &str) {
         self.residue_name = resname.to_string();
     }
 
-    /// Get the number of the atom as presented in gro or pdb file.
-    pub fn get_atom_number(&self) -> usize {
-        self.atom_number
-    }
-
-    /// Set the number of the atom as presented in gro or pdb file.
-    pub fn set_atom_number(&mut self, atomnum: usize) {
-        self.atom_number = atomnum;
-    }
-
-    /// Get the name of the atom.
-    pub fn get_atom_name(&self) -> &str {
-        &self.atom_name
-    }
-
     /// Set the name of the atom.
     pub fn set_atom_name(&mut self, atomname: &str) {
         self.atom_name = atomname.to_string();
-    }
-
-    /// Get the chain this atom is part of.
-    pub fn get_chain(&self) -> Option<char> {
-        self.chain
     }
 
     /// Set the chain of the atom.
@@ -206,11 +191,6 @@ impl Atom {
         self.chain = None;
     }
 
-    /// Get the charge of the atom.
-    pub fn get_charge(&self) -> Option<f32> {
-        self.charge
-    }
-
     /// Set the charge of the atom.
     pub fn set_charge(&mut self, charge: f32) {
         self.charge = Some(charge);
@@ -219,11 +199,6 @@ impl Atom {
     /// Set the charge of the atom to `None`.
     pub fn reset_charge(&mut self) {
         self.charge = None;
-    }
-
-    /// Get the mass of the atom.
-    pub fn get_mass(&self) -> Option<f32> {
-        self.mass
     }
 
     /// Set the mass of the atom.
@@ -236,11 +211,6 @@ impl Atom {
         self.mass = None;
     }
 
-    /// Get the vdW radius of the atom.
-    pub fn get_vdw(&self) -> Option<f32> {
-        self.vdw
-    }
-
     /// Set the vdW radius of the atom.
     pub fn set_vdw(&mut self, vdw: f32) {
         self.vdw = Some(vdw);
@@ -251,11 +221,6 @@ impl Atom {
         self.vdw = None;
     }
 
-    /// Get the expected maximal number of bonds of the atom.
-    pub fn get_expected_max_bonds(&self) -> Option<u8> {
-        self.expected_max_bonds
-    }
-
     /// Set the expected maximal number of bonds of the atom.
     pub fn set_expected_max_bonds(&mut self, expected_max_bonds: u8) {
         self.expected_max_bonds = Some(expected_max_bonds);
@@ -264,11 +229,6 @@ impl Atom {
     /// Set the expected maximal number of bonds of the atom to `None`.
     pub fn reset_expected_max_bonds(&mut self) {
         self.expected_max_bonds = None;
-    }
-
-    /// Get the expected minimal number of bonds of the atom.
-    pub fn get_expected_min_bonds(&self) -> Option<u8> {
-        self.expected_min_bonds
     }
 
     /// Set the expected minimal number of bonds of the atom.
@@ -282,8 +242,8 @@ impl Atom {
     }
 
     /// Get the element name of the atom.
-    pub fn get_element_name(&self) -> Option<&str> {
-        self.element_name.as_deref()
+    pub fn get_element_name(&self) -> Option<&String> {
+        self.element_name.as_ref()
     }
 
     /// Set the element name of the atom.
@@ -297,8 +257,8 @@ impl Atom {
     }
 
     /// Get the element symbol of the atom.
-    pub fn get_element_symbol(&self) -> Option<&str> {
-        self.element_symbol.as_deref()
+    pub fn get_element_symbol(&self) -> Option<&String> {
+        self.element_symbol.as_ref()
     }
 
     /// Set the element symbol of the atom.
@@ -479,7 +439,7 @@ impl Atom {
             Ok(())
         } else {
             Err(AtomError::InvalidPosition(PositionError::NoPosition(
-                self.get_atom_number(),
+                self.get_index(),
             )))
         }
     }
@@ -495,7 +455,7 @@ impl Atom {
             Ok(())
         } else {
             Err(AtomError::InvalidPosition(PositionError::NoPosition(
-                self.get_atom_number(),
+                self.get_index(),
             )))
         }
     }
@@ -507,7 +467,7 @@ impl Atom {
     pub fn wrap(&mut self, sbox: &SimBox) -> Result<(), AtomError> {
         match self.position {
             None => Err(AtomError::InvalidPosition(PositionError::NoPosition(
-                self.get_atom_number(),
+                self.get_index(),
             ))),
             Some(ref mut pos) => {
                 pos.wrap(sbox);
@@ -524,7 +484,7 @@ impl Atom {
     /// - Longer names are shortened, longer numbers are wrapped to 0.
     /// - If atom has no position (or velocity, if requested), 0 is printed out for all dimensions.
     /// - No coordinate of the atom can be higher than 9999 or lower than -999 nm.
-    /// Otherwise the function returns an error.
+    ///   Otherwise the function returns an error.
     pub fn write_gro(
         &self,
         stream: &mut impl Write,
@@ -601,7 +561,7 @@ impl Atom {
     /// - Longer names are shortened, longer numbers are wrapped to 0.
     /// - If atom has no position, 0 is printed out for all dimensions.
     /// - No coordinate of the atom can be higher than 999 or lower than -99 nm.
-    /// Otherwise the function returns an error.
+    ///   Otherwise the function returns an error.
     pub fn write_pdb(&self, stream: &mut impl Write) -> Result<(), WritePdbError> {
         let binding = Vector3D::default();
         let position = self.get_position().unwrap_or(&binding);
@@ -655,7 +615,7 @@ impl Atom {
     ///
     /// ## Parameters
     /// - `precision` parameters specify the number of decimal places to be printed for
-    /// position, charge and radius.
+    ///   position, charge and radius.
     ///
     /// ## Notes
     /// - All atoms are treated as 'ATOM'. 'HETATM' is not used at all.
@@ -687,7 +647,7 @@ impl Atom {
             _ => format!(" {}", resid),
         };
 
-        let format_atomid = match self.get_atom_number() {
+        let format_atomnum = match self.get_atom_number() {
             0..=99999 => format!(" {:>5}", self.get_atom_number()),
             _ => format!("{}", self.get_atom_number()),
         };
@@ -705,7 +665,7 @@ impl Atom {
             precision.position,
             precision.charge,
             precision.vdw,
-            format_atomid,
+            format_atomnum,
             format_atomname,
             format_resname,
             chain,
@@ -752,10 +712,10 @@ impl Atom {
     pub fn distance(&self, atom: &Atom, dim: Dimension, sbox: &SimBox) -> Result<f32, AtomError> {
         match (&self.position, &atom.position) {
             (None, Some(_) | None) => Err(AtomError::InvalidPosition(PositionError::NoPosition(
-                self.get_atom_number(),
+                self.get_index(),
             ))),
             (Some(_), None) => Err(AtomError::InvalidPosition(PositionError::NoPosition(
-                atom.get_atom_number(),
+                atom.get_index(),
             ))),
             (Some(ref pos1), Some(ref pos2)) => Ok(pos1.distance(pos2, dim, sbox)),
         }
@@ -787,10 +747,10 @@ impl Atom {
     pub fn distance_naive(&self, atom: &Atom, dim: Dimension) -> Result<f32, AtomError> {
         match (&self.position, &atom.position) {
             (None, Some(_) | None) => Err(AtomError::InvalidPosition(PositionError::NoPosition(
-                self.get_atom_number(),
+                self.get_index(),
             ))),
             (Some(_), None) => Err(AtomError::InvalidPosition(PositionError::NoPosition(
-                atom.get_atom_number(),
+                atom.get_index(),
             ))),
             (Some(ref pos1), Some(ref pos2)) => Ok(pos1.distance_naive(pos2, dim)),
         }
@@ -832,10 +792,46 @@ impl Atom {
     ) -> Result<f32, AtomError> {
         match self.position {
             None => Err(AtomError::InvalidPosition(PositionError::NoPosition(
-                self.get_atom_number(),
+                self.get_index(),
             ))),
             Some(ref pos) => Ok(pos.distance(point, dim, sbox)),
         }
+    }
+
+    /// Rotate the atom in space using a rotation matrix.
+    /// Wraps the atom into the simulation box after performing the rotation.
+    ///
+    /// See [Atom::rotate_nopbc], if you want to ignore PBC.
+    #[inline]
+    pub fn rotate(
+        &mut self,
+        rotation_matrix: &Matrix3<f32>,
+        simbox: &SimBox,
+    ) -> Result<(), AtomError> {
+        let pos = self.get_position().cloned().ok_or_else(|| {
+            AtomError::InvalidPosition(PositionError::NoPosition(self.get_index()))
+        })?;
+
+        let mut rotated = pos.rotate(rotation_matrix);
+        rotated.wrap(simbox);
+        self.set_position(rotated);
+
+        Ok(())
+    }
+
+    /// Rotate the atom in space using a rotation matrix. Ignores periodic boundary conditions.
+    ///
+    /// See [Atom::rotate], if you want to take PBC into consideration.
+    #[inline]
+    pub fn rotate_nopbc(&mut self, rotation_matrix: &Matrix3<f32>) -> Result<(), AtomError> {
+        let pos = self.get_position().cloned().ok_or_else(|| {
+            AtomError::InvalidPosition(PositionError::NoPosition(self.get_index()))
+        })?;
+
+        let rotated = pos.rotate(rotation_matrix);
+        self.set_position(rotated);
+
+        Ok(())
     }
 }
 
@@ -1015,13 +1011,13 @@ mod tests {
         assert_eq!(atom.get_element_name(), None);
 
         atom.set_element_name("carbon");
-        assert_eq!(atom.get_element_name().unwrap(), String::from("carbon"));
+        assert_eq!(atom.get_element_name().unwrap(), &String::from("carbon"));
 
         atom.reset_element_name();
         assert_eq!(atom.get_element_name(), None);
 
         let atom2 = make_default_atom().with_element_name("carbon");
-        assert_eq!(atom2.get_element_name().unwrap(), String::from("carbon"));
+        assert_eq!(atom2.get_element_name().unwrap(), &String::from("carbon"));
     }
 
     #[test]
@@ -1030,13 +1026,13 @@ mod tests {
         assert_eq!(atom.get_element_symbol(), None);
 
         atom.set_element_symbol("C");
-        assert_eq!(atom.get_element_symbol().unwrap(), String::from("C"));
+        assert_eq!(atom.get_element_symbol().unwrap(), &String::from("C"));
 
         atom.reset_element_symbol();
         assert_eq!(atom.get_element_symbol(), None);
 
         let atom2 = make_default_atom().with_element_symbol("C");
-        assert_eq!(atom2.get_element_symbol().unwrap(), String::from("C"));
+        assert_eq!(atom2.get_element_symbol().unwrap(), &String::from("C"));
     }
 
     #[test]
@@ -1252,7 +1248,7 @@ mod tests {
         match atom.translate_nopbc(&shift) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
-                assert_eq!(x, atom.get_atom_number())
+                assert_eq!(x, atom.get_index())
             }
             Err(e) => {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
@@ -1299,7 +1295,7 @@ mod tests {
         match atom.translate(&shift, &simbox) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
-                assert_eq!(x, atom.get_atom_number())
+                assert_eq!(x, atom.get_index())
             }
             Err(e) => {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
@@ -1374,7 +1370,7 @@ mod tests {
         match atom.wrap(&simbox) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
-                assert_eq!(x, atom.get_atom_number())
+                assert_eq!(x, atom.get_index())
             }
             Err(e) => {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
@@ -1703,7 +1699,7 @@ mod tests {
         match atom1.distance(&atom2, Dimension::XYZ, &simbox) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
-                assert_eq!(x, atom1.get_atom_number())
+                assert_eq!(x, atom1.get_index())
             }
             Err(e) => {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
@@ -1715,7 +1711,7 @@ mod tests {
         match atom1.distance(&atom2, Dimension::XYZ, &simbox) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
-                assert_eq!(x, atom1.get_atom_number())
+                assert_eq!(x, atom1.get_index())
             }
             Err(e) => {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
@@ -1728,7 +1724,7 @@ mod tests {
         match atom1.distance(&atom2, Dimension::XYZ, &simbox) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
-                assert_eq!(x, atom2.get_atom_number())
+                assert_eq!(x, atom2.get_index())
             }
             Err(e) => {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
@@ -1744,7 +1740,7 @@ mod tests {
         match atom1.distance_naive(&atom2, Dimension::XYZ) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
-                assert_eq!(x, atom1.get_atom_number())
+                assert_eq!(x, atom1.get_index())
             }
             Err(e) => {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
@@ -1756,7 +1752,7 @@ mod tests {
         match atom1.distance_naive(&atom2, Dimension::XYZ) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
-                assert_eq!(x, atom1.get_atom_number())
+                assert_eq!(x, atom1.get_index())
             }
             Err(e) => {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
@@ -1769,7 +1765,7 @@ mod tests {
         match atom1.distance_naive(&atom2, Dimension::XYZ) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
-                assert_eq!(x, atom2.get_atom_number())
+                assert_eq!(x, atom2.get_index())
             }
             Err(e) => {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
@@ -1922,12 +1918,37 @@ mod tests {
         match atom.distance_from_point(&point, Dimension::XYZ, &simbox) {
             Ok(_) => panic!("Function should have failed."),
             Err(AtomError::InvalidPosition(PositionError::NoPosition(x))) => {
-                assert_eq!(x, atom.get_atom_number())
+                assert_eq!(x, atom.get_index())
             }
             Err(e) => {
                 panic!("Function failed successfully, but incorrect error type `{e}` was returned.")
             }
         }
+    }
+
+    #[test]
+    fn rotate() {
+        let mut atom = Atom::new(1, "LYS", 1, "BB").with_position(Vector3D::new(1.0, 2.0, 3.0));
+        let rotation = Matrix3::new(0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+
+        atom.rotate(&rotation, &SimBox::from([10.0, 10.0, 10.0]))
+            .unwrap();
+        let pos = atom.get_position().unwrap();
+        assert_approx_eq!(f32, pos.x, 8.0);
+        assert_approx_eq!(f32, pos.y, 1.0);
+        assert_approx_eq!(f32, pos.z, 3.0);
+    }
+
+    #[test]
+    fn rotate_nopbc() {
+        let mut atom = Atom::new(1, "LYS", 1, "BB").with_position(Vector3D::new(1.0, 2.0, 3.0));
+        let rotation = Matrix3::new(0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+
+        atom.rotate_nopbc(&rotation).unwrap();
+        let pos = atom.get_position().unwrap();
+        assert_approx_eq!(f32, pos.x, -2.0);
+        assert_approx_eq!(f32, pos.y, 1.0);
+        assert_approx_eq!(f32, pos.z, 3.0);
     }
 }
 

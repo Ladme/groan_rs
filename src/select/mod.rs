@@ -70,7 +70,7 @@ impl Select {
         let molwith_pattern = Regex::new(
             r"(molecule\s*with|mol\s*with)(?=(?:[^']*'[^']*')*[^']*$)",
         )
-        .expect("FATAL GROAN ERROR | select::parse_query | Could not construct regex pattern.");
+        .expect("FATAL GROAN ERROR | Select::parse_query | Could not construct regex pattern.");
         expression = molwith_pattern.replace_all(&expression, "@@").to_string();
 
         // replace word operators with their symbolic equivalents
@@ -100,6 +100,7 @@ impl Select {
             Err(SelectError::InvalidTokenParentheses(_)) => {
                 Err(SelectError::InvalidTokenParentheses(query.to_string()))
             }
+            Err(SelectError::DeprecatedKeyword(e)) => Err(SelectError::DeprecatedKeyword(e)),
             Err(_) => Err(SelectError::UnknownError(query.to_string())),
         }
     }
@@ -119,7 +120,7 @@ impl Select {
                     &vector,
                     system,
                     |s| system.group_exists(s),
-                    |system| system.get_groups_as_ref().keys(),
+                    |system| system.get_groups().keys(),
                     SelectError::GroupNotFound,
                 )?;
                 Ok(Select::GroupName(new_vector))
@@ -270,7 +271,7 @@ impl fmt::Display for Select {
     ///
     /// ## Warning
     /// - The GSL query returned by this function may be different from the query
-    /// used to construct the Select structure in the first place.
+    ///   used to construct the Select structure in the first place.
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut string = String::new();
 
@@ -315,7 +316,7 @@ impl fmt::Display for Select {
             }
 
             Self::AtomNumber(vector) => {
-                write!(&mut string, "atomid ").unwrap();
+                write!(&mut string, "atomnum ").unwrap();
                 for (start, end) in vector {
                     Select::write_range(&mut string, *start, *end);
                 }
@@ -398,8 +399,21 @@ fn parse_subquery(expression: &str, start: usize, end: usize) -> Result<Box<Sele
     let mut unary_operators: Vec<Operator> = Vec::new();
     let mut binary_operator: Option<Operator> = None;
 
+    let mut inside_regex = false;
+
     while i < end {
         let c = expression.chars().nth(i).unwrap();
+
+        // when inside of a regex block, ignore all the operators
+        if inside_regex {
+            if c == '\'' {
+                inside_regex = false;
+            }
+
+            token.push(c);
+            i += 1;
+            continue;
+        }
 
         match c {
             '(' => {
@@ -458,6 +472,19 @@ fn parse_subquery(expression: &str, start: usize, end: usize) -> Result<Box<Sele
                 i += 2;
             }
 
+            // regex
+            'r' => {
+                if expression.get(i + 1..i + 2) == Some("'") {
+                    token.push('r');
+                    token.push('\'');
+                    i += 2;
+                    inside_regex = true;
+                } else {
+                    token.push(c);
+                    i += 1;
+                }
+            }
+
             _ => {
                 token.push(c);
                 i += 1;
@@ -491,10 +518,10 @@ fn process_operation(
             Operator::Not => Box::from(Select::Not(parsed)),
             Operator::Molecule => Box::from(Select::Molecule(parsed)),
             Operator::And => panic!(
-                "FATAL GROAN ERROR | select::process_operation | AND operator is being treated as an unary operator."
+                "FATAL GROAN ERROR | select::process_operation | AND operator is being treated as a unary operator."
             ),
             Operator::Or => panic!(
-                "FATAL GROAN ERROR | select::process_operation | OR operator is being treated as an unary operator."
+                "FATAL GROAN ERROR | select::process_operation | OR operator is being treated as a unary operator."
             ),
         };
     }
@@ -767,7 +794,7 @@ fn parse_token(string: &str) -> Result<Select, SelectError> {
             Ok(Select::GmxAtomNumber(fix_ranges(range)))
         }
 
-        "atomid" | "atomnum" => {
+        "atomnum" => {
             if token.len() <= 1 {
                 return Err(SelectError::EmptyArgument("".to_string()));
             }
@@ -775,6 +802,10 @@ fn parse_token(string: &str) -> Result<Select, SelectError> {
             let range = numbers::parse_numbers(&token[1..])?;
             Ok(Select::AtomNumber(fix_ranges(range)))
         }
+
+        "atomid" => Err(SelectError::DeprecatedKeyword(
+            "'atomid' is a deprecated Groan Selection Language keyword since `groan_rs` v0.9; use 'atomnum' instead",
+        )),
 
         "chain" => {
             if token.len() <= 1 {
@@ -1076,30 +1107,30 @@ mod pass_tests {
         Select::GmxAtomNumber(vec![(4, 11)])
     );
     parsing_success!(
-        range_atomid_1,
-        "  atomid 4 to 11   ",
+        range_atomnum_1,
+        "  atomnum 4 to 11   ",
         Select::AtomNumber(vec![(4, 11)])
     );
     parsing_success!(
-        range_atomid_2,
+        range_atomnum_2,
         "atomnum 4 - 11",
         Select::AtomNumber(vec![(4, 11)])
     );
 
     parsing_success!(
-        range_atomid_3,
-        "   atomid 4- 11",
+        range_atomnum_3,
+        "   atomnum 4- 11",
         Select::AtomNumber(vec![(4, 11)])
     );
     parsing_success!(
-        range_atomid_5,
+        range_atomnum_5,
         "atomnum 4 -11",
         Select::AtomNumber(vec![(4, 11)])
     );
 
     parsing_success!(
-        range_atomid_6,
-        "  atomid 4to 11   ",
+        range_atomnum_6,
+        "  atomnum 4to 11   ",
         Select::AtomNumber(vec![(4, 11)])
     );
 
@@ -1111,7 +1142,7 @@ mod pass_tests {
 
     parsing_success!(
         open_ended_range_2,
-        "atomid <44",
+        "atomnum <44",
         Select::AtomNumber(vec![(1, 43)])
     );
 
@@ -1129,7 +1160,7 @@ mod pass_tests {
 
     parsing_success!(
         open_ended_range_5,
-        "atomid  <=  44",
+        "atomnum  <=  44",
         Select::AtomNumber(vec![(1, 44)])
     );
 
@@ -1171,7 +1202,7 @@ mod pass_tests {
 
     parsing_success!(
         open_ended_range_12,
-        "atomid 1 4 >= 50 7-11",
+        "atomnum 1 4 >= 50 7-11",
         Select::AtomNumber(vec![(1, 1), (4, 4), (7, 11), (50, usize::MAX)])
     );
 
@@ -1195,7 +1226,7 @@ mod pass_tests {
 
     parsing_success!(
         open_ended_range_16,
-        "atomid 50<20",
+        "atomnum 50<20",
         Select::AtomNumber(vec![(1, 19), (50, 50)])
     );
 
@@ -1378,7 +1409,7 @@ mod pass_tests {
 
     parsing_success!(
         advanced_ranges_1,
-        "atomid 4 to 6 to 12",
+        "atomnum 4 to 6 to 12",
         Select::AtomNumber(vec![(4, 12)])
     );
     parsing_success!(
@@ -1398,7 +1429,7 @@ mod pass_tests {
     );
     parsing_success!(
         advanced_ranges_5,
-        "atomid 4-6 -12 15 1",
+        "atomnum 4-6 -12 15 1",
         Select::AtomNumber(vec![(1, 1), (4, 12), (15, 15)])
     );
     parsing_success!(
@@ -2110,7 +2141,7 @@ mod pass_tests {
     // atom numbers
     parsing_success!(
         serial_or_1,
-        "serial  1  or   atomid 9  5 -7 9",
+        "serial  1  or   atomnum 9  5 -7 9",
         Select::Or(
             Box::from(Select::GmxAtomNumber(vec![(1, 1)])),
             Box::from(Select::AtomNumber(vec![(5, 7), (9, 9)]))
@@ -2119,7 +2150,7 @@ mod pass_tests {
 
     parsing_success!(
         serial_or_2,
-        "atomid 1   ||serial   5 - 7 9  ",
+        "atomnum 1   ||serial   5 - 7 9  ",
         Select::Or(
             Box::from(Select::AtomNumber(vec![(1, 1)])),
             Box::from(Select::GmxAtomNumber(vec![(5, 7), (9, 9)]))
@@ -2137,7 +2168,7 @@ mod pass_tests {
 
     parsing_success!(
         serial_and_2,
-        "  atomnum    1  && atomid   9  5-7   9",
+        "  atomnum    1  && atomnum   9  5-7   9",
         Select::And(
             Box::from(Select::AtomNumber(vec![(1, 1)])),
             Box::from(Select::AtomNumber(vec![(5, 7), (9, 9)]))
@@ -2158,7 +2189,7 @@ mod pass_tests {
 
     parsing_success!(
         serial_complex_par_1,
-        "(serial 1 &&atomnum 9  5-7 9) or atomid 11 12 to 15",
+        "(serial 1 &&atomnum 9  5-7 9) or atomnum 11 12 to 15",
         Select::Or(
             Box::from(Select::And(
                 Box::from(Select::GmxAtomNumber(vec![(1, 1)])),
@@ -2229,7 +2260,7 @@ mod pass_tests {
     ));
 
     // residue names with atom numbers
-    parsing_success!(complex_resnames_serial, "(resname 'POPE'  LYS LEU && (serial   33 22 -25 15) || atomid 5  to  10 ) ||(resname ION&& atomnum 6) ", 
+    parsing_success!(complex_resnames_serial, "(resname 'POPE'  LYS LEU && (serial   33 22 -25 15) || atomnum 5  to  10 ) ||(resname ION&& atomnum 6) ", 
     Select::Or(
         Box::from(Select::Or(
             Box::from(Select::And(
@@ -2277,7 +2308,7 @@ mod pass_tests {
     ));
 
     // atom names with atom numbers
-    parsing_success!(complex_names_serial, "(name 'BB'  PO4 D2A && (atomnum   15 22- 25 33) or serial 5 to 10 ) ||(atomname NA&& atomid 6) ", 
+    parsing_success!(complex_names_serial, "(name 'BB'  PO4 D2A && (atomnum   15 22- 25 33) or serial 5 to 10 ) ||(atomname NA&& atomnum 6) ", 
     Select::Or(
         Box::from(Select::Or(
             Box::from(Select::And(
@@ -2325,7 +2356,7 @@ mod pass_tests {
     ));
 
     // residue numbers with atom numbers
-    parsing_success!(complex_resid_serial, "(serial 4 to 8- 12 && (resid   15 22-25 33) || resid 5 to 10 ) ||(atomid 9 10 11 12&& resnum 6) ", 
+    parsing_success!(complex_resid_serial, "(serial 4 to 8- 12 && (resid   15 22-25 33) || resid 5 to 10 ) ||(atomnum 9 10 11 12&& resnum 6) ", 
     Select::Or(
         Box::from(Select::Or(
             Box::from(Select::And(
@@ -2372,7 +2403,7 @@ mod pass_tests {
         ))
     ));
 
-    parsing_success!(complex_serial_group, "(Protein Membrane && (serial   15 22-25 33) || atomid 5 to 10 ) ||('Water with Ions' && atomnum 6) ", 
+    parsing_success!(complex_serial_group, "(Protein Membrane && (serial   15 22-25 33) || atomnum 5 to 10 ) ||('Water with Ions' && atomnum 6) ", 
     Select::Or(
         Box::from(Select::Or(
             Box::from(Select::And(
@@ -2387,7 +2418,7 @@ mod pass_tests {
         ))
     ));
 
-    parsing_success!(complex_not_1, "! (name 'BB'  PO4 D2A && (atomnum   15 22- 25 33) or serial 5 to 10 ) ||(atomname NA&& atomid 6) ", 
+    parsing_success!(complex_not_1, "! (name 'BB'  PO4 D2A && (atomnum   15 22- 25 33) or serial 5 to 10 ) ||(atomname NA&& atomnum 6) ", 
     Select::Or(
         Box::from(Select::Not(
             Box::from(Select::Or(
@@ -2575,6 +2606,39 @@ mod pass_tests {
             Name::new("underhålls").unwrap(),
             Name::new("uppföljnings").unwrap()
         ])
+    );
+
+    parsing_success!(
+        operator_in_regex,
+        "name r'C3[2-9]|C3[1][0-6]|C2[2-9]|C2[1][0-8]' P",
+        Select::AtomName(vec![
+            Name::new("r'C3[2-9]|C3[1][0-6]|C2[2-9]|C2[1][0-8]'").unwrap(),
+            Name::new("P").unwrap()
+        ])
+    );
+
+    parsing_success!(
+        operator_in_regex_2,
+        "name r'C3[2-9]|C3[1][0-6]|C2[2-9]|C2[1][0-8]' and resname POPC",
+        Select::And(
+            Box::from(Select::AtomName(vec![Name::new(
+                "r'C3[2-9]|C3[1][0-6]|C2[2-9]|C2[1][0-8]'"
+            )
+            .unwrap()])),
+            Box::from(Select::ResidueName(vec![Name::new("POPC").unwrap()]))
+        )
+    );
+
+    parsing_success!(
+        operator_in_regex_3,
+        "name r'C3[2-9]&C3[1][0-6]&C2[2-9]&C2[1][0-8]' and resname POPC",
+        Select::And(
+            Box::from(Select::AtomName(vec![Name::new(
+                "r'C3[2-9]&C3[1][0-6]&C2[2-9]&C2[1][0-8]'"
+            )
+            .unwrap()])),
+            Box::from(Select::ResidueName(vec![Name::new("POPC").unwrap()]))
+        )
     );
 
     /*
@@ -2870,8 +2934,30 @@ mod select_impl {
         let selection = Select::parse_query("resname ION and label different r'a'").unwrap();
         let selection = selection.expand_regex_group_label(&system).unwrap();
 
-        let string = format!("{:?}", selection);
-        assert_eq!(string, "And(ResidueName([String(\"ION\")]), LabeledAtom([String(\"different\"), String(\"atom_new\"), String(\"atom\"), String(\"atom2\")]))");
+        let expected_expanded = [
+            Name::new("different").unwrap(),
+            Name::new("atom").unwrap(),
+            Name::new("atom2").unwrap(),
+            Name::new("atom_new").unwrap(),
+        ];
+
+        if let Select::And(residue, labeled_atom) = selection {
+            assert_eq!(
+                residue,
+                Box::from(Select::ResidueName(vec![Name::new("ION").unwrap()]))
+            );
+
+            if let Select::LabeledAtom(vec) = *labeled_atom {
+                assert_eq!(vec.len(), expected_expanded.len());
+                for name in vec {
+                    assert!(expected_expanded.contains(&name));
+                }
+            } else {
+                panic!("Labeled atom not matched.")
+            }
+        } else {
+            panic!("Selection tree not matched.")
+        }
     }
 
     #[test]
@@ -3055,9 +3141,9 @@ mod select_impl {
     );
 
     convert_to_string!(
-        atomids_to_string,
+        atomnums_to_string,
         Select::AtomNumber(vec![(1, 1), (4, 4), (7, 11), (50, usize::MAX)]),
-        "atomid 1 4 7 to 11 >= 50"
+        "atomnum 1 4 7 to 11 >= 50"
     );
 
     convert_to_string!(
@@ -3149,7 +3235,7 @@ mod select_impl {
                 Box::from(Select::AtomNumber(vec![(6, 6)]))
             ))
         ),
-        "(not ((name BB PO4 D2A and atomid 15 22 to 25 33) or serial 5 to 10) or (name NA and atomid 6))"
+        "(not ((name BB PO4 D2A and atomnum 15 22 to 25 33) or serial 5 to 10) or (name NA and atomnum 6))"
     );
 
     convert_to_string!(
@@ -3275,7 +3361,7 @@ mod serde_tests {
     #[test]
     fn simple_query_from_yaml() {
         let string = "resid 4 to 11";
-        let select: Select = serde_yaml::from_str(&string).unwrap();
+        let select: Select = serde_yaml::from_str(string).unwrap();
 
         assert_eq!(select, Select::ResidueNumber(vec![(4, 11)]));
     }
@@ -3314,7 +3400,7 @@ mod serde_tests {
     #[test]
     fn complex_query_from_yaml() {
         let string = "  not(!(resname 'POPE' LYS LEU and(!name   BB PO4   D2A) || not name C1A ) ||(resname ION&& name CL) )";
-        let select: Select = serde_yaml::from_str(&string).unwrap();
+        let select: Select = serde_yaml::from_str(string).unwrap();
 
         assert_eq!(
             select,
@@ -3386,7 +3472,7 @@ mod serde_tests {
 -   name   BB SC1   PO4   C1 C2B
 ";
 
-        let selections: Vec<Select> = serde_yaml::from_str(&string).unwrap();
+        let selections: Vec<Select> = serde_yaml::from_str(string).unwrap();
 
         assert_eq!(
             selections[0],
@@ -3424,12 +3510,12 @@ mod serde_tests {
     fn parsing_fail_yaml() {
         let string = "((resname LYS and name SC1)";
 
-        let serde_error = match serde_yaml::from_str::<Select>(&string) {
+        let serde_error = match serde_yaml::from_str::<Select>(string) {
             Ok(_) => panic!("Parsing should have failed. (YAML)"),
             Err(e) => e,
         };
 
-        let select_error = match Select::parse_query(&string) {
+        let select_error = match Select::parse_query(string) {
             Ok(_) => panic!("Parsing should have failed. (QUERY)"),
             Err(e) => e,
         };

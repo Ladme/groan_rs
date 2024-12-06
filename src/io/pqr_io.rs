@@ -31,15 +31,15 @@ use crate::io::pdb_io;
 /// `chain_id` is an optional property and can be skipped.
 ///
 /// - In case multiple TITLE lines are provided, the **last one** is used as the
-/// name of the system. If no TITLE line is provided, "Unknown" is used as the name.
+///   name of the system. If no TITLE line is provided, "Unknown" is used as the name.
 ///
 /// - In case multiple CRYST1 lines are provided, information from the **last one** is used.
-/// If no CRYST1 line is provided, the simulation box is undefined.
+///   If no CRYST1 line is provided, the simulation box is undefined.
 ///
 /// - Reading ends once `ENDMDL`, `END`, or the end of file is reached.
 /// - The implementation of this function is based on the MDAnalysis' implementation,
-/// see `https://docs.mdanalysis.org/2.0.0/documentation_pages/coordinates/PQR.html`
-/// but unlike MDAnalysis, this function also reads CRYST1 and TITLE keywords.
+///   see `https://docs.mdanalysis.org/2.0.0/documentation_pages/coordinates/PQR.html`
+///   but unlike MDAnalysis, this function also reads CRYST1 and TITLE keywords.
 pub fn read_pqr(filename: impl AsRef<Path>) -> Result<System, ParsePqrError> {
     let file = match File::open(filename.as_ref()) {
         Ok(x) => x,
@@ -110,9 +110,9 @@ impl System {
     ///
     /// ## Parameters
     /// - `precision` parameter specifies the number of decimal places to be printed for
-    /// position, charge and radius.
+    ///   position, charge and radius.
     /// - If not provided, the default values are used. In such case, position coordinates
-    /// are written with 3 decimal places, and charge and radius are both written with 4 decimal places.
+    ///   are written with 3 decimal places, and charge and radius are both written with 4 decimal places.
     ///
     /// ## Returns
     /// `Ok` if writing has been successful. Otherwise `WritePqrError`.
@@ -134,7 +134,7 @@ impl System {
     ///
     /// ## Notes
     /// - Unlike many other programs, `groan_rs` library also uses `CRYST1` and `TITLE` in pqr files.
-    /// The pqr file will thus contain information about box dimensions and the name of the system.
+    ///   The pqr file will thus contain information about box dimensions and the name of the system.
     pub fn write_pqr(
         &self,
         filename: impl AsRef<Path>,
@@ -155,9 +155,9 @@ impl System {
     ///
     /// ## Parameters
     /// - `precision` parameter specifies the number of decimal places to be printed for
-    /// position, charge and radius.
+    ///   position, charge and radius.
     /// - If not provided, the default values are used. In such case, position coordinates
-    /// are written with 3 decimal places, and charge and radius are both written with 4 decimal places.
+    ///   are written with 3 decimal places, and charge and radius are both written with 4 decimal places.
     ///
     /// ## Returns
     /// `Ok` if writing has been successful. Otherwise `WritePqrError`.
@@ -182,7 +182,7 @@ impl System {
     /// ```
     /// ## Notes
     /// - Unlike many other programs, `groan_rs` library also uses `CRYST1` and `TITLE` in pqr files.
-    /// The pqr file will thus contain information about box dimensions and the name of the system.
+    ///   The pqr file will thus contain information about box dimensions and the name of the system.
     pub fn group_write_pqr(
         &self,
         group_name: &str,
@@ -206,7 +206,7 @@ impl System {
             _ => format!("Group `{}` from {}", group_name, self.get_name()),
         };
 
-        write_header(&mut writer, &title, self.get_box_as_ref())?;
+        write_header(&mut writer, &title, self.get_box())?;
 
         for atom in self.group_iter(group_name).expect(
             "FATAL GROAN ERROR | System::group_write_pqr | Group should exist but it does not.",
@@ -323,7 +323,7 @@ mod tests_read {
         assert_eq!(system.get_n_atoms(), 50);
 
         // check box size
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
         assert_approx_eq!(f32, simbox.x, 6.0861);
         assert_approx_eq!(f32, simbox.y, 6.0861);
         assert_approx_eq!(f32, simbox.z, 6.0861);
@@ -336,7 +336,7 @@ mod tests_read {
         assert_eq!(simbox.v3x, 0.0f32);
         assert_eq!(simbox.v3y, 0.0f32);
 
-        let atoms = system.get_atoms_as_ref();
+        let atoms = system.get_atoms();
 
         // check the first atom
         let first = &atoms[0];
@@ -392,7 +392,7 @@ mod tests_read {
         let system = read_pqr("test_files/example_endmdl.pqr").unwrap();
 
         assert_eq!(system.get_name(), "Unknown");
-        assert!(system.get_box_as_ref().is_none());
+        assert!(system.get_box().is_none());
         assert_eq!(system.get_n_atoms(), 17);
 
         assert_eq!(system.atoms_iter().next().unwrap().get_atom_number(), 1);
@@ -404,7 +404,7 @@ mod tests_read {
         let system = read_pqr("test_files/example_end.pqr").unwrap();
 
         assert_eq!(system.get_name(), "Unknown");
-        assert!(system.get_box_as_ref().is_none());
+        assert!(system.get_box().is_none());
         assert_eq!(system.get_n_atoms(), 17);
 
         assert_eq!(system.atoms_iter().next().unwrap().get_atom_number(), 1);
@@ -418,16 +418,16 @@ mod tests_read {
 
         assert_eq!(system_chain.get_name(), system_nochain.get_name());
         assert_eq!(
-            system_chain.get_box_as_ref().unwrap().x,
-            system_nochain.get_box_as_ref().unwrap().x
+            system_chain.get_box().unwrap().x,
+            system_nochain.get_box().unwrap().x
         );
         assert_eq!(
-            system_chain.get_box_as_ref().unwrap().y,
-            system_nochain.get_box_as_ref().unwrap().y
+            system_chain.get_box().unwrap().y,
+            system_nochain.get_box().unwrap().y
         );
         assert_eq!(
-            system_chain.get_box_as_ref().unwrap().z,
-            system_nochain.get_box_as_ref().unwrap().z
+            system_chain.get_box().unwrap().z,
+            system_nochain.get_box().unwrap().z
         );
 
         for (ac, anc) in system_chain.atoms_iter().zip(system_nochain.atoms_iter()) {
@@ -454,18 +454,9 @@ mod tests_read {
         let system2 = read_pqr("test_files/example_weird_format.pqr").unwrap();
 
         assert_eq!(system1.get_name(), system2.get_name());
-        assert_eq!(
-            system1.get_box_as_ref().unwrap().x,
-            system2.get_box_as_ref().unwrap().x
-        );
-        assert_eq!(
-            system1.get_box_as_ref().unwrap().y,
-            system2.get_box_as_ref().unwrap().y
-        );
-        assert_eq!(
-            system1.get_box_as_ref().unwrap().z,
-            system2.get_box_as_ref().unwrap().z
-        );
+        assert_eq!(system1.get_box().unwrap().x, system2.get_box().unwrap().x);
+        assert_eq!(system1.get_box().unwrap().y, system2.get_box().unwrap().y);
+        assert_eq!(system1.get_box().unwrap().z, system2.get_box().unwrap().z);
 
         for (a1, a2) in system1.atoms_iter().zip(system2.atoms_iter()) {
             assert_eq!(a1.get_residue_number(), a2.get_residue_number());
@@ -491,18 +482,9 @@ mod tests_read {
         let system2 = read_pqr("test_files/example_mixchain.pqr").unwrap();
 
         assert_eq!(system1.get_name(), system2.get_name());
-        assert_eq!(
-            system1.get_box_as_ref().unwrap().x,
-            system2.get_box_as_ref().unwrap().x
-        );
-        assert_eq!(
-            system1.get_box_as_ref().unwrap().y,
-            system2.get_box_as_ref().unwrap().y
-        );
-        assert_eq!(
-            system1.get_box_as_ref().unwrap().z,
-            system2.get_box_as_ref().unwrap().z
-        );
+        assert_eq!(system1.get_box().unwrap().x, system2.get_box().unwrap().x);
+        assert_eq!(system1.get_box().unwrap().y, system2.get_box().unwrap().y);
+        assert_eq!(system1.get_box().unwrap().z, system2.get_box().unwrap().z);
 
         for (a1, a2) in system1.atoms_iter().zip(system2.atoms_iter()) {
             assert_eq!(a1.get_residue_number(), a2.get_residue_number());
@@ -679,29 +661,23 @@ mod tests_write {
     fn write_large() {
         let mut system = System::from_file("test_files/example.pqr").unwrap();
 
-        system.get_atom_as_mut(3).unwrap().set_atom_number(12753);
+        system.get_atom_mut(3).unwrap().set_atom_number(12753);
         system
-            .get_atom_as_mut(28)
+            .get_atom_mut(28)
             .unwrap()
             .set_atom_number(127533497463);
-        system.get_atom_as_mut(29).unwrap().set_atom_number(999999);
-        system.get_atom_as_mut(31).unwrap().set_atom_name("SC1234");
-        system.get_atom_as_mut(2).unwrap().set_residue_name("ARGG");
-        system.get_atom_as_mut(17).unwrap().reset_chain();
-        system
-            .get_atom_as_mut(17)
-            .unwrap()
-            .set_residue_number(29345);
-        system.get_atom_as_mut(13).unwrap().set_position_x(14.32);
-        system
-            .get_atom_as_mut(12)
-            .unwrap()
-            .set_position_x(214.32134);
-        system.get_atom_as_mut(12).unwrap().set_position_y(16.21);
-        system.get_atom_as_mut(11).unwrap().set_position_z(9423.32);
-        system.get_atom_as_mut(42).unwrap().set_charge(11.32);
-        system.get_atom_as_mut(43).unwrap().set_charge(-11.32);
-        system.get_atom_as_mut(45).unwrap().set_vdw(1.477);
+        system.get_atom_mut(29).unwrap().set_atom_number(999999);
+        system.get_atom_mut(31).unwrap().set_atom_name("SC1234");
+        system.get_atom_mut(2).unwrap().set_residue_name("ARGG");
+        system.get_atom_mut(17).unwrap().reset_chain();
+        system.get_atom_mut(17).unwrap().set_residue_number(29345);
+        system.get_atom_mut(13).unwrap().set_position_x(14.32);
+        system.get_atom_mut(12).unwrap().set_position_x(214.32134);
+        system.get_atom_mut(12).unwrap().set_position_y(16.21);
+        system.get_atom_mut(11).unwrap().set_position_z(9423.32);
+        system.get_atom_mut(42).unwrap().set_charge(11.32);
+        system.get_atom_mut(43).unwrap().set_charge(-11.32);
+        system.get_atom_mut(45).unwrap().set_vdw(1.477);
 
         let pqr_output = NamedTempFile::new().unwrap();
         let path_to_output = pqr_output.path();

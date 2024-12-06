@@ -3,6 +3,7 @@
 
 //! Implementation of the System structure and its methods.
 
+use getset::{CopyGetters, Getters, Setters};
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 use std::collections::HashSet;
@@ -11,6 +12,7 @@ use std::path::Path;
 
 use crate::errors::{AtomError, GroupError, ParseFileError, SimBoxError};
 use crate::files::FileType;
+use crate::io::traj_write::SystemWriters;
 use crate::io::{gro_io, pqr_io};
 use crate::io::{pdb_io, tpr_io};
 use crate::structures::{atom::Atom, group::Group, simbox::SimBox, vector3d::Vector3D};
@@ -23,36 +25,47 @@ mod labeled_atoms;
 mod modifying;
 #[cfg(any(feature = "parallel", doc))]
 mod parallel;
+pub mod rmsd;
 mod utility;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Getters, Setters, CopyGetters)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct System {
     /// Name of the molecular system.
+    #[getset(get = "pub with_prefix")]
     name: String,
     /// Vector of atoms in the system.
+    #[getset(get = "pub with_prefix")]
     atoms: Vec<Atom>,
     /// Size of the simulation box. (Optional.)
     simulation_box: Option<SimBox>,
     /// Groups of atoms associated with the system.
+    #[getset(get = "pub with_prefix")]
     groups: IndexMap<String, Group>,
     /// Atoms that have been specifically labeled with a string.
     /// Each atom can have multiple labels, but one label specifies a single atom.
     labeled_atoms: HashMap<String, usize>,
     /// Current simulation step.
+    #[getset(get_copy = "pub with_prefix", set = "pub")]
     simulation_step: u64,
     /// Current simulation time in picoseconds.
+    #[getset(get_copy = "pub with_prefix", set = "pub")]
     simulation_time: f32,
     /// Precision of the coordinates.
-    coordinates_precision: u64,
+    #[getset(get_copy = "pub with_prefix", set = "pub")]
+    precision: u64,
     /// Lambda.
+    #[getset(get_copy = "pub with_prefix", set = "pub")]
     lambda: f32,
     /// Reference atoms for all polyatomic molecules.
     /// (Index of the first atom of each polyatomic molecule.)
     /// All functions changing the topology of the system, must set
     /// `mol_references` to `None`.
     mol_references: Option<Vec<usize>>,
+    /// All trajectory writers associated with the system.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    trajectory_writers: SystemWriters,
 }
 
 /// ## Methods for creating `System` structures and accessing their properties.
@@ -61,7 +74,7 @@ impl System {
     ///
     /// ## Notes
     /// - The returned `System` structure will contain two default groups "all" and "All",
-    /// each consisting of all the atoms in the system.
+    ///   each consisting of all the atoms in the system.
     ///
     /// ## Example 1: Manually creating a system
     /// ```no_run
@@ -116,7 +129,12 @@ impl System {
     ///     iterator.cloned().collect(),
     ///     original_system.get_box_copy());
     /// ```
-    pub fn new(name: &str, atoms: Vec<Atom>, simulation_box: Option<SimBox>) -> Self {
+    pub fn new(name: &str, mut atoms: Vec<Atom>, simulation_box: Option<SimBox>) -> Self {
+        // set atom indices
+        atoms.iter_mut().enumerate().for_each(|(index, atom)| {
+            atom.set_index(index);
+        });
+
         let mut system = System {
             name: name.to_string(),
             atoms,
@@ -125,9 +143,10 @@ impl System {
             labeled_atoms: HashMap::new(),
             simulation_step: 0u64,
             simulation_time: 0.0f32,
-            coordinates_precision: 100u64,
+            precision: 100u64,
             lambda: 0.0,
             mol_references: None,
+            trajectory_writers: SystemWriters::default(),
         };
 
         match system.group_create_all() {
@@ -165,10 +184,10 @@ impl System {
     ///
     /// ## Notes
     /// - The returned System structure will contain two default groups "all" and "All"
-    /// consisting of all the atoms in the system.
+    ///   consisting of all the atoms in the system.
     /// - When reading a pdb file, no connectivity information (bonds) is read, even if it is provided. You can add
-    /// connectivity from a pdb file to your system using [`System::add_bonds_from_pdb`]. See more information
-    /// about parsing PDB files in [`pdb_io::read_pdb`](`crate::io::pdb_io::read_pdb`).
+    ///   connectivity from a pdb file to your system using [`System::add_bonds_from_pdb`]. See more information
+    ///   about parsing PDB files in [`pdb_io::read_pdb`](`crate::io::pdb_io::read_pdb`).
     /// - Groups are not read from tpr files.
     #[inline(always)]
     pub fn from_file(filename: impl AsRef<Path>) -> Result<Self, Box<dyn Error + Send + Sync>> {
@@ -221,12 +240,12 @@ impl System {
         self.group_create_from_ranges("all", vec![(0, self.get_n_atoms())])?;
         self.group_create_from_ranges("All", vec![(0, self.get_n_atoms())])?;
 
-        self.get_groups_as_mut()
+        self.get_groups_mut()
             .get_mut("all")
             .expect("FATAL GROAN ERROR | System::group_create_all | Group 'all' is not available immediately after its construction.")
             .print_ndx = false;
 
-        self.get_groups_as_mut()
+        self.get_groups_mut()
             .get_mut("All")
             .expect("FATAL GROAN ERROR | System::group_create_all | Group 'All' is not available immediately after its construction.")
             .print_ndx = false;
@@ -234,29 +253,9 @@ impl System {
         Ok(())
     }
 
-    /// Get the name of the molecular system.
+    /// Get mutable slice of the atoms in the system.
     #[inline(always)]
-    pub fn get_name(&self) -> &str {
-        &self.name
-    }
-
-    /// Get immutable reference to the atoms in the system.
-    #[inline(always)]
-    pub fn get_atoms_as_ref(&self) -> &Vec<Atom> {
-        &self.atoms
-    }
-
-    /// Get mutable reference to the atoms in the system.
-    ///
-    /// ## Warning
-    /// - Note that manually changing the `atoms` of the system
-    /// can cause the system to become invalid. Other functions may then not work correctly.
-    /// - Notably, no atoms can be added or removed from the `atoms` vector as such
-    /// operation would make all the groups associated with the system invalid. The same goes
-    /// for reordering the atoms.
-    /// - The properties of the individual atoms can however be safely changed.
-    #[inline(always)]
-    pub(crate) fn get_atoms_as_mut(&mut self) -> &mut Vec<Atom> {
+    pub(crate) fn get_atoms_mut(&mut self) -> &mut [Atom] {
         &mut self.atoms
     }
 
@@ -266,22 +265,15 @@ impl System {
         self.atoms.clone()
     }
 
-    /// Get immutable reference to the groups in the system.
-    #[inline(always)]
-    pub fn get_groups_as_ref(&self) -> &IndexMap<String, Group> {
-        &self.groups
-    }
-
     /// Get mutable reference to the groups in the system.
     ///
     /// ## Safety
-    /// - This function is unsafe as manually changing the `groups` of the system
-    /// can cause the system to become invalid.
+    /// - Manually changing the `groups` of the system can cause the system to become invalid.
     /// - Notably, it is forbidden to modify the default groups 'all' and 'All' as changing
-    /// these groups may cause the behavior of many other functions associated with `System`
-    /// to become incorrect.
+    ///   these groups may cause the behavior of many other functions associated with `System`
+    ///   to become incorrect.
     #[inline(always)]
-    pub(crate) fn get_groups_as_mut(&mut self) -> &mut IndexMap<String, Group> {
+    pub(crate) fn get_groups_mut(&mut self) -> &mut IndexMap<String, Group> {
         &mut self.groups
     }
 
@@ -293,7 +285,7 @@ impl System {
 
     /// Get immutable reference to the simulation box.
     #[inline(always)]
-    pub fn get_box_as_ref(&self) -> Option<&SimBox> {
+    pub fn get_box(&self) -> Option<&SimBox> {
         self.simulation_box.as_ref()
     }
 
@@ -308,7 +300,7 @@ impl System {
     /// ## Returns
     /// - `Vector3D` if successful.
     /// - `SimBoxError` if the system has no simulation box
-    /// or if the simulation box is not orthogonal.
+    ///   or if the simulation box is not orthogonal.
     #[inline(always)]
     pub fn get_box_center(&self) -> Result<Vector3D, SimBoxError> {
         match &self.simulation_box {
@@ -324,7 +316,7 @@ impl System {
 
     /// Get mutable reference to the simulation box.
     #[inline(always)]
-    pub fn get_box_as_mut(&mut self) -> Option<&mut SimBox> {
+    pub fn get_box_mut(&mut self) -> Option<&mut SimBox> {
         self.simulation_box.as_mut()
     }
 
@@ -346,42 +338,6 @@ impl System {
         self.groups.len()
     }
 
-    /// Get the current simulation time.
-    #[inline(always)]
-    pub fn get_simulation_time(&self) -> f32 {
-        self.simulation_time
-    }
-
-    /// Get the current simulation step.
-    #[inline(always)]
-    pub fn get_simulation_step(&self) -> u64 {
-        self.simulation_step
-    }
-
-    /// Get the precision of the coordinates.
-    #[inline(always)]
-    pub fn get_precision(&self) -> u64 {
-        self.coordinates_precision
-    }
-
-    /// Get the simulation lambda.
-    #[inline(always)]
-    pub fn get_lambda(&self) -> f32 {
-        self.lambda
-    }
-
-    /// Set the simulation time.
-    #[inline(always)]
-    pub fn set_simulation_time(&mut self, time: f32) {
-        self.simulation_time = time;
-    }
-
-    /// Set the simulation step.
-    #[inline(always)]
-    pub fn set_simulation_step(&mut self, step: u64) {
-        self.simulation_step = step;
-    }
-
     /// Set simulation box.
     #[inline(always)]
     pub fn set_box(&mut self, sim_box: SimBox) {
@@ -392,18 +348,6 @@ impl System {
     #[inline(always)]
     pub fn reset_box(&mut self) {
         self.simulation_box = None;
-    }
-
-    /// Set precision of the coordinates.
-    #[inline(always)]
-    pub fn set_precision(&mut self, precision: u64) {
-        self.coordinates_precision = precision;
-    }
-
-    /// Set the simulation lambda.
-    #[inline(always)]
-    pub fn set_lambda(&mut self, lambda: f32) {
-        self.lambda = lambda;
     }
 
     /// Get reference atoms of all polyatomic molecules.
@@ -417,7 +361,7 @@ impl System {
     ///
     /// ## Notes
     /// - **This function must be called every time topology
-    /// of the system is changed**.
+    ///   of the system is changed**.
     /// - (Safe native groan library functions handle this for you.)
     #[inline(always)]
     pub fn reset_mol_references(&mut self) {
@@ -548,7 +492,7 @@ impl System {
     /// ## Returns
     /// Reference to `Atom` structure or `AtomError::OutOfRange` if `index` is out of range.
     #[inline(always)]
-    pub fn get_atom_as_ref(&self, index: usize) -> Result<&Atom, AtomError> {
+    pub fn get_atom(&self, index: usize) -> Result<&Atom, AtomError> {
         self.atoms.get(index).ok_or(AtomError::OutOfRange(index))
     }
 
@@ -557,7 +501,7 @@ impl System {
     /// ## Returns
     /// Mutable reference to `Atom` structure or `AtomError::OutOfRange` if `index` is out of range.
     #[inline(always)]
-    pub fn get_atom_as_mut(&mut self, index: usize) -> Result<&mut Atom, AtomError> {
+    pub fn get_atom_mut(&mut self, index: usize) -> Result<&mut Atom, AtomError> {
         self.atoms
             .get_mut(index)
             .ok_or(AtomError::OutOfRange(index))
@@ -582,10 +526,10 @@ impl System {
     /// `index` must be lower than the number of atoms in the system.
     ///
     /// ## Notes
-    /// - Always prefer to use [`System::get_atom_as_ref`], unless you are sure that the
-    /// boundary checks measurably slow down your application.
+    /// - Always prefer to use [`System::get_atom`], unless you are sure that the
+    ///   boundary checks measurably slow down your application.
     #[inline(always)]
-    pub unsafe fn get_atom_unchecked_as_ref(&self, index: usize) -> &Atom {
+    pub unsafe fn get_atom_unchecked(&self, index: usize) -> &Atom {
         self.atoms.get_unchecked(index)
     }
 
@@ -596,10 +540,10 @@ impl System {
     /// `index` must be lower than the number of atoms in the system.
     ///
     /// ## Notes
-    /// - Always prefer to use [`System::get_atom_as_mut`], unless you are sure that the
-    /// boundary checks measurably slow down your application.
+    /// - Always prefer to use [`System::get_atom_mut`], unless you are sure that the
+    ///   boundary checks measurably slow down your application.
     #[inline(always)]
-    pub unsafe fn get_atom_unchecked_as_mut(&mut self, index: usize) -> &mut Atom {
+    pub unsafe fn get_atom_unchecked_mut(&mut self, index: usize) -> &mut Atom {
         self.atoms.get_unchecked_mut(index)
     }
 
@@ -611,10 +555,20 @@ impl System {
     ///
     /// ## Notes
     /// - Always prefer to use [`System::get_atom_copy`], unless you are sure that the
-    /// boundary checks measurably slow down your application.
+    ///   boundary checks measurably slow down your application.
     #[inline(always)]
     pub unsafe fn get_atom_unchecked_copy(&self, index: usize) -> Atom {
         self.atoms.get_unchecked(index).clone()
+    }
+
+    /// Get the number of writers associated with the system.
+    pub fn get_n_writers(&self) -> usize {
+        self.trajectory_writers.len()
+    }
+
+    /// Get mutable reference to the trajectory writers associated with the system.
+    pub(crate) fn get_writers_mut(&mut self) -> &mut SystemWriters {
+        &mut self.trajectory_writers
     }
 }
 
@@ -645,9 +599,9 @@ mod tests {
             system.get_name(),
             "System generated using the `groan_rs` library."
         );
-        assert_eq!(system.get_atoms_as_ref().len(), 0);
+        assert_eq!(system.get_atoms().len(), 0);
 
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
 
         assert_approx_eq!(f32, simbox.v1x, 1.5f32);
         assert_approx_eq!(f32, simbox.v2y, 3.3f32);
@@ -669,7 +623,7 @@ mod tests {
         assert_eq!(system_gro.get_name(), "Buforin II peptide P11L");
         assert_eq!(system_gro.get_n_atoms(), 50);
 
-        let simbox = system_gro.get_box_as_ref().unwrap();
+        let simbox = system_gro.get_box().unwrap();
         assert_approx_eq!(f32, simbox.x, 6.08608);
         assert_approx_eq!(f32, simbox.y, 6.08608);
         assert_approx_eq!(f32, simbox.z, 6.08608);
@@ -686,7 +640,7 @@ mod tests {
         assert_eq!(system_pdb.get_name(), "Buforin II peptide P11L");
         assert_eq!(system_pdb.get_n_atoms(), 50);
 
-        let simbox = system_pdb.get_box_as_ref().unwrap();
+        let simbox = system_pdb.get_box().unwrap();
         assert_approx_eq!(f32, simbox.x, 6.0861);
         assert_approx_eq!(f32, simbox.y, 6.0861);
         assert_approx_eq!(f32, simbox.z, 6.0861);
@@ -703,7 +657,7 @@ mod tests {
         assert_eq!(system_pqr.get_name(), "Buforin II peptide P11L");
         assert_eq!(system_pqr.get_n_atoms(), 50);
 
-        let simbox = system_pqr.get_box_as_ref().unwrap();
+        let simbox = system_pqr.get_box().unwrap();
         assert_approx_eq!(f32, simbox.x, 6.0861);
         assert_approx_eq!(f32, simbox.y, 6.0861);
         assert_approx_eq!(f32, simbox.z, 6.0861);
@@ -717,7 +671,13 @@ mod tests {
         assert_eq!(simbox.v3y, 0.0f32);
 
         // compare atoms from PDB an GRO file
-        for (groa, pdba) in system_gro.atoms_iter().zip(system_pdb.atoms_iter()) {
+        for (i, (groa, pdba)) in system_gro
+            .atoms_iter()
+            .zip(system_pdb.atoms_iter())
+            .enumerate()
+        {
+            assert_eq!(groa.get_index(), i);
+            assert_eq!(groa.get_index(), pdba.get_index());
             assert_eq!(groa.get_residue_number(), pdba.get_residue_number());
             assert_eq!(groa.get_residue_name(), pdba.get_residue_name());
             assert_eq!(groa.get_atom_number(), pdba.get_atom_number());
@@ -743,7 +703,13 @@ mod tests {
         }
 
         // compare atoms from PQR and PDB file
-        for (pqra, pdba) in system_pqr.atoms_iter().zip(system_pdb.atoms_iter()) {
+        for (i, (pqra, pdba)) in system_pqr
+            .atoms_iter()
+            .zip(system_pdb.atoms_iter())
+            .enumerate()
+        {
+            assert_eq!(pqra.get_index(), i);
+            assert_eq!(pqra.get_index(), pdba.get_index());
             assert_eq!(pqra.get_residue_number(), pdba.get_residue_number());
             assert_eq!(pqra.get_residue_name(), pdba.get_residue_name());
             assert_eq!(pqra.get_atom_number(), pdba.get_atom_number());
@@ -780,10 +746,7 @@ mod tests {
         system_pdb.guess_elements(Elements::default()).unwrap();
 
         assert_eq!(system_tpr.get_name(), system_pdb.get_name());
-        compare_box(
-            system_tpr.get_box_as_ref().unwrap(),
-            system_pdb.get_box_as_ref().unwrap(),
-        );
+        compare_box(system_tpr.get_box().unwrap(), system_pdb.get_box().unwrap());
 
         // compare atoms (and bonds)
         for (atom1, atom2) in system_tpr.atoms_iter().zip(system_pdb.atoms_iter()) {
@@ -796,10 +759,7 @@ mod tests {
         let system_tpr = System::from_file("test_files/triclinic.tpr").unwrap();
         let system_gro = System::from_file("test_files/triclinic.gro").unwrap();
 
-        compare_box(
-            system_tpr.get_box_as_ref().unwrap(),
-            system_gro.get_box_as_ref().unwrap(),
-        );
+        compare_box(system_tpr.get_box().unwrap(), system_gro.get_box().unwrap());
     }
 
     #[test]
@@ -870,7 +830,7 @@ mod tests {
         let system = System::from_file("test_files/example_box9.gro").unwrap();
 
         let simbox = system.get_box_copy().unwrap();
-        let original_simbox = system.get_box_as_ref().unwrap();
+        let original_simbox = system.get_box().unwrap();
 
         assert_approx_eq!(f32, simbox.x, original_simbox.x);
         assert_approx_eq!(f32, simbox.y, original_simbox.y);
@@ -891,7 +851,7 @@ mod tests {
 
         let mut atoms = system.get_atoms_copy();
 
-        for (extracted_atom, system_atom) in atoms.iter().zip(system.get_atoms_as_ref().iter()) {
+        for (extracted_atom, system_atom) in atoms.iter().zip(system.get_atoms().iter()) {
             assert_eq!(
                 system_atom.get_atom_number(),
                 extracted_atom.get_atom_number()
@@ -900,7 +860,7 @@ mod tests {
 
         let _ = atoms.pop();
         assert_eq!(atoms.len(), 16843);
-        assert_eq!(system.get_atoms_as_ref().len(), 16844);
+        assert_eq!(system.get_atoms().len(), 16844);
     }
 
     #[test]
@@ -915,7 +875,7 @@ mod tests {
         groups.insert("Test".to_string(), new_group);
 
         assert!(groups.contains_key("Test"));
-        assert!(!system.get_groups_as_ref().contains_key("Test"));
+        assert!(!system.get_groups().contains_key("Test"));
     }
 
     #[test]
@@ -975,7 +935,7 @@ mod tests {
         assert!(!system.has_duplicate_atom_numbers());
 
         system
-            .get_atoms_as_mut()
+            .get_atoms_mut()
             .get_mut(10)
             .unwrap()
             .set_atom_number(44);
@@ -1012,7 +972,7 @@ mod tests {
 
         let mut atoms = system.atoms_extract();
 
-        for (extracted_atom, system_atom) in atoms.iter().zip(system.get_atoms_as_ref().iter()) {
+        for (extracted_atom, system_atom) in atoms.iter().zip(system.get_atoms().iter()) {
             assert_eq!(
                 system_atom.get_atom_number(),
                 extracted_atom.get_atom_number()
@@ -1021,7 +981,7 @@ mod tests {
 
         let _ = atoms.pop();
         assert_eq!(atoms.len(), 16843);
-        assert_eq!(system.get_atoms_as_ref().len(), 16844);
+        assert_eq!(system.get_atoms().len(), 16844);
     }
 
     #[test]
@@ -1059,41 +1019,41 @@ mod tests {
     }
 
     #[test]
-    fn get_atom_as_ref() {
+    fn get_atom() {
         let system = System::from_file("test_files/example.gro").unwrap();
 
-        assert!(system.get_atom_as_ref(16844).is_err());
+        assert!(system.get_atom(16844).is_err());
 
-        let atom = system.get_atom_as_ref(0).unwrap();
+        let atom = system.get_atom(0).unwrap();
         assert_eq!(atom.get_atom_number(), 1);
 
-        let atom = system.get_atom_as_ref(16843).unwrap();
+        let atom = system.get_atom(16843).unwrap();
         assert_eq!(atom.get_atom_number(), 16844);
     }
 
     #[test]
-    fn get_atom_unchecked_as_ref() {
+    fn get_atom_unchecked() {
         let system = System::from_file("test_files/example.gro").unwrap();
 
         let indices = [0, 329, 4938, 16843];
         for i in indices {
-            let atom_safe = system.get_atom_as_ref(i).unwrap();
-            let atom_unsafe = unsafe { system.get_atom_unchecked_as_ref(i) };
+            let atom_safe = system.get_atom(i).unwrap();
+            let atom_unsafe = unsafe { system.get_atom_unchecked(i) };
 
             compare_atoms(atom_safe, atom_unsafe);
         }
     }
 
     #[test]
-    fn get_atom_as_mut() {
+    fn get_atom_mut() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        assert!(system.get_atom_as_mut(16844).is_err());
+        assert!(system.get_atom_mut(16844).is_err());
 
-        let atom = system.get_atom_as_mut(0).unwrap();
+        let atom = system.get_atom_mut(0).unwrap();
         assert_eq!(atom.get_atom_number(), 1);
 
-        let atom = system.get_atom_as_mut(16843).unwrap();
+        let atom = system.get_atom_mut(16843).unwrap();
         assert_eq!(atom.get_atom_number(), 16844);
     }
 
@@ -1103,8 +1063,8 @@ mod tests {
 
         let indices = [0, 329, 4938, 16843];
         for i in indices {
-            let atom_unsafe = unsafe { system.get_atom_unchecked_as_mut(i) as *mut Atom };
-            let atom_safe = system.get_atom_as_mut(i).unwrap();
+            let atom_unsafe = unsafe { system.get_atom_unchecked_mut(i) as *mut Atom };
+            let atom_safe = system.get_atom_mut(i).unwrap();
             compare_atoms(atom_safe, unsafe { &*atom_unsafe });
         }
     }
@@ -1200,6 +1160,6 @@ mod serde_tests {
 
         assert_eq!(system.get_n_atoms(), 61);
         assert_eq!(system.get_n_groups(), 3);
-        assert!(system.get_box_as_ref().is_some());
+        assert!(system.get_box().is_some());
     }
 }

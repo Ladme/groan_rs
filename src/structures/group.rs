@@ -119,8 +119,8 @@ impl Group {
     fn apply_geometry(self, geometry: impl Shape, system: &System) -> Self {
         let mut indices = Vec::new();
 
-        let atoms = system.get_atoms_as_ref();
-        let simbox = system.get_box_as_ref();
+        let atoms = system.get_atoms();
+        let simbox = system.get_box();
 
         // iterate through the atoms of the old group and select atoms fullfilling the geometry condition
         for index in self.atoms.iter() {
@@ -149,8 +149,8 @@ impl Group {
     fn apply_geometries(self, geometries: Vec<Box<dyn Shape>>, system: &System) -> Self {
         let mut indices = Vec::new();
 
-        let atoms = system.get_atoms_as_ref();
-        let simbox = system.get_box_as_ref();
+        let atoms = system.get_atoms();
+        let simbox = system.get_box();
 
         // iterate through the atoms of the old group and select atoms fulfilling all geometry conditions
         for index in self.atoms.iter() {
@@ -191,14 +191,14 @@ impl Group {
         match select {
             Select::ResidueName(names) => Ok(names
                 .iter()
-                .any(|name| name == system.get_atoms_as_ref()[atom_index].get_residue_name())),
+                .any(|name| name == system.get_atoms()[atom_index].get_residue_name())),
 
             Select::AtomName(names) => Ok(names
                 .iter()
-                .any(|name| name == system.get_atoms_as_ref()[atom_index].get_atom_name())),
+                .any(|name| name == system.get_atoms()[atom_index].get_atom_name())),
 
             Select::ResidueNumber(numbers) => {
-                let resnum = system.get_atoms_as_ref()[atom_index].get_residue_number();
+                let resnum = system.get_atoms()[atom_index].get_residue_number();
                 Ok(numbers
                     .iter()
                     .any(|&(start, end)| resnum >= start && resnum <= end))
@@ -209,14 +209,14 @@ impl Group {
                 .any(|&(start, end)| atom_index + 1 >= start && atom_index < end)),
 
             Select::AtomNumber(numbers) => {
-                let atomnum = system.get_atoms_as_ref()[atom_index].get_atom_number();
+                let atomnum = system.get_atoms()[atom_index].get_atom_number();
                 Ok(numbers
                     .iter()
                     .any(|&(start, end)| atomnum >= start && atomnum <= end))
             }
 
             Select::Chain(identifiers) => {
-                let chain = match system.get_atoms_as_ref()[atom_index].get_chain() {
+                let chain = match system.get_atoms()[atom_index].get_chain() {
                     None => return Ok(false),
                     Some(x) => x,
                 };
@@ -249,7 +249,7 @@ impl Group {
             }
 
             Select::ElementName(names) => {
-                let elname = match system.get_atoms_as_ref()[atom_index].get_element_name() {
+                let elname = match system.get_atoms()[atom_index].get_element_name() {
                     None => return Ok(false),
                     Some(x) => x,
                 };
@@ -258,7 +258,7 @@ impl Group {
             }
 
             Select::ElementSymbol(symbols) => {
-                let elsymbol = match system.get_atoms_as_ref()[atom_index].get_element_symbol() {
+                let elsymbol = match system.get_atoms()[atom_index].get_element_symbol() {
                     None => return Ok(false),
                     Some(x) => x,
                 };
@@ -466,7 +466,7 @@ print_ndx: true
 print_ndx: true
 ";
 
-        let group: Group = serde_yaml::from_str(&string).unwrap();
+        let group: Group = serde_yaml::from_str(string).unwrap();
 
         let ranges = vec![(20, 32), (64, 64), (84, 143)];
         let expected = Group::from_ranges(ranges, 1028);

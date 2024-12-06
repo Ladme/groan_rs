@@ -16,7 +16,7 @@ use crate::{
 /// ## Notes
 /// - Does not create groups apart from the default `all` and `All`.
 /// - The atoms and residues in the tpr file are numbered sequentially,
-/// no matter their original numbering in the gro/pdb file.
+///   no matter their original numbering in the gro/pdb file.
 pub fn read_tpr(filename: impl AsRef<Path>) -> Result<System, ParseTprError> {
     let tpr = match minitpr::TprFile::parse(filename) {
         Ok(x) => x,
@@ -139,8 +139,11 @@ mod tests {
         assert_eq!(converted1.get_residue_number(), 1);
         assert_approx_eq!(f32, converted1.get_mass().unwrap(), 72.0);
         assert_approx_eq!(f32, converted1.get_charge().unwrap(), 1.0);
-        assert_eq!(converted1.get_element_name(), Some("carbon"));
-        assert_eq!(converted1.get_element_symbol(), Some("C"));
+        assert_eq!(
+            converted1.get_element_name().unwrap(),
+            &String::from("carbon")
+        );
+        assert_eq!(converted1.get_element_symbol().unwrap(), &String::from("C"));
         assert_eq!(
             converted1.get_position(),
             Some(&Vector3D::new(1.497, 2.432, 0.439))
@@ -205,19 +208,11 @@ mod tests {
         }
 
         // check bonds
-        system_tpr.get_atom_as_ref(0).unwrap().get_bonded().isin(1);
-        system_tpr.get_atom_as_ref(1).unwrap().get_bonded().isin(0);
-        system_tpr.get_atom_as_ref(1).unwrap().get_bonded().isin(2);
-        system_tpr.get_atom_as_ref(1).unwrap().get_bonded().isin(4);
-        system_tpr
-            .get_atom_as_ref(854)
-            .unwrap()
-            .get_bonded()
-            .isin(853);
-        system_tpr
-            .get_atom_as_ref(854)
-            .unwrap()
-            .get_bonded()
-            .isin(855);
+        system_tpr.get_atom(0).unwrap().get_bonded().isin(1);
+        system_tpr.get_atom(1).unwrap().get_bonded().isin(0);
+        system_tpr.get_atom(1).unwrap().get_bonded().isin(2);
+        system_tpr.get_atom(1).unwrap().get_bonded().isin(4);
+        system_tpr.get_atom(854).unwrap().get_bonded().isin(853);
+        system_tpr.get_atom(854).unwrap().get_bonded().isin(855);
     }
 }

@@ -146,9 +146,9 @@ impl System {
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.label_atom("Reference Atom", 17).unwrap();
     ///
-    /// let atom = system.get_labeled_atom_as_ref("Reference Atom").unwrap();
+    /// let atom = system.get_labeled_atom("Reference Atom").unwrap();
     /// ```
-    pub fn get_labeled_atom_as_ref(&self, label: &str) -> Result<&Atom, AtomLabelError> {
+    pub fn get_labeled_atom(&self, label: &str) -> Result<&Atom, AtomLabelError> {
         match self.labeled_atoms.get(label) {
             // safety: all labels are checked at construction that they point to a valid atom
             // and atoms cannot be removed from the system
@@ -171,9 +171,9 @@ impl System {
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.label_atom("Reference Atom", 17).unwrap();
     ///
-    /// let atom = system.get_labeled_atom_as_mut("Reference Atom").unwrap();
+    /// let atom = system.get_labeled_atom_mut("Reference Atom").unwrap();
     /// ```
-    pub fn get_labeled_atom_as_mut(&mut self, label: &str) -> Result<&mut Atom, AtomLabelError> {
+    pub fn get_labeled_atom_mut(&mut self, label: &str) -> Result<&mut Atom, AtomLabelError> {
         match self.labeled_atoms.get(label) {
             // safety: all labels are checked at construction that they point to a valid atom
             // and atoms cannot be removed from the system
@@ -423,13 +423,13 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.label_atom("labeled atom", 174).unwrap();
 
-        let atom_label = system.get_labeled_atom_as_ref("labeled atom").unwrap();
-        let atom_index = system.get_atom_as_ref(174).unwrap();
+        let atom_label = system.get_labeled_atom("labeled atom").unwrap();
+        let atom_index = system.get_atom(174).unwrap();
 
         compare_atoms(atom_label, atom_index);
 
         // nonexistent label fail
-        match system.get_labeled_atom_as_ref("nonexistent label") {
+        match system.get_labeled_atom("nonexistent label") {
             Err(AtomLabelError::NotFound(label)) => assert_eq!(label, "nonexistent label"),
             Ok(_) => panic!("Error should have been returned but it was not."),
             Err(e) => panic!("Incorrect error type '{}' returned.", e),
@@ -441,15 +441,15 @@ mod tests {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.label_atom("labeled atom", 174).unwrap();
 
-        let mut atom_index = system.get_atom_as_ref(174).unwrap().clone();
+        let mut atom_index = system.get_atom(174).unwrap().clone();
         atom_index.set_chain('D');
-        let atom_label = system.get_labeled_atom_as_mut("labeled atom").unwrap();
+        let atom_label = system.get_labeled_atom_mut("labeled atom").unwrap();
         atom_label.set_chain('D');
 
         compare_atoms(atom_label, &atom_index);
 
         // nonexistent label fail
-        match system.get_labeled_atom_as_mut("nonexistent label") {
+        match system.get_labeled_atom_mut("nonexistent label") {
             Err(AtomLabelError::NotFound(label)) => assert_eq!(label, "nonexistent label"),
             Ok(_) => panic!("Error should have been returned but it was not."),
             Err(e) => panic!("Incorrect error type '{}' returned.", e),
@@ -487,11 +487,11 @@ mod tests {
         assert_eq!(collection.len(), 3);
 
         assert_eq!(collection[0].0, "first atom");
-        compare_atoms(collection[0].1, system.get_atom_as_ref(0).unwrap());
+        compare_atoms(collection[0].1, system.get_atom(0).unwrap());
         assert_eq!(collection[1].0, "labeled atom");
-        compare_atoms(collection[1].1, system.get_atom_as_ref(174).unwrap());
+        compare_atoms(collection[1].1, system.get_atom(174).unwrap());
         assert_eq!(collection[2].0, "last atom");
-        compare_atoms(collection[2].1, system.get_atom_as_ref(16843).unwrap());
+        compare_atoms(collection[2].1, system.get_atom(16843).unwrap());
 
         system.label_atom("one more", 1144).unwrap();
 

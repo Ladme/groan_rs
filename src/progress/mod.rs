@@ -4,11 +4,11 @@
 //! Implementation of ProgressPrinter structure for printing the progress of trajectory reading.
 
 use colored::{ColoredString, Colorize};
-use std::{
-    io::Write,
-    num::NonZeroUsize,
-    sync::{Arc, Mutex},
-};
+use std::{io::Write, num::NonZeroUsize};
+
+mod progress_stream;
+
+use progress_stream::ProgressStream;
 
 /// Progress of trajectory reading.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -43,18 +43,14 @@ impl ProgressMessage {
     }
 
     /// Print formatted `ProgressMessage`.
-    fn print(&self, out: &Arc<Mutex<dyn Write>>, colored: bool) {
-        let mut writer = out.lock().expect(
-            "FATAL GROAN ERROR | ProgressMessage::print | Error occured while locking a mutex.",
-        );
-
-        if colored {
-            write!(writer, "[{: ^9}]   ", self.msg)
-                .expect("FATAL GROAN ERROR | ProgressMessage::print (1) | Could not write to `ProgressPrinter` stream.");
+    fn print(&self, out: &ProgressStream, colored: bool) {
+        let message = if colored {
+            format!("[{: ^9}]   ", self.msg)
         } else {
-            write!(writer, "[{: ^9}]   ", self.msg.as_ref() as &str)
-            .expect("FATAL GROAN ERROR | ProgressMessage::print (2) | Could not write to `ProgressPrinter` stream.");
-        }
+            format!("[{: ^9}]   ", self.msg.as_ref() as &str)
+        };
+
+        out.write(&message);
     }
 }
 
@@ -82,7 +78,7 @@ impl From<ColoredString> for ProgressMessage {
 #[derive(Clone)]
 pub struct ProgressPrinter {
     /// Stream to write the progress info to.
-    output: Arc<Mutex<dyn Write>>,
+    output: ProgressStream,
     /// Current status of reading. Default: ProgressStatus::Running.
     status: ProgressStatus,
     /// Frequency of printing. Print every `print_freq`th frame. Default: 100 frames.
@@ -107,7 +103,9 @@ pub struct ProgressPrinter {
     newline_at_end: bool,
 }
 
+#[cfg(feature = "parallel")]
 unsafe impl Send for ProgressPrinter {}
+#[cfg(feature = "parallel")]
 unsafe impl Sync for ProgressPrinter {}
 
 impl ProgressPrinter {
@@ -176,7 +174,7 @@ impl ProgressPrinter {
     /// ```
     pub fn new() -> Self {
         ProgressPrinter {
-            output: Arc::from(Mutex::from(std::io::stdout())),
+            output: ProgressStream::default(),
             status: ProgressStatus::Running,
             print_freq: NonZeroUsize::new(100).unwrap(),
             colored: true,
@@ -194,7 +192,7 @@ impl ProgressPrinter {
     /// Create new `ProgressPrinter` with specific `output` stream.
     #[inline(always)]
     pub fn with_output(mut self, stream: Box<dyn Write>) -> Self {
-        self.output = Arc::from(Mutex::from(stream));
+        self.output = ProgressStream::new(stream);
         self
     }
 
@@ -302,31 +300,23 @@ impl ProgressPrinter {
     #[inline(always)]
     fn print_jumping_msg(&mut self) {
         self.jumping_msg.print(&self.output, self.colored);
-        let mut writer = self.output.lock()
-            .expect("FATAL GROAN ERROR | ProgressPrinter::print_jumping_msg | Error occured while locking a mutex.");
-
-        write!(writer, "Jumping to the start of the iteration...{}", self.terminating)
-                        .expect("FATAL GROAN ERROR | ProgressPrinter::print_jumping_msg (1) | Could not write to `ProgressPrinter` stream.");
-        writer.flush()
-            .expect("FATAL GROAN ERROR | ProgressPrinter::print_jumping_msg (2) | Could not flush `ProgressPrinter` stream.");
+        let message = format!(
+            "Jumping to the start of the iteration...{}",
+            self.terminating
+        );
+        self.output.write_flush(&message);
     }
 
     /// Print formatted information about the current step and simulation time.
     #[inline(always)]
     fn print_steptime(&mut self, sim_step: u64, sim_time: f32) {
-        let mut writer = self.output.lock()
-            .expect("FATAL GROAN ERROR | ProgressPrinter::print_steptime | Error occured while locking a mutex.");
-
-        if self.colored {
-            write!(
-                writer,
+        let message = if self.colored {
+            format!(
                 "{} {:12} | {} {:12} ps{}",
                 self.step_msg, sim_step, self.time_msg, sim_time as u64, self.terminating
             )
-            .expect("FATAL GROAN ERROR | ProgressPrinter::print_steptime(1) | Could not write to `ProgressPrinter` stream.");
         } else {
-            write!(
-                writer,
+            format!(
                 "{} {:12} | {} {:12} ps{}",
                 self.step_msg.as_ref() as &str,
                 sim_step,
@@ -334,17 +324,15 @@ impl ProgressPrinter {
                 sim_time as u64,
                 self.terminating
             )
-            .expect("FATAL GROAN ERROR | ProgressPrinter::print_steptime (2) | Could not write to `ProgressPrinter` stream.");
-        }
+        };
+
+        self.output.write_flush(&message);
     }
 
     /// Print newline at the end of iteration.
     #[inline(always)]
     fn print_newline_at_end(&mut self) {
-        let mut writer = self.output.lock()
-            .expect("FATAL GROAN ERROR | ProgressPrinter::print_newline_at_end | Error occured while locking a mutex.");
-
-        writeln!(writer).expect("FATAL GROAN ERROR | ProgressPrinter::print_newline_at_end | Could not write to `ProgressPrinter` stream.");
+        self.output.write_flush("\n");
     }
 
     /// Print progress info about trajectory reading.
@@ -370,13 +358,6 @@ impl ProgressPrinter {
                     }
                 }
             }
-
-            let mut writer = self.output.lock().expect(
-                "FATAL GROAN ERROR | ProgressPrinter::print | Error occured while locking a mutex.",
-            );
-
-            writer.flush()
-                .expect("FATAL GROAN ERROR | ProgressPrinter::print | Could not flush `ProgressPrinter` stream.");
         }
     }
 }

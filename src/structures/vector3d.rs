@@ -3,16 +3,25 @@
 
 //! Implementation of methods for three-dimensional vector.
 
-use std::ops::{Deref, DerefMut};
+use std::{
+    fmt::Display,
+    ops::{Add, Deref, DerefMut, Div, Mul, Sub},
+};
 
 use crate::structures::{dimension::Dimension, simbox::SimBox};
-use nalgebra::base::Vector3;
+use nalgebra::{base::Vector3, Matrix3};
 
 /// Describes length and orientation of a vector in space or a position of a point in space.
 /// Since v0.7.0 implemented using `nalgebra`'s Vector3
 #[derive(Debug, PartialEq, Clone)]
 #[repr(transparent)]
 pub struct Vector3D(pub(crate) Vector3<f32>);
+
+impl Display for Vector3D {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}, {}, {}]", self.x, self.y, self.z)
+    }
+}
 
 /// Function replicating the behavior of Python '%'.
 #[inline]
@@ -57,26 +66,130 @@ impl From<Dimension> for Vector3D {
     }
 }
 
-/// Allows accessing fields of `Vector3D` as `.x`, `.y`, and `.z`.
-pub struct Vector3Raw {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
+impl From<Vector3<f32>> for Vector3D {
+    #[inline(always)]
+    fn from(vec: Vector3<f32>) -> Self {
+        Vector3D(vec)
+    }
 }
 
 impl Deref for Vector3D {
-    type Target = Vector3Raw;
+    type Target = Vector3<f32>;
 
-    #[inline]
+    #[inline(always)]
     fn deref(&self) -> &Self::Target {
-        unsafe { &*(self.0.as_ptr() as *const Vector3Raw) }
+        &self.0
     }
 }
 
 impl DerefMut for Vector3D {
-    #[inline]
+    #[inline(always)]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { &mut *(self.0.as_mut_ptr() as *mut Vector3Raw) }
+        &mut self.0
+    }
+}
+
+// Addition for owned Vector3D
+impl Add for Vector3D {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self::Output {
+        Vector3D(self.0 + other.0)
+    }
+}
+
+// Addition for &Vector3D
+impl Add<&Vector3D> for Vector3D {
+    type Output = Self;
+
+    fn add(self, other: &Vector3D) -> Self::Output {
+        Vector3D(self.0 + other.0)
+    }
+}
+
+impl Add<Vector3D> for &Vector3D {
+    type Output = Vector3D;
+
+    fn add(self, other: Vector3D) -> Self::Output {
+        Vector3D(self.0 + other.0)
+    }
+}
+
+impl Add<&Vector3D> for &Vector3D {
+    type Output = Vector3D;
+
+    fn add(self, other: &Vector3D) -> Self::Output {
+        Vector3D(self.0 + other.0)
+    }
+}
+
+// Subtraction for owned Vector3D
+impl Sub for Vector3D {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self::Output {
+        Vector3D(self.0 - other.0)
+    }
+}
+
+// Subtraction for &Vector3D
+impl Sub<&Vector3D> for Vector3D {
+    type Output = Self;
+
+    fn sub(self, other: &Vector3D) -> Self::Output {
+        Vector3D(self.0 - other.0)
+    }
+}
+
+impl Sub<Vector3D> for &Vector3D {
+    type Output = Vector3D;
+
+    fn sub(self, other: Vector3D) -> Self::Output {
+        Vector3D(self.0 - other.0)
+    }
+}
+
+impl Sub<&Vector3D> for &Vector3D {
+    type Output = Vector3D;
+
+    fn sub(self, other: &Vector3D) -> Self::Output {
+        Vector3D(self.0 - other.0)
+    }
+}
+
+// Scalar multiplication for owned Vector3D
+impl Mul<f32> for Vector3D {
+    type Output = Self;
+
+    fn mul(self, scalar: f32) -> Self::Output {
+        Vector3D(self.0 * scalar)
+    }
+}
+
+// Scalar multiplication for &Vector3D
+impl Mul<f32> for &Vector3D {
+    type Output = Vector3D;
+
+    fn mul(self, scalar: f32) -> Self::Output {
+        Vector3D(self.0 * scalar)
+    }
+}
+
+// Scalar division for owned Vector3D
+impl Div<f32> for Vector3D {
+    type Output = Self;
+
+    fn div(self, scalar: f32) -> Self::Output {
+        Vector3D(self.0 / scalar)
+    }
+}
+
+// Scalar division for &Vector3D
+impl Div<f32> for &Vector3D {
+    type Output = Vector3D;
+
+    fn div(self, scalar: f32) -> Self::Output {
+        Vector3D(self.0 / scalar)
     }
 }
 
@@ -99,7 +212,7 @@ impl Vector3D {
     /// ```
     #[inline]
     pub fn len(&self) -> f32 {
-        self.0.magnitude()
+        self.magnitude()
     }
 
     /// Convert vector to unit vector.
@@ -121,7 +234,7 @@ impl Vector3D {
     /// ```
     #[inline]
     pub fn to_unit(self) -> Vector3D {
-        Vector3D(self.0.normalize())
+        Vector3D(self.normalize())
     }
 
     /// Invert the vector. (Reverse direction of the vector.)
@@ -140,44 +253,6 @@ impl Vector3D {
     #[inline]
     pub fn invert(self) -> Vector3D {
         Vector3D(self.0 * -1.0)
-    }
-
-    /// Calculate the dot product of two vectors.
-    ///
-    /// ## Example
-    /// ```
-    /// # use groan_rs::prelude::*;
-    /// # use float_cmp::assert_approx_eq;
-    /// #
-    /// let vector1 = Vector3D::new(4.0, 2.0, -1.0);
-    /// let vector2 = Vector3D::new(1.0, -3.0, 2.0);
-    ///
-    /// assert_approx_eq!(f32, vector1.dot(&vector2), -4.0);
-    /// ```
-    #[inline]
-    pub fn dot(&self, vector: &Vector3D) -> f32 {
-        self.0.dot(&vector.0)
-    }
-
-    /// Calculate the cross product of two vectors.
-    ///
-    /// ## Example
-    /// ```
-    /// # use groan_rs::prelude::*;
-    /// # use float_cmp::assert_approx_eq;
-    /// #
-    /// let vector1 = Vector3D::new(4.0, 2.0, -1.0);
-    /// let vector2 = Vector3D::new(1.0, -3.0, 2.0);
-    ///
-    /// let cross = vector1.cross(&vector2);
-    ///
-    /// assert_approx_eq!(f32, cross.x, 1.0);
-    /// assert_approx_eq!(f32, cross.y, -9.0);
-    /// assert_approx_eq!(f32, cross.z, -14.0);
-    /// ```
-    #[inline]
-    pub fn cross(&self, vector: &Vector3D) -> Vector3D {
-        Vector3D(self.0.cross(&vector.0))
     }
 
     /// Calculate the angle between two vectors. Returns angle in radians.
@@ -207,8 +282,8 @@ impl Vector3D {
     ///
     /// ## Warning
     /// Does not take periodic boundary conditions into consideration.
-    /// If you want the vector to fit into simulation box, apply
-    /// `Vector3D::wrap` after shifting.
+    /// If you want the point to fit into the simulation box,
+    /// apply [Vector3D::wrap] after shifting.
     ///
     /// ## Example
     /// Shift a given point in space by 2 nm (in total) along x and y dimensions.
@@ -231,6 +306,58 @@ impl Vector3D {
         let unit = orientation.to_unit();
 
         self.0 += unit.0 * distance;
+    }
+
+    /// Rotate a point in space using a rotation matrix.
+    ///
+    /// ## Warning
+    /// Does not take periodic boundary conditions into consideration.
+    /// If you want the point to fit into the simulation box,
+    /// apply [Vector3D::wrap] after rotating.
+    ///
+    /// ## Exampless
+    /// Rotate the given point by +90° (counterclockwise) around the z-axis:
+    /// ```
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// # use nalgebra::Matrix3;
+    /// #
+    /// let point = Vector3D::new(1.0, 2.0, 3.0);
+    /// let rotation = Matrix3::new(
+    ///     0.0, -1.0,  0.0,
+    ///     1.0,  0.0,  0.0,
+    ///     0.0,  0.0,  1.0,
+    /// );
+    ///
+    /// let rotated = point.rotate(&rotation);
+    /// assert_approx_eq!(f32, rotated.x, -2.0);
+    /// assert_approx_eq!(f32, rotated.y, 1.0);
+    /// assert_approx_eq!(f32, rotated.z, 3.0);
+    /// ```
+    ///
+    /// Rotate the given point by -45° (clockwise) around the x-axis:
+    /// ```
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// # use nalgebra::Matrix3;
+    /// #
+    /// // Clockwise 45° rotation around the X-axis
+    /// let rotation = Matrix3::new(
+    ///    1.0000,  0.0000, 0.0000,
+    ///    0.0000,  0.7071, 0.7071,
+    ///    0.0000, -0.7071, 0.7071,
+    /// );
+    ///
+    /// let point = Vector3D::new(1.0, 2.0, 3.0);
+    /// let rotated = point.rotate(&rotation);
+    ///
+    /// assert_approx_eq!(f32, rotated.x, 1.0000);
+    /// assert_approx_eq!(f32, rotated.y, 3.5355);
+    /// assert_approx_eq!(f32, rotated.z, 0.7071);
+    /// ```
+    #[inline(always)]
+    pub fn rotate(self, rotation_matrix: &Matrix3<f32>) -> Vector3D {
+        Vector3D(rotation_matrix * self.deref())
     }
 
     /// Wrap coordinates of `Vector3D` so that each of them fits into the simulation box.
@@ -412,8 +539,8 @@ impl Vector3D {
     ///
     /// ## Notes
     /// - In case the real point and its periodic image are equidistant from `self`,
-    /// this function will return either of the two shortest vectors. It is not defined
-    /// which vector will be returned.
+    ///   this function will return either of the two shortest vectors. It is not defined
+    ///   which vector will be returned.
     ///
     /// ## Example
     /// ```
@@ -499,6 +626,47 @@ impl Vector3D {
     pub fn is_zero(&self) -> bool {
         self.0.x == 0.0 && self.0.y == 0.0 && self.0.z == 0.0
     }
+
+    /// Get an average 3D vector from a collection of 3D vectors.
+    ///
+    /// ## Examples
+    /// Example 1:
+    /// ```
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
+    /// let vectors = [Vector3D::new(1.0, 2.0, 4.0), Vector3D::new(3.0, 2.0, -2.0)];
+    /// let average = Vector3D::average(&vectors);
+    ///
+    /// assert_approx_eq!(f32, average.x, 2.0);
+    /// assert_approx_eq!(f32, average.y, 2.0);
+    /// assert_approx_eq!(f32, average.z, 1.0);
+    /// ```
+    ///
+    /// Example 2:
+    /// ```
+    /// # use groan_rs::prelude::*;
+    /// # use float_cmp::assert_approx_eq;
+    /// #
+    /// let vectors = [
+    ///     Vector3D::new(-3.0, 0.0, 2.0),
+    ///     Vector3D::new(-2.0, 1.0, 7.0),
+    ///     Vector3D::new(1.0, -2.0, 2.0),
+    /// ];
+    ///
+    /// let average = Vector3D::average(&vectors);
+    /// assert_approx_eq!(f32, average.x, -1.333333, epsilon = 1e-4);
+    /// assert_approx_eq!(f32, average.y, -0.333333, epsilon = 1e-4);
+    /// assert_approx_eq!(f32, average.z, 3.6666666, epsilon = 1e-4);
+    /// ```
+    pub fn average(vectors: &[Vector3D]) -> Vector3D {
+        let sum = vectors.iter().fold((0.0, 0.0, 0.0), |(x, y, z), vec| {
+            (x + vec.x, y + vec.y, z + vec.z)
+        });
+
+        let count = vectors.len() as f32;
+        Vector3D::new(sum.0 / count, sum.1 / count, sum.2 / count)
+    }
 }
 
 impl Default for Vector3D {
@@ -580,6 +748,12 @@ mod serde {
 mod tests {
     use super::*;
     use float_cmp::assert_approx_eq;
+
+    #[test]
+    fn display() {
+        let vec = Vector3D::new(4.32174, 5.6245, 1.212094);
+        assert_eq!(vec.to_string(), String::from("[4.32174, 5.6245, 1.212094]"));
+    }
 
     #[test]
     fn len() {
@@ -1402,7 +1576,7 @@ mod serde_tests {
     #[test]
     fn vector3d_from_yaml() {
         let string = "[ 4.376, 2.13, 4.0 ]\n";
-        let vector: Vector3D = serde_yaml::from_str(&string).unwrap();
+        let vector: Vector3D = serde_yaml::from_str(string).unwrap();
 
         assert_approx_eq!(f32, vector.x, 4.376);
         assert_approx_eq!(f32, vector.y, 2.13);

@@ -92,7 +92,7 @@ impl SimBox {
     ///
     /// ## Notes
     /// - Adapted from Tsjerk Wassenaar's `triclinic` function:
-    /// <https://www.mail-archive.com/gmx-users@gromacs.org/msg28032.html>
+    ///   <https://www.mail-archive.com/gmx-users@gromacs.org/msg28032.html>
     pub fn from_lengths_angles(lengths: Vector3D, angles: Vector3D) -> Self {
         let mut simbox = SimBox {
             v1x: lengths.x,
@@ -448,7 +448,7 @@ v2z: 0.0
 v3x: -2.08931
 v3y: 2.95467
 ";
-        let simbox: SimBox = serde_yaml::from_str(&string).unwrap();
+        let simbox: SimBox = serde_yaml::from_str(string).unwrap();
 
         assert_approx_eq!(f32, simbox.v1x, 6.26832, epsilon = 0.00001);
         assert_approx_eq!(f32, simbox.v2y, 5.90987, epsilon = 0.00001);

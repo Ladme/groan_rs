@@ -9,14 +9,17 @@ use std::path::Path;
 
 use crate::errors::{ReadTrajError, TrajError, WriteTrajError};
 use crate::io::traj_cat::TrajConcatenator;
-use crate::io::traj_io::{
-    FrameData, FrameDataTime, TrajGroupWrite, TrajRangeRead, TrajRead, TrajReadOpen, TrajReader,
-    TrajStepRead, TrajStepTimeRead, TrajWrite,
+use crate::io::traj_read::{
+    FrameData, FrameDataTime, TrajRangeRead, TrajRead, TrajReadOpen, TrajReader, TrajStepRead,
+    TrajStepTimeRead,
 };
-use crate::io::xdrfile::{self, CXdrFile, OpenMode, XdrFile};
-use crate::structures::iterators::AtomIterator;
-use crate::structures::{group::Group, simbox::SimBox, vector3d::Vector3D};
+use crate::io::xdrfile::{self, OpenMode, XdrFile};
+use crate::prelude::AtomIterator;
+use crate::structures::group::Group;
+use crate::structures::{simbox::SimBox, vector3d::Vector3D};
 use crate::system::System;
+
+use super::traj_write::{PrivateTrajWrite, TrajWrite};
 
 /**************************/
 /*      READING TRR       */
@@ -35,7 +38,7 @@ pub struct TrrFrameData {
 }
 
 impl FrameData for TrrFrameData {
-    type TrajFile = CXdrFile;
+    type TrajFile = XdrFile;
 
     /// Read `TrrFrameData` from a trr frame.
     ///
@@ -57,7 +60,7 @@ impl FrameData for TrrFrameData {
 
         unsafe {
             let return_code = xdrfile::read_trr(
-                xdrfile,
+                xdrfile.handle,
                 system.get_n_atoms() as c_int,
                 &mut step,
                 &mut time,
@@ -97,7 +100,7 @@ impl FrameData for TrrFrameData {
     /// Update the `System` structure based on data from `TrrFrameData`.
     fn update_system(self, system: &mut System) {
         unsafe {
-            for (i, atom) in system.get_atoms_as_mut().iter_mut().enumerate() {
+            for (i, atom) in system.get_atoms_mut().iter_mut().enumerate() {
                 let pos = Vector3D::from(*self.coordinates.get_unchecked(i));
                 let vel = Vector3D::from(*self.velocities.get_unchecked(i));
                 let force = Vector3D::from(*self.forces.get_unchecked(i));
@@ -150,8 +153,8 @@ impl<'a> TrajRead<'a> for TrrReader<'a> {
         self.system
     }
 
-    fn get_file_handle(&mut self) -> &mut CXdrFile {
-        unsafe { self.trr.handle.as_mut().unwrap() }
+    fn get_file_handle(&mut self) -> &mut XdrFile {
+        &mut self.trr
     }
 }
 
@@ -191,7 +194,8 @@ impl<'a> TrajReadOpen<'a> for TrrReader<'a> {
 impl<'a> TrajRangeRead<'a> for TrrReader<'a> {
     fn jump_to_start(&mut self, start_time: f32) -> Result<(), ReadTrajError> {
         unsafe {
-            if xdrfile::trr_jump_to_start(self.get_file_handle(), start_time as c_float) != 0 {
+            if xdrfile::trr_jump_to_start(self.get_file_handle().handle, start_time as c_float) != 0
+            {
                 Err(ReadTrajError::StartNotFound(start_time.to_string()))
             } else {
                 Ok(())
@@ -203,7 +207,7 @@ impl<'a> TrajRangeRead<'a> for TrrReader<'a> {
 impl<'a> TrajStepRead<'a> for TrrReader<'a> {
     fn skip_frame(&mut self) -> Result<bool, ReadTrajError> {
         unsafe {
-            match xdrfile::trr_skip_frame(self.get_file_handle()) {
+            match xdrfile::trr_skip_frame(self.get_file_handle().handle) {
                 0 => Ok(true),
                 1 => Err(ReadTrajError::SkipFailed),
                 2 => Ok(false),
@@ -221,7 +225,7 @@ impl<'a> TrajStepTimeRead<'a> for TrrReader<'a> {
         unsafe {
             let mut time: c_float = 0.0;
 
-            match xdrfile::trr_skip_frame_with_time(self.get_file_handle(), &mut time as *mut c_float) {
+            match xdrfile::trr_skip_frame_with_time(self.get_file_handle().handle, &mut time as *mut c_float) {
                 0 => Ok(Some(time)),
                 1 => Err(ReadTrajError::SkipFailed),
                 2 => Ok(None),
@@ -340,7 +344,7 @@ impl System {
     /// - The function checks whether the number of atoms in the system corresponds to the number of atoms in the trr file.
     /// - The `System` structure is modified while iterating through the trr file.
     /// - The trr file does not need to have positions, velocities, and forces provided for each frame.
-    /// In case any of these properties is missing, it is set to `None` for all atoms.
+    ///   In case any of these properties is missing, it is set to `None` for all atoms.
     pub fn trr_iter(
         &mut self,
         filename: impl AsRef<Path>,
@@ -386,168 +390,58 @@ impl System {
 /*       WRITING TRR      */
 /**************************/
 
-/// Structure for writing trr files.
-/// Each `TrrWriter` instance is tightly coupled with a corresponding `System` structure.
-/// If you make updates to the `System` structure, such as during iteration with `System::trr_iter()`,
-/// and subsequently write a TRR frame using `TrrWriter::write_frame()`, the modifications
-/// made to the `System` will be reflected in the written frame.
-///
-/// `TrrWriter` implements the `TrajWrite` trait.
+impl System {
+    /// Initializes a TRR trajectory writer and associates it with `System`.
+    ///
+    /// This is a convenience method for [`System::traj_writer_init`] with `TrrWriter`, writing in TRR format.
+    #[inline(always)]
+    pub fn trr_writer_init(&mut self, filename: impl AsRef<Path>) -> Result<(), WriteTrajError> {
+        self.traj_writer_init::<TrrWriter>(filename)
+    }
+
+    /// Initializes a TRR trajectory writer for a specific group of atoms within `System`.
+    ///
+    /// This is a convenience method for [`System::traj_group_writer_init`] with `TrrWriter`, writing in TRR format.
+    #[inline(always)]
+    pub fn trr_group_writer_init(
+        &mut self,
+        filename: impl AsRef<Path>,
+        group: &str,
+    ) -> Result<(), WriteTrajError> {
+        self.traj_group_writer_init::<TrrWriter>(filename, group)
+    }
+}
+
 pub struct TrrWriter {
-    system: *const System,
     trr: XdrFile,
-}
-
-impl TrajWrite for TrrWriter {
-    /// Open a new trr file for writing.
-    ///
-    /// ## Returns
-    /// An instance of `TrrWriter` structure or `WriteTrajError` in case the file can't be created.
-    ///
-    /// ## Example
-    /// Create a new trr file for writing and associate a system with it.
-    /// ```no_run
-    /// # use groan_rs::prelude::*;
-    /// #
-    /// let system = System::from_file("system.gro").unwrap();
-    /// let mut writer = TrrWriter::new(&system, "output.trr").unwrap();
-    /// ```
-    fn new(system: &System, filename: impl AsRef<Path>) -> Result<TrrWriter, WriteTrajError> {
-        // create the trr file and save a handle to it
-        let trr = match XdrFile::open_xdr(filename.as_ref(), OpenMode::Write) {
-            Ok(x) => x,
-            Err(TrajError::FileNotFound(x)) => return Err(WriteTrajError::CouldNotCreate(x)),
-            Err(TrajError::InvalidPath(x)) => return Err(WriteTrajError::InvalidPath(x)),
-        };
-
-        Ok(TrrWriter { system, trr })
-    }
-
-    /// Write the current state of the system into an open trr file.
-    ///
-    /// ## Returns
-    /// - `Ok` if the frame has been successfully written. Otherwise `WriteTrajError`.
-    ///
-    /// ## Example
-    /// Reading and writing a trr file.
-    /// ```no_run
-    /// # use groan_rs::prelude::*;
-    /// # use std::error::Error;
-    /// #
-    /// fn example_fn() -> Result<(), Box<dyn Error + Send + Sync>> {
-    ///     // load system from file
-    ///     let mut system = System::from_file("system.gro")?;
-    ///
-    ///     // create a trr file for writing and associate it with the system
-    ///     let mut writer = TrrWriter::new(&system, "output.trr")?;
-    ///
-    ///     // loop through the trajectory
-    ///     for raw_frame in system.trr_iter("trajectory.trr")? {
-    ///         // check for errors
-    ///         let _ = raw_frame?;
-    ///
-    ///         // write the current frame into `output.xtc`
-    ///         writer.write_frame()?;
-    ///     }
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    ///
-    /// ## Notes
-    /// - While Gromacs supports writing trr files containing only some of the particle properties (e.g. just velocities),
-    /// `groan_rs` will always write full trr file with all the properties, even if they are zeroed.
-    fn write_frame(&mut self) -> Result<(), WriteTrajError> {
-        unsafe {
-            let n_atoms = (*self.system).get_n_atoms();
-
-            // prepare coordinate, velocity and forces matrix
-            let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
-            let mut velocities = vec![[0.0, 0.0, 0.0]; n_atoms];
-            let mut forces = vec![[0.0, 0.0, 0.0]; n_atoms];
-
-            for (i, atom) in (*self.system).atoms_iter().enumerate() {
-                if let Some(pos) = atom.get_position() {
-                    coordinates[i] = [pos.x, pos.y, pos.z];
-                }
-
-                if let Some(vel) = atom.get_velocity() {
-                    velocities[i] = [vel.x, vel.y, vel.z];
-                }
-
-                if let Some(force) = atom.get_force() {
-                    forces[i] = [force.x, force.y, force.z]
-                }
-            }
-
-            // write the trr frame
-            let return_code = xdrfile::write_trr(
-                self.trr.handle,
-                n_atoms as c_int,
-                (*self.system).get_simulation_step() as i32,
-                (*self.system).get_simulation_time(),
-                (*self.system).get_lambda(),
-                &mut xdrfile::simbox2matrix((*self.system).get_box_as_ref()),
-                coordinates.as_mut_ptr(),
-                velocities.as_mut_ptr(),
-                forces.as_mut_ptr(),
-            );
-
-            if return_code != 0 {
-                return Err(WriteTrajError::CouldNotWrite);
-            }
-        }
-
-        Ok(())
-    }
-}
-
-/// Structure for writing groups of atoms into trr files.
-/// Each `TrrGroupWriter` is tightly coupled with a corresponding `Group` from `System` structure.
-/// If you make updates to the `System` structure, such as during the iteration with `System::trr_iter()`,
-/// and subsequently write a TRR frame using `TrrGroupWriter::write_frame()`, the modifications
-/// made to the `System` will be reflected in the written frame.
-///
-/// Note that the purpose of the `TrrGroupWriter` is writing valid trr files with consistent number of atoms.
-/// Therefore, the `TrrGroupWriter` always works with the original provided group of atoms.
-/// If you change the meaning of this group after constructing `TrrGroupWriter` (by overwriting the group),
-/// `TrrGroupWriter` will still use the original group of atoms.
-/// If you completely remove the original group, `TrrGroupWriter` will still maintain a working copy of it.
-///
-/// `TrrGroupWriter` implements the `TrajGroupWrite` trait.
-pub struct TrrGroupWriter {
-    system: *const System,
-    trr: XdrFile,
-    /// This is a deep copy of the group from the system. `TrrGroupWriter` must always work, even if the user removes the group from the `System` or overwrites it.
+    // deep copy of the group from `System`
     group: Group,
 }
 
-impl TrajGroupWrite for TrrGroupWriter {
-    /// Open a new trr file for writing and associate a specific group from a specific system with it.
-    ///
-    /// ## Returns
-    /// An instance of `TrrGroupWriter` structure or `WriteTrajError` in case the file can't be created
-    /// or the group does not exist.
-    ///
-    /// ## Example
-    /// Create a new trr file for writing and associate a group with it.
-    /// ```no_run
-    /// # use groan_rs::prelude::*;
-    /// #
-    /// let mut system = System::from_file("system.gro").unwrap();
-    /// system.group_create("My Group", "resid 1-4").unwrap();
-    ///
-    /// let mut writer = TrrGroupWriter::new(&system, "My Group", "output.trr").unwrap();
-    /// ```
+impl TrajWrite for TrrWriter {}
+
+impl PrivateTrajWrite for TrrWriter {
     fn new(
         system: &System,
-        group_name: &str,
         filename: impl AsRef<Path>,
-    ) -> Result<TrrGroupWriter, WriteTrajError> {
-        // get copy of the group
-        let group = match system.get_groups_as_ref().get(group_name) {
-            None => return Err(WriteTrajError::GroupNotFound(group_name.to_owned())),
-            Some(g) => g.clone(),
+        group: Option<&str>,
+    ) -> Result<Self, WriteTrajError>
+    where
+        Self: Sized,
+    {
+        // get the requested group from the system or use `all`
+        // this has to be done before opening the trr file
+        let group = match group {
+            Some(x) => system
+                .get_groups()
+                .get(x)
+                .ok_or_else(|| WriteTrajError::GroupNotFound(x.to_owned()))?
+                .clone(),
+            None => system
+                .get_groups()
+                .get("all")
+                .expect("FATAL GROAN ERROR | TrrWriter::new | Group `all` should exist.")
+                .clone(),
         };
 
         // create the trr file and save a handle to it
@@ -557,92 +451,54 @@ impl TrajGroupWrite for TrrGroupWriter {
             Err(TrajError::InvalidPath(x)) => return Err(WriteTrajError::InvalidPath(x)),
         };
 
-        Ok(TrrGroupWriter { system, trr, group })
+        Ok(Self { trr, group })
     }
 
-    /// Write the current state of the group into an open trr file.
-    ///
-    /// ## Returns
-    /// - `Ok` if the frame has been successfully written. Otherwise `WriteTrajError`.
-    ///
-    /// ## Example
-    /// Reading a trr file and writing only the atoms corresponding to an ndx group `Protein` into the output trr file.
-    /// ```no_run
-    /// # use groan_rs::prelude::*;
-    /// # use std::error::Error;
-    /// #
-    /// fn example_fn() -> Result<(), Box<dyn Error + Send + Sync>> {
-    ///     // load system from file
-    ///     let mut system = System::from_file("system.gro")?;
-    ///     system.read_ndx("index.ndx")?;
-    ///
-    ///     // create a trr file for writing and associate it with the group `Protein`
-    ///     let mut writer = TrrGroupWriter::new(&system, "Protein", "output.trr")?;
-    ///
-    ///     // loop through the trajectory
-    ///     for raw_frame in system.trr_iter("trajectory.trr")? {
-    ///         // check for errors
-    ///         let _ = raw_frame?;
-    ///
-    ///         // write the current state of the group `Protein` into `output.trr`
-    ///         writer.write_frame()?;
-    ///     }
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// ## Notes
-    /// - While Gromacs supports writing trr files containing only some of the particle properties (e.g. just velocities),
-    /// `groan_rs` will always write full trr file with all the properties, even if they are zeroed.
-    fn write_frame(&mut self) -> Result<(), WriteTrajError> {
-        unsafe {
-            let n_atoms = self.group.get_n_atoms();
+    fn write_frame(&mut self, system: &System) -> Result<(), WriteTrajError> {
+        let n_atoms = self.group.get_n_atoms();
 
-            // create an iterator over the atoms of the group
-            let iterator = AtomIterator::new(
-                (*self.system).get_atoms_as_ref(),
-                self.group.get_atoms(),
-                (*self.system).get_box_as_ref(),
-            );
+        // prepare coordinate, velocity and forces matrix
+        let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
+        let mut velocities = vec![[0.0, 0.0, 0.0]; n_atoms];
+        let mut forces = vec![[0.0, 0.0, 0.0]; n_atoms];
 
-            // prepare coordinate, velocity and forces matrix
-            let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
-            let mut velocities = vec![[0.0, 0.0, 0.0]; n_atoms];
-            let mut forces = vec![[0.0, 0.0, 0.0]; n_atoms];
+        let iterator =
+            AtomIterator::new(system.get_atoms(), self.group.get_atoms(), system.get_box());
 
-            for (i, atom) in iterator.enumerate() {
-                if let Some(pos) = atom.get_position() {
-                    coordinates[i] = [pos.x, pos.y, pos.z];
-                }
-
-                if let Some(vel) = atom.get_velocity() {
-                    velocities[i] = [vel.x, vel.y, vel.z];
-                }
-
-                if let Some(force) = atom.get_force() {
-                    forces[i] = [force.x, force.y, force.z]
-                }
+        for atom in iterator {
+            if let Some(pos) = atom.get_position() {
+                coordinates[atom.get_index()] = [pos.x, pos.y, pos.z];
             }
 
-            // write the trr frame
-            let return_code = xdrfile::write_trr(
-                self.trr.handle,
-                n_atoms as c_int,
-                (*self.system).get_simulation_step() as i32,
-                (*self.system).get_simulation_time(),
-                (*self.system).get_lambda(),
-                &mut xdrfile::simbox2matrix((*self.system).get_box_as_ref()),
-                coordinates.as_mut_ptr(),
-                velocities.as_mut_ptr(),
-                forces.as_mut_ptr(),
-            );
+            if let Some(vel) = atom.get_velocity() {
+                velocities[atom.get_index()] = [vel.x, vel.y, vel.z];
+            }
 
-            if return_code != 0 {
-                return Err(WriteTrajError::CouldNotWrite);
+            if let Some(force) = atom.get_force() {
+                forces[atom.get_index()] = [force.x, force.y, force.z]
             }
         }
 
-        Ok(())
+        // write the trr frame
+        let return_code = unsafe {
+            xdrfile::write_trr(
+                self.trr.handle,
+                n_atoms as c_int,
+                system.get_simulation_step() as i32,
+                system.get_simulation_time(),
+                system.get_lambda(),
+                &mut xdrfile::simbox2matrix(system.get_box()),
+                coordinates.as_mut_ptr(),
+                velocities.as_mut_ptr(),
+                forces.as_mut_ptr(),
+            )
+        };
+
+        if return_code != 0 {
+            Err(WriteTrajError::CouldNotWrite)
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -701,13 +557,13 @@ mod tests {
         assert_eq!(system.get_simulation_step(), 0);
         assert_eq!(system.get_lambda(), 0.0);
         assert_approx_eq!(f32, system.get_simulation_time(), 0.0);
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
         assert_approx_eq!(f32, simbox.x, 13.01331);
         assert_approx_eq!(f32, simbox.y, 13.01331);
         assert_approx_eq!(f32, simbox.z, 11.25347);
 
-        let atom1 = &system.get_atoms_as_ref()[0];
-        let atom2 = &system.get_atoms_as_ref()[16843];
+        let atom1 = &system.get_atoms()[0];
+        let atom2 = &system.get_atoms()[16843];
 
         assert_eq!(atom1.get_residue_name(), "GLY");
         assert_eq!(atom1.get_residue_number(), 1);
@@ -752,13 +608,13 @@ mod tests {
         assert_eq!(system.get_simulation_step(), 6000);
         assert_eq!(system.get_lambda(), 0.0);
         assert_approx_eq!(f32, system.get_simulation_time(), 120.0);
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
         assert_approx_eq!(f32, simbox.x, 13.024242);
         assert_approx_eq!(f32, simbox.y, 13.024242);
         assert_approx_eq!(f32, simbox.z, 11.242146);
 
-        let atom1 = &system.get_atoms_as_ref()[0];
-        let atom2 = &system.get_atoms_as_ref()[16843];
+        let atom1 = &system.get_atoms()[0];
+        let atom2 = &system.get_atoms()[16843];
 
         assert_eq!(atom1.get_residue_name(), "GLY");
         assert_eq!(atom1.get_residue_number(), 1);
@@ -795,13 +651,13 @@ mod tests {
         assert_eq!(system.get_simulation_step(), 8000);
         assert_eq!(system.get_lambda(), 0.0);
         assert_approx_eq!(f32, system.get_simulation_time(), 160.0);
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
         assert_approx_eq!(f32, simbox.x, 13.076236);
         assert_approx_eq!(f32, simbox.y, 13.076236);
         assert_approx_eq!(f32, simbox.z, 11.13604);
 
-        let atom1 = &system.get_atoms_as_ref()[0];
-        let atom2 = &system.get_atoms_as_ref()[16843];
+        let atom1 = &system.get_atoms()[0];
+        let atom2 = &system.get_atoms()[16843];
 
         assert_eq!(atom1.get_residue_name(), "GLY");
         assert_eq!(atom1.get_residue_number(), 1);
@@ -838,13 +694,13 @@ mod tests {
         assert_eq!(system.get_simulation_step(), 12000);
         assert_eq!(system.get_lambda(), 0.0);
         assert_approx_eq!(f32, system.get_simulation_time(), 240.0);
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
         assert_approx_eq!(f32, simbox.x, 13.083817);
         assert_approx_eq!(f32, simbox.y, 13.083817);
         assert_approx_eq!(f32, simbox.z, 11.159238);
 
-        let atom1 = &system.get_atoms_as_ref()[0];
-        let atom2 = &system.get_atoms_as_ref()[16843];
+        let atom1 = &system.get_atoms()[0];
+        let atom2 = &system.get_atoms()[16843];
 
         assert_eq!(atom1.get_residue_name(), "GLY");
         assert_eq!(atom1.get_residue_number(), 1);
@@ -885,13 +741,13 @@ mod tests {
         assert_eq!(system.get_simulation_step(), 32000);
         assert_eq!(system.get_lambda(), 0.0);
         assert_approx_eq!(f32, system.get_simulation_time(), 640.0);
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
         assert_approx_eq!(f32, simbox.x, 12.965868);
         assert_approx_eq!(f32, simbox.y, 12.965868);
         assert_approx_eq!(f32, simbox.z, 11.348931);
 
-        let atom1 = &system.get_atoms_as_ref()[0];
-        let atom2 = &system.get_atoms_as_ref()[16843];
+        let atom1 = &system.get_atoms()[0];
+        let atom2 = &system.get_atoms()[16843];
 
         assert_eq!(atom1.get_residue_name(), "GLY");
         assert_eq!(atom1.get_residue_number(), 1);
@@ -930,13 +786,13 @@ mod tests {
             .unwrap()
             .next();
 
-        let atom1 = &system.get_atoms_as_ref()[0];
-        let atom2 = &system.get_atoms_as_ref()[16843];
+        let atom1 = &system.get_atoms()[0];
+        let atom2 = &system.get_atoms()[16843];
 
         assert_eq!(system.get_simulation_step(), 0);
         assert_eq!(system.get_lambda(), 0.0);
         assert_approx_eq!(f32, system.get_simulation_time(), 0.0);
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
         assert_approx_eq!(f32, simbox.x, 13.01331);
         assert_approx_eq!(f32, simbox.y, 13.01331);
         assert_approx_eq!(f32, simbox.z, 11.25347);
@@ -981,13 +837,13 @@ mod tests {
             .unwrap()
             .nth(1);
 
-        let atom1 = &system.get_atoms_as_ref()[0];
-        let atom2 = &system.get_atoms_as_ref()[16843];
+        let atom1 = &system.get_atoms()[0];
+        let atom2 = &system.get_atoms()[16843];
 
         assert_eq!(system.get_simulation_step(), 6000);
         assert_eq!(system.get_lambda(), 0.0);
         assert_approx_eq!(f32, system.get_simulation_time(), 120.0);
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
         assert_approx_eq!(f32, simbox.x, 13.00128);
         assert_approx_eq!(f32, simbox.y, 13.00128);
         assert_approx_eq!(f32, simbox.z, 11.277555);
@@ -1024,13 +880,13 @@ mod tests {
             .unwrap()
             .nth(2);
 
-        let atom1 = &system.get_atoms_as_ref()[0];
-        let atom2 = &system.get_atoms_as_ref()[16843];
+        let atom1 = &system.get_atoms()[0];
+        let atom2 = &system.get_atoms()[16843];
 
         assert_eq!(system.get_simulation_step(), 8000);
         assert_eq!(system.get_lambda(), 0.0);
         assert_approx_eq!(f32, system.get_simulation_time(), 160.0);
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
         assert_approx_eq!(f32, simbox.x, 13.117418);
         assert_approx_eq!(f32, simbox.y, 13.117418);
         assert_approx_eq!(f32, simbox.z, 11.052416);
@@ -1067,13 +923,13 @@ mod tests {
             .unwrap()
             .nth(3);
 
-        let atom1 = &system.get_atoms_as_ref()[0];
-        let atom2 = &system.get_atoms_as_ref()[16843];
+        let atom1 = &system.get_atoms()[0];
+        let atom2 = &system.get_atoms()[16843];
 
         assert_eq!(system.get_simulation_step(), 12000);
         assert_eq!(system.get_lambda(), 0.0);
         assert_approx_eq!(f32, system.get_simulation_time(), 240.0);
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
         assert_approx_eq!(f32, simbox.x, 13.020565);
         assert_approx_eq!(f32, simbox.y, 13.020565);
         assert_approx_eq!(f32, simbox.z, 11.256957);
@@ -1114,13 +970,13 @@ mod tests {
             .unwrap()
             .last();
 
-        let atom1 = &system.get_atoms_as_ref()[0];
-        let atom2 = &system.get_atoms_as_ref()[16843];
+        let atom1 = &system.get_atoms()[0];
+        let atom2 = &system.get_atoms()[16843];
 
         assert_eq!(system.get_simulation_step(), 32000);
         assert_eq!(system.get_lambda(), 0.0);
         assert_approx_eq!(f32, system.get_simulation_time(), 640.0);
-        let simbox = system.get_box_as_ref().unwrap();
+        let simbox = system.get_box().unwrap();
         assert_approx_eq!(f32, simbox.x, 13.068602);
         assert_approx_eq!(f32, simbox.y, 13.068602);
         assert_approx_eq!(f32, simbox.z, 11.147263);
@@ -1598,17 +1454,13 @@ mod tests {
                 frame2.get_simulation_time()
             );
 
-            let box1 = frame1.get_box_as_ref().unwrap();
-            let box2 = frame2.get_box_as_ref().unwrap();
+            let box1 = frame1.get_box().unwrap();
+            let box2 = frame2.get_box().unwrap();
             assert_approx_eq!(f32, box1.x, box2.x);
             assert_approx_eq!(f32, box1.y, box2.y);
             assert_approx_eq!(f32, box1.z, box2.z);
 
-            for (a1, a2) in frame1
-                .get_atoms_as_ref()
-                .iter()
-                .zip(frame2.get_atoms_as_ref().iter())
-            {
+            for (a1, a2) in frame1.get_atoms().iter().zip(frame2.get_atoms().iter()) {
                 compare_atoms(a1, a2);
             }
         }
@@ -1628,7 +1480,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 6000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 120.0);
 
-        let simbox = frame.get_box_as_ref().unwrap();
+        let simbox = frame.get_box().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 5.2841544);
         assert_approx_eq!(f32, simbox.v2y, 4.7775064);
         assert_approx_eq!(f32, simbox.v3z, 2.2274022);
@@ -1649,7 +1501,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 48000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 960.0);
 
-        let simbox = frame.get_box_as_ref().unwrap();
+        let simbox = frame.get_box().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 5.2607775);
         assert_approx_eq!(f32, simbox.v2y, 4.756371);
         assert_approx_eq!(f32, simbox.v3z, 2.1813555);
@@ -1675,7 +1527,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 6000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 120.0);
 
-        let simbox = frame.get_box_as_ref().unwrap();
+        let simbox = frame.get_box().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 6.2648335);
         assert_approx_eq!(f32, simbox.v2y, 5.906543);
         assert_approx_eq!(f32, simbox.v3z, 5.110728);
@@ -1696,7 +1548,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 48000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 960.0);
 
-        let simbox = frame.get_box_as_ref().unwrap();
+        let simbox = frame.get_box().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 6.2079663);
         assert_approx_eq!(f32, simbox.v2y, 5.8529277);
         assert_approx_eq!(f32, simbox.v3z, 5.079151);
@@ -1722,7 +1574,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 6000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 120.0);
 
-        let simbox = frame.get_box_as_ref().unwrap();
+        let simbox = frame.get_box().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 6.260297);
         assert_approx_eq!(f32, simbox.v2y, 6.260297);
         assert_approx_eq!(f32, simbox.v3z, 4.431409);
@@ -1743,7 +1595,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 48000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 960.0);
 
-        let simbox = frame.get_box_as_ref().unwrap();
+        let simbox = frame.get_box().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 6.2228966);
         assert_approx_eq!(f32, simbox.v2y, 6.2228966);
         assert_approx_eq!(f32, simbox.v3z, 4.406743);
@@ -1769,7 +1621,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 6000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 120.0);
 
-        let simbox = frame.get_box_as_ref().unwrap();
+        let simbox = frame.get_box().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 5.29758);
         assert_approx_eq!(f32, simbox.v2y, 4.7896442);
         assert_approx_eq!(f32, simbox.v3z, 2.1716056);
@@ -1790,7 +1642,7 @@ mod tests {
         assert_eq!(frame.get_simulation_step(), 48000);
         assert_approx_eq!(f32, frame.get_simulation_time(), 960.0);
 
-        let simbox = frame.get_box_as_ref().unwrap();
+        let simbox = frame.get_box().unwrap();
         assert_approx_eq!(f32, simbox.v1x, 5.1767554);
         assert_approx_eq!(f32, simbox.v2y, 4.6804047);
         assert_approx_eq!(f32, simbox.v3z, 2.0012338);
@@ -1836,8 +1688,8 @@ mod tests {
             );
 
             compare_box(
-                frame_single.get_box_as_ref().unwrap(),
-                frame_cat.get_box_as_ref().unwrap(),
+                frame_single.get_box().unwrap(),
+                frame_cat.get_box().unwrap(),
             );
 
             for (atom_single, atom_cat) in frame_single.atoms_iter().zip(frame_cat.atoms_iter()) {
@@ -1853,14 +1705,15 @@ mod tests {
         let xtc_output = NamedTempFile::new().unwrap();
         let path_to_output = xtc_output.path();
 
-        let mut writer = TrrWriter::new(&system, path_to_output).unwrap();
+        system.trr_writer_init(path_to_output).unwrap();
 
-        for _ in system.trr_iter("test_files/short_trajectory.trr").unwrap() {
-            writer.write_frame().unwrap();
+        for frame in system.trr_iter("test_files/short_trajectory.trr").unwrap() {
+            let frame = frame.unwrap();
+
+            frame.traj_write_frame().unwrap();
         }
 
-        // we must close the file, otherwise metadata do not get updated
-        drop(writer);
+        system.traj_close();
 
         check_trr(
             &mut system,
@@ -1872,9 +1725,9 @@ mod tests {
 
     #[test]
     fn write_invalid_path() {
-        let system = System::from_file("test_files/example.gro").unwrap();
+        let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        match TrrWriter::new(&system, "test_files/nonexistent/output.trr") {
+        match system.trr_writer_init("test_files/nonexistent/output.trr") {
             Err(WriteTrajError::CouldNotCreate(_)) => (),
             _ => panic!("Output TRR file should not have been created."),
         }
@@ -1888,14 +1741,17 @@ mod tests {
         let xtc_output = NamedTempFile::new().unwrap();
         let path_to_output = xtc_output.path();
 
-        let mut writer = TrrGroupWriter::new(&system, "Protein", path_to_output).unwrap();
+        system
+            .trr_group_writer_init(path_to_output, "Protein")
+            .unwrap();
 
-        for _ in system.xtc_iter("test_files/short_trajectory.xtc").unwrap() {
-            writer.write_frame().unwrap();
+        for frame in system.xtc_iter("test_files/short_trajectory.xtc").unwrap() {
+            let frame = frame.unwrap();
+
+            frame.traj_write_frame().unwrap();
         }
 
-        // we must close the file, otherwise metadata do not get updated
-        drop(writer);
+        system.traj_close();
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected = File::open("test_files/short_trajectory_protein.trr").unwrap();
@@ -1910,14 +1766,15 @@ mod tests {
         let xtc_output = NamedTempFile::new().unwrap();
         let path_to_output = xtc_output.path();
 
-        let mut writer = TrrGroupWriter::new(&system, "all", path_to_output).unwrap();
+        system.trr_group_writer_init(path_to_output, "all").unwrap();
 
-        for _ in system.trr_iter("test_files/short_trajectory.trr").unwrap() {
-            writer.write_frame().unwrap();
+        for frame in system.trr_iter("test_files/short_trajectory.trr").unwrap() {
+            let frame = frame.unwrap();
+
+            frame.traj_write_frame().unwrap();
         }
 
-        // we must close the file, otherwise metadata do not get updated
-        drop(writer);
+        system.traj_close();
 
         check_trr(
             &mut system,
@@ -1928,6 +1785,19 @@ mod tests {
     }
 
     #[test]
+    fn write_group_trr_nonexistent() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        match system.trr_group_writer_init("will_not_be_created.trr", "Protein") {
+            Err(WriteTrajError::GroupNotFound(g)) => {
+                assert_eq!(g, "Protein");
+                assert!(!Path::new("will_not_be_created.trr").exists());
+            }
+            _ => panic!("Output XTC file should not have been created."),
+        }
+    }
+
+    #[test]
     fn write_group_trr_replace() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
@@ -1935,19 +1805,21 @@ mod tests {
         let xtc_output = NamedTempFile::new().unwrap();
         let path_to_output = xtc_output.path();
 
-        let mut writer = TrrGroupWriter::new(&system, "Protein", path_to_output).unwrap();
+        system
+            .trr_group_writer_init(path_to_output, "Protein")
+            .unwrap();
 
-        // replace the protein group with something else; this should not change the output of the XtcGroupWriter
+        // replace the protein group with something else; this should not change the output of the trajectory writing
         if system.group_create("Protein", "serial 1").is_ok() {
             panic!("Function should return warning but it did not.");
         }
 
-        for _ in system.xtc_iter("test_files/short_trajectory.xtc").unwrap() {
-            writer.write_frame().unwrap();
+        for frame in system.xtc_iter("test_files/short_trajectory.xtc").unwrap() {
+            let frame = frame.unwrap();
+            frame.traj_write_frame().unwrap();
         }
 
-        // we must close the file, otherwise metadata do not get updated
-        drop(writer);
+        system.traj_close();
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected = File::open("test_files/short_trajectory_protein.trr").unwrap();
@@ -1963,37 +1835,24 @@ mod tests {
         let xtc_output = NamedTempFile::new().unwrap();
         let path_to_output = xtc_output.path();
 
-        let mut writer = TrrGroupWriter::new(&system, "Protein", path_to_output).unwrap();
+        system
+            .trr_group_writer_init(path_to_output, "Protein")
+            .unwrap();
 
-        // remove the protein group from the system; this should not change the output of the XtcGroupWriter
-        let val = system.get_groups_as_mut().swap_remove("Protein").unwrap();
-        assert_eq!(val.get_atoms(), writer.group.get_atoms());
-        assert!(!system.group_exists("Protein"));
+        // remove the `Protein` group; this should not change the output of the trajectory writing
+        system.group_remove("Protein").unwrap();
 
-        for _ in system.xtc_iter("test_files/short_trajectory.xtc").unwrap() {
-            writer.write_frame().unwrap();
+        for frame in system.xtc_iter("test_files/short_trajectory.xtc").unwrap() {
+            let frame = frame.unwrap();
+            frame.traj_write_frame().unwrap();
         }
 
-        // we must close the file, otherwise metadata do not get updated
-        drop(writer);
+        system.traj_close();
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected = File::open("test_files/short_trajectory_protein.trr").unwrap();
 
         assert!(file_diff::diff_files(&mut result, &mut expected));
-    }
-
-    #[test]
-    fn write_group_trr_nonexistent() {
-        let system = System::from_file("test_files/example.gro").unwrap();
-
-        let xtc_output = NamedTempFile::new().unwrap();
-        let path_to_output = xtc_output.path();
-
-        match TrrGroupWriter::new(&system, "Protein", path_to_output) {
-            Err(WriteTrajError::GroupNotFound(g)) => assert_eq!(g, "Protein"),
-            _ => panic!("Output XTC file should not have been created."),
-        }
     }
 
     #[test]
@@ -2003,18 +1862,18 @@ mod tests {
         let trr_output = NamedTempFile::new().unwrap();
         let path_to_output = trr_output.path();
 
-        let mut writer = TrrWriter::new(&system, path_to_output).unwrap();
+        system.trr_writer_init(path_to_output).unwrap();
 
         for frame in system
             .trr_iter("test_files/triclinic_trajectory.trr")
             .unwrap()
         {
-            let _ = frame.unwrap();
+            let frame = frame.unwrap();
 
-            writer.write_frame().unwrap();
+            frame.traj_write_frame().unwrap();
         }
 
-        drop(writer);
+        system.traj_close();
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected = File::open("test_files/triclinic_trajectory_full.trr").unwrap();
@@ -2029,18 +1888,18 @@ mod tests {
         let trr_output = NamedTempFile::new().unwrap();
         let path_to_output = trr_output.path();
 
-        let mut writer = TrrWriter::new(&system, path_to_output).unwrap();
+        system.trr_writer_init(path_to_output).unwrap();
 
         for frame in system
             .trr_iter("test_files/octahedron_trajectory.trr")
             .unwrap()
         {
-            let _ = frame.unwrap();
+            let frame = frame.unwrap();
 
-            writer.write_frame().unwrap();
+            frame.traj_write_frame().unwrap();
         }
 
-        drop(writer);
+        system.traj_close();
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected = File::open("test_files/octahedron_trajectory_full.trr").unwrap();
@@ -2055,18 +1914,18 @@ mod tests {
         let trr_output = NamedTempFile::new().unwrap();
         let path_to_output = trr_output.path();
 
-        let mut writer = TrrWriter::new(&system, path_to_output).unwrap();
+        system.trr_writer_init(path_to_output).unwrap();
 
         for frame in system
             .trr_iter("test_files/dodecahedron_trajectory.trr")
             .unwrap()
         {
-            let _ = frame.unwrap();
+            let frame = frame.unwrap();
 
-            writer.write_frame().unwrap();
+            frame.traj_write_frame().unwrap();
         }
 
-        drop(writer);
+        system.traj_close();
 
         let mut result = File::open(path_to_output).unwrap();
         let mut expected = File::open("test_files/dodecahedron_trajectory_full.trr").unwrap();

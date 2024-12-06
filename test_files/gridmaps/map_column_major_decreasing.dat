@@ -1,0 +1,9 @@
+# This is an example of an invalid GridMap in column-major order. (Invalidity reason: Not Increasing.)
+@   x   |   y   |   values
+   2.0  |  0.0  |   43  23  21
+   1.0  |  0.0  |   5  4 
+   0.0  |  0.0  |   10
+   2.0  |  1.0  |   
+   1.0  |  1.0  |   2  5
+   0.0  |  1.0  |   4  8  12
+

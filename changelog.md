@@ -1,6 +1,83 @@
 
 ## Changelog for the `groan_rs` library
 
+### Version 0.9.0
+
+#### Atom Index
+- Introduced a new `Atom` field `index`, which corresponds to the index of the atom in the system (starting from 0). This field can be accessed using `Atom::get_index` and is only valid if the atom is part of a system.
+- Several functions have been reworked to improve efficiency by utilizing the new `index` field.
+- **Breaking change:** The keyword `atomid` in the Groan Selection Language has been removed to avoid confusion with the new `index` field. Use `atomnum` instead.
+- `PositionError` and `MassError` now report the atom index instead of the atom number.
+
+#### Reworked Trajectory Writing
+- **Breaking changes:**
+  - Trajectory writing has been completely reworked.
+  - Trajectory writers are now attached to `System` structures, making them memory safe.
+  - A trajectory writer can be initialized and attached to a `System` using `System::traj_writer_init` (or `System::traj_group_writer_init` to write information about a specific group).
+  - Multiple trajectory writers can be attached to a single `System`.
+  - The system state can be written into all open output trajectory files using `System::traj_write_frame` or to a specific file using `System::traj_write_frame_to_file`.
+
+#### RMSD Calculation
+- Introduced `System::calc_rmsd` to calculate RMSD between the current and a reference structure.
+- RMSD-fitting of a structure to a reference structure can be performed using `System::calc_rmsd_and_fit`.
+- Calculating RMSD and RMSD-fitting for trajectories is more efficient with `RMSDTrajRead::calc_rmsd` and `RMSDTrajRead::calc_rmsd_and_fit`, implemented for all trajectory readers.
+
+#### Reading GRO Trajectories
+- Trajectories in 'gro' format can now be read using `System::gro_iter`.
+- The `with_step` method can be used with the 'gro' iterator, but the `with_range` method is unavailable since 'gro' trajectories do not guarantee simulation time information.
+- A `System` can now be constructed by calling `System::from_file` on a trajectory in 'gro' format. Only the first frame is read, and the system is constructed based on the atoms in this frame.
+
+#### Getters and Setters
+- **Breaking changes:**
+  - Many 'setter' and 'getter' methods have been renamed:
+    - `get_atoms_as_ref` -> `get_atoms`
+    - `get_atoms_as_mut` -> `get_atoms_mut`
+    - `get_groups_as_ref` -> `get_groups`
+    - `get_box_as_ref` -> `get_box`
+    - `get_box_as_mut` -> `get_box_mut`
+    - `get_atom_as_ref` -> `get_atom`
+    - `get_atom_as_mut` -> `get_atom_mut`
+    - `get_atom_unchecked_as_ref` -> `get_atom_unchecked`
+    - `get_atom_unchecked_as_mut` -> `get_atom_unchecked_mut`
+    - `get_labeled_atom_as_ref` -> `get_labeled_atom`
+    - `get_labeled_atom_as_mut` -> `get_labeled_atom_mut`
+  - `get_atoms_mut` now returns a mutable slice `&mut [Atom]` instead of a mutable vector `&mut Vec<Atom>`, preventing users from adding or removing atoms.
+  - Signatures of several 'getter' methods originally returning `&str` or `Option<&str>` have been changed to return `&String` or `Option<&String>`, which may cause minor compatibility issues, for instance when comparing strings.
+
+#### Changes to `System::traj_iter_map_reduce`
+- **Breaking change:** `System::traj_iter_map_reduce` now requires the user to provide the initial `Data` structure. The `Data` structure no longer needs to implement `Default` but must implement `Clone`.
+- `System::traj_iter_map_reduce` now properly propagates errors and failures from individual threads to the master thread's `ProgressPrinter`.
+
+#### Changes to Atom Iterators
+- **Breaking change:** Renamed `MasterAtomIterator` and `MasterMutAtomIterator` to `AtomIterable`. 
+- Introduced new traits: `AtomIteratorWithBox` and `MutAtomIteratorWithBox` implemented by all (im)mutable atom iterators containing information about the simulation box.
+- Added a new trait `OrderedAtomIterator`, implemented by all immutable and mutable iterators yielding atoms in the order they appear in the molecular system.
+- Iterator unions and intersections can be constructed for iterators implementing `OrderedAtomIterator` using `OrderedAtomIterator::union` and `OrderedAtomIterator::intersection`.
+- Added `AtomPairIterator` and `MutAtomPairIterator` for iterating over pairs of atoms. These iterators currently support iterating over molecule bonds and can be created using `System::molecule_bonds_iter` and `System::molecule_bonds_iter_mut` for immutable and mutable access, respectively.
+- Note: The design of these iterators and the structure of atom pairs are subject to future refinement and potential expansion.
+
+#### Bug Fixes and Other Changes
+- Introduced `System::make_group_whole` to make a group "whole" in the system (similar to `System::make_molecules_whole`).
+- **Breaking change:** `System::group_all_distances` now returns ndarray's `Array2` instead of a vector of vectors.
+- `FileType` is now part of the prelude.
+- Properly implemented `Deref` and `DerefMut` for `Vector3D`, simplifying access to methods from `nalgebra::Vector3`.
+- Improved the performance of `AtomContainer::isin` (and consequently `System::group_isin`).
+- `Vector3D` now implements the `Display` trait.
+- Introduced `Vector3D::average` for calculating the average 3D vector from a collection of vectors.
+- Introduced `System::groups_member` to return a vector of all group names an atom with a specified index is a member of.
+- Values in `GridMap` can now be cleared using `GridMap::clear`.
+- Reworked the loading of `GridMaps` from files, ensuring invalid coordinates cannot be loaded.
+- Introduced `System::guess_elements_unknown` to assign elements only to atoms without an assigned element.
+- `ProgressPrinter` now uses a mutex only if the `parallel` feature is enabled.
+- Introduced `Vector3D::rotate`, `Atom::rotate`, and `Atom::rotate_nopbc` for performing rotations using rotation matrices.
+- Added trajectory converters and analyzers, which are trajectory readers that modify and/or analyze the current simulation frame. See `TrajConverter`, `TrajAnalyzer`, and `TrajConverterAnalyzer` for more details. These structures are primarily for internal use in the `groan_rs` crate.
+- Introduced center of geometry/mass calculation not taking PBC into consideration (`System::group_get_center_naive`, `System::group_get_com_naive`, `AtomIterable::get_center_naive`, `AtomIterable::get_com_naive`).
+- **Bug fix:** Regex operators can now be used in regular expression blocks without raising an `InvalidOperator` error.
+- **Bug fix:** Bonds are now properly loaded for TIP3P and similar water models from TPR files.
+- **Breaking change:** `XdrFile::open_xdr` is no longer public.
+
+***
+
 ### Version 0.8.2
 - Methods from the `parallel` feature are now included in the documentation.
 

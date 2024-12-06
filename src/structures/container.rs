@@ -3,7 +3,7 @@
 
 //! Implementation of the AtomContainer structure and its methods.
 
-use std::cmp;
+use std::{cmp, fmt::Debug};
 
 /// Structure describing a group of atoms.
 /// Guaranteed to only contain valid atom indices.
@@ -47,7 +47,7 @@ impl AtomContainer {
     /// ## Notes
     /// - `atom_indices` structure can contain duplicate indices.
     /// - In case an index in the `atom_indices` is out of range (>= `n_atoms`),
-    /// the index of the last atom in the `System` is used instead.
+    ///   the index of the last atom in the `System` is used instead.
     pub fn from_indices(mut atom_indices: Vec<usize>, n_atoms: usize) -> Self {
         let mut blocks: Vec<AtomBlock> = Vec::new();
 
@@ -81,7 +81,7 @@ impl AtomContainer {
             } else {
                 // create the block
                 unsafe {
-                    // safety: we previously make sure that `end` is lower than `n_atoms`
+                    // safety: we previously made sure that `end` is lower than `n_atoms`
                     // start can not be higher than end from logic
                     blocks.push(AtomBlock::new_unchecked(start, end));
                 }
@@ -93,7 +93,7 @@ impl AtomContainer {
 
         // add the last completed block to the `blocks` vector
         unsafe {
-            // safety: we previously make sure that `end` is lower than `n_atoms`
+            // safety: we previously made sure that `end` is lower than `n_atoms`
             // start can not be higher than end from logic
             blocks.push(AtomBlock::new_unchecked(start, end));
         }
@@ -107,9 +107,9 @@ impl AtomContainer {
     ///
     /// ## Parameters
     /// - `atom_ranges`: vector of atom ranges from the `System` structure. Atoms are indexed from 0.
-    /// Atom range is a tuple representation of an `AtomBlock`. The first element of the tuple
-    /// corresponds to the index of the first atom in the block. The second element corresponds
-    /// to the index of the last atom in the block.
+    ///   Atom range is a tuple representation of an `AtomBlock`. The first element of the tuple
+    ///   corresponds to the index of the first atom in the block. The second element corresponds
+    ///   to the index of the last atom in the block.
     ///
     /// - `n_atoms`: the total number of atoms in the `System` structure
     ///
@@ -117,8 +117,8 @@ impl AtomContainer {
     /// - `atom_ranges` may be overlapping and multiple identical atom ranges may be provided.
     /// - The `start` value of the ranges may be higher than the `end` value. Such ranges are ignored.
     /// - `atom_ranges` may contain atom indices that are out of range (do not exist in the `System`).
-    /// In such cases, the index of the last atom in the `System` is used instead as the upper bound
-    /// of the range.
+    ///   In such cases, the index of the last atom in the `System` is used instead as the upper bound
+    ///   of the range.
     pub fn from_ranges(atom_ranges: Vec<(usize, usize)>, n_atoms: usize) -> Self {
         // create `AtomBlocks` from the ranges
         let mut blocks = Vec::new();
@@ -252,7 +252,14 @@ impl AtomContainer {
     /// Returns `true` if the `AtomContainer` contains the atom with target index.
     pub fn isin(&self, index: usize) -> bool {
         for block in &self.atom_blocks {
-            if index >= block.start && index <= block.end {
+            // blocks are ordered; if index is smaller than the start of the current block,
+            // it cannot be present in the container
+            if index < block.start {
+                return false;
+            }
+
+            // we only need to test for block.end because we already test for block.start before
+            if index <= block.end {
                 return true;
             }
         }
@@ -853,6 +860,16 @@ mod tests_container {
     }
 
     #[test]
+    fn isin2() {
+        let indices = vec![11, 20, 5, 5, 4, 18, 6, 19, 13, 20, 27];
+        let container = AtomContainer::from_indices(indices, 20);
+
+        assert!(!container.isin(1));
+        assert!(!container.isin(3));
+        assert!(container.isin(5));
+    }
+
+    #[test]
     fn union() {
         let indices = vec![11, 1, 2, 3, 20, 5, 0, 5, 4, 18, 6, 19, 1, 13, 20, 27];
         let container1 = AtomContainer::from_indices(indices, 20);
@@ -1017,7 +1034,7 @@ mod serde_tests {
     fn atomblock_from_yaml() {
         let string = "{ start: 14, end: 22}";
 
-        let block: AtomBlock = serde_yaml::from_str(&string).unwrap();
+        let block: AtomBlock = serde_yaml::from_str(string).unwrap();
 
         assert_eq!(block.start, 14);
         assert_eq!(block.end, 22);
@@ -1047,7 +1064,7 @@ mod serde_tests {
     fn atomcontainer_from_yaml() {
         let string = "atom_blocks: [ { start: 20, end: 32 }, { start: 64, end: 64 }, { start: 84, end: 143 } ]";
 
-        let container: AtomContainer = serde_yaml::from_str(&string).unwrap();
+        let container: AtomContainer = serde_yaml::from_str(string).unwrap();
 
         let ranges = vec![(20, 32), (64, 64), (84, 143)];
         let expected = AtomContainer::from_ranges(ranges, 1028);

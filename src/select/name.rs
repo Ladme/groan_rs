@@ -43,7 +43,7 @@ impl Name {
             // definitions, see `System::guess_elements`
             // these are rare so it should not matter
             Name::Regex(r) => {
-                let group_names = system.get_groups_as_ref().keys();
+                let group_names = system.get_groups().keys();
 
                 for name in group_names {
                     if r.is_match(name) {
@@ -108,6 +108,16 @@ impl PartialEq<Name> for Name {
 impl PartialEq<str> for Name {
     /// Compare `Name` enum with `&str`.
     fn eq(&self, other: &str) -> bool {
+        match self {
+            Name::String(s) => s == other,
+            Name::Regex(s) => s.is_match(other),
+        }
+    }
+}
+
+impl PartialEq<String> for Name {
+    /// Compare `Name` enum with `&String`.
+    fn eq(&self, other: &String) -> bool {
         match self {
             Name::String(s) => s == other,
             Name::Regex(s) => s.is_match(other),

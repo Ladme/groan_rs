@@ -384,11 +384,20 @@ pub enum ReadTrajError {
     /// Used when a trajectory iterator for parallel reading could not be constructed.
     #[error("{} could not construct a parallel trajectory iterator for file '{}'", "error:".red().bold(), path_to_yellow(.0))]
     InvalidParallelIteration(Box<Path>),
+    /// Used when information about the length of the trajectory (file size) could not be obtained.
+    #[error("{} could not get length of the trajectory '{}'", "error:".red().bold(), path_to_yellow(.0))]
+    CouldNotGetTrajLen(Box<Path>),
 }
 
 /// Errors that can occur when writing a trajectory file.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum WriteTrajError {
+    /// Used when a writer to the specific file is not associated with the system (i.e. does not exist).
+    #[error("{} writer to file '{}' is not associated with the system", "error:".red().bold(), .0.yellow())]
+    WriterNotFound(String),
+    /// Used when creating a writer to file for which writer is already associated with the system.
+    #[error("{} writer to file '{}' is already associated with the system", "error:".red().bold(), .0.yellow())]
+    WriterAlreadyExists(String),
     /// Used when the path to the trajectory file is invalid (i.e. contains invalid characters).
     #[error("{} unable to work with path '{}'", "error:".red().bold(), path_to_yellow(.0))]
     InvalidPath(Box<Path>),
@@ -401,6 +410,12 @@ pub enum WriteTrajError {
     /// Used when the group of atoms selected to be written into the trajectory file does not exist.
     #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
     GroupNotFound(String),
+    /// Used when a coordinate of an atom is too large to fit into the GRO format.
+    #[error("{} a coordinate is too large to be written in GRO format (supported range: {} to {} nm)", "error:".red().bold(), GRO_MIN_COORDINATE, GRO_MAX_COORDINATE)]
+    CoordinateTooLarge,
+    /// Used when the file extension of the output file could not be recognized (i.e. is unsupported).
+    #[error("{} file '{}' has an unknown or unsupported file extension", "error:".red().bold(), path_to_yellow(.0))]
+    UnknownExtension(Box<Path>),
 }
 
 /// Errors that can occur when parsing atom selection query.
@@ -447,6 +462,9 @@ pub enum SelectError {
     /// This is currently only used when no regular expression in the entire subquery corresponds to any group of atoms or labeled atom.
     #[error("{} regular expression '{}' matches no atom groups/labels in the system", "error:".red().bold(), .0.to_string().yellow())]
     NoRegexMatch(String),
+    /// Used when the user uses a deprecated groan selection language keyword.
+    #[error("{} {}", "error:".red().bold(), .0)]
+    DeprecatedKeyword(&'static str),
     /// Used when an unknown error which does not have a specific `SelectError` variant occurs while parsing the groan selection language query.
     #[error("{} the provided query '{}' could not be understood for unknown reason", "error:".red().bold(), .0.to_string().yellow())]
     UnknownError(String),
@@ -513,7 +531,7 @@ pub enum SimBoxError {
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum PositionError {
     /// Used when the atom has no position but it is required.
-    #[error("{} atom with atom number '{}' has undefined position", "error:".red().bold(), .0.to_string().yellow())]
+    #[error("{} atom with index '{}' has undefined position", "error:".red().bold(), .0.to_string().yellow())]
     NoPosition(usize),
 }
 
@@ -521,7 +539,7 @@ pub enum PositionError {
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum MassError {
     /// Used when the atom has no mass but it is required.
-    #[error("{} atom with atom number '{}' has undefined mass", "error:".red().bold(), .0.to_string().yellow())]
+    #[error("{} atom with index '{}' has undefined mass", "error:".red().bold(), .0.to_string().yellow())]
     NoMass(usize),
 }
 
@@ -552,4 +570,86 @@ pub enum GridMapError {
     /// Used when constructing a grid map from a vector which length does not match the dimensions of the map.
     #[error("{} grid map expected '{}' values, got '{}' values", "error:".red().bold(), .0.to_string().yellow(), .1.to_string().yellow())]
     InvalidMapDimensions(usize, usize),
+    /// Used when the coordinates used to specify the map dimensions are inconsistent.
+    #[error("{} invalid or inconsistent coordinates of a grid map: unexpected coordinate '{}'", "error:".red().bold(), .0.yellow())]
+    InvalidCoordinates(String),
+    /// Used whent he coordinates of the grid map are not specified in increasing order.
+    #[error("{} coordinates of a grid map not specified in increasing order ('{}' is lower than '{}')", "error:".red().bold(), .0.yellow(), .1.yellow())]
+    NotIncreasing(String, String),
+    /// Used when a point of a grid map is defined multiple times in the input.
+    #[error("{} point with coordinates '{},{}' is defined multiple times", "error:".red().bold(), .0.yellow(), .1.yellow())]
+    PointDefinedMultipleTimes(String, String)
+}
+
+/// Errors that can occur when calculating RMSD.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum RMSDError {
+    /// Used when the group is not present in the current or reference system.
+    #[error("{} group '{}' does not exist in the current or reference system", "error:".red().bold(), .0.yellow())]
+    NonexistentGroup(String),
+    /// Used when the group in the current system contains different number of atoms than the group in the reference system.
+    #[error("{} group '{}' has an inconsistent number of atoms ('{}' atoms in reference, '{}' atoms in current)", 
+        "error:".red().bold(), 
+        .0.yellow(), 
+        .1.to_string().yellow(), 
+        .2.to_string().yellow())]
+    InconsistentGroup(String, usize, usize),
+    /// Used when the group is empty in both the current system and the reference system.
+    #[error("{} group '{}' is empty (RMSD can not be calculated)", "error:".red().bold(), .0.yellow())]
+    EmptyGroup(String),
+    /// Used when any atom which is to be used for the RMSD calculation has invalid position.
+    #[error("{}", .0)]
+    InvalidPosition(PositionError),
+    /// Used when the simulation box is invalid.
+    #[error("{}", .0)]
+    InvalidSimBox(SimBoxError),
+    /// Used when any atom which is to be used for the RMSD calculation has invalid mass.
+    #[error("{}", .0)]
+    InvalidMass(MassError),
+    /// Used when an error occured on the level of trajectory reading.
+    #[error("{}", .0)]
+    TrajectoryError(ReadTrajError),
+}
+
+
+/// Errors originating from trajectory converters.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum TrajConvertError<ConvertError: std::error::Error> {
+    /// Used when the sanity check for the converter failed.
+    #[error("{}", .0)]
+    InvalidConverter(ConvertError),
+    /// Used when frame of the trajectory could not be read.
+    #[error("{}", .0)]
+    ReadingError(ReadTrajError),
+    /// Used when frame of the trajectory could not be converted.
+    #[error("{}", .0)]
+    ConversionError(ConvertError),
+}
+
+/// Errors originating from trajectory analyzers.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum TrajAnalysisError<AnalyzerError: std::error::Error> {
+    /// Used when the sanity check for the analyzer failed.
+    #[error("{}", .0)]
+    InvalidAnalyzer(AnalyzerError),
+    /// Used when frame of the trajectory could not be read.
+    #[error("{}", .0)]
+    ReadingError(ReadTrajError),
+    /// Used when frame of the trajectory could not be analyzed.
+    #[error("{}", .0)]
+    AnalysisError(AnalyzerError),
+}
+
+/// Errors originating from trajectory converter-analyzers.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum TrajConvertAnalysisError<ConvertAnalyzerError: std::error::Error> {
+    /// Used when the sanity check for the analyzer-converter failed.
+    #[error("{}", .0)]
+    InvalidConverterAnalyzer(ConvertAnalyzerError),
+    /// Used when frame of the trajectory could not be read.
+    #[error("{}", .0)]
+    ReadingError(ReadTrajError),
+    /// Used when frame of the trajectory could not be converted or analyzed.
+    #[error("{}", .0)]
+    ConversionAnalysisError(ConvertAnalyzerError),
 }
