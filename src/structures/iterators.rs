@@ -72,11 +72,11 @@ impl<'a> HasBox for AtomIterator<'a> {
     }
 }
 
-impl<'a> AtomIteratorWithBox<'a> for AtomIterator<'a> {}
-
-impl<'a> OrderedAtomIterator<'a> for AtomIterator<'a> {
+impl<'a> AtomIterable<'a> for AtomIterator<'a> {
     type AtomRef = &'a Atom;
 }
+
+impl<'a> OrderedAtomIterator<'a> for AtomIterator<'a> {}
 
 /// Immutable iterator over atoms. Same as `AtomIterator` but can be constructed for the system
 /// without having to create a group. Constructed using `System::selection_iter()`.
@@ -129,11 +129,11 @@ impl<'a> HasBox for OwnedAtomIterator<'a> {
     }
 }
 
-impl<'a> AtomIteratorWithBox<'a> for OwnedAtomIterator<'a> {}
-
-impl<'a> OrderedAtomIterator<'a> for OwnedAtomIterator<'a> {
+impl<'a> AtomIterable<'a> for OwnedAtomIterator<'a> {
     type AtomRef = &'a Atom;
 }
+
+impl<'a> OrderedAtomIterator<'a> for OwnedAtomIterator<'a> {}
 
 /// Immutable iterator over atoms with applied geometry filter.
 /// Constructed by calling `filter_geometry` method on `AtomIterator` or `FilterAtomIterator`.
@@ -149,24 +149,6 @@ where
     iterator: I,
     geometry: S,
     simbox: SimBox,
-}
-
-impl<'a, I, S> HasBox for FilterAtomIterator<'a, I, S>
-where
-    I: Iterator<Item = &'a Atom>,
-    S: Shape,
-{
-    #[inline(always)]
-    fn get_simbox(&self) -> Option<&SimBox> {
-        Some(&self.simbox)
-    }
-}
-
-impl<'a, I, S> AtomIteratorWithBox<'a> for FilterAtomIterator<'a, I, S>
-where
-    I: Iterator<Item = &'a Atom>,
-    S: Shape,
-{
 }
 
 impl<'a, I, S> Iterator for FilterAtomIterator<'a, I, S>
@@ -190,12 +172,30 @@ where
     }
 }
 
-impl<'a, I, S> OrderedAtomIterator<'a> for FilterAtomIterator<'a, I, S>
+impl<'a, I, S> HasBox for FilterAtomIterator<'a, I, S>
+where
+    I: Iterator<Item = &'a Atom>,
+    S: Shape,
+{
+    #[inline(always)]
+    fn get_simbox(&self) -> Option<&SimBox> {
+        Some(&self.simbox)
+    }
+}
+
+impl<'a, I, S> AtomIterable<'a> for FilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a Atom>,
     S: Shape,
 {
     type AtomRef = &'a Atom;
+}
+
+impl<'a, I, S> OrderedAtomIterator<'a> for FilterAtomIterator<'a, I, S>
+where
+    I: Iterator<Item = &'a Atom>,
+    S: Shape,
+{
 }
 
 /// Immutable iterator over atoms of a molecule.
@@ -225,15 +225,6 @@ impl<'a> MoleculeIterator<'a> {
     }
 }
 
-impl<'a> HasBox for MoleculeIterator<'a> {
-    #[inline(always)]
-    fn get_simbox(&self) -> Option<&SimBox> {
-        self.simbox
-    }
-}
-
-impl<'a> AtomIteratorWithBox<'a> for MoleculeIterator<'a> {}
-
 /// Iteration over atoms of the molecule.
 impl<'a> Iterator for MoleculeIterator<'a> {
     type Item = &'a Atom;
@@ -247,6 +238,17 @@ impl<'a> Iterator for MoleculeIterator<'a> {
             None
         }
     }
+}
+
+impl<'a> HasBox for MoleculeIterator<'a> {
+    #[inline(always)]
+    fn get_simbox(&self) -> Option<&SimBox> {
+        self.simbox
+    }
+}
+
+impl<'a> AtomIterable<'a> for MoleculeIterator<'a> {
+    type AtomRef = &'a Atom;
 }
 
 /**************************/
@@ -282,15 +284,6 @@ impl<'a> MutAtomIterator<'a> {
     }
 }
 
-impl<'a> HasBox for MutAtomIterator<'a> {
-    #[inline(always)]
-    fn get_simbox(&self) -> Option<&SimBox> {
-        self.simbox
-    }
-}
-
-impl<'a> MutAtomIteratorWithBox<'a> for MutAtomIterator<'a> {}
-
 impl<'a> Iterator for MutAtomIterator<'a> {
     type Item = &'a mut Atom;
 
@@ -304,9 +297,18 @@ impl<'a> Iterator for MutAtomIterator<'a> {
     }
 }
 
-impl<'a> OrderedAtomIterator<'a> for MutAtomIterator<'a> {
+impl<'a> HasBox for MutAtomIterator<'a> {
+    #[inline(always)]
+    fn get_simbox(&self) -> Option<&SimBox> {
+        self.simbox
+    }
+}
+
+impl<'a> AtomIterable<'a> for MutAtomIterator<'a> {
     type AtomRef = &'a mut Atom;
 }
+
+impl<'a> OrderedAtomIterator<'a> for MutAtomIterator<'a> {}
 
 /// Mutable iterator over atoms. Same as `MutAtomIterator` but can be constructed for the system
 /// without having to create a group. Constructed using `System::selection_iter_mut()`.
@@ -345,7 +347,9 @@ impl<'a> HasBox for OwnedMutAtomIterator<'a> {
     }
 }
 
-impl<'a> MutAtomIteratorWithBox<'a> for OwnedMutAtomIterator<'a> {}
+impl<'a> AtomIterable<'a> for OwnedMutAtomIterator<'a> {
+    type AtomRef = &'a mut Atom;
+}
 
 impl<'a> Iterator for OwnedMutAtomIterator<'a> {
     type Item = &'a mut Atom;
@@ -360,9 +364,7 @@ impl<'a> Iterator for OwnedMutAtomIterator<'a> {
     }
 }
 
-impl<'a> OrderedAtomIterator<'a> for OwnedMutAtomIterator<'a> {
-    type AtomRef = &'a mut Atom;
-}
+impl<'a> OrderedAtomIterator<'a> for OwnedMutAtomIterator<'a> {}
 
 /// Mutable iterator over atoms with applied geometry filter.
 /// Constructed by calling `filter_geometry` method on `MutAtomIterator` or `MutFilterAtomIterator`.
@@ -391,11 +393,12 @@ where
     }
 }
 
-impl<'a, I, S> MutAtomIteratorWithBox<'a> for MutFilterAtomIterator<'a, I, S>
+impl<'a, I, S> AtomIterable<'a> for MutFilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a mut Atom>,
     S: Shape,
 {
+    type AtomRef = &'a mut Atom;
 }
 
 impl<'a, I, S> Iterator for MutFilterAtomIterator<'a, I, S>
@@ -421,7 +424,6 @@ where
     I: Iterator<Item = &'a mut Atom>,
     S: Shape,
 {
-    type AtomRef = &'a mut Atom;
 }
 
 /// Mutable iterator over atoms of a molecule.
@@ -458,7 +460,9 @@ impl<'a> HasBox for MutMoleculeIterator<'a> {
     }
 }
 
-impl<'a> MutAtomIteratorWithBox<'a> for MutMoleculeIterator<'a> {}
+impl<'a> AtomIterable<'a> for MutMoleculeIterator<'a> {
+    type AtomRef = &'a mut Atom;
+}
 
 /// Iteration over atoms of the molecule.
 impl<'a> Iterator for MutMoleculeIterator<'a> {
@@ -591,18 +595,13 @@ where
     }
 }
 
-impl<'a, I1, I2> AtomIteratorWithBox<'a> for UnionAtomIterator<'a, &'a Atom, I1, I2>
+impl<'a, A, I1, I2> AtomIterable<'a> for UnionAtomIterator<'a, A, I1, I2>
 where
-    I1: OrderedAtomIterator<'a, AtomRef = &'a Atom>,
-    I2: OrderedAtomIterator<'a, AtomRef = &'a Atom>,
+    I1: OrderedAtomIterator<'a, AtomRef = A>,
+    I2: OrderedAtomIterator<'a, AtomRef = A>,
+    A: std::ops::Deref<Target = Atom> + 'a + Clone,
 {
-}
-
-impl<'a, I1, I2> MutAtomIteratorWithBox<'a> for UnionAtomIterator<'a, &'a mut Atom, I1, I2>
-where
-    I1: OrderedAtomIterator<'a, AtomRef = &'a mut Atom>,
-    I2: OrderedAtomIterator<'a, AtomRef = &'a mut Atom>,
-{
+    type AtomRef = A;
 }
 
 impl<'a, A, I1, I2> OrderedAtomIterator<'a> for UnionAtomIterator<'a, A, I1, I2>
@@ -611,7 +610,6 @@ where
     I2: OrderedAtomIterator<'a, AtomRef = A>,
     A: std::ops::Deref<Target = Atom> + 'a + Clone,
 {
-    type AtomRef = A;
 }
 
 /// Iterator over atoms shared by two iterators.
@@ -673,18 +671,13 @@ where
     }
 }
 
-impl<'a, I1, I2> AtomIteratorWithBox<'a> for IntersectionAtomIterator<'a, &'a Atom, I1, I2>
+impl<'a, A, I1, I2> AtomIterable<'a> for IntersectionAtomIterator<'a, A, I1, I2>
 where
-    I1: OrderedAtomIterator<'a, AtomRef = &'a Atom>,
-    I2: OrderedAtomIterator<'a, AtomRef = &'a Atom>,
+    I1: OrderedAtomIterator<'a, AtomRef = A>,
+    I2: OrderedAtomIterator<'a, AtomRef = A>,
+    A: std::ops::Deref<Target = Atom> + 'a + Clone,
 {
-}
-
-impl<'a, I1, I2> MutAtomIteratorWithBox<'a> for IntersectionAtomIterator<'a, &'a mut Atom, I1, I2>
-where
-    I1: OrderedAtomIterator<'a, AtomRef = &'a mut Atom>,
-    I2: OrderedAtomIterator<'a, AtomRef = &'a mut Atom>,
-{
+    type AtomRef = A;
 }
 
 impl<'a, A, I1, I2> OrderedAtomIterator<'a> for IntersectionAtomIterator<'a, A, I1, I2>
@@ -693,7 +686,6 @@ where
     I2: OrderedAtomIterator<'a, AtomRef = A>,
     A: std::ops::Deref<Target = Atom> + 'a + Clone,
 {
-    type AtomRef = A;
 }
 
 /**************************/
@@ -707,8 +699,18 @@ pub trait HasBox {
     fn get_simbox(&self) -> Option<&SimBox>;
 }
 
+/// Trait implemented by all iterators over atoms.
+pub trait AtomIterable<'a>: Iterator<Item = Self::AtomRef> + Sized {
+    // AtomRef is either &'a Atom or &'a mut Atom
+    type AtomRef: std::ops::Deref<Target = Atom> + 'a;
+}
+
 /// Trait implemented by all IMMUTABLE iterators over atoms that contain information about the simulation box.
-pub trait AtomIteratorWithBox<'a>: Iterator<Item = &'a Atom> + Sized + HasBox {
+pub trait AtomIteratorWithBox<'a>: HasBox
+where
+    // iterator must be immutable
+    Self: AtomIterable<'a, AtomRef = &'a Atom>,
+{
     /// Get reference to the simulation box inside the iterator.
     ///
     /// ## Panics
@@ -921,8 +923,19 @@ pub trait AtomIteratorWithBox<'a>: Iterator<Item = &'a Atom> + Sized + HasBox {
     }
 }
 
+impl<'a, T> AtomIteratorWithBox<'a> for T
+where
+    T: AtomIterable<'a, AtomRef = &'a Atom>,
+    T: HasBox,
+{
+}
+
 /// Trait implemented by all MUTABLE iterators over atoms that contain information about the simulation box.
-pub trait MutAtomIteratorWithBox<'a>: Iterator<Item = &'a mut Atom> + Sized + HasBox {
+pub trait MutAtomIteratorWithBox<'a>: HasBox
+where
+    // iterator must be mutable
+    Self: AtomIterable<'a, AtomRef = &'a mut Atom>,
+{
     /// Get reference to the simulation box inside the iterator.
     ///
     /// ## Panics
@@ -1023,12 +1036,16 @@ pub trait MutAtomIteratorWithBox<'a>: Iterator<Item = &'a mut Atom> + Sized + Ha
     }
 }
 
+impl<'a, T> MutAtomIteratorWithBox<'a> for T
+where
+    T: AtomIterable<'a, AtomRef = &'a mut Atom>,
+    T: HasBox,
+{
+}
+
 /// Trait implemented by mutable or immutable iterators which yield atoms in the order
 /// in which they are defined in the parent System.
-pub trait OrderedAtomIterator<'a>: Iterator<Item = Self::AtomRef> + HasBox {
-    // AtomRef is either &'a Atom or &'a mut Atom
-    type AtomRef: std::ops::Deref<Target = Atom> + 'a;
-
+pub trait OrderedAtomIterator<'a>: AtomIterable<'a> + HasBox {
     /// Create a new iterator that is the union of the provided iterators.
     ///
     /// ## Notes

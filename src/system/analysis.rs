@@ -62,6 +62,18 @@ impl System {
         }
     }
 
+    /*pub fn group_get_center_naive(&self, name: &str) -> Result<Vector3D, GroupError> {
+        if self.group_isempty(name)? {
+            return Err(GroupError::EmptyGroup(name.to_owned()));
+        }
+
+        let iterator = self
+            .group_iter(name)
+            .expect("FATAL GROAN ERROR | System::group_get_center_naive | Group does not exist but this should have been handled before.");
+
+
+    }*/
+
     /// Calculate center of mass of a group in `System`.
     /// Takes periodic boundary conditions into consideration.
     ///

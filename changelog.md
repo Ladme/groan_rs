@@ -49,7 +49,8 @@
 - `System::traj_iter_map_reduce` now properly propagates errors and failures from individual threads to the master thread's `ProgressPrinter`.
 
 #### Changes to Atom Iterators
-- **Breaking change:** Renamed `MasterAtomIterator` to `AtomIteratorWithBox` and `MasterMutAtomIterator` to `MutAtomIteratorWithBox`.
+- **Breaking change:** Renamed `MasterAtomIterator` and `MasterMutAtomIterator` to `AtomIterable`. 
+- Introduced new traits: `AtomIteratorWithBox` and `MutAtomIteratorWithBox` implemented by all (im)mutable atom iterators containing information about the simulation box.
 - Added a new trait `OrderedAtomIterator`, implemented by all immutable and mutable iterators yielding atoms in the order they appear in the molecular system.
 - Iterator unions and intersections can be constructed for iterators implementing `OrderedAtomIterator` using `OrderedAtomIterator::union` and `OrderedAtomIterator::intersection`.
 - Added `AtomPairIterator` and `MutAtomPairIterator` for iterating over pairs of atoms. These iterators currently support iterating over molecule bonds and can be created using `System::molecule_bonds_iter` and `System::molecule_bonds_iter_mut` for immutable and mutable access, respectively.
