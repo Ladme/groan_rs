@@ -71,6 +71,7 @@
 - `ProgressPrinter` now uses a mutex only if the `parallel` feature is enabled.
 - Introduced `Vector3D::rotate`, `Atom::rotate`, and `Atom::rotate_nopbc` for performing rotations using rotation matrices.
 - Added trajectory converters and analyzers, which are trajectory readers that modify and/or analyze the current simulation frame. See `TrajConverter`, `TrajAnalyzer`, and `TrajConverterAnalyzer` for more details. These structures are primarily for internal use in the `groan_rs` crate.
+- Introduced center of geometry/mass calculation not taking PBC into consideration (`System::group_get_center_naive`, `System::group_get_com_naive`, `AtomIterable::get_center_naive`, `AtomIterable::get_com_naive`).
 - **Bug fix:** Regex operators can now be used in regular expression blocks without raising an `InvalidOperator` error.
 - **Breaking change:** `XdrFile::open_xdr` is no longer public.
 

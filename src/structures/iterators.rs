@@ -703,6 +703,127 @@ pub trait HasBox {
 pub trait AtomIterable<'a>: Iterator<Item = Self::AtomRef> + Sized {
     // AtomRef is either &'a Atom or &'a mut Atom
     type AtomRef: std::ops::Deref<Target = Atom> + 'a;
+
+    /// Calculate the center of geometry of a group of atoms selected by an iterator.
+    /// This method **does not account for periodic boundary conditions**.
+    ///
+    /// If you want to consider PBC, use [`AtomIteratorWithBox::get_center`].
+    ///
+    /// ## Returns
+    /// - `Vector3D` corresponding to the geometric center of the selected atoms.
+    /// - `AtomError::InvalidPosition` if any of the atoms of the iterator has no position.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.read_ndx("index.ndx").unwrap();
+    ///
+    /// let sphere = Sphere::new(Vector3D::new(1.0, 2.0, 3.0), 2.5);
+    ///
+    /// // select atoms of the group "Group" located inside a sphere with
+    /// // a radius of 2.5 nm centered at [1.0, 2.0, 3.0]
+    /// let atoms = system
+    ///     .group_iter("Group")
+    ///     .unwrap()
+    ///     .filter_geometry(sphere);
+    ///
+    /// // calculate NAIVE center of geometry of "atoms"
+    /// // (without taking periodic boundaries into consideration)
+    /// let center = match atoms.get_center_naive() {
+    ///     Ok(x) => x,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;    
+    ///     }
+    /// };
+    /// ```
+    ///
+    /// ## Notes
+    /// - This method does **not** take periodic boundary conditions into account.
+    /// - If the iterator is empty, the center of geometry is NaN.
+    fn get_center_naive(self) -> Result<Vector3D, AtomError> {
+        let mut total_pos = Vector3D::default();
+        let mut n_atoms = 0usize;
+
+        for atom in self {
+            let position = (*atom).get_position().ok_or_else(|| {
+                AtomError::InvalidPosition(PositionError::NoPosition((*atom).get_index()))
+            })?;
+
+            total_pos.x += position.x;
+            total_pos.y += position.y;
+            total_pos.z += position.z;
+
+            n_atoms += 1;
+        }
+
+        Ok(total_pos / n_atoms as f32)
+    }
+
+    /// Calculate the center of mass of a group of atoms selected by an iterator.
+    /// This method **does not account for periodic boundary conditions**.
+    ///
+    /// If you want to consider PBC, use [`AtomIteratorWithBox::get_com`].
+    ///
+    /// ## Returns
+    /// - `Vector3D` corresponding to the center of mass of the selected atoms.
+    /// - `AtomError::InvalidPosition` if any of the atoms of the iterator has no position.
+    /// - `AtomError::InvalidMass` if any of the atoms of the iterator has no mass.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.read_ndx("index.ndx").unwrap();
+    ///
+    /// let sphere = Sphere::new(Vector3D::new(1.0, 2.0, 3.0), 2.5);
+    ///
+    /// // select atoms of the group "Group" located inside a sphere with
+    /// // a radius of 2.5 nm centered at [1.0, 2.0, 3.0]
+    /// let atoms = system
+    ///     .group_iter("Group")
+    ///     .unwrap()
+    ///     .filter_geometry(sphere);
+    ///
+    /// // calculate NAIVE center of mass of "atoms"
+    /// // (without taking periodic boundaries into consideration)
+    /// let center = match atoms.get_com_naive() {
+    ///     Ok(x) => x,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;    
+    ///     }
+    /// };
+    /// ```
+    ///
+    /// ## Notes
+    /// - This method does **not** take periodic boundary conditions into account.
+    /// - If the iterator is empty, the center of mass is NaN.
+    fn get_com_naive(self) -> Result<Vector3D, AtomError> {
+        let mut total_pos = Vector3D::default();
+        let mut sum = 0f32;
+
+        for atom in self {
+            let position = (*atom).get_position().ok_or_else(|| {
+                AtomError::InvalidPosition(PositionError::NoPosition((*atom).get_index()))
+            })?;
+
+            let mass = (*atom)
+                .get_mass()
+                .ok_or_else(|| AtomError::InvalidMass(MassError::NoMass((*atom).get_index())))?;
+
+            total_pos.x += position.x * mass;
+            total_pos.y += position.y * mass;
+            total_pos.z += position.z * mass;
+
+            sum += mass;
+        }
+
+        Ok(total_pos / sum as f32)
+    }
 }
 
 /// Trait implemented by all IMMUTABLE iterators over atoms that contain information about the simulation box.
@@ -763,12 +884,6 @@ where
     ///   or the simulation box is not orthogonal.
     /// - `AtomError::InvalidPosition` if any of the atoms of the iterator has no position.
     ///
-    /// ## Notes
-    /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
-    /// - It is able to calculate correct center of geometry for any distribution of atoms
-    ///   that is not completely homogeneous.
-    /// - In case the iterator is empty, the center of geometry is NaN.
-    ///
     /// ## Example
     /// ```no_run
     /// # use groan_rs::prelude::*;
@@ -794,6 +909,13 @@ where
     ///     }
     /// };
     /// ```
+    ///
+    /// ## Notes
+    /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
+    /// - It is able to calculate correct center of geometry for any distribution of atoms
+    ///   that is not completely homogeneous.
+    /// - In case the iterator is empty, the center of geometry is NaN.
+    /// - If you do **not** want to consider periodic boundary conditions during the calculation, use [`AtomIterable::get_center_naive`].
     fn get_center(self) -> Result<Vector3D, AtomError> {
         let simbox = simbox_check(self.get_simbox()).map_err(AtomError::InvalidSimBox)?;
         let scaling = Vector3D::new(PI_X2 / simbox.x, PI_X2 / simbox.y, PI_X2 / simbox.z);
@@ -846,12 +968,6 @@ where
     /// - `AtomError::InvalidPosition` if any of the atoms of the iterator has no position.
     /// - `AtomError::InvalidMass` if any of the atoms of the iterator has no mass.
     ///
-    /// ## Notes
-    /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
-    /// - It is able to calculate correct center of mass for any distribution of atoms
-    ///   that is not completely homogeneous.
-    /// - In case the iterator is empty, the center of mass is NaN.
-    ///
     /// ## Example
     /// ```no_run
     /// # use groan_rs::prelude::*;
@@ -877,6 +993,13 @@ where
     ///     }
     /// };
     /// ```
+    ///
+    /// ## Notes
+    /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
+    /// - It is able to calculate correct center of mass for any distribution of atoms
+    ///   that is not completely homogeneous.
+    /// - In case the iterator is empty, the center of mass is NaN.
+    /// - If you do **not** want to consider periodic boundary conditions during the calculation, use [`AtomIterable::get_com_naive`].
     fn get_com(self) -> Result<Vector3D, AtomError> {
         let simbox = simbox_check(self.get_simbox()).map_err(AtomError::InvalidSimBox)?;
         let scaling = Vector3D::new(PI_X2 / simbox.x, PI_X2 / simbox.y, PI_X2 / simbox.z);
@@ -1216,6 +1339,34 @@ mod tests {
     }
 
     #[test]
+    fn iterator_get_center_naive() {
+        let system = System::from_file("test_files/aa_peptide.pdb").unwrap();
+        let center = system
+            .selection_iter("serial 1 3 13")
+            .unwrap()
+            .get_center_naive()
+            .unwrap();
+
+        assert_approx_eq!(f32, center.x, 2.76);
+        assert_approx_eq!(f32, center.y, 4.825);
+        assert_approx_eq!(f32, center.z, 2.971334);
+    }
+
+    #[test]
+    fn iterator_get_center_naive_empty() {
+        let system = System::from_file("test_files/aa_peptide.pdb").unwrap();
+        let center = system
+            .selection_iter("not all")
+            .unwrap()
+            .get_center_naive()
+            .unwrap();
+
+        assert!(center.x.is_nan());
+        assert!(center.y.is_nan());
+        assert!(center.z.is_nan());
+    }
+
+    #[test]
     fn iterator_get_com() {
         let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
 
@@ -1247,6 +1398,36 @@ mod tests {
         system.guess_elements(Elements::default()).unwrap();
 
         let center = system.group_iter("EmptyGroup").unwrap().get_com().unwrap();
+
+        assert!(center.x.is_nan());
+        assert!(center.y.is_nan());
+        assert!(center.z.is_nan());
+    }
+
+    #[test]
+    fn iterator_get_com_naive() {
+        let mut system = System::from_file("test_files/aa_peptide.pdb").unwrap();
+        system.guess_elements(Elements::default()).unwrap();
+        let center = system
+            .selection_iter("serial 1 3 13")
+            .unwrap()
+            .get_com_naive()
+            .unwrap();
+
+        assert_approx_eq!(f32, center.x, 2.821472);
+        assert_approx_eq!(f32, center.y, 4.78182);
+        assert_approx_eq!(f32, center.z, 2.993446);
+    }
+
+    #[test]
+    fn iterator_get_com_naive_empty() {
+        let mut system = System::from_file("test_files/aa_peptide.pdb").unwrap();
+        system.guess_elements(Elements::default()).unwrap();
+        let center = system
+            .selection_iter("not all")
+            .unwrap()
+            .get_com_naive()
+            .unwrap();
 
         assert!(center.x.is_nan());
         assert!(center.y.is_nan());

@@ -477,7 +477,7 @@ pub mod prelude {
     pub use crate::structures::element::Elements;
     pub use crate::structures::gridmap::GridMap;
     pub use crate::structures::iterators::{
-        AtomIterator, AtomIteratorWithBox, AtomPairIterator, FilterAtomIterator,
+        AtomIterable, AtomIterator, AtomIteratorWithBox, AtomPairIterator, FilterAtomIterator,
         IntersectionAtomIterator, MoleculeIterator, MutAtomIterator, MutAtomIteratorWithBox,
         MutAtomPairIterator, MutFilterAtomIterator, MutMoleculeIterator, OrderedAtomIterator,
         OwnedAtomIterator, OwnedMutAtomIterator, UnionAtomIterator,

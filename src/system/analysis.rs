@@ -6,7 +6,7 @@
 use ndarray::Array2;
 
 use crate::errors::{AtomError, GroupError};
-use crate::structures::iterators::AtomIteratorWithBox;
+use crate::structures::iterators::{AtomIterable, AtomIteratorWithBox};
 use crate::structures::simbox::simbox_check;
 use crate::structures::{dimension::Dimension, vector3d::Vector3D};
 use crate::system::System;
@@ -24,11 +24,6 @@ impl System {
     ///   or the simulation box is not orthogonal.
     /// - `GroupError::InvalidPosition` if any of the atoms in the group has no position.
     ///
-    /// ## Notes
-    /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
-    /// - It is able to calculate correct center of geometry for any distribution of atoms
-    ///   that is not completely homogeneous.
-    ///
     /// ## Example
     /// ```no_run
     /// # use groan_rs::prelude::*;
@@ -45,6 +40,12 @@ impl System {
     ///     }
     /// };
     /// ```
+    ///
+    /// ## Notes
+    /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
+    /// - It is able to calculate correct center of geometry for any distribution of atoms
+    ///   that is not completely homogeneous.
+    /// - If you do **not** want to consider periodic boundary conditions during the calculation, use [`System::group_get_center_naive`].
     pub fn group_get_center(&self, name: &str) -> Result<Vector3D, GroupError> {
         if self.group_isempty(name)? {
             return Err(GroupError::EmptyGroup(name.to_owned()));
@@ -58,11 +59,39 @@ impl System {
             Ok(x) => Ok(x),
             Err(AtomError::InvalidSimBox(e)) => Err(GroupError::InvalidSimBox(e)),
             Err(AtomError::InvalidPosition(e)) => Err(GroupError::InvalidPosition(e)),
-            _ => panic!("FATAL GROAN ERROR | System::group_get_center | Invalid error type returned from `System::iterator_get_center`."),
+            _ => panic!("FATAL GROAN ERROR | System::group_get_center | Invalid error type returned from `AtomIteratorWithBox::get_center`."),
         }
     }
 
-    /*pub fn group_get_center_naive(&self, name: &str) -> Result<Vector3D, GroupError> {
+    /// Calculate center of geometry of a group in `System`.
+    /// This method **does not account for periodic boundary conditions**.
+    ///
+    /// If you want to consider PBC, use [`System::group_get_center`].
+    ///
+    /// ## Returns
+    /// - `Vector3D` corresponding to the geometric center of the group.
+    /// - `GroupError::NotFound` if the group does not exist.
+    /// - `GroupError::EmptyGroup` if the group contains no atoms.
+    /// - `GroupError::InvalidPosition` if any of the atoms in the group has no position.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.read_ndx("index.ndx").unwrap();
+    ///
+    /// // calculate NAIVE center of geometry for group "Group"
+    /// // (without taking periodic boundaries into consideration)
+    /// let center = match system.group_get_center_naive("Group") {
+    ///     Ok(x) => x,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;    
+    ///     }
+    /// };
+    /// ```
+    pub fn group_get_center_naive(&self, name: &str) -> Result<Vector3D, GroupError> {
         if self.group_isempty(name)? {
             return Err(GroupError::EmptyGroup(name.to_owned()));
         }
@@ -71,8 +100,12 @@ impl System {
             .group_iter(name)
             .expect("FATAL GROAN ERROR | System::group_get_center_naive | Group does not exist but this should have been handled before.");
 
-
-    }*/
+        match iterator.get_center_naive() {
+            Ok(x) => Ok(x),
+            Err(AtomError::InvalidPosition(e)) => Err(GroupError::InvalidPosition(e)),
+            _ => panic!("FATAL GROAN ERROR | System::group_get_center_naive | Invalid error type returned from `AtomIterable::get_center_naive`.")
+        }
+    }
 
     /// Calculate center of mass of a group in `System`.
     /// Takes periodic boundary conditions into consideration.
@@ -86,19 +119,12 @@ impl System {
     /// - `GroupError::InvalidPosition` if any of the atoms in the group has no position.
     /// - `GroupError::InvalidMass` if any of the atoms in the group has no mass.
     ///
-    /// ## Notes
-    /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
-    /// - It is able to calculate correct center of mass for any distribution of atoms
-    ///   that is not completely homogeneous.
-    ///
     /// ## Example
     /// ```no_run
     /// # use groan_rs::prelude::*;
     /// #
-    /// let mut system = System::from_file("system.gro").unwrap();
+    /// let mut system = System::from_file("system.tpr").unwrap();
     /// system.read_ndx("index.ndx").unwrap();
-    ///
-    /// // ... assign masses to atoms ...
     ///
     /// // calculate center of mass for group "Group"
     /// let center = match system.group_get_com("Group") {
@@ -109,6 +135,12 @@ impl System {
     ///     }
     /// };
     /// ```
+    ///
+    /// ## Notes
+    /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
+    /// - It is able to calculate correct center of mass for any distribution of atoms
+    ///   that is not completely homogeneous.
+    /// - If you do **not** want to consider periodic boundary conditions during the calculation, use [`System::group_get_com_naive`].
     pub fn group_get_com(&self, name: &str) -> Result<Vector3D, GroupError> {
         if self.group_isempty(name)? {
             return Err(GroupError::EmptyGroup(name.to_owned()));
@@ -123,7 +155,53 @@ impl System {
             Err(AtomError::InvalidSimBox(e)) => Err(GroupError::InvalidSimBox(e)),
             Err(AtomError::InvalidPosition(e)) => Err(GroupError::InvalidPosition(e)),
             Err(AtomError::InvalidMass(e)) => Err(GroupError::InvalidMass(e)),
-            _ => panic!("FATAL GROAN ERROR | System::group_get_com | Invalid error type returned from `System::iterator_get_com`."),
+            _ => panic!("FATAL GROAN ERROR | System::group_get_com | Invalid error type returned from `AtomIteratorWithBox::get_com`."),
+        }
+    }
+
+    /// Calculate center of mass of a group in `System`.
+    /// This method **does not account for periodic boundary conditions**.
+    ///
+    /// If you want to consider PBC, use [`System::group_get_com`].
+    ///
+    /// ## Returns
+    /// - `Vector3D` corresponding to the center of mass of the group.
+    /// - `GroupError::NotFound` if the group does not exist.
+    /// - `GroupError::EmptyGroup` if the group contains no atoms.
+    /// - `GroupError::InvalidPosition` if any of the atoms in the group has no position.
+    /// - `GroupError::InvalidMass` if any of the atoms in the group has no mass.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.tpr").unwrap();
+    /// system.read_ndx("index.ndx").unwrap();
+    ///
+    /// // calculate NAIVE center of mass for group "Group"
+    /// // (without taking periodic boundaries into consideration)
+    /// let center = match system.group_get_com_naive("Group") {
+    ///     Ok(x) => x,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;    
+    ///     }
+    /// };
+    /// ```
+    pub fn group_get_com_naive(&self, name: &str) -> Result<Vector3D, GroupError> {
+        if self.group_isempty(name)? {
+            return Err(GroupError::EmptyGroup(name.to_owned()));
+        }
+
+        let iterator = self
+            .group_iter(name)
+            .expect("FATAL GROAN ERROR | System::group_get_com_naive | Group does not exist but this should have been handled before.");
+
+        match iterator.get_com_naive() {
+            Ok(x) => Ok(x),
+            Err(AtomError::InvalidPosition(e)) => Err(GroupError::InvalidPosition(e)),
+            Err(AtomError::InvalidMass(e)) => Err(GroupError::InvalidMass(e)),
+            _ => panic!("FATAL GROAN ERROR | System::group_get_com_naive | Invalid error type returned from `AtomIterable::get_com_naive`.")
         }
     }
 
@@ -469,6 +547,70 @@ mod tests {
     }
 
     #[test]
+    fn center_real_system_naive() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let center_mem = system.group_get_center_naive("Membrane").unwrap();
+        let center_prot = system.group_get_center_naive("Protein").unwrap();
+
+        assert_approx_eq!(f32, center_mem.x, 6.47077, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_mem.y, 6.52237, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_mem.z, 5.77978, epsilon = 0.0001);
+
+        assert_approx_eq!(f32, center_prot.x, 9.85718, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_prot.y, 2.46213, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_prot.z, 5.45931, epsilon = 0.0001);
+    }
+
+    #[test]
+    fn center_real_system_naive_fail_invalid_group() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.group_get_center_naive("Nonexistent") {
+            Err(GroupError::NotFound(e)) => assert_eq!(e, "Nonexistent"),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn center_real_system_naive_fail_invalid_position() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        system.get_atom_mut(15).unwrap().reset_position();
+
+        match system.group_get_center_naive("Protein") {
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn center_real_system_naive_fail_empty_group() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("Empty", "resname NON").unwrap();
+
+        match system.group_get_center_naive("Empty") {
+            Err(GroupError::EmptyGroup(x)) => assert_eq!(x, "Empty"),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
     fn com_single_atom() {
         let atom1 = Atom::new(1, "LYS", 1, "BB")
             .with_position([4.5, 3.2, 1.7].into())
@@ -702,6 +844,89 @@ mod tests {
         system.group_create("Empty", "resname NON").unwrap();
 
         match system.group_get_com("Empty") {
+            Err(GroupError::EmptyGroup(x)) => assert_eq!(x, "Empty"),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn com_real_system_naive() {
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let center_mem = system.group_get_com_naive("Membrane").unwrap();
+        let center_prot = system.group_get_com_naive("Protein").unwrap();
+
+        assert_approx_eq!(f32, center_mem.x, 6.47081, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_mem.y, 6.52297, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_mem.z, 5.77975, epsilon = 0.0001);
+
+        assert_approx_eq!(f32, center_prot.x, 9.85456, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_prot.y, 2.44974, epsilon = 0.0001);
+        assert_approx_eq!(f32, center_prot.z, 5.51983, epsilon = 0.0001);
+    }
+
+    #[test]
+    fn com_real_system_naive_fail_invalid_group() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.group_get_com_naive("Nonexistent") {
+            Err(GroupError::NotFound(e)) => assert_eq!(e, "Nonexistent"),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn com_real_system_naive_fail_invalid_position() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        for atom in system.atoms_iter_mut() {
+            atom.set_mass(10.3);
+        }
+
+        system.get_atom_mut(15).unwrap().reset_position();
+
+        match system.group_get_com_naive("Protein") {
+            Err(GroupError::InvalidPosition(PositionError::NoPosition(x))) => assert_eq!(x, 15),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn com_real_system_naive_fail_invalid_mass() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.group_get_com_naive("Protein") {
+            Err(GroupError::InvalidMass(MassError::NoMass(x))) => assert_eq!(x, 0),
+            Ok(_) => panic!("Calculating center should have failed, but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+    }
+
+    #[test]
+    fn com_real_system_naive_fail_empty_group() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("Empty", "resname NON").unwrap();
+
+        match system.group_get_com_naive("Empty") {
             Err(GroupError::EmptyGroup(x)) => assert_eq!(x, "Empty"),
             Ok(_) => panic!("Calculating center should have failed, but it was successful."),
             Err(e) => panic!(
