@@ -73,6 +73,7 @@
 - Added trajectory converters and analyzers, which are trajectory readers that modify and/or analyze the current simulation frame. See `TrajConverter`, `TrajAnalyzer`, and `TrajConverterAnalyzer` for more details. These structures are primarily for internal use in the `groan_rs` crate.
 - Introduced center of geometry/mass calculation not taking PBC into consideration (`System::group_get_center_naive`, `System::group_get_com_naive`, `AtomIterable::get_center_naive`, `AtomIterable::get_com_naive`).
 - **Bug fix:** Regex operators can now be used in regular expression blocks without raising an `InvalidOperator` error.
+- **Bug fix:** Bonds are now properly loaded for TIP3P and similar water models from TPR files.
 - **Breaking change:** `XdrFile::open_xdr` is no longer public.
 
 ***

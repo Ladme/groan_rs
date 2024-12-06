@@ -822,7 +822,7 @@ pub trait AtomIterable<'a>: Iterator<Item = Self::AtomRef> + Sized {
             sum += mass;
         }
 
-        Ok(total_pos / sum as f32)
+        Ok(total_pos / sum)
     }
 }
 

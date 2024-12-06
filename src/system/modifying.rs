@@ -1113,6 +1113,22 @@ mod tests {
     }
 
     #[test]
+    fn make_molecules_whole_aa() {
+        let mut system = System::from_file("test_files/water_for_whole.tpr").unwrap();
+        system.make_molecules_whole().unwrap();
+
+        let output = NamedTempFile::new().unwrap();
+        let path_to_output = output.path();
+
+        system.write_gro(path_to_output, false).unwrap();
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/water_for_whole_expected.gro").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
     fn make_group_whole() {
         let mut system = System::from_file("test_files/conect.pdb").unwrap();
         system.atoms_translate(&[3.5, 4.5, -3.0].into()).unwrap();
