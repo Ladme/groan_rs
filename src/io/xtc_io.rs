@@ -346,6 +346,7 @@ impl System {
     /// - The function checks whether the number of atoms in the system corresponds to the number of atoms in the xtc file.
     /// - The `System` structure is modified while iterating through the xtc file.
     /// - The `velocity` and `force` information is set to `None` for all atoms as it is not available in the xtc file.
+    /// - Reading xtc files in the 2023 format (generally only used for giant systems) is currently not supported.
     pub fn xtc_iter(
         &mut self,
         filename: impl AsRef<Path>,
