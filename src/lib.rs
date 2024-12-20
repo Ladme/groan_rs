@@ -147,7 +147,7 @@
 //!
 //!     // write only DNA atoms as a GRO file
 //!     system.group_create("DNA", "@dna")?;
-//!     system.write_gro("dna.gro", false)?;
+//!     system.group_write_gro("DNA", "dna.gro", false)?;
 //!
 //!     Ok(())
 //! }
