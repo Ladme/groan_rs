@@ -28,6 +28,9 @@ mod parallel;
 pub mod rmsd;
 mod utility;
 
+#[cfg(any(feature = "parallel", doc))]
+pub use parallel::ParallelTrajData;
+
 #[derive(Debug, Clone, Getters, Setters, CopyGetters)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]

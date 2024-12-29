@@ -486,5 +486,7 @@ pub mod prelude {
     pub use crate::structures::simbox::SimBox;
     pub use crate::structures::vector3d::Vector3D;
     pub use crate::system::rmsd::RMSDTrajRead;
+    #[cfg(any(feature = "parallel", doc))]
+    pub use crate::system::ParallelTrajData;
     pub use crate::system::System;
 }

@@ -3,7 +3,7 @@
 
 //! Basic utilities for parallel implementations of functions.
 
-use std::{ops::Add, path::Path};
+use std::path::Path;
 
 use crate::{
     io::traj_read::{
@@ -13,6 +13,27 @@ use crate::{
     structures::container::AtomContainer,
     system::System,
 };
+
+/// A trait that must be implemented by structures used in [System::traj_iter_map_reduce](System::traj_iter_map_reduce).
+pub trait ParallelTrajData: Send + Sized {
+    /// Called on each `Data` structure when a thread is
+    /// spawned inside [System::traj_iter_map_reduce](System::traj_iter_map_reduce).
+    ///
+    /// This method receives the `thread_id` of the thread using the data structure,
+    /// enabling customization of thread-specific behavior or identification of the source
+    /// of individual data points after aggregating the final result from all threads.
+    ///
+    /// The default implementation performs no action.
+    #[inline(always)]
+    #[allow(unused_variables)]
+    fn initialize(&mut self, thread_id: usize) {}
+
+    /// Specifies how to reduce the data collected from individual threads after processing the entire
+    /// trajectory in [System::traj_iter_map_reduce](System::traj_iter_map_reduce).
+    ///
+    /// This method provides flexibility for custom operations, e.g., sorting based on thread IDs.
+    fn reduce(data: Vec<Self>) -> Self;
+}
 
 impl System {
     /// This method performs embarrassingly parallel iteration over a trajectory (xtc or trr) file,
@@ -27,8 +48,10 @@ impl System {
     /// ## Generic Parameters
     /// The method uses the following generic parameters:
     /// - `Reader`: The type of trajectory reader to utilize (e.g., `XtcReader`, `TrrReader`).
-    /// - `Data`: The data structure for storing analysis results, which must implement `Add` and `Default`.
-    ///   The `Add` trait defines how `Data` instances are combined.
+    /// - `Data`: The data structure for storing analysis results, which must implement `Clone` and `ParallelTrajData`.
+    ///   - [`ParallelTrajData`] specifies how the data should be merged and allows the user
+    ///     to customize the behavior of each thread.
+    ///
     /// - `Error`: The error type that the `body` function may return if an error occurs.
     ///
     /// ## Arguments
@@ -42,60 +65,81 @@ impl System {
     /// - `progress_printer`: A specification for printing the progress of trajectory reading, used only by the master thread.
     ///
     /// ## Example
-    /// Calculating the average number of phosphorus atoms above and below the global membrane center of geometry.
+    /// Calculating the number of phosphorus atoms (i.e., the number of lipid molecules) in the upper and the lower leaflet
+    /// for every 5th frame of a trajectory between 200 and 500 ns using 4 threads.
+    ///
     /// ```no_run
-    /// #[cfg(feature = "parallel")]
+    /// # #[cfg(feature = "parallel")]
     /// # {
-    /// # use groan_rs::prelude::*;
-    /// # use std::ops::Add;
     /// # use groan_rs::errors::GroupError;
+    /// # use groan_rs::prelude::*;
     /// #
-    /// // definition of the `Data` structure
-    /// // we derive `Default` which will correspond to an empty structure
     /// #[derive(Debug, Clone, Default)]
     /// struct LeafletComposition {
-    ///     // number of phosphorus atoms in the upper leaflet for each trajectory frame
+    ///     // id of a thread working with this structure allowing us to properly sort the results
+    ///     thread_id: usize,
     ///     upper: Vec<usize>,
-    ///     // number of phosphorus atoms in the lower leaflet for each trajectory frame
     ///     lower: Vec<usize>,
     /// }
     ///
-    /// // implementation of the Add operator allowing us to merge the results from different threads
-    /// impl Add for LeafletComposition {
-    ///     type Output = LeafletComposition;
+    /// impl ParallelTrajData for LeafletComposition {
+    ///     fn initialize(&mut self, thread_id: usize) {
+    ///         self.thread_id = thread_id;
+    ///     }
     ///
-    ///     fn add(self, rhs: Self) -> Self::Output {
-    ///         let mut new = self.clone();
+    ///     fn reduce(mut data: Vec<Self>) -> Self {
+    ///         // sort the data by thread id to ensure correct order
+    ///         data.sort_by(|a, b| a.thread_id.cmp(&b.thread_id));
     ///
-    ///         new.upper.extend(rhs.upper.iter());
-    ///         new.lower.extend(rhs.lower.iter());
+    ///         // interleave `upper` and `lower` vectors
+    ///         // this will lead to two final vectors (`upper` and `lower`) with the correct order of frames in them
+    ///         let mut upper = Vec::new();
+    ///         let mut lower = Vec::new();
     ///
-    ///         new
+    ///         let mut iterators: Vec<_> = data
+    ///             .into_iter()
+    ///             .map(|v| (v.upper.into_iter(), v.lower.into_iter()))
+    ///             .collect();
+    ///
+    ///         loop {
+    ///             let mut any_pushed = false; // note that different `Data` structures may contain different numbers of data points
+    ///
+    ///             for (upper_iter, lower_iter) in &mut iterators {
+    ///                 if let Some(value) = upper_iter.next() {
+    ///                     upper.push(value);
+    ///                     any_pushed = true;
+    ///                 }
+    ///                 if let Some(value) = lower_iter.next() {
+    ///                     lower.push(value);
+    ///                     any_pushed = true;
+    ///                 }
+    ///             }
+    ///
+    ///             if !any_pushed {
+    ///                 break;
+    ///             }
+    ///         }
+    ///
+    ///         LeafletComposition {
+    ///             thread_id: 0, // placeholder, no longer relevant
+    ///             upper,
+    ///             lower,
+    ///         }
     ///     }
     /// }
     ///
-    /// // assignment function that will be performed for each trajectory frame
-    /// fn assign_lipids(
-    ///     frame: &System,
-    ///     composition: &mut LeafletComposition,
-    /// ) -> Result<(), GroupError> {
+    /// fn assign_lipids(frame: &System, composition: &mut LeafletComposition) -> Result<(), GroupError> {
     ///     let mut upper = 0;
     ///     let mut lower = 0;
     ///
     ///     let membrane_com = frame.group_get_center("Membrane")?;
     ///     for atom in frame.group_iter("Phosphori")? {
     ///         let z = atom
-    ///             .distance_from_point(
-    ///                 &membrane_com,
-    ///                 Dimension::Z,
-    ///                 frame.get_box().unwrap(),
-    ///             )
+    ///             .distance_from_point(&membrane_com, Dimension::Z, frame.get_box().unwrap())
     ///             .unwrap();
     ///
-    ///         // increase the upper leaflet counter if above membrane center
     ///         if z > 0.0 {
     ///             upper += 1;
-    ///         // increase the lower leaflet counter if below membrane center
     ///         } else {
     ///             lower += 1;
     ///         }
@@ -107,39 +151,38 @@ impl System {
     ///     Ok(())
     /// }
     ///
-    /// // preparing the system to use
-    /// let mut system = System::from_file("system.gro").unwrap();
-    /// system.group_create("Membrane", "@membrane").unwrap();
-    /// system
-    ///     .group_create("Phosphori", "Membrane and name P")
-    ///     .unwrap();
+    /// fn main() {
+    ///     let mut system = System::from_file("system.gro").unwrap();
+    ///     system.group_create("Membrane", "@membrane").unwrap();
+    ///     system
+    ///         .group_create("Phosphori", "Membrane and name P")
+    ///         .unwrap();
     ///
-    /// // performing the parallel iteration using 4 threads
-    /// // we are only interested in a time range of 200-500 ns
-    /// // and we want to analyze every 5th trajectory frame
-    /// let result = system
-    ///     .traj_iter_map_reduce::<XtcReader, LeafletComposition, GroupError>(
-    ///         "md.xtc",
-    ///         4,
-    ///         assign_lipids,
-    ///         LeafletComposition::default(),
-    ///         Some(200_000.0),
-    ///         Some(500_000.0),
-    ///         Some(5),
-    ///         None,
-    ///     )
-    ///     .unwrap();
+    ///     let result = system
+    ///         .traj_iter_map_reduce::<XtcReader, LeafletComposition, GroupError>(
+    ///             "md.xtc",
+    ///             4,
+    ///             assign_lipids,
+    ///             LeafletComposition::default(),
+    ///             Some(200_000.0),
+    ///             Some(500_000.0),
+    ///             Some(5),
+    ///             None,
+    ///         )
+    ///         .unwrap();
     ///
-    /// // post-processing the result (collected from all threads)
-    /// let av_upper_leaflet =
-    ///     result.upper.iter().sum::<usize>() as f32 / result.upper.len() as f32;
-    /// let av_lower_leaflet =
-    ///     result.lower.iter().sum::<usize>() as f32 / result.lower.len() as f32;
+    ///     // `result.upper` now contains the number of lipids in the upper leaflet for each frame of the trajectory in the correct order
+    ///     // `results.lower` now contains the number of lipids in the lower leaflet for each frame of the trajectory in the correct order
+    /// }
     /// # }
     /// ```
     ///
     /// ## Notes
-    /// - The order of iteration through trajectory frames is completely undefined!
+    /// - The order of iteration through trajectory frames is undefined across threads.
+    ///   However, within each thread, frames are processed sequentially.
+    ///   This means there is ABSOLUTELY NO guarantee that frame 10 will be processed before frame 1200,
+    ///   unless both frames are assigned to the same thread.
+    /// - If frame 10 and frame 1200 are both analyzed by the same thread, they are guaranteed to be visited in this order.
     /// - The original `System` structure is not modified and remains in the same state as at the start of the iteration.
     ///   That is different from the standard (serial) iteration over trajectories.
     /// - If a single thread encounters an error during the iteration, the entire function returns an error.
@@ -159,7 +202,7 @@ impl System {
     where
         Reader: TrajReadOpen<'a> + TrajRangeRead<'a> + TrajStepRead<'a> + TrajRead<'a> + 'a,
         <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
-        Data: Add<Output = Data> + Clone + Send,
+        Data: Clone + ParallelTrajData,
         Error: std::error::Error + Send + Sync + 'static,
     {
         if n_threads == 0 {
@@ -176,6 +219,7 @@ impl System {
                     let filename = trajectory_file.clone();
                     let progress_clone = progress_printer.clone();
                     let mut data = init_data.clone();
+                    data.initialize(n);
 
                     let handle = s.spawn(
                         move || -> (Result<Data, Box<dyn std::error::Error + Send + Sync>>, u64, f32) {
@@ -235,9 +279,8 @@ impl System {
                     progress.print(0, last_step, last_time);
                 }
 
-                // reduce data
-                // TODO! implement parallel reduction
-                Ok(data.into_iter().fold(init_data, |acc, x| acc + x))
+                // reduce the data
+                Ok(ParallelTrajData::reduce(data))
             },
         )
     }
@@ -263,7 +306,7 @@ impl System {
     where
         Reader: TrajReadOpen<'a> + TrajRangeRead<'a> + TrajStepRead<'a> + TrajRead<'a> + 'a,
         <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
-        Data: Add<Output = Data>,
+        Data: ParallelTrajData,
         Error: std::error::Error + Send + Sync + 'static,
     {
         let start = start_time.unwrap_or(0.0);
@@ -502,13 +545,9 @@ mod tests {
     #[derive(Debug, Clone, Default)]
     struct Steps(Vec<u64>);
 
-    impl Add for Steps {
-        type Output = Steps;
-
-        fn add(self, rhs: Self) -> Self::Output {
-            let mut new = Steps(self.0);
-            new.0.extend(rhs.0);
-            new
+    impl ParallelTrajData for Steps {
+        fn reduce(data: Vec<Steps>) -> Steps {
+            Steps(data.into_iter().flat_map(|v| v.0).collect())
         }
     }
 
@@ -1191,5 +1230,159 @@ mod tests {
             .count();
 
         assert_eq!(count, 6);
+    }
+
+    #[derive(Debug, Clone, Default)]
+    struct StepsOrdered {
+        thread_id: usize,
+        steps: Vec<u64>,
+    }
+
+    fn frame_get_number_ordered(frame: &System, data: &mut StepsOrdered) -> Result<(), AtomError> {
+        data.steps.push(frame.get_simulation_step());
+        Ok(())
+    }
+
+    impl ParallelTrajData for StepsOrdered {
+        fn reduce(data: Vec<Self>) -> Self {
+            let (even_iterators, odd_iterators): (Vec<_>, Vec<_>) = data
+                .iter()
+                .map(|v| (v.thread_id % 2 == 0, v.steps.clone().into_iter()))
+                .partition(|(is_even, _)| *is_even);
+
+            fn collect_steps(iterators: &mut [std::vec::IntoIter<u64>], steps: &mut Vec<u64>) {
+                loop {
+                    let mut any_pushed = false;
+                    for iter in iterators.iter_mut() {
+                        if let Some(value) = iter.next() {
+                            steps.push(value);
+                            any_pushed = true;
+                        }
+                    }
+                    if !any_pushed {
+                        break;
+                    }
+                }
+            }
+
+            // Collect steps from even iterators first, then odd iterators
+            let mut steps = Vec::new();
+            collect_steps(
+                &mut even_iterators
+                    .into_iter()
+                    .map(|(_, iter)| iter)
+                    .collect::<Vec<_>>(),
+                &mut steps,
+            );
+            collect_steps(
+                &mut odd_iterators
+                    .into_iter()
+                    .map(|(_, iter)| iter)
+                    .collect::<Vec<_>>(),
+                &mut steps,
+            );
+
+            StepsOrdered {
+                thread_id: 0,
+                steps,
+            }
+        }
+
+        fn initialize(&mut self, thread_id: usize) {
+            self.thread_id = thread_id;
+        }
+    }
+
+    fn run_traj_iter_map_reduce_ordered<'a, Reader>(
+        system: &'a System,
+        filename: &str,
+        n_threads: usize,
+        start: Option<f32>,
+        end: Option<f32>,
+        step: Option<usize>,
+        progress: Option<ProgressPrinter>,
+    ) -> StepsOrdered
+    where
+        Reader: TrajReadOpen<'a> + TrajRangeRead<'a> + TrajStepRead<'a> + TrajRead<'a> + 'a,
+        <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
+    {
+        system
+            .traj_iter_map_reduce::<Reader, StepsOrdered, AtomError>(
+                filename,
+                n_threads,
+                frame_get_number_ordered,
+                StepsOrdered::default(),
+                start,
+                end,
+                step,
+                progress,
+            )
+            .unwrap()
+    }
+
+    #[test]
+    fn xtc_iter_map_reduce_ordered() {
+        let expected = [
+            [
+                0, 5000, 10000, 15000, 20000, 25000, 30000, 35000, 40000, 45000, 50000,
+            ],
+            [
+                0, 10000, 20000, 30000, 40000, 50000, 5000, 15000, 25000, 35000, 45000,
+            ],
+            [
+                0, 10000, 15000, 25000, 30000, 40000, 45000, 5000, 20000, 35000, 50000,
+            ],
+            [
+                0, 10000, 20000, 30000, 40000, 50000, 5000, 15000, 25000, 35000, 45000,
+            ],
+            [
+                0, 10000, 20000, 25000, 35000, 45000, 50000, 5000, 15000, 30000, 40000,
+            ],
+            [
+                0, 10000, 20000, 30000, 40000, 50000, 5000, 15000, 25000, 35000, 45000,
+            ],
+            [
+                0, 10000, 20000, 30000, 35000, 45000, 5000, 15000, 25000, 40000, 50000,
+            ],
+            [
+                0, 10000, 20000, 30000, 40000, 50000, 5000, 15000, 25000, 35000, 45000,
+            ],
+            [
+                0, 10000, 20000, 30000, 40000, 45000, 5000, 15000, 25000, 35000, 50000,
+            ],
+            [
+                0, 10000, 20000, 30000, 40000, 50000, 5000, 15000, 25000, 35000, 45000,
+            ],
+            [
+                0, 10000, 20000, 30000, 40000, 50000, 5000, 15000, 25000, 35000, 45000,
+            ],
+            [
+                0, 10000, 20000, 30000, 40000, 50000, 5000, 15000, 25000, 35000, 45000,
+            ],
+        ];
+        let system = System::from_file("test_files/example.gro").unwrap();
+        for n_threads in 1..12 {
+            let result_multithreaded = run_traj_iter_map_reduce_ordered::<XtcReader>(
+                &system,
+                "test_files/short_trajectory.xtc",
+                n_threads,
+                None,
+                None,
+                None,
+                None,
+            );
+            assert_eq!(
+                result_multithreaded.steps.len(),
+                expected[n_threads - 1].len()
+            );
+
+            for (val, exp) in result_multithreaded
+                .steps
+                .iter()
+                .zip(expected[n_threads - 1].iter())
+            {
+                assert_eq!(val, exp);
+            }
+        }
     }
 }
