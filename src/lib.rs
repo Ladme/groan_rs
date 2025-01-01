@@ -312,6 +312,7 @@
 //! ## Features
 //! - **Serialization Support (`serde`)**: Enables the serialization and deserialization of `groan_rs` data structures through integration with the `serde` framework.
 //! - **Concurrency Enhancement (`parallel`)**: Expands the `groan_rs` library with functions designed for multi-threaded execution.
+//! - **Blazingly Fast Reading of XTC Files (`molly`)**: Enables the use of a pioneering [`molly`](https://crates.io/crates/molly) crate for very fast reading of xtc files. (Currently an experimental feature.)
 //!
 //! Install the `groan_rs` crate with a specific feature using `cargo add groan_rs --features [FEATURE]`.
 //!

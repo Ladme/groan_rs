@@ -387,6 +387,9 @@ pub enum ReadTrajError {
     /// Used when information about the length of the trajectory (file size) could not be obtained.
     #[error("{} could not get length of the trajectory '{}'", "error:".red().bold(), path_to_yellow(.0))]
     CouldNotGetTrajLen(Box<Path>),
+    /// Used as a wrapper around errors returned by the `molly` crate.
+    #[error("{} could not read frame in a trajectory file (molly error: '{}')", "error:".red().bold(), .0)]
+    MollyXtcError(String),
 }
 
 /// Errors that can occur when writing a trajectory file.
