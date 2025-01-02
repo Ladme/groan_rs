@@ -72,6 +72,20 @@ impl MollyXtc {
         Ok(xtc)
     }
 
+    /// Read the number of bytes allocated for the coordinates in the current frame + PADDING.
+    /// Reads 4 bytes for magic number 1995 and 8 bytes for magic number 2023.
+    #[inline]
+    fn read_n_bytes(&mut self, magic: i32) -> Result<i64, ReadTrajError> {
+        let bytes = match magic {
+            1995 => self.read_i32().map_err(|_| ReadTrajError::SkipFailed)? as i64,
+            2023 => self.read_i64().map_err(|_| ReadTrajError::SkipFailed)?,
+            _ => panic!("FATAL GROAN ERROR | MollyXtc::read_n_bytes | Unexpected magic number `{}` provided.", magic),
+        };
+
+        // add padding
+        Ok(bytes + (4 - (bytes % 4)) % 4)
+    }
+
     /// Skip one trajectory frame of an xtc file.
     fn skip_frame(&mut self) -> Result<bool, ReadTrajError> {
         // read magic number
@@ -88,12 +102,7 @@ impl MollyXtc {
 
         // get the number of bytes to the next frame
         self.xdr_jump(84).map_err(|_| ReadTrajError::SkipFailed)?;
-        let mut size = self.read_i32().map_err(|_| ReadTrajError::SkipFailed)? as i64;
-
-        // add padding
-        if size % 4 != 0 {
-            size += 4 - (size % 4);
-        }
+        let size = self.read_n_bytes(magic_number)?;
 
         // this should only fail if we have reached the end of the file
         if self.xdr_jump(size).is_err() {
@@ -123,12 +132,7 @@ impl MollyXtc {
 
         // get the number of bytes to the next frame
         self.xdr_jump(72).map_err(|_| ReadTrajError::SkipFailed)?;
-        let mut size = self.read_i32().map_err(|_| ReadTrajError::SkipFailed)? as i64;
-
-        // add padding
-        if size % 4 != 0 {
-            size += 4 - (size % 4);
-        }
+        let size = self.read_n_bytes(magic_number)?;
 
         // this should only fail if we have reached the end of the file
         if self.xdr_jump(size).is_err() {
@@ -186,15 +190,7 @@ impl MollyXtc {
         // get the number of bytes to the next frame
         self.xdr_jump(72)
             .map_err(|_| ReadTrajError::StartNotFound(target_time.to_string()))?;
-        let mut size = self
-            .read_i32()
-            .map_err(|_| ReadTrajError::StartNotFound(target_time.to_string()))?
-            as i64;
-
-        // Add padding
-        if size % 4 != 0 {
-            size += 4 - (size % 4);
-        }
+        let size = self.read_n_bytes(magic_number)?;
 
         Ok(size)
     }
@@ -215,6 +211,13 @@ impl MollyXtc {
         let mut buf = [0u8; 4];
         self.reader.file.read_exact(&mut buf)?;
         Ok(f32::from_be_bytes(buf))
+    }
+
+    /// Read 64-bit integer from the xtc file.
+    pub(crate) fn read_i64(&mut self) -> std::io::Result<i64> {
+        let mut buf: [u8; 8] = Default::default();
+        self.reader.file.read_exact(&mut buf)?;
+        Ok(i64::from_be_bytes(buf))
     }
 
     /// Jump forward in the open xtc file.
@@ -337,8 +340,8 @@ impl<'a> TrajStepTimeRead<'a> for XtcReader<'a> {
 // TODO:
 // [x] Add to molly: jump_to_start function, skip_frame function, skip_frame_time function
 // [x] Remove offsets from MollyXtc and implement changes that follow. Remove Frame selection from MollyXtc.
-// Check MAGIC NUMBER 2023: number of atoms and number of bytes
-// Implement atom number checks.
+// [x] Check MAGIC NUMBER 2023: number of atoms and number of bytes
+// [x] Implement atom number checks.
 // Implement partial trajectory reader using atom selections.
 // Implement xtc file writing using molly.
 // Create a feature `xdrfile-trr` and separate trr file reading and writing to it.
