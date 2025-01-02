@@ -760,6 +760,50 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "molly")]
+    #[test]
+    fn read_xtc_empty() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        match system.xtc_iter("test_files/example_empty.gro") {
+            Err(ReadTrajError::CouldNotReadMagic) => (),
+            _ => panic!("Magic number reading should have failed."),
+        }
+    }
+
+    #[cfg(not(feature = "molly"))]
+    #[test]
+    fn read_xtc_empty() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        match system.xtc_iter("test_files/example_empty.gro") {
+            Err(ReadTrajError::FileNotFound(_)) => (),
+            _ => panic!("Should not be able to read the file."),
+        }
+    }
+
+    #[cfg(feature = "molly")]
+    #[test]
+    fn read_xtc_not_xtc() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        match system.xtc_iter("test_files/triclinic.gro") {
+            Err(ReadTrajError::NotXtc(_)) => (),
+            _ => panic!("This not-an-xtc-file should not have been interpreted as an xtc file."),
+        }
+    }
+
+    #[cfg(not(feature = "molly"))]
+    #[test]
+    fn read_xtc_not_xtc() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        match system.xtc_iter("test_files/triclinic.gro") {
+            Err(ReadTrajError::FileNotFound(_)) => (),
+            _ => panic!("This not-an-xtc-file should not have been interpreted as an xtc file."),
+        }
+    }
+
     #[test]
     fn read_xtc_triclinic() {
         let mut system = System::from_file("test_files/triclinic.gro").unwrap();

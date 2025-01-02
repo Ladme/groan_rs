@@ -390,6 +390,12 @@ pub enum ReadTrajError {
     /// Used as a wrapper around errors returned by the `molly` crate.
     #[error("{} could not read frame in a trajectory file (molly error: '{}')", "error:".red().bold(), .0)]
     MollyXtcError(String),
+    /// Used when magic number could not be read from an input file.
+    #[error("{} could not read magic number from a trajectory file (the file is empty?)", "error:".red().bold())]
+    CouldNotReadMagic,
+    /// Used when the file is not an XTC file but should be.
+    #[error("{} file '{}' is not an xtc file (invalid magic number)", "error:".red().bold(), path_to_yellow(.0))]
+    NotXtc(Box<Path>),
 }
 
 /// Errors that can occur when writing a trajectory file.

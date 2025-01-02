@@ -7,18 +7,13 @@ use std::marker::PhantomData;
 use std::os::raw::{c_float, c_int};
 use std::path::Path;
 
-use crate::errors::{ReadTrajError, TrajError, WriteTrajError};
-use crate::io::traj_cat::TrajConcatenator;
+use crate::errors::{ReadTrajError, TrajError};
 use crate::io::traj_read::{
     FrameData, FrameDataTime, TrajRangeRead, TrajRead, TrajReadOpen, TrajStepRead, TrajStepTimeRead,
 };
 use crate::io::xdrfile::{self, OpenMode, XdrFile};
-use crate::prelude::{AtomIterator, TrajReader};
-use crate::structures::group::Group;
 use crate::structures::{simbox::SimBox, vector3d::Vector3D};
 use crate::system::System;
-
-use super::super::traj_write::{PrivateTrajWrite, TrajWrite};
 
 /**************************/
 /*       READING XTC      */
@@ -54,7 +49,7 @@ impl FrameData for XtcFrameData {
         let mut coordinates = vec![[0.0, 0.0, 0.0]; system.get_n_atoms()];
 
         unsafe {
-            let return_code = xdrfile::read_xtc(
+            let return_code = xdrfile::xtc::read_xtc(
                 xdrfile.handle,
                 system.get_n_atoms() as c_int,
                 &mut step,
@@ -167,7 +162,8 @@ impl<'a> TrajReadOpen<'a> for XtcReader<'a> {
 impl<'a> TrajRangeRead<'a> for XtcReader<'a> {
     fn jump_to_start(&mut self, start_time: f32) -> Result<(), ReadTrajError> {
         unsafe {
-            if xdrfile::xtc_jump_to_start(self.get_file_handle().handle, start_time as c_float) != 0
+            if xdrfile::xtc::xtc_jump_to_start(self.get_file_handle().handle, start_time as c_float)
+                != 0
             {
                 Err(ReadTrajError::StartNotFound(start_time.to_string()))
             } else {
@@ -180,7 +176,7 @@ impl<'a> TrajRangeRead<'a> for XtcReader<'a> {
 impl<'a> TrajStepRead<'a> for XtcReader<'a> {
     fn skip_frame(&mut self) -> Result<bool, ReadTrajError> {
         unsafe {
-            match xdrfile::xtc_skip_frame(self.get_file_handle().handle) {
+            match xdrfile::xtc::xtc_skip_frame(self.get_file_handle().handle) {
                 0 => Ok(true),
                 1 => Err(ReadTrajError::SkipFailed),
                 2 => Ok(false),
@@ -198,7 +194,7 @@ impl<'a> TrajStepTimeRead<'a> for XtcReader<'a> {
         unsafe {
             let mut time: c_float = 0.0;
 
-            match xdrfile::xtc_skip_frame_with_time(self.get_file_handle().handle, &mut time as *mut c_float) {
+            match xdrfile::xtc::xtc_skip_frame_with_time(self.get_file_handle().handle, &mut time as *mut c_float) {
                 0 => Ok(Some(time)),
                 1 => Err(ReadTrajError::SkipFailed),
                 2 => Ok(None),
@@ -226,7 +222,7 @@ impl XdrFile {
 
             let mut xtc_atoms: c_int = 0;
 
-            if xdrfile::read_xtc_natoms(c_path.as_ptr(), &mut xtc_atoms) != 0 {
+            if xdrfile::xtc::read_xtc_natoms(c_path.as_ptr(), &mut xtc_atoms) != 0 {
                 // reading the file failed
                 return Err(ReadTrajError::FileNotFound(Box::from(filename.as_ref())));
             }
