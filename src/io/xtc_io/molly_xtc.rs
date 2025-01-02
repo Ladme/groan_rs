@@ -46,9 +46,6 @@ impl Iterator for OffsetIterator {
 /// Wrapper around `molly`'s XTCReader.
 pub struct MollyXtc {
     reader: molly::XTCReader<File>,
-    /// Only set if needed, i.e. if we are doing frame or atom selection.
-    offsets: Option<OffsetIterator>,
-    frame_selection: FrameSelection,
     atom_selection: AtomSelection,
 }
 
@@ -58,8 +55,6 @@ impl MollyXtc {
         Ok(MollyXtc {
             reader: molly::XTCReader::open(&filename)
                 .map_err(|_| ReadTrajError::FileNotFound(Box::from(filename.as_ref())))?,
-            offsets: None,
-            frame_selection: FrameSelection::All,
             atom_selection: AtomSelection::All,
         })
     }
@@ -77,36 +72,23 @@ impl TrajFile for MollyXtc {}
 impl FrameData for molly::Frame {
     type TrajFile = MollyXtc;
 
+    #[inline(always)]
     fn from_frame(traj_file: &mut MollyXtc, _system: &System) -> Option<Result<Self, ReadTrajError>>
     where
         Self: Sized,
     {
-        if let Some(offsets) = traj_file.offsets.as_mut() {
-            // read the next frame using offset
-            let offset = offsets.next()?;
-            let mut frame = Frame::default();
+        // read the next frame naively
+        let mut frame = Frame::default();
 
-            match traj_file.reader.read_frame_at_offset::<true>(
-                &mut frame,
-                offset,
-                &traj_file.atom_selection,
-            ) {
-                Ok(_) => Some(Ok(frame)),
-                Err(e) => Some(Err(ReadTrajError::MollyXtcError(e.to_string()))),
-            }
-        } else {
-            // read the next frame naively
-            let mut frame = Frame::default();
-
-            match traj_file.reader.read_frame(&mut frame) {
-                Ok(_) => Some(Ok(frame)),
-                // expecting that this is not an error but end of file was just reached
-                Err(e) if e.kind() == ErrorKind::UnexpectedEof => None,
-                Err(e) => Some(Err(ReadTrajError::MollyXtcError(e.to_string()))),
-            }
+        match traj_file.reader.read_frame(&mut frame) {
+            Ok(_) => Some(Ok(frame)),
+            // expecting that this is not an error but end of file was just reached
+            Err(e) if e.kind() == ErrorKind::UnexpectedEof => None,
+            Err(e) => Some(Err(ReadTrajError::MollyXtcError(e.to_string()))),
         }
     }
 
+    #[inline]
     fn update_system(self, system: &mut System) {
         let positions = self.coords();
         for (pos, atom) in positions.zip(system.get_atoms_mut().iter_mut()) {
