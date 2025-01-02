@@ -3,6 +3,9 @@
 
 ### Version 0.10.0
 
+#### New XTC parser
+- Now using [`molly`](https://crates.io/crates/molly) for faster reading of XTC files. Requires the `molly` feature to be active, otherwise the standard `xdrfile` library is used. With `molly` iterating through XTC files is ~50% faster compared to `xdrfile`.
+
 #### Changes to `System::traj_iter_map_reduce` (as is tradition)
 - **Breaking change:** The `Data` structure in `System::traj_iter_map_reduce` no longer needs to implement `Add`. Instead, it needs to implement `ParallelTrajData` which requires the user to specify how the data structures should be reduced (merged). `ParallelTrajData` also allows the user to provide a custom `initialize` function which accepts thread ID and is automatically called after spawning a thread. This allows the user to implement thread-specific behavior or to properly sort the final results.
 
