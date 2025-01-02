@@ -6,7 +6,6 @@ extern crate cc;
 fn main() {
     if std::env::var("CARGO_FEATURE_NO_XDRFILE").is_ok() {
         // do nothing if `no-xdrfile` feature is enabled
-        return;
     } else {
         // compile the xdrfile library
         let source_files = vec![
