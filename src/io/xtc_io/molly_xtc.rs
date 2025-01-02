@@ -294,19 +294,23 @@ impl FrameData for XtcFrameData {
 
     #[inline]
     fn update_system(self, system: &mut System) {
-        let positions = self.frame.coords();
         // safety: `XtcFrameData` only exists during iteration
         // group is obtained from `MollyXtc` which is located inside `XtcReader` which must by definition
         // live through the entire iteration
-        let atoms = unsafe { &*self.group };
+        let atoms = unsafe { &*self.group }.iter();
 
-        for (index, (pos, atom)) in positions.zip(system.get_atoms_mut().iter_mut()).enumerate() {
-            if atoms.isin(index) {
-                atom.set_position(Vector3D::new(pos.x, pos.y, pos.z));
-                atom.reset_velocity();
-                atom.reset_force();
-            }
-            // atoms that are not part of the group keep their original properties
+        for index in atoms {
+            let atom = system
+                .get_atom_mut(index)
+                .expect("FATAL GROAN ERROR | XtcFrameData::update_system | Atom should exist.");
+
+            let x = *self.frame.positions.get(3 * index).unwrap();
+            let y = *self.frame.positions.get(3 * index + 1).unwrap();
+            let z = *self.frame.positions.get(3 * index + 2).unwrap();
+
+            atom.set_position(Vector3D::new(x, y, z));
+            atom.reset_velocity();
+            atom.reset_force();
         }
 
         // update the system
