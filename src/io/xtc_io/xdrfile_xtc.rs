@@ -9,7 +9,8 @@ use std::path::Path;
 
 use crate::errors::{ReadTrajError, TrajError};
 use crate::io::traj_read::{
-    FrameData, FrameDataTime, TrajRangeRead, TrajRead, TrajReadOpen, TrajStepRead, TrajStepTimeRead,
+    FrameData, FrameDataTime, TrajFullReadOpen, TrajRangeRead, TrajRead, TrajReadOpen,
+    TrajStepRead, TrajStepTimeRead,
 };
 use crate::io::xdrfile::{self, OpenMode, XdrFile};
 use crate::structures::{simbox::SimBox, vector3d::Vector3D};
@@ -127,6 +128,29 @@ impl<'a> TrajRead<'a> for XtcReader<'a> {
 }
 
 impl<'a> TrajReadOpen<'a> for XtcReader<'a> {
+    /// Create an iterator over an xtc file.
+    ///
+    /// ## Panic
+    /// Panics if the `group` is **not** None.
+    ///
+    /// ## Note
+    /// Prefer using [`XtcReader::new`] which does not panic.
+    fn initialize(
+        system: &'a mut System,
+        filename: impl AsRef<Path>,
+        group: Option<&str>,
+    ) -> Result<Self, ReadTrajError>
+    where
+        Self: Sized,
+    {
+        match group {
+            None => XtcReader::new(system, filename),
+            Some(_) => panic!("FATAL GROAN ERROR | XtcReader::initialize | XtcReader does not support partial-frame reading. You may want to enable `molly` feature and use `GroupXtcReader`."),
+        }
+    }
+}
+
+impl<'a> TrajFullReadOpen<'a> for XtcReader<'a> {
     /// Create an iterator over an xtc file.
     fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<XtcReader, ReadTrajError> {
         let n_atoms = system.get_n_atoms();

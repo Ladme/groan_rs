@@ -6,10 +6,11 @@
 use std::marker::PhantomData;
 use std::path::Path;
 
+use crate::prelude::TrajFullReadOpen;
 use crate::{errors::ReadTrajError, io::traj_read::TrajRead, system::System};
 
 use crate::io::traj_read::{
-    FrameData, FrameDataTime, TrajRangeRead, TrajReadOpen, TrajStepRead, TrajStepTimeRead,
+    FrameData, FrameDataTime, TrajRangeRead, TrajStepRead, TrajStepTimeRead,
 };
 
 use super::traj_read::{TrajFile, TrajReader};
@@ -340,7 +341,7 @@ impl System {
         filenames: &[impl AsRef<Path>],
     ) -> Result<TrajReader<'a, TrajConcatenator<'a, Read>>, ReadTrajError>
     where
-        Read: TrajReadOpen<'a>,
+        Read: TrajFullReadOpen<'a>,
         Read::FrameData: FrameDataTime,
     {
         if filenames.is_empty() {

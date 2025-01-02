@@ -14,7 +14,7 @@ use crate::io::traj_read::{
     TrajStepTimeRead,
 };
 use crate::io::xdrfile::{self, OpenMode, XdrFile};
-use crate::prelude::AtomIterator;
+use crate::prelude::{AtomIterator, TrajFullReadOpen};
 use crate::structures::group::Group;
 use crate::structures::{simbox::SimBox, vector3d::Vector3D};
 use crate::system::System;
@@ -159,6 +159,29 @@ impl<'a> TrajRead<'a> for TrrReader<'a> {
 }
 
 impl<'a> TrajReadOpen<'a> for TrrReader<'a> {
+    /// Create an iterator over a trr file.
+    ///
+    /// ## Panic
+    /// Panics if the `group` is **not** None.
+    ///
+    /// ## Note
+    /// Prefer using [`TrrReader::new`] which does not panic.
+    fn initialize(
+        system: &'a mut System,
+        filename: impl AsRef<Path>,
+        group: Option<&str>,
+    ) -> Result<Self, ReadTrajError>
+    where
+        Self: Sized,
+    {
+        match group {
+            None => TrrReader::new(system, filename),
+            Some(_) => panic!("FATAL GROAN ERROR | TrrReader::initialize | TrrReader does not support partial-frame reading."),
+        }
+    }
+}
+
+impl<'a> TrajFullReadOpen<'a> for TrrReader<'a> {
     /// Create an iterator over a trr file.
     fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<TrrReader, ReadTrajError> {
         let n_atoms = system.get_n_atoms();

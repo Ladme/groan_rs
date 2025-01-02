@@ -15,7 +15,9 @@ use crate::auxiliary::{GRO_MAX_COORDINATE, GRO_MIN_COORDINATE};
 use crate::errors::WriteTrajError;
 use crate::io::check_coordinate_sizes;
 use crate::io::traj_write::{PrivateTrajWrite, TrajWrite};
-use crate::prelude::{AtomIterator, TrajRead, TrajReadOpen, TrajReader, TrajStepRead, Vector3D};
+use crate::prelude::{
+    AtomIterator, TrajFullReadOpen, TrajRead, TrajReadOpen, TrajReader, TrajStepRead, Vector3D,
+};
 use crate::structures::group::Group;
 use crate::{
     errors::ReadTrajError,
@@ -226,6 +228,29 @@ impl<'a> TrajRead<'a> for GroReader<'a> {
 }
 
 impl<'a> TrajReadOpen<'a> for GroReader<'a> {
+    /// Create an iterator over a gro file.
+    ///
+    /// ## Panic
+    /// Panics if the `group` is **not** None.
+    ///
+    /// ## Note
+    /// Prefer using [`GroReader::new`] which does not panic.
+    fn initialize(
+        system: &'a mut System,
+        filename: impl AsRef<Path>,
+        group: Option<&str>,
+    ) -> Result<Self, ReadTrajError>
+    where
+        Self: Sized,
+    {
+        match group {
+            None => GroReader::new(system, filename),
+            Some(_) => panic!("FATAL GROAN ERROR | GroReader::initialize | GroReader does not support partial-frame reading."),
+        }
+    }
+}
+
+impl<'a> TrajFullReadOpen<'a> for GroReader<'a> {
     fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<Self, ReadTrajError>
     where
         Self: Sized,

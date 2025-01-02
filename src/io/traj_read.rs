@@ -87,8 +87,22 @@ pub trait TrajRead<'a> {
     ) -> &mut <<Self as TrajRead<'a>>::FrameData as FrameData>::TrajFile;
 }
 
-/// Any structure implementing `TrajReadFile` that can be used to OPEN and read a trajectory file.
+/// Trait that can be implemented by any structure that can be used to OPEN
+/// and read a trajectory file with either full-frame or partial-frame reading.
 pub trait TrajReadOpen<'a>: TrajRead<'a> {
+    /// Method specifying how to open the trajectory file either for full-frame or partial-frame reading.
+    /// If a particular mode of reading is not supported by the structure, the function should PANIC.
+    fn initialize(
+        system: &'a mut System,
+        filename: impl AsRef<Path>,
+        group: Option<&str>,
+    ) -> Result<Self, ReadTrajError>
+    where
+        Self: Sized;
+}
+
+/// Trait that can be implemented by any structure that can be used to OPEN and read a trajectory file without partial-frame reading.
+pub trait TrajFullReadOpen<'a>: TrajRead<'a> + TrajReadOpen<'a> {
     /// Method specifying how to open the trajectory file.
     /// This function should return structure implementing `TrajRead`.
     fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<Self, ReadTrajError>
@@ -96,9 +110,11 @@ pub trait TrajReadOpen<'a>: TrajRead<'a> {
         Self: Sized;
 }
 
-/// Similar to `TrajReadOpen` but allows specifying a group. Only properties of atoms of the specified group
+/// Similar to [`TrajFullReadOpen`] but requires specifying a group. Only properties of atoms of the specified group
 /// will be read from the input trajectory.
-pub trait TrajGroupReadOpen<'a>: TrajRead<'a> {
+pub trait TrajGroupReadOpen<'a>: TrajRead<'a> + TrajReadOpen<'a> {
+    /// Method specifying how to open the trajectory file for partial frame reading.
+    /// This function should return structure implementing `TrajRead`.
     fn new(
         system: &'a mut System,
         filename: impl AsRef<Path>,
@@ -815,7 +831,7 @@ impl System {
         filename: impl AsRef<Path>,
     ) -> Result<TrajReader<'a, Read>, ReadTrajError>
     where
-        Read: TrajReadOpen<'a>,
+        Read: TrajFullReadOpen<'a>,
     {
         Ok(TrajReader::wrap_traj(Read::new(self, filename)?))
     }

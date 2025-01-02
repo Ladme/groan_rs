@@ -9,8 +9,8 @@ use crate::{
     errors::ReadTrajError,
     io::traj_read::TrajGroupReadOpen,
     prelude::{
-        FrameData, FrameDataTime, TrajFile, TrajRangeRead, TrajRead, TrajReadOpen, TrajReader,
-        TrajStepRead, TrajStepTimeRead, Vector3D,
+        FrameData, FrameDataTime, TrajFile, TrajFullReadOpen, TrajRangeRead, TrajRead,
+        TrajReadOpen, TrajReader, TrajStepRead, TrajStepTimeRead, Vector3D,
     },
     structures::{container::AtomContainer, group::Group},
     system::System,
@@ -352,7 +352,7 @@ impl<'a> TrajRead<'a> for XtcReader<'a> {
     }
 }
 
-impl<'a> TrajReadOpen<'a> for XtcReader<'a> {
+impl<'a> TrajFullReadOpen<'a> for XtcReader<'a> {
     /// Create an iterator over an xtc file.
     #[inline(always)]
     fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<XtcReader, ReadTrajError> {
@@ -363,6 +363,30 @@ impl<'a> TrajReadOpen<'a> for XtcReader<'a> {
             xtc,
             phantom: PhantomData,
         })
+    }
+}
+
+impl<'a> TrajReadOpen<'a> for XtcReader<'a> {
+    /// Create an iterator over an xtc file.
+    ///
+    /// ## Panic
+    /// Panics if the `group` is **not** None.
+    ///
+    /// ## Note
+    /// Prefer using [`XtcReader::new`] which does not panic.
+    #[inline(always)]
+    fn initialize(
+        system: &'a mut System,
+        filename: impl AsRef<Path>,
+        group: Option<&str>,
+    ) -> Result<Self, ReadTrajError>
+    where
+        Self: Sized,
+    {
+        match group {
+            None => TrajFullReadOpen::new(system, filename),
+            Some(_) => panic!("FATAL GROAN ERROR | XtcReader::initialize | XtcReader does not support partial-frame reading. Use `GroupXtcReader` instead."),
+        }
     }
 }
 
@@ -406,6 +430,30 @@ impl<'a> TrajRead<'a> for GroupXtcReader<'a> {
     #[inline(always)]
     fn get_file_handle(&mut self) -> &mut MollyXtc {
         &mut self.xtc
+    }
+}
+
+impl<'a> TrajReadOpen<'a> for GroupXtcReader<'a> {
+    /// Create an iterator over an xtc file that only reads information about atoms from a specific group.
+    ///
+    /// ## Panic
+    /// Panics if the `group` is None.
+    ///
+    /// ## Note
+    /// Prefer using [`GroupXtcReader::new`] which does not panic.
+    #[inline(always)]
+    fn initialize(
+        system: &'a mut System,
+        filename: impl AsRef<Path>,
+        group: Option<&str>,
+    ) -> Result<Self, ReadTrajError>
+    where
+        Self: Sized,
+    {
+        match group {
+            None => panic!("FATAL GROAN ERROR | GroupXtcReader::initialize | GroupXtcReader requires a group to be initialized. Use `XtcReader` instead."),
+            Some(x) => TrajGroupReadOpen::new(system, filename, x),
+        }
     }
 }
 

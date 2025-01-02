@@ -3,11 +3,19 @@
 
 ### Version 0.10.0
 
-#### New XTC parser
+#### New XTC Parser
 - Now using [`molly`](https://crates.io/crates/molly) for faster reading of XTC files. Requires the `molly` feature to be active, otherwise the standard `xdrfile` library is used. With `molly` iterating through XTC files is ~50% faster compared to `xdrfile`.
+- Implemented an efficient "partial-frame" XTC reader using `molly`. It attempts to only read atoms of a specified group while ignoring the rest of the atoms. See `GroupXtcReader` and `System::group_xtc_iter` for more information.
+- `GroupXtcReader` implements a new trait `TrajGroupReadOpen`.
+
+#### Changes to Trajectory Iteration
+- **Breaking change:** `TrajReadOpen` trait has been renamed to `TrajFullReadOpen`. The original `TrajReadOpen` trait now requires implementing the `initialize` method which can be used to construct either `TrajFullReadOpen` structure 
 
 #### Changes to `System::traj_iter_map_reduce` (as is tradition)
-- **Breaking change:** The `Data` structure in `System::traj_iter_map_reduce` no longer needs to implement `Add`. Instead, it needs to implement `ParallelTrajData` which requires the user to specify how the data structures should be reduced (merged). `ParallelTrajData` also allows the user to provide a custom `initialize` function which accepts thread ID and is automatically called after spawning a thread. This allows the user to implement thread-specific behavior or to properly sort the final results.
+- **Breaking changes:** 
+  - The `Data` structure in `System::traj_iter_map_reduce` no longer needs to implement `Add`. Instead, it needs to implement `ParallelTrajData` which requires the user to specify how the data structures should be reduced (merged). `ParallelTrajData` also allows the user to provide a custom `initialize` function which accepts thread ID and is automatically called after spawning a thread. This allows the user to implement thread-specific behavior or to properly sort the final results.
+  - `System::traj_iter_map_reduce` can be now provided a group name in case a "partial-frame" iteration should be performed. In such case, the provided `Reader` structure must be `GroupXtcReader`.
+  - The `Reader` structure in `System::traj_iter_map_reduce` still needs to implement `TrajReadOpen` but it's the new trait (see 'Changes to Trajectory Iteration`).
 
 ***
 

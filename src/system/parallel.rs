@@ -9,6 +9,7 @@ use crate::{
     io::traj_read::{
         FrameDataTime, TrajMasterRead, TrajRangeRead, TrajRead, TrajReadOpen, TrajStepRead,
     },
+    prelude::TrajReader,
     progress::{ProgressPrinter, ProgressStatus},
     structures::container::AtomContainer,
     system::System,
@@ -43,7 +44,9 @@ impl System {
     /// The results from each thread are subsequently merged to produce a single result (`reduce` phase).
     ///
     /// ## Panics
-    /// Panics if `n_threads` is set to zero.
+    /// - Panics if `n_threads` is set to zero.
+    /// - Panics if an invalid combination of `Reader` and `group` are provided (e.g., if `Some` group and `XtcReader` are provided
+    ///   or `None` group and `GroupXtcReader`).
     ///
     /// ## Generic Parameters
     /// The method uses the following generic parameters:
@@ -59,6 +62,8 @@ impl System {
     /// - `n_threads`: The number of threads to spawn.
     /// - `body`: A function or closure to apply to each trajectory frame, storing results in the `Data` structure.
     /// - `init_data`: Initial state of the `Data` structure used during the calculation.
+    /// - `group`: Group which should be read from the trajectory file. Requires [`GroupXtcReader`](crate::prelude::GroupXtcReader).
+    ///   If `None`, reads information about the entire system.
     /// - `start_time`: The starting time for the iteration.
     /// - `end_time`: The ending time for the iteration.
     /// - `step`: The step interval for frame analysis (i.e., analyze every `step`th frame).
@@ -164,6 +169,7 @@ impl System {
     ///             4,
     ///             assign_lipids,
     ///             LeafletComposition::default(),
+    ///             None,
     ///             Some(200_000.0),
     ///             Some(500_000.0),
     ///             Some(5),
@@ -194,6 +200,7 @@ impl System {
         n_threads: usize,
         body: impl Fn(&System, &mut Data) -> Result<(), Error> + Send + Clone,
         init_data: Data,
+        group: Option<&str>,
         start_time: Option<f32>,
         end_time: Option<f32>,
         step: Option<usize>,
@@ -229,6 +236,7 @@ impl System {
                                 n,
                                 n_threads,
                                 body_clone,
+                                group,
                                 start_time,
                                 end_time,
                                 step,
@@ -294,6 +302,7 @@ impl System {
         thread_number: usize,
         n_threads: usize,
         body: impl Fn(&System, &mut Data) -> Result<(), Error>,
+        group: Option<&str>,
         start_time: Option<f32>,
         end_time: Option<f32>,
         step: Option<usize>,
@@ -314,12 +323,15 @@ impl System {
         let step = step.unwrap_or(1);
 
         // prepare the iterator
-        // TODO! remove this unsafe
-        let mut iterator =
-            match unsafe { (*(&mut self as *mut Self)).traj_iter::<Reader>(&filename) } {
-                Ok(x) => x,
-                Err(e) => return (Err(Box::from(e)), 0, 0.0),
-            };
+        // TODO: remove this unsafe
+        let mut iterator = match Reader::initialize(
+            unsafe { &mut *(&mut self as *mut System) },
+            &filename,
+            group,
+        ) {
+            Ok(x) => TrajReader::wrap_traj(x),
+            Err(e) => return (Err(Box::from(e)), 0, 0.0),
+        };
 
         // associate the progress printer with the iterator only in the master thread
         if thread_number == 0 {
@@ -482,7 +494,7 @@ mod tests {
 
     use tempfile::NamedTempFile;
 
-    use crate::errors::AtomError;
+    use crate::{errors::AtomError, prelude::TrajFullReadOpen};
 
     #[cfg(not(feature = "no-xdrfile"))]
     use crate::io::trr_io::TrrReader;
@@ -575,7 +587,7 @@ mod tests {
         step: Option<usize>,
     ) -> Steps
     where
-        Reader: TrajReadOpen<'a> + TrajRangeRead<'a> + TrajStepRead<'a> + TrajRead<'a> + 'a,
+        Reader: TrajFullReadOpen<'a> + TrajRangeRead<'a> + TrajStepRead<'a> + TrajRead<'a> + 'a,
         <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
     {
         let mut steps = Steps::default();
@@ -611,7 +623,7 @@ mod tests {
         progress: Option<ProgressPrinter>,
     ) -> Steps
     where
-        Reader: TrajReadOpen<'a> + TrajRangeRead<'a> + TrajStepRead<'a> + TrajRead<'a> + 'a,
+        Reader: TrajFullReadOpen<'a> + TrajRangeRead<'a> + TrajStepRead<'a> + TrajRead<'a> + 'a,
         <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
     {
         let mut steps = system
@@ -620,6 +632,7 @@ mod tests {
                 n_threads,
                 frame_get_number,
                 Steps::default(),
+                None,
                 start,
                 end,
                 step,
@@ -649,6 +662,7 @@ mod tests {
             n_threads,
             frame_get_number_may_fail,
             Steps::default(),
+            None,
             start,
             end,
             step,
@@ -1330,6 +1344,7 @@ mod tests {
                 n_threads,
                 frame_get_number_ordered,
                 StepsOrdered::default(),
+                None,
                 start,
                 end,
                 step,

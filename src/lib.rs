@@ -369,9 +369,9 @@ pub mod prelude {
     pub use crate::files::FileType;
     pub use crate::io::gro_io::{GroReader, GroWriter};
     pub use crate::io::traj_read::{
-        FrameData, FrameDataTime, TrajFile, TrajMasterRead, TrajRangeRead, TrajRangeReader,
-        TrajRangeStepReader, TrajRead, TrajReadOpen, TrajReader, TrajStepRead, TrajStepReader,
-        TrajStepTimeRead,
+        FrameData, FrameDataTime, TrajFile, TrajFullReadOpen, TrajGroupReadOpen, TrajMasterRead,
+        TrajRangeRead, TrajRangeReader, TrajRangeStepReader, TrajRead, TrajReadOpen, TrajReader,
+        TrajStepRead, TrajStepReader, TrajStepTimeRead,
     };
     pub use crate::io::traj_write::TrajWrite;
     #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]

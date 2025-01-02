@@ -20,7 +20,7 @@ pub use xtc_write::XtcWriter;
 
 use crate::{
     errors::ReadTrajError,
-    prelude::{TrajReadOpen, TrajReader},
+    prelude::{TrajFullReadOpen, TrajReader},
     system::System,
 };
 
