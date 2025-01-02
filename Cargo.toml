@@ -40,7 +40,7 @@ cc = { version = "1.2.1", features = ["parallel"] }
 
 [features]
 serde = ["ndarray/serde", "hashbrown/serde"]
-parallel = ["parking_lot"]
+parallel = ["dep:parking_lot"]
 molly = ["dep:molly"]
 
 [[bench]]
