@@ -369,6 +369,7 @@ mod tests {
     use float_cmp::assert_approx_eq;
 
     use crate::io::traj_read::TrajMasterRead;
+    #[cfg(not(feature = "no-xdrfile"))]
     use crate::io::trr_io::TrrReader;
     use crate::io::xtc_io::XtcReader;
     use crate::progress::ProgressPrinter;
@@ -587,6 +588,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn cat_trr_simple() {
         let mut system_single = System::from_file("test_files/example.gro").unwrap();
         let mut system_cat = System::from_file("test_files/example.gro").unwrap();
@@ -631,6 +633,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn cat_trr_with_ranges() {
         let mut system_single = System::from_file("test_files/example.gro").unwrap();
         let mut system_cat = System::from_file("test_files/example.gro").unwrap();
@@ -684,6 +687,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn cat_trr_steps() {
         for step in 2..=11 {
             let mut system_single = System::from_file("test_files/example.gro").unwrap();
@@ -735,6 +739,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn cat_trr_steps_with_ranges() {
         let ranges = vec![(0.0, 400.0), (250.0, f32::MAX), (250.0, 400.0)];
 
@@ -883,6 +888,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn cat_traj_nonexistent() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         let empty: Vec<&str> = vec![

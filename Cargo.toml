@@ -39,9 +39,11 @@ paste = "1.0.15"
 cc = { version = "1.2.1", features = ["parallel"] }
 
 [features]
+default = ["molly"]
+molly = ["dep:molly"]
 serde = ["ndarray/serde", "hashbrown/serde"]
 parallel = ["dep:parking_lot"]
-molly = ["dep:molly"]
+no-xdrfile = []
 
 [[bench]]
 name = "main"

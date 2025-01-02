@@ -459,12 +459,14 @@ impl PrivateTrajWrite for GroWriter {
 mod tests_read {
     use float_cmp::assert_approx_eq;
 
-    use crate::test_utilities::utilities::{
-        compare_atoms, compare_atoms_trr_with_gro, compare_box_low_precision,
-    };
+    use crate::test_utilities::utilities::{compare_atoms, compare_box_low_precision};
+
+    #[cfg(not(feature = "no-xdrfile"))]
+    use crate::test_utilities::utilities::compare_atoms_trr_with_gro;
 
     use super::*;
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn gro_iter() {
         let mut system = System::from_file("test_files/protein_trajectory.gro").unwrap();
@@ -523,6 +525,7 @@ mod tests_read {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn gro_iter_velocities() {
         let mut system = System::from_file("test_files/protein.gro").unwrap();
         let mut system2 = System::from_file("test_files/example.gro").unwrap();
@@ -593,6 +596,7 @@ mod tests_read {
         }
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn gro_iter_with_step() {
         let steps = [2, 3, 4, 5, 7];
@@ -719,6 +723,7 @@ mod tests_write {
 
     use super::*;
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn gro_writer_no_velocities() {
         let mut system = System::from_file("test_files/protein.gro").unwrap();
@@ -772,6 +777,7 @@ mod tests_write {
         assert!(file_diff::diff_files(&mut result, &mut expected));
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn gro_writer_group_no_velocities() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
@@ -802,6 +808,7 @@ mod tests_write {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn gro_writer_group_velocities() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.group_create("Protein", "@protein").unwrap();
@@ -832,6 +839,7 @@ mod tests_write {
         assert!(file_diff::diff_files(&mut result, &mut expected));
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn gro_writer_group_replace_group() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
@@ -866,6 +874,7 @@ mod tests_write {
         assert!(file_diff::diff_files(&mut result, &mut expected));
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn gro_writer_group_remove_group() {
         let mut system = System::from_file("test_files/example.gro").unwrap();

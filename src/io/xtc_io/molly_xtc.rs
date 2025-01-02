@@ -287,6 +287,7 @@ impl FrameData for molly::Frame {
 }
 
 impl FrameDataTime for molly::Frame {
+    #[inline(always)]
     fn get_time(&self) -> f32 {
         self.time
     }
@@ -295,10 +296,12 @@ impl FrameDataTime for molly::Frame {
 impl<'a> TrajRead<'a> for XtcReader<'a> {
     type FrameData = molly::Frame;
 
+    #[inline(always)]
     fn get_system(&mut self) -> *mut System {
         self.system
     }
 
+    #[inline(always)]
     fn get_file_handle(&mut self) -> &mut MollyXtc {
         &mut self.xtc
     }
@@ -306,6 +309,7 @@ impl<'a> TrajRead<'a> for XtcReader<'a> {
 
 impl<'a> TrajReadOpen<'a> for XtcReader<'a> {
     /// Create an iterator over an xtc file.
+    #[inline(always)]
     fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<XtcReader, ReadTrajError> {
         let xtc = MollyXtc::new(&filename, system.get_n_atoms())?;
 
@@ -318,6 +322,7 @@ impl<'a> TrajReadOpen<'a> for XtcReader<'a> {
 }
 
 impl<'a> TrajRangeRead<'a> for XtcReader<'a> {
+    #[inline(always)]
     fn jump_to_start(&mut self, start_time: f32) -> Result<(), ReadTrajError> {
         self.xtc.jump_to_start(start_time)
     }
@@ -343,7 +348,6 @@ impl<'a> TrajStepTimeRead<'a> for XtcReader<'a> {
 // [x] Check MAGIC NUMBER 2023: number of atoms and number of bytes
 // [x] Implement atom number checks.
 // Implement partial trajectory reader using atom selections.
-// Implement xtc file writing using molly.
 // Create a feature `xdrfile-trr` and separate trr file reading and writing to it.
 // Make `molly` feature default. If `molly` is not specified, `xdrfile` is used.
 // Make build.rs dependent on xdrfile feature.

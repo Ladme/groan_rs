@@ -131,6 +131,7 @@ impl ProgressPrinter {
     ///
     /// ## Examples
     /// ```no_run
+    /// # #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))] {
     /// # use groan_rs::prelude::*;
     /// # use colored::Colorize;
     /// #
@@ -157,6 +158,7 @@ impl ProgressPrinter {
     ///     let frame = frame.unwrap();
     ///     // analyze the frame
     /// }
+    /// # }
     /// ```
     ///
     /// By default, `ProgressPrinter` prints to standard output.

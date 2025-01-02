@@ -190,6 +190,7 @@
 //! You can read trajectory files in XTC, TRR, or GRO format.
 //!
 //! ```no_run
+//! # #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))] {
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
@@ -209,12 +210,14 @@
 //!
 //!     Ok(())
 //! }
+//! # }
 //! ```
 //!
 //! You can also read only part of the trajectory file and/or skip some trajectory frames.
 //! You can concatenate trajectory files and print the progress of any trajectory iteration.
 //!
 //! ```no_run
+//! # #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))] {
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
@@ -236,6 +239,7 @@
 //!
 //!     Ok(())
 //! }
+//! # }
 //! ```
 //!
 //! #### Calculating RMSD
@@ -243,6 +247,7 @@
 //! You can calculate RMSD for two systems or for entire trajectories.
 //!
 //! ```no_run
+//! # #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))] {
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
@@ -263,6 +268,7 @@
 //!
 //!     Ok(())
 //! }
+//! # }
 //! ```
 //!
 //! #### Writing trajectory files
@@ -270,6 +276,7 @@
 //! You can not only read but also write trajectory files in XTC, TRR, or GRO format.
 //!
 //! ```no_run
+//! # #[cfg(not(feature = "no-xdrfile"))] {
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
@@ -289,6 +296,7 @@
 //!
 //!     Ok(())
 //! }
+//! # }
 //! ```
 //!
 //! ## Selecting atoms using GSL
@@ -310,9 +318,25 @@
 //! Note that `groan_rs` will still work correctly even if you do not explicitly include the error types.
 //!
 //! ## Features
-//! - **Serialization Support (`serde`)**: Enables the serialization and deserialization of `groan_rs` data structures through integration with the `serde` framework.
-//! - **Concurrency Enhancement (`parallel`)**: Expands the `groan_rs` library with functions designed for multi-threaded execution.
-//! - **Blazingly Fast Reading of XTC Files (`molly`)**: Enables the use of the pioneering [`molly`](https://crates.io/crates/molly) crate for very fast reading of xtc files. (Currently an experimental feature.) With `molly`, iterating through XTC files is ~50% faster than without this flag and ~60% faster than in MDAnalysis.
+//!
+//! ### Default
+//! - `molly`: **Blazingly Fast Reading of XTC Files**
+//!   - Enables the use of the [`molly`](https://crates.io/crates/molly) crate for very fast reading of xtc files.
+//!   - Enables the use of `GroupXtcReader` allowing partial read of XTC frames.
+//!   - *This feature is enabled by default.*
+//!   - If disabled, `xdrfile` library will be used instead to read XTC files and partial reading of XTC frames will not be supported.
+//!
+//! ### Additional
+//! - `serde`: **Serialization Support**
+//!   - Enables the serialization and deserialization of `groan_rs` data structures through integration with the `serde` framework.
+//!
+//! - `parallel`: **Concurrency**
+//!   - Expands the `groan_rs` library with functions designed for multi-threaded execution.
+//!
+//! - `no-xdrfile`: **Pure Rust experience with no external C libraries**
+//!   - **Removes** the compilation and use of `xdrfile` library.
+//!   - If enabled, you will lose the ability to write XTC files and both read and write TRR files.
+//!   - Only use this feature if the `xdrfile` library compilation fails.
 //!
 //! Install the `groan_rs` crate with a specific feature using `cargo add groan_rs --features [FEATURE]`.
 //!
@@ -350,8 +374,14 @@ pub mod prelude {
         TrajStepTimeRead,
     };
     pub use crate::io::traj_write::TrajWrite;
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
+    pub use crate::io::xtc_io::XtcReader;
+
+    #[cfg(not(feature = "no-xdrfile"))]
     pub use crate::io::trr_io::{TrrReader, TrrWriter};
-    pub use crate::io::xtc_io::{XtcReader, XtcWriter};
+    #[cfg(not(feature = "no-xdrfile"))]
+    pub use crate::io::xtc_io::XtcWriter;
+
     pub use crate::progress::ProgressPrinter;
     pub use crate::structures::atom::Atom;
     pub use crate::structures::dimension::Dimension;

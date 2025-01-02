@@ -112,6 +112,7 @@ pub(crate) mod utilities {
         }
     }
 
+    #[cfg(not(feature = "no-xdrfile"))]
     pub(crate) fn compare_atoms_trr_with_gro(atom1: &Atom, atom2: &Atom) {
         assert_eq!(atom1.get_residue_number(), atom2.get_residue_number());
         assert_eq!(atom1.get_residue_name(), atom2.get_residue_name());

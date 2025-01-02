@@ -585,6 +585,7 @@ pub trait TrajMasterRead<'a>:
     ///
     /// ## Example
     /// ```no_run
+    /// # #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))] {
     /// # use groan_rs::prelude::*;
     /// #
     /// let mut system = System::from_file("system.gro").unwrap();
@@ -604,6 +605,7 @@ pub trait TrajMasterRead<'a>:
     ///
     ///     // perform some analysis
     /// }
+    /// # }
     /// ```
     ///
     /// ## Note on the order of operations
@@ -622,6 +624,7 @@ pub trait TrajMasterRead<'a>:
     ///
     /// Example:
     /// ```no_run
+    /// # #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))] {
     /// # use groan_rs::prelude::*;
     /// #
     /// let mut system = System::from_file("system.gro").unwrap();
@@ -651,6 +654,7 @@ pub trait TrajMasterRead<'a>:
     /// // this iterator will only start printing information about the trajectory reading once it is actually used
     /// // it will not print any information about the jump as the `ProgressPrinter` was associated
     /// // with the iterator only after the jump to the starting time was already performed.
+    /// # }
     /// ```
     fn print_progress(mut self, printer: ProgressPrinter) -> Self
     where
@@ -765,6 +769,7 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
+    /// # #[cfg(not(feature = "no-xdrfile"))] {
     /// # use groan_rs::prelude::*;
     /// # use groan_rs::errors::ReadTrajError;
     /// #
@@ -786,6 +791,7 @@ impl System {
     ///
     ///     Ok(())
     /// }
+    /// # }
     /// ```
     ///
     /// ## Notes
@@ -807,6 +813,7 @@ impl System {
 /*       UNIT TESTS       */
 /**************************/
 
+#[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
 #[cfg(test)]
 mod tests {
     use std::fs::File;
@@ -839,6 +846,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn traj_iter_trr() {
         let mut system_trr = System::from_file("test_files/example.gro").unwrap();
         let mut system_traj = System::from_file("test_files/example.gro").unwrap();
@@ -1098,6 +1106,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn trr_iter_print_progress() {
         let mut system1 = System::from_file("test_files/example.gro").unwrap();
         let mut system2 = System::from_file("test_files/example.gro").unwrap();

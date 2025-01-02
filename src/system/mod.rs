@@ -882,6 +882,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn has_positions() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         assert!(system.has_positions());
@@ -915,6 +916,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn has_forces() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         assert!(!system.has_forces());

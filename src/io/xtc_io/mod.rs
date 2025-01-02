@@ -5,7 +5,7 @@
 
 #[cfg(feature = "molly")]
 pub mod molly_xtc;
-use std::{ffi::c_int, path::Path};
+use std::path::Path;
 
 #[cfg(feature = "molly")]
 pub use molly_xtc::XtcReader;
@@ -15,18 +15,19 @@ pub mod xdrfile_xtc;
 #[cfg(not(feature = "molly"))]
 pub use xdrfile_xtc::XtcReader;
 
+#[cfg(not(feature = "no-xdrfile"))]
+pub use xtc_write::XtcWriter;
+
 use crate::{
-    errors::{ReadTrajError, TrajError, WriteTrajError},
-    prelude::{AtomIterator, TrajReadOpen, TrajReader, TrajWrite},
-    structures::group::Group,
+    errors::ReadTrajError,
+    prelude::{TrajReadOpen, TrajReader},
     system::System,
 };
 
-use super::{
-    traj_cat::TrajConcatenator,
-    traj_write::PrivateTrajWrite,
-    xdrfile::{self, OpenMode, XdrFile},
-};
+use super::traj_cat::TrajConcatenator;
+
+#[cfg(not(feature = "no-xdrfile"))]
+use super::traj_write::PrivateTrajWrite;
 
 /// ## Methods for reading xtc files.
 impl System {
@@ -210,102 +211,120 @@ impl System {
 /*       WRITING XTC      */
 /**************************/
 
-impl System {
-    /// Initializes an XTC trajectory writer and associates it with `System`.
-    ///
-    /// This is a convenience method for [`System::traj_writer_init`] with `XtcWriter`, writing in XTC format.
-    #[inline(always)]
-    pub fn xtc_writer_init(&mut self, filename: impl AsRef<Path>) -> Result<(), WriteTrajError> {
-        self.traj_writer_init::<XtcWriter>(filename)
-    }
+#[cfg(not(feature = "no-xdrfile"))]
+mod xtc_write {
+    use std::{ffi::c_int, path::Path};
 
-    /// Initializes an XTC trajectory writer for a specific group of atoms within `System`.
-    ///
-    /// This is a convenience method for [`System::traj_group_writer_init`] with `XtcWriter`, writing in XTC format.
-    #[inline(always)]
-    pub fn xtc_group_writer_init(
-        &mut self,
-        filename: impl AsRef<Path>,
-        group: &str,
-    ) -> Result<(), WriteTrajError> {
-        self.traj_group_writer_init::<XtcWriter>(filename, group)
-    }
-}
+    use crate::{
+        errors::{TrajError, WriteTrajError},
+        io::xdrfile::{self, OpenMode, XdrFile},
+        prelude::{AtomIterator, TrajWrite},
+        structures::group::Group,
+        system::System,
+    };
 
-pub struct XtcWriter {
-    xtc: XdrFile,
-    // deep copy of the group from `System`
-    group: Group,
-}
+    use super::PrivateTrajWrite;
 
-impl TrajWrite for XtcWriter {}
-
-impl PrivateTrajWrite for XtcWriter {
-    /// Open a new xtc file for writing.
-    fn new(
-        system: &System,
-        filename: impl AsRef<Path>,
-        group: Option<&str>,
-    ) -> Result<Self, WriteTrajError>
-    where
-        Self: Sized,
-    {
-        // get the requested group from the system or use `all`
-        // this has to be done before opening the xtc file
-        let group = match group {
-            Some(x) => system
-                .get_groups()
-                .get(x)
-                .ok_or_else(|| WriteTrajError::GroupNotFound(x.to_owned()))?
-                .clone(),
-            None => system
-                .get_groups()
-                .get("all")
-                .expect("FATAL GROAN ERROR | XtcWriter::new | Group `all` should exist.")
-                .clone(),
-        };
-
-        // create the xtc file and save a handle to it
-        let xtc = match XdrFile::open_xdr(filename.as_ref(), OpenMode::Write) {
-            Ok(x) => x,
-            Err(TrajError::FileNotFound(x)) => return Err(WriteTrajError::CouldNotCreate(x)),
-            Err(TrajError::InvalidPath(x)) => return Err(WriteTrajError::InvalidPath(x)),
-        };
-
-        Ok(Self { xtc, group })
-    }
-
-    /// Write the current state of the system into an open xtc file.
-    fn write_frame(&mut self, system: &System) -> Result<(), WriteTrajError> {
-        let n_atoms = self.group.get_n_atoms();
-
-        // prepare coordinate matrix
-        let iterator =
-            AtomIterator::new(system.get_atoms(), self.group.get_atoms(), system.get_box());
-        let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
-        for atom in iterator {
-            if let Some(pos) = atom.get_position() {
-                coordinates[atom.get_index()] = [pos.x, pos.y, pos.z];
-            }
+    impl System {
+        /// Initializes an XTC trajectory writer and associates it with `System`.
+        ///
+        /// This is a convenience method for [`System::traj_writer_init`] with `XtcWriter`, writing in XTC format.
+        #[inline(always)]
+        pub fn xtc_writer_init(
+            &mut self,
+            filename: impl AsRef<Path>,
+        ) -> Result<(), WriteTrajError> {
+            self.traj_writer_init::<XtcWriter>(filename)
         }
 
-        // write the xtc frame
-        let return_code = unsafe {
-            xdrfile::write_xtc(
-                self.xtc.handle,
-                n_atoms as c_int,
-                system.get_simulation_step() as i32,
-                system.get_simulation_time(),
-                &mut xdrfile::simbox2matrix(system.get_box()),
-                coordinates.as_mut_ptr(),
-                system.get_precision() as f32,
-            )
-        };
+        /// Initializes an XTC trajectory writer for a specific group of atoms within `System`.
+        ///
+        /// This is a convenience method for [`System::traj_group_writer_init`] with `XtcWriter`, writing in XTC format.
+        #[inline(always)]
+        pub fn xtc_group_writer_init(
+            &mut self,
+            filename: impl AsRef<Path>,
+            group: &str,
+        ) -> Result<(), WriteTrajError> {
+            self.traj_group_writer_init::<XtcWriter>(filename, group)
+        }
+    }
 
-        if return_code != 0 {
-            Err(WriteTrajError::CouldNotWrite)
-        } else {
-            Ok(())
+    pub struct XtcWriter {
+        xtc: XdrFile,
+        // deep copy of the group from `System`
+        group: Group,
+    }
+
+    impl TrajWrite for XtcWriter {}
+
+    impl PrivateTrajWrite for XtcWriter {
+        /// Open a new xtc file for writing.
+        fn new(
+            system: &System,
+            filename: impl AsRef<Path>,
+            group: Option<&str>,
+        ) -> Result<Self, WriteTrajError>
+        where
+            Self: Sized,
+        {
+            // get the requested group from the system or use `all`
+            // this has to be done before opening the xtc file
+            let group = match group {
+                Some(x) => system
+                    .get_groups()
+                    .get(x)
+                    .ok_or_else(|| WriteTrajError::GroupNotFound(x.to_owned()))?
+                    .clone(),
+                None => system
+                    .get_groups()
+                    .get("all")
+                    .expect("FATAL GROAN ERROR | XtcWriter::new | Group `all` should exist.")
+                    .clone(),
+            };
+
+            // create the xtc file and save a handle to it
+            let xtc = match XdrFile::open_xdr(filename.as_ref(), OpenMode::Write) {
+                Ok(x) => x,
+                Err(TrajError::FileNotFound(x)) => return Err(WriteTrajError::CouldNotCreate(x)),
+                Err(TrajError::InvalidPath(x)) => return Err(WriteTrajError::InvalidPath(x)),
+            };
+
+            Ok(Self { xtc, group })
+        }
+
+        /// Write the current state of the system into an open xtc file.
+        fn write_frame(&mut self, system: &System) -> Result<(), WriteTrajError> {
+            let n_atoms = self.group.get_n_atoms();
+
+            // prepare coordinate matrix
+            let iterator =
+                AtomIterator::new(system.get_atoms(), self.group.get_atoms(), system.get_box());
+            let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
+            for atom in iterator {
+                if let Some(pos) = atom.get_position() {
+                    coordinates[atom.get_index()] = [pos.x, pos.y, pos.z];
+                }
+            }
+
+            // write the xtc frame
+            let return_code = unsafe {
+                xdrfile::write_xtc(
+                    self.xtc.handle,
+                    n_atoms as c_int,
+                    system.get_simulation_step() as i32,
+                    system.get_simulation_time(),
+                    &mut xdrfile::simbox2matrix(system.get_box()),
+                    coordinates.as_mut_ptr(),
+                    system.get_precision() as f32,
+                )
+            };
+
+            if return_code != 0 {
+                Err(WriteTrajError::CouldNotWrite)
+            } else {
+                Ok(())
+            }
         }
     }
 }
@@ -315,11 +334,9 @@ impl PrivateTrajWrite for XtcWriter {
 /******************************/
 
 #[cfg(test)]
-mod tests {
+mod tests_read {
     use super::*;
     use float_cmp::assert_approx_eq;
-    use std::fs::File;
-    use tempfile::NamedTempFile;
 
     use crate::test_utilities::utilities::{compare_atoms, compare_box};
 
@@ -989,6 +1006,18 @@ mod tests {
             }
         }
     }
+}
+
+#[cfg(not(feature = "no-xdrfile"))]
+#[cfg(test)]
+mod tests_write {
+    use std::fs::File;
+
+    use tempfile::NamedTempFile;
+
+    use crate::errors::WriteTrajError;
+
+    use super::*;
 
     #[test]
     fn write_xtc() {

@@ -69,7 +69,7 @@ impl System {
     /// for every 5th frame of a trajectory between 200 and 500 ns using 4 threads.
     ///
     /// ```no_run
-    /// # #[cfg(feature = "parallel")]
+    /// # #[cfg(all(feature = "parallel", any(feature = "molly", not(feature = "no-xdrfile"))))]
     /// # {
     /// # use groan_rs::errors::GroupError;
     /// # use groan_rs::prelude::*;
@@ -482,10 +482,12 @@ mod tests {
 
     use tempfile::NamedTempFile;
 
-    use crate::{
-        errors::AtomError,
-        io::{trr_io::TrrReader, xtc_io::XtcReader},
-    };
+    use crate::errors::AtomError;
+
+    #[cfg(not(feature = "no-xdrfile"))]
+    use crate::io::trr_io::TrrReader;
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
+    use crate::io::xtc_io::XtcReader;
 
     use super::*;
 
@@ -657,6 +659,7 @@ mod tests {
         Ok(steps)
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn xtc_iter_map_reduce_basic() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
@@ -692,6 +695,7 @@ mod tests {
         }
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn xtc_iter_map_reduce_start() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
@@ -727,6 +731,7 @@ mod tests {
         }
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn xtc_iter_map_reduce_end() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
@@ -762,6 +767,7 @@ mod tests {
         }
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn xtc_iter_map_reduce_start_end() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
@@ -797,6 +803,7 @@ mod tests {
         }
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn xtc_iter_map_reduce_step() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
@@ -835,6 +842,7 @@ mod tests {
         }
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn xtc_iter_map_reduce_start_end_step() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
@@ -870,6 +878,7 @@ mod tests {
         }
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn xtc_iter_map_reduce_progress_print() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
@@ -917,6 +926,7 @@ mod tests {
         std::fs::remove_file("xtc_iter_map_reduce_progress_print.txt").unwrap();
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn xtc_iter_map_reduce_progress_print_many_threads() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
@@ -965,6 +975,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn trr_iter_map_reduce_basic() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         let result_singlethreaded = run_traj_iter_single_threaded::<TrrReader>(
@@ -1000,6 +1011,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn trr_iter_map_reduce_start() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         let result_singlethreaded = run_traj_iter_single_threaded::<TrrReader>(
@@ -1035,6 +1047,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn trr_iter_map_reduce_end() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         let result_singlethreaded = run_traj_iter_single_threaded::<TrrReader>(
@@ -1070,6 +1083,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn trr_iter_map_reduce_start_end() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         let result_singlethreaded = run_traj_iter_single_threaded::<TrrReader>(
@@ -1105,6 +1119,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn trr_iter_map_reduce_step() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
@@ -1143,6 +1158,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn trr_iter_map_reduce_start_end_step() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         let result_singlethreaded = run_traj_iter_single_threaded::<TrrReader>(
@@ -1177,6 +1193,7 @@ mod tests {
         }
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn xtc_iter_map_reduce_fail() {
         let system = System::from_file("test_files/example.gro").unwrap();
@@ -1195,6 +1212,7 @@ mod tests {
         }
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn xtc_iter_map_reduce_fail_progress_printing() {
         let system = System::from_file("test_files/example.gro").unwrap();
@@ -1320,6 +1338,7 @@ mod tests {
             .unwrap()
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn xtc_iter_map_reduce_ordered() {
         let expected = [
