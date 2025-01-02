@@ -18,6 +18,7 @@
 //! - [Assign elements](`crate::system::System::guess_elements`) to atoms and [guess connectivity](`crate::system::System::guess_bonds`) between the atoms.
 //! - Calculate [center of geometry](`crate::system::System::group_get_center`) or [mass](`crate::system::System::group_get_com`) for *any* group of atoms.
 //! - [Center a group of atoms](`crate::system::System::atoms_center`) in a simulation box.
+//! - Perform [multithreaded iteration over a trajectory](`crate::system::System::traj_iter_map_reduce`) (if the `parallel` feature is enabled).
 //! - Help with specific analyses by providing utility data structures (e.g., [`GridMaps`](`crate::structures::gridmap::GridMap`)).
 //! - Some other minor stuff...
 //!
@@ -322,7 +323,7 @@
 //! ### Default
 //! - `molly`: **Blazingly Fast Reading of XTC Files**
 //!   - Enables the use of the [`molly`](https://crates.io/crates/molly) crate for very fast reading of xtc files.
-//!   - Enables the use of `GroupXtcReader` allowing partial read of XTC frames.
+//!   - Enables the use of [`GroupXtcReader`](crate::prelude::System::group_xtc_iter) for partial reading of XTC frames.
 //!   - *This feature is enabled by default.*
 //!   - If disabled, `xdrfile` library will be used instead to read XTC files and partial reading of XTC frames will not be supported.
 //!
@@ -336,7 +337,6 @@
 //! - `no-xdrfile`: **Pure Rust experience with no external C libraries**
 //!   - **Removes** the compilation and use of `xdrfile` library.
 //!   - If enabled, you will lose the ability to write XTC files and both read and write TRR files.
-//!   - Only use this feature if the `xdrfile` library compilation fails.
 //!
 //! Install the `groan_rs` crate with a specific feature using `cargo add groan_rs --features [FEATURE]`.
 //!
@@ -376,6 +376,9 @@ pub mod prelude {
     pub use crate::io::traj_write::TrajWrite;
     #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     pub use crate::io::xtc_io::XtcReader;
+
+    #[cfg(feature = "molly")]
+    pub use crate::io::xtc_io::molly_xtc::GroupXtcReader;
 
     #[cfg(not(feature = "no-xdrfile"))]
     pub use crate::io::trr_io::{TrrReader, TrrWriter};

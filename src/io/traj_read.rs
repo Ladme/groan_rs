@@ -87,11 +87,23 @@ pub trait TrajRead<'a> {
     ) -> &mut <<Self as TrajRead<'a>>::FrameData as FrameData>::TrajFile;
 }
 
-/// Any structure implementing `TrajReadFile` can be used to OPEN and read a trajectory file.
+/// Any structure implementing `TrajReadFile` that can be used to OPEN and read a trajectory file.
 pub trait TrajReadOpen<'a>: TrajRead<'a> {
     /// Method specifying how to open the trajectory file.
     /// This function should return structure implementing `TrajRead`.
     fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<Self, ReadTrajError>
+    where
+        Self: Sized;
+}
+
+/// Similar to `TrajReadOpen` but allows specifying a group. Only properties of atoms of the specified group
+/// will be read from the input trajectory.
+pub trait TrajGroupReadOpen<'a>: TrajRead<'a> {
+    fn new(
+        system: &'a mut System,
+        filename: impl AsRef<Path>,
+        group: &str,
+    ) -> Result<Self, ReadTrajError>
     where
         Self: Sized;
 }

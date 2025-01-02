@@ -33,6 +33,9 @@ use super::traj_write::PrivateTrajWrite;
 impl System {
     /// Create an `XtcReader` structure which is an iterator over an xtc file.
     ///
+    /// In case you are interested only in properties of a particular group of atoms,
+    /// you might want to use [`System::group_xtc_iter`] instead.
+    ///
     /// ## Returns
     /// `TrajReader<XtcReader>` if the xtc file exists and matches the structure file.
     /// Else returns `ReadTrajError`.
@@ -165,7 +168,7 @@ impl System {
     /// - The `System` structure is modified while iterating through the xtc file.
     /// - The `velocity` and `force` information is set to `None` for all atoms as it is not available in the xtc file.
     /// - Supports reading xtc files in the 2023 format (generally used for giant systems) **ONLY** when the `molly`
-    ///   feature is enabled. **Reading of the 2023 format is not well tested. Be careful**
+    ///   feature is enabled. **Reading of the 2023 format is not well tested. Be careful!**
     pub fn xtc_iter(
         &mut self,
         filename: impl AsRef<Path>,

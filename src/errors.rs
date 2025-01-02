@@ -396,6 +396,9 @@ pub enum ReadTrajError {
     /// Used when the file is not an XTC file but should be.
     #[error("{} file '{}' is not an xtc file (invalid magic number)", "error:".red().bold(), path_to_yellow(.0))]
     NotXtc(Box<Path>),
+    /// Used when the group of atoms selected to be read from a trajectory file does not exist.
+    #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
+    GroupNotFound(String),
 }
 
 /// Errors that can occur when writing a trajectory file.
