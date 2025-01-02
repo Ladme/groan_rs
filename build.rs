@@ -1,3 +1,6 @@
+// Released under MIT License.
+// Copyright (c) 2023-2025 Ladislav Bartos
+
 extern crate cc;
 
 fn main() {
