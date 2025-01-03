@@ -2,7 +2,7 @@
 
 Performed using `groan_rs v0.10-dev.1`.
 
-The benchmarking (atomistic) system was composed of a small peptide (~400 atoms), a phospholipid membrane (~40,000 atoms), and water with ions (~54,200 atoms). Total size: ~94,700 atoms.
+The benchmarking (atomistic) system was composed of a small peptide (~400 atoms), a phospholipid membrane (~40,000 atoms), and water with ions (~54,300 atoms). Total size: ~94,700 atoms.
 The trajectory was 5000 frames long (0-500 ns).
 
 The program iterated through a trajectory and printed out the position of the first atom for each analyzed frame.
