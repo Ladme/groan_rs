@@ -34,4 +34,4 @@ The reported run time includes the reading of a tpr and an ndx file.
 |        water       |      every 5th frame      |              1.8             |               ---              |              ---              |
 |        water       | frames between 300-400 ns |              1.8             |               ---              |              ---              |
 
-Note that when water is selected for reading, almost the entire XTC frames have to be read since water atoms are positioned near the end of the system. Yet, the run time is lower due to lower amount of data copying performed inside the `groan` library.
+Note that when water is selected for reading, almost the entire XTC frames have to be read since water atoms are positioned near the end of the system. Yet, the run time is lower due to the lower amount of data copying performed inside the `groan` library.
