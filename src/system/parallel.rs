@@ -1419,4 +1419,121 @@ mod tests {
             }
         }
     }
+
+    #[cfg(feature = "molly")]
+    #[cfg(test)]
+    mod test_partial_frame_reading {
+        use crate::prelude::{GroupXtcReader, TrajGroupReadOpen};
+
+        use super::*;
+
+        fn run_group_traj_iter_map_reduce<'a, Reader>(
+            system: &'a System,
+            filename: &str,
+            n_threads: usize,
+            group: &str,
+            start: Option<f32>,
+            end: Option<f32>,
+            step: Option<usize>,
+            progress: Option<ProgressPrinter>,
+        ) -> Steps
+        where
+            Reader:
+                TrajGroupReadOpen<'a> + TrajRangeRead<'a> + TrajStepRead<'a> + TrajRead<'a> + 'a,
+            <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
+        {
+            let mut steps = system
+                .traj_iter_map_reduce::<Reader, Steps, AtomError>(
+                    filename,
+                    n_threads,
+                    frame_get_number,
+                    Steps::default(),
+                    Some(group),
+                    start,
+                    end,
+                    step,
+                    progress,
+                )
+                .unwrap();
+
+            steps.0.sort();
+            steps
+        }
+
+        #[test]
+        fn group_xtc_iter_map_reduce_basic() {
+            let mut system = System::from_file("test_files/example.gro").unwrap();
+            let result_singlethreaded = run_traj_iter_single_threaded::<XtcReader>(
+                &mut system,
+                "test_files/short_trajectory.xtc",
+                None,
+                None,
+                None,
+            );
+
+            system.group_create("Membrane", "@membrane").unwrap();
+
+            for n_threads in 1..=16 {
+                let result_multithreaded = run_group_traj_iter_map_reduce::<GroupXtcReader>(
+                    &system,
+                    "test_files/short_trajectory.xtc",
+                    n_threads,
+                    "Membrane",
+                    None,
+                    None,
+                    None,
+                    None,
+                );
+
+                assert_ne!(result_multithreaded.0.len(), 0);
+                assert_eq!(result_singlethreaded.0.len(), result_multithreaded.0.len());
+
+                for (item1, item2) in result_singlethreaded
+                    .0
+                    .iter()
+                    .zip(result_multithreaded.0.iter())
+                {
+                    assert_eq!(item1, item2);
+                }
+            }
+        }
+
+        #[test]
+        fn group_xtc_iter_map_range_steps() {
+            let mut system = System::from_file("test_files/example.gro").unwrap();
+            let result_singlethreaded = run_traj_iter_single_threaded::<XtcReader>(
+                &mut system,
+                "test_files/short_trajectory.xtc",
+                Some(200.0),
+                Some(510.0),
+                Some(3),
+            );
+
+            system.group_create("Membrane", "@membrane").unwrap();
+
+            for n_threads in 1..=16 {
+                let result_multithreaded = run_group_traj_iter_map_reduce::<GroupXtcReader>(
+                    &system,
+                    "test_files/short_trajectory.xtc",
+                    n_threads,
+                    "Membrane",
+                    Some(200.0),
+                    Some(510.0),
+                    Some(3),
+                    None,
+                );
+
+                assert_ne!(result_multithreaded.0.len(), 0);
+                assert_eq!(result_singlethreaded.0.len(), result_multithreaded.0.len());
+
+                for (item1, item2) in result_singlethreaded
+                    .0
+                    .iter()
+                    .zip(result_multithreaded.0.iter())
+                {
+                    assert_eq!(item1, item2);
+                }
+            }
+        }
+    }
 }
