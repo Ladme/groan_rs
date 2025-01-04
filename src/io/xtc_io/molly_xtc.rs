@@ -23,7 +23,7 @@ use std::{
 };
 
 /**************************/
-/*       READING XTC      */
+/*    READING XTC FILES   */
 /**************************/
 
 /// Used when jumping to the start of iteration.
@@ -246,6 +246,10 @@ impl MollyXtc {
     }
 }
 
+/**************************/
+/*   FULL-FRAME READING   */
+/**************************/
+
 /// Iterator over an xtc file.
 /// Constructed using [`System::xtc_iter`].
 pub struct XtcReader<'a> {
@@ -259,9 +263,6 @@ impl TrajFile for MollyXtc {}
 /// Wrapper around `molly`'s Frame.
 pub struct XtcFrameData {
     frame: molly::Frame,
-    /// Pointer to a copy of an atom container stored in `MollyXtc`.
-    /// Safety: XtcFrameData only exists for a short time during iteration of a trajectory. It does not leaks outside.
-    group: *const AtomContainer,
 }
 
 impl FrameData for XtcFrameData {
@@ -279,10 +280,7 @@ impl FrameData for XtcFrameData {
             .read_frame_with_selection(&mut frame, &traj_file.atom_selection)
         {
             Ok(_) => {
-                let frame_data = XtcFrameData {
-                    frame,
-                    group: &traj_file.group as *const AtomContainer,
-                };
+                let frame_data = XtcFrameData { frame };
 
                 Some(Ok(frame_data))
             }
@@ -294,21 +292,8 @@ impl FrameData for XtcFrameData {
 
     #[inline]
     fn update_system(self, system: &mut System) {
-        // safety: `XtcFrameData` only exists during iteration
-        // group is obtained from `MollyXtc` which is located inside `XtcReader` which must by definition
-        // live through the entire iteration
-        let atoms = unsafe { &*self.group }.iter();
-
-        for index in atoms {
-            let atom = system
-                .get_atom_mut(index)
-                .expect("FATAL GROAN ERROR | XtcFrameData::update_system | Atom should exist.");
-
-            let x = *self.frame.positions.get(3 * index).unwrap();
-            let y = *self.frame.positions.get(3 * index + 1).unwrap();
-            let z = *self.frame.positions.get(3 * index + 2).unwrap();
-
-            atom.set_position(Vector3D::new(x, y, z));
+        for (atom, pos) in system.get_atoms_mut().iter_mut().zip(self.frame.coords()) {
+            atom.set_position(Vector3D::new(pos.x, pos.y, pos.z));
             atom.reset_velocity();
             atom.reset_force();
         }
@@ -415,6 +400,99 @@ impl<'a> TrajStepTimeRead<'a> for XtcReader<'a> {
     }
 }
 
+/**************************/
+/*  PARTIAL-FRAME READING */
+/**************************/
+
+/// Wrapper around `molly`'s Frame for partial-frame reader.
+pub struct GroupXtcFrameData {
+    frame: molly::Frame,
+    /// Pointer to a copy of an atom container stored in `MollyXtc`.
+    /// Safety: GroupXtcFrameData only exists for a short time during iteration of a trajectory. It does not leaks outside.
+    group: *const AtomContainer,
+}
+
+impl FrameDataTime for GroupXtcFrameData {
+    #[inline(always)]
+    fn get_time(&self) -> f32 {
+        self.frame.time
+    }
+}
+
+impl FrameData for GroupXtcFrameData {
+    type TrajFile = MollyXtc;
+
+    #[inline(always)]
+    fn from_frame(traj_file: &mut MollyXtc, _system: &System) -> Option<Result<Self, ReadTrajError>>
+    where
+        Self: Sized,
+    {
+        let mut frame = Frame::default();
+
+        match traj_file
+            .reader
+            .read_frame_with_selection_buffered(&mut frame, &traj_file.atom_selection)
+        {
+            Ok(_) => {
+                let frame_data = GroupXtcFrameData {
+                    frame,
+                    group: &traj_file.group as *const AtomContainer,
+                };
+
+                Some(Ok(frame_data))
+            }
+            // expecting that this is not an error but the end of file was just reached
+            Err(e) if e.kind() == ErrorKind::UnexpectedEof => None,
+            Err(e) => Some(Err(ReadTrajError::MollyXtcError(e.to_string()))),
+        }
+    }
+
+    #[inline]
+    fn update_system(self, system: &mut System) {
+        // safety: `GroupXtcFrameData` only exists during iteration
+        // group is obtained from `MollyXtc` which is located inside `XtcReader` which must by definition
+        // live through the entire iteration
+        let atoms = unsafe { &*self.group }.iter();
+
+        for index in atoms {
+            let atom = system
+                .get_atom_mut(index)
+                .expect("FATAL GROAN ERROR | XtcFrameData::update_system | Atom should exist.");
+
+            unsafe {
+                // safety: all positions up to the end of the group must be loaded
+                let x = *self.frame.positions.get_unchecked(3 * index);
+                let y = *self.frame.positions.get_unchecked(3 * index + 1);
+                let z = *self.frame.positions.get_unchecked(3 * index + 2);
+                atom.set_position(Vector3D::new(x, y, z));
+            }
+
+            atom.reset_velocity();
+            atom.reset_force();
+        }
+
+        // update the system
+        system.set_simulation_step(self.frame.step as u64);
+        system.set_simulation_time(self.frame.time);
+        let b = self.frame.boxvec;
+        system.set_box(
+            [
+                b.col(0).x,
+                b.col(1).y,
+                b.col(2).z,
+                b.col(0).y,
+                b.col(0).z,
+                b.col(1).x,
+                b.col(1).z,
+                b.col(2).x,
+                b.col(2).y,
+            ]
+            .into(),
+        );
+        system.set_precision(self.frame.precision as u64);
+    }
+}
+
 /// Partial iterator over an xtc file. Reads only specified atoms from each frame.
 /// Constructed using [`System::group_xtc_iter`].
 pub struct GroupXtcReader<'a> {
@@ -424,7 +502,7 @@ pub struct GroupXtcReader<'a> {
 }
 
 impl<'a> TrajRead<'a> for GroupXtcReader<'a> {
-    type FrameData = XtcFrameData;
+    type FrameData = GroupXtcFrameData;
 
     #[inline(always)]
     fn get_system(&mut self) -> *mut System {
