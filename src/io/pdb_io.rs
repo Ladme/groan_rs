@@ -3,10 +3,11 @@
 
 //! Implementation of functions for reading and writing pdb files.
 
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
+
+use hashbrown::HashMap;
 
 use crate::auxiliary::{PDB_MAX_COORDINATE, PDB_MIN_COORDINATE};
 use crate::errors::{ParsePdbConnectivityError, ParsePdbError, WritePdbError};
