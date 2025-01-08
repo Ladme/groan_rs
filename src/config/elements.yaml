@@ -47,7 +47,7 @@ phosphorus:
   expected_min_bonds: 2
 sulfur:
   symbol: S
-  query: name r'^[Ss][^iI].*$'
+  query: name r'^[Ss][^iI].*$' and not name SOD
   mass: 32.06500
   vdw: 0.1782
   expected_min_bonds: 1

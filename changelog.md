@@ -18,7 +18,8 @@
   - The `Reader` structure in `System::traj_iter_map_reduce` still needs to implement `TrajReadOpen` but it's the new trait (see 'Changes to Trajectory Iteration`).
 
 #### Other changes
-- Introduced `Atom::reset_bonded` and `System::clear_bonds` for simpler removal of bonding information. 
+- Introduced `Atom::reset_bonded` and `System::clear_bonds` for simpler removal of bonding information.
+- Sodium atoms should be less often misclassified as sulfur when guessing elements.
 
 ***
 
