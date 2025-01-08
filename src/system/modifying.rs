@@ -473,6 +473,18 @@ impl System {
 
         Ok(())
     }
+
+    /// Removes all information about bonds from the system.
+    /// This method calls [`System::reset_mol_references`](crate::prelude::System::reset_mol_references).
+    #[inline]
+    pub fn clear_bonds(&mut self) {
+        // safety: we are removing all bonded information and we are calling `reset_mol_references` afterwards
+        self.get_atoms_mut()
+            .iter_mut()
+            .for_each(|atom| unsafe { atom.reset_bonded() });
+
+        self.reset_mol_references();
+    }
 }
 
 /******************************/
@@ -1205,5 +1217,17 @@ mod tests {
                 e
             ),
         }
+    }
+
+    #[test]
+    fn clear_bonds() {
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
+        assert!(system.has_bonds());
+        system.create_mol_references();
+        assert!(system.mol_references.is_some());
+
+        system.clear_bonds();
+        assert!(!system.has_bonds());
+        assert!(system.mol_references.is_none());
     }
 }

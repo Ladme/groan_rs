@@ -419,7 +419,7 @@ impl Atom {
     ///
     /// c) index of this atom is also added between bonded atoms of all atoms included in `indices`,
     ///
-    /// d) `System::reset_mol_references` method is applied to the `System` this atom is part of.
+    /// d) [`System::reset_mol_references`](crate::prelude::System::reset_mol_references) method is applied to the `System` this atom is part of.
     #[inline(always)]
     pub unsafe fn set_bonded(&mut self, indices: Vec<usize>) {
         self.bonded = AtomContainer::from_indices(indices, usize::MAX);
@@ -436,10 +436,21 @@ impl Atom {
     ///
     /// c) index of this atom is also added between bonded atoms of the atom `index`,
     ///
-    /// d) `System::reset_mol_references` method is applied to the `System` this atom is part of.
+    /// d) [`System::reset_mol_references`](crate::prelude::System::reset_mol_references) method is applied to the `System` this atom is part of.
     #[inline(always)]
     pub unsafe fn add_bonded(&mut self, index: usize) {
         self.bonded.add(index, usize::MAX);
+    }
+
+    /// Removes bonding information for atoms connected to this atom.
+    ///
+    /// ## Safety
+    /// This method is safe only if [`System::reset_mol_references`](crate::prelude::System::reset_mol_references) is called on
+    /// the `System` containing this atom, and if bonding information is also
+    /// cleared from the atoms previously bonded to this one.
+    #[inline(always)]
+    pub unsafe fn reset_bonded(&mut self) {
+        self.bonded = AtomContainer::empty();
     }
 
     /// Get the number of bonded atoms associated with this atom.
@@ -1210,7 +1221,7 @@ mod tests {
     }
 
     #[test]
-    fn get_set_bonded() {
+    fn get_set_reset_bonded() {
         let mut atom = make_default_atom();
         assert_eq!(atom.get_n_bonded(), 0);
 
@@ -1224,6 +1235,13 @@ mod tests {
         assert_eq!(atom.get_n_bonded(), 3);
         let bonded = atom.get_bonded();
         assert_eq!(bonded, &AtomContainer::from_indices(vec![1, 2, 5], 10));
+
+        unsafe {
+            atom.reset_bonded();
+        }
+
+        assert_eq!(atom.get_n_bonded(), 0);
+        assert_eq!(atom.get_bonded(), &AtomContainer::empty());
     }
 
     #[test]

@@ -17,6 +17,9 @@
   - `System::traj_iter_map_reduce` can be now provided a group name in case a "partial-frame" iteration should be performed. In such case, the provided `Reader` structure must be `GroupXtcReader`.
   - The `Reader` structure in `System::traj_iter_map_reduce` still needs to implement `TrajReadOpen` but it's the new trait (see 'Changes to Trajectory Iteration`).
 
+#### Other changes
+- Introduced `Atom::reset_bonded` and `System::clear_bonds` for simpler removal of bonding information. 
+
 ***
 
 ### Version 0.9.0
