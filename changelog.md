@@ -17,6 +17,10 @@
   - `System::traj_iter_map_reduce` can be now provided a group name in case a "partial-frame" iteration should be performed. In such case, the provided `Reader` structure must be `GroupXtcReader`.
   - The `Reader` structure in `System::traj_iter_map_reduce` still needs to implement `TrajReadOpen` but it's the new trait (see 'Changes to Trajectory Iteration`).
 
+#### Expansion of utilities for ignoring PBC
+- Introduced `NaiveShape` trait for geometry filtering ignoring PBC and implemented this trait for `Sphere`, `Rectangular`, and `Cylinder`.
+- Implemented `ImmutableAtomIterable::filter_geometry_naive` and `MutableAtomIterable::filter_geometry_naive` for geometry filtering of atoms from iterators ignoring PBC and box dimensions.
+
 #### Other changes
 - Introduced `Atom::reset_bonded` and `System::clear_bonds` for simpler removal of bonding information.
 - Sodium atoms should be less often misclassified as sulfur when guessing elements.

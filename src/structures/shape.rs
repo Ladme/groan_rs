@@ -104,7 +104,9 @@ impl Sphere {
 }
 
 impl Shape for Sphere {
-    /// Check if point is inside the sphere.
+    /// Check if point is inside the sphere. Takes PBC into consideration.
+    ///
+    /// For PBC-unsafe variant, see [Sphere::inside_naive].
     fn inside(&self, point: &Vector3D, simbox: &SimBox) -> bool {
         point.distance(&self.position, Dimension::XYZ, simbox) < self.radius
     }
@@ -157,7 +159,9 @@ impl Rectangular {
 }
 
 impl Shape for Rectangular {
-    /// Check if point is inside the rectangular box.
+    /// Check if point is inside the rectangular box. Takes PBC into consideration.
+    ///
+    /// For PBC-unsafe variant, see [Rectangular::inside_naive].
     fn inside(&self, point: &Vector3D, simbox: &SimBox) -> bool {
         let mut dx = point.distance(&self.position, Dimension::X, simbox);
         if dx < 0.0 {
@@ -242,7 +246,9 @@ impl Cylinder {
 }
 
 impl Shape for Cylinder {
-    /// Check if point is inside the cylinder.
+    /// Check if point is inside the cylinder. Takes PBC into consideration.
+    ///
+    /// For PBC-unsafe variant, see [Cylinder::inside_naive].
     fn inside(&self, point: &Vector3D, simbox: &SimBox) -> bool {
         let mut distance_axis = point.distance(&self.position, self.orientation, simbox);
 
@@ -447,6 +453,44 @@ impl Shape for TriangularPrism {
         let has_pos = (d1 > 0.0) || (d2 > 0.0) || (d3 > 0.0);
 
         !(has_neg && has_pos)
+    }
+}
+
+/// Trait implemented by structures that can be used for geometry selection without PBC.
+pub trait NaiveShape {
+    /// Returns `true` if target point is inside the `NaiveShape`. **Does not take periodic boundary conditions into consideration.**
+    fn inside_naive(&self, point: &Vector3D) -> bool;
+}
+
+impl NaiveShape for Sphere {
+    /// Check if point is inside the sphere. **Does not take PBC into consideration.**
+    ///
+    /// For PBC-safe variant, see [Sphere::inside].
+    fn inside_naive(&self, point: &Vector3D) -> bool {
+        point.distance_naive(&self.position, Dimension::XYZ) < self.radius
+    }
+}
+
+impl NaiveShape for Cylinder {
+    /// Check if point is inside the cylinder. **Does not take PBC into consideration.**
+    ///
+    /// For PBC-safe variant, see [Cylinder::inside].
+    fn inside_naive(&self, point: &Vector3D) -> bool {
+        point.distance_naive(&self.position, self.orientation) < self.height
+            && point.distance_naive(&self.position, self.plane) < self.radius
+    }
+}
+
+impl NaiveShape for Rectangular {
+    /// Check if point is inside the rectangular box.
+    ///
+    /// For PBC-safe variant, see [Rectangular::inside].
+    fn inside_naive(&self, point: &Vector3D) -> bool {
+        let dx = point.distance_naive(&self.position, Dimension::X);
+        let dy = point.distance_naive(&self.position, Dimension::Y);
+        let dz = point.distance_naive(&self.position, Dimension::Z);
+
+        dx <= self.x && dy <= self.y && dz <= self.z
     }
 }
 

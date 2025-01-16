@@ -16,7 +16,7 @@ use crate::{
     },
 };
 
-use super::{simbox::simbox_check, vector3d::Vector3D};
+use super::{shape::NaiveShape, simbox::simbox_check, vector3d::Vector3D};
 
 /**************************/
 /*  IMMUTABLE ITERATORS   */
@@ -135,7 +135,7 @@ impl<'a> AtomIterable<'a> for OwnedAtomIterator<'a> {
 
 impl<'a> OrderedAtomIterator<'a> for OwnedAtomIterator<'a> {}
 
-/// Immutable iterator over atoms with applied geometry filter.
+/// Immutable iterator over atoms with applied geometry filter. Takes PBC into consideration.
 /// Constructed by calling `filter_geometry` method on `AtomIterator` or `FilterAtomIterator`.
 ///
 /// ## Notes
@@ -195,6 +195,54 @@ impl<'a, I, S> OrderedAtomIterator<'a> for FilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a Atom>,
     S: Shape,
+{
+}
+
+/// Immutable iterator over atoms with applied geometry filter that does not take PBC into consideration.
+/// Constructed by calling `filter_geometry_naive` method on `AtomIterator`, `FilterAtomIterator` or `NaiveFilterAtomIterator`.
+///
+/// ## Notes
+/// - Atoms with no positions set are never inside any geometric shape.
+#[derive(Debug, Clone)]
+pub struct NaiveFilterAtomIterator<'a, I, S>
+where
+    I: Iterator<Item = &'a Atom>,
+    S: NaiveShape,
+{
+    iterator: I,
+    geometry: S,
+}
+
+impl<'a, I, S> Iterator for NaiveFilterAtomIterator<'a, I, S>
+where
+    I: Iterator<Item = &'a Atom>,
+    S: NaiveShape,
+{
+    type Item = &'a Atom;
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iterator.find(|atom| {
+            atom.has_position()
+                && self.geometry.inside_naive(atom.get_position().expect(
+                    "FATAL GROAN ERROR | FilterAtomIterator::next | Atom should have position.",
+                ))
+        })
+    }
+}
+
+impl<'a, I, S> AtomIterable<'a> for NaiveFilterAtomIterator<'a, I, S>
+where
+    I: Iterator<Item = &'a Atom>,
+    S: NaiveShape,
+{
+    type AtomRef = &'a Atom;
+}
+
+impl<'a, I, S> OrderedAtomIterator<'a> for NaiveFilterAtomIterator<'a, I, S>
+where
+    I: Iterator<Item = &'a Atom>,
+    S: NaiveShape,
 {
 }
 
@@ -366,7 +414,7 @@ impl<'a> Iterator for OwnedMutAtomIterator<'a> {
 
 impl<'a> OrderedAtomIterator<'a> for OwnedMutAtomIterator<'a> {}
 
-/// Mutable iterator over atoms with applied geometry filter.
+/// Mutable iterator over atoms with applied geometry filter. Takes PBC into consideration.
 /// Constructed by calling `filter_geometry` method on `MutAtomIterator` or `MutFilterAtomIterator`.
 ///
 /// ## Notes
@@ -423,6 +471,54 @@ impl<'a, I, S> OrderedAtomIterator<'a> for MutFilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a mut Atom>,
     S: Shape,
+{
+}
+
+/// Mutable iterator over atoms with applied geometry filter that does not take PBC into consideration.
+/// Constructed by calling `filter_geometry_naive` method on `MutAtomIterator`, `MutFilterAtomIterator`, or `MutNaiveFilterAtomIterator`.
+///
+/// ## Notes
+/// - Atoms with no positions set are never inside any geometric shape.
+#[derive(Debug, Clone)]
+pub struct MutNaiveFilterAtomIterator<'a, I, S>
+where
+    I: Iterator<Item = &'a mut Atom>,
+    S: NaiveShape,
+{
+    iterator: I,
+    geometry: S,
+}
+
+impl<'a, I, S> AtomIterable<'a> for MutNaiveFilterAtomIterator<'a, I, S>
+where
+    I: Iterator<Item = &'a mut Atom>,
+    S: NaiveShape,
+{
+    type AtomRef = &'a mut Atom;
+}
+
+impl<'a, I, S> Iterator for MutNaiveFilterAtomIterator<'a, I, S>
+where
+    I: Iterator<Item = &'a mut Atom>,
+    S: NaiveShape,
+{
+    type Item = &'a mut Atom;
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iterator.find(|atom| {
+            atom.has_position()
+                && self.geometry.inside_naive(atom.get_position().expect(
+                    "FATAL GROAN ERROR | MutFilterAtomIterator::next | Atom should have position.",
+                ))
+        })
+    }
+}
+
+impl<'a, I, S> OrderedAtomIterator<'a> for MutNaiveFilterAtomIterator<'a, I, S>
+where
+    I: Iterator<Item = &'a mut Atom>,
+    S: NaiveShape,
 {
 }
 
@@ -585,8 +681,8 @@ where
 
 impl<'a, A, I1, I2> HasBox for UnionAtomIterator<'a, A, I1, I2>
 where
-    I1: OrderedAtomIterator<'a, AtomRef = A>,
-    I2: OrderedAtomIterator<'a, AtomRef = A>,
+    I1: OrderedAtomIterator<'a, AtomRef = A> + HasBox,
+    I2: OrderedAtomIterator<'a, AtomRef = A> + HasBox,
     A: std::ops::Deref<Target = Atom> + 'a,
 {
     #[inline(always)]
@@ -661,8 +757,8 @@ where
 
 impl<'a, A, I1, I2> HasBox for IntersectionAtomIterator<'a, A, I1, I2>
 where
-    I1: OrderedAtomIterator<'a, AtomRef = A>,
-    I2: OrderedAtomIterator<'a, AtomRef = A>,
+    I1: OrderedAtomIterator<'a, AtomRef = A> + HasBox,
+    I2: OrderedAtomIterator<'a, AtomRef = A> + HasBox,
     A: std::ops::Deref<Target = Atom> + 'a,
 {
     #[inline(always)]
@@ -826,6 +922,88 @@ pub trait AtomIterable<'a>: Iterator<Item = Self::AtomRef> + Sized {
     }
 }
 
+/// Trait implemented by all `AtomIterable` structures returning immutable atom references.
+pub trait ImmutableAtomIterable<'a>: AtomIterable<'a, AtomRef = &'a Atom, Item = &'a Atom> {
+    /// Filter atoms located inside the specified geometric shape.
+    /// **Ignores** periodic boundary conditions.
+    ///
+    /// If you want to consider PBC, see [`AtomIteratorWithBox::filter_geometry`].
+    ///
+    /// ## Example
+    /// Iterating over all atoms of the system
+    /// that are located in a sphere around a specific point.
+    /// **Periodic boundary conditions are ignored!**
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let system = System::from_file("system.gro").unwrap();
+    ///
+    /// // construct a sphere located at x = 1, y = 2, z = 3 with a radius of 2.5 nm
+    /// let sphere = Sphere::new([1.0, 2.0, 3.0].into(), 2.5);
+    ///
+    /// for atom in system.atoms_iter().filter_geometry_naive(sphere) {
+    ///     println!("{:?}", atom);
+    /// }
+    /// ```
+    #[inline(always)]
+    fn filter_geometry_naive(
+        self,
+        geometry: impl NaiveShape,
+    ) -> NaiveFilterAtomIterator<'a, Self, impl NaiveShape> {
+        NaiveFilterAtomIterator {
+            iterator: self,
+            geometry,
+        }
+    }
+}
+
+/// Trait implemented by all `AtomIterable` structures returning mutable atom references.
+pub trait MutableAtomIterable<'a>:
+    AtomIterable<'a, AtomRef = &'a mut Atom, Item = &'a mut Atom>
+{
+    /// Filter atoms located inside the specified geometric shape.
+    /// **Ignores** periodic boundary conditions.
+    ///
+    /// If you want to consider PBC, see [`MutAtomIteratorWithBox::filter_geometry`].
+    ///
+    /// ## Example
+    /// Iterating over all atoms of the system
+    /// that are located in a sphere around a specific point
+    /// and changing their names.
+    /// **Periodic boundary conditions are ignored!**
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    ///
+    /// // construct a sphere located at x = 1, y = 2, z = 3 with a radius of 2.5 nm
+    /// let sphere = Sphere::new([1.0, 2.0, 3.0].into(), 2.5);
+    ///
+    /// for atom in system.atoms_iter_mut().filter_geometry_naive(sphere) {
+    ///     atom.set_atom_name("XYZ");
+    /// }
+    /// ```
+    fn filter_geometry_naive(
+        self,
+        geometry: impl NaiveShape,
+    ) -> MutNaiveFilterAtomIterator<'a, Self, impl NaiveShape> {
+        MutNaiveFilterAtomIterator {
+            iterator: self,
+            geometry,
+        }
+    }
+}
+
+impl<'a, T> ImmutableAtomIterable<'a> for T where
+    T: AtomIterable<'a, AtomRef = &'a Atom, Item = &'a Atom>
+{
+}
+
+impl<'a, T> MutableAtomIterable<'a> for T where
+    T: AtomIterable<'a, AtomRef = &'a mut Atom, Item = &'a mut Atom>
+{
+}
+
 /// Trait implemented by all IMMUTABLE iterators over atoms that contain information about the simulation box.
 pub trait AtomIteratorWithBox<'a>: HasBox
 where
@@ -845,6 +1023,9 @@ where
     }
 
     /// Filter atoms located inside the specified geometric shape.
+    /// Takes PBC into consideration.
+    ///
+    /// If you do not want to use PBC, see [`ImmutableAtomIterable::filter_geometry_naive`].
     ///
     /// ## Panics
     /// Panics if the iterator has no associated simulation box.
@@ -864,6 +1045,7 @@ where
     ///     println!("{:?}", atom);
     /// }
     /// ```
+    #[inline(always)]
     fn filter_geometry(self, geometry: impl Shape) -> FilterAtomIterator<'a, Self, impl Shape> {
         let simbox = self.get_simbox_unwrap().clone();
 
@@ -1071,6 +1253,9 @@ where
     }
 
     /// Filter atoms located inside the specified geometric shape.
+    /// Takes PBC into consideration.
+    ///
+    /// If you do not want to use PBC, see [`MutableAtomIterable::filter_geometry_naive`].
     ///
     /// ## Panics
     /// Panics if the iterator has no associated simulation box.
@@ -1078,7 +1263,7 @@ where
     /// ## Example
     /// Iterating over all atoms of the system
     /// that are located in a sphere around a specific point
-    /// and change their names.
+    /// and changing their names.
     /// ```no_run
     /// # use groan_rs::prelude::*;
     /// #
@@ -1091,6 +1276,7 @@ where
     ///     atom.set_atom_name("XYZ");
     /// }
     /// ```
+    #[inline(always)]
     fn filter_geometry(self, geometry: impl Shape) -> MutFilterAtomIterator<'a, Self, impl Shape> {
         let simbox = self.get_simbox_unwrap().clone();
 
@@ -1168,7 +1354,7 @@ where
 
 /// Trait implemented by mutable or immutable iterators which yield atoms in the order
 /// in which they are defined in the parent System.
-pub trait OrderedAtomIterator<'a>: AtomIterable<'a> + HasBox {
+pub trait OrderedAtomIterator<'a>: AtomIterable<'a> {
     /// Create a new iterator that is the union of the provided iterators.
     ///
     /// ## Notes

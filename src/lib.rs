@@ -392,11 +392,14 @@ pub mod prelude {
     pub use crate::structures::gridmap::GridMap;
     pub use crate::structures::iterators::{
         AtomIterable, AtomIterator, AtomIteratorWithBox, AtomPairIterator, FilterAtomIterator,
-        IntersectionAtomIterator, MoleculeIterator, MutAtomIterator, MutAtomIteratorWithBox,
-        MutAtomPairIterator, MutFilterAtomIterator, MutMoleculeIterator, OrderedAtomIterator,
-        OwnedAtomIterator, OwnedMutAtomIterator, UnionAtomIterator,
+        ImmutableAtomIterable, IntersectionAtomIterator, MoleculeIterator, MutAtomIterator,
+        MutAtomIteratorWithBox, MutAtomPairIterator, MutFilterAtomIterator, MutMoleculeIterator,
+        MutableAtomIterable, OrderedAtomIterator, OwnedAtomIterator, OwnedMutAtomIterator,
+        UnionAtomIterator,
     };
-    pub use crate::structures::shape::{Cylinder, Rectangular, Shape, Sphere, TriangularPrism};
+    pub use crate::structures::shape::{
+        Cylinder, NaiveShape, Rectangular, Shape, Sphere, TriangularPrism,
+    };
     pub use crate::structures::simbox::SimBox;
     pub use crate::structures::vector3d::Vector3D;
     pub use crate::system::rmsd::RMSDTrajRead;
