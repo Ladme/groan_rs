@@ -1481,12 +1481,222 @@ mod tests {
     use float_cmp::assert_approx_eq;
 
     use crate::{
-        prelude::{Cylinder, Dimension},
+        prelude::{Cylinder, Dimension, Rectangular},
         structures::{element::Elements, shape::Sphere},
         system::System,
+        test_utilities::utilities::compare_atoms,
     };
 
     use super::*;
+
+    #[test]
+    fn filter_geometry_immutable() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        let sphere = Sphere::new(Vector3D::new(10.5, 11.2, 1.7), 4.0);
+        system
+            .group_create_from_geometry("Sphere", "all", sphere.clone())
+            .unwrap();
+        let cylinder = Cylinder::new(Vector3D::new(0.5, 1.2, 10.3), 2.5, 4.5, Dimension::Z);
+        system
+            .group_create_from_geometry("Cylinder", "all", cylinder.clone())
+            .unwrap();
+        let rectangular = Rectangular::new(Vector3D::new(1.3, 12.4, 10.7), 6.5, 4.5, 5.0);
+        system
+            .group_create_from_geometry("Rectangular", "all", rectangular.clone())
+            .unwrap();
+
+        let mut i = 0;
+        for (a1, a2) in system
+            .group_iter("Sphere")
+            .unwrap()
+            .zip(system.atoms_iter().filter_geometry(sphere))
+        {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Sphere").unwrap());
+
+        let mut i = 0;
+        for (a1, a2) in system
+            .group_iter("Cylinder")
+            .unwrap()
+            .zip(system.atoms_iter().filter_geometry(cylinder))
+        {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Cylinder").unwrap());
+
+        let mut i = 0;
+        for (a1, a2) in system
+            .group_iter("Rectangular")
+            .unwrap()
+            .zip(system.atoms_iter().filter_geometry(rectangular))
+        {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Rectangular").unwrap());
+    }
+
+    #[test]
+    fn filter_geometry_mutable() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let mut system_clone = system.clone();
+
+        let sphere = Sphere::new(Vector3D::new(10.5, 11.2, 1.7), 4.0);
+        system
+            .group_create_from_geometry("Sphere", "all", sphere.clone())
+            .unwrap();
+        let cylinder = Cylinder::new(Vector3D::new(0.5, 1.2, 10.3), 2.5, 4.5, Dimension::Z);
+        system
+            .group_create_from_geometry("Cylinder", "all", cylinder.clone())
+            .unwrap();
+        let rectangular = Rectangular::new(Vector3D::new(1.3, 12.4, 10.7), 6.5, 4.5, 5.0);
+        system
+            .group_create_from_geometry("Rectangular", "all", rectangular.clone())
+            .unwrap();
+
+        let mut i = 0;
+        for (a1, a2) in system
+            .group_iter_mut("Sphere")
+            .unwrap()
+            .zip(system_clone.atoms_iter_mut().filter_geometry(sphere))
+        {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Sphere").unwrap());
+
+        let mut i = 0;
+        for (a1, a2) in system
+            .group_iter_mut("Cylinder")
+            .unwrap()
+            .zip(system_clone.atoms_iter_mut().filter_geometry(cylinder))
+        {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Cylinder").unwrap());
+
+        let mut i = 0;
+        for (a1, a2) in system
+            .group_iter_mut("Rectangular")
+            .unwrap()
+            .zip(system_clone.atoms_iter_mut().filter_geometry(rectangular))
+        {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Rectangular").unwrap());
+    }
+
+    #[test]
+    fn filter_geometry_naive_immutable() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let system_clone = system.clone();
+
+        system.set_box(SimBox::from([100.0, 100.0, 100.0]));
+        let sphere = Sphere::new(Vector3D::new(10.5, 11.2, 1.7), 4.0);
+        system
+            .group_create_from_geometry("Sphere", "all", sphere.clone())
+            .unwrap();
+        let cylinder = Cylinder::new(Vector3D::new(0.5, 1.2, 10.3), 2.5, 4.5, Dimension::Z);
+        system
+            .group_create_from_geometry("Cylinder", "all", cylinder.clone())
+            .unwrap();
+        let rectangular = Rectangular::new(Vector3D::new(1.3, 12.4, 10.7), 6.5, 4.5, 5.0);
+        system
+            .group_create_from_geometry("Rectangular", "all", rectangular.clone())
+            .unwrap();
+
+        let mut i = 0;
+        for (a1, a2) in system
+            .group_iter("Sphere")
+            .unwrap()
+            .zip(system_clone.atoms_iter().filter_geometry_naive(sphere))
+        {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Sphere").unwrap());
+
+        let mut i = 0;
+        for (a1, a2) in system
+            .group_iter("Cylinder")
+            .unwrap()
+            .zip(system_clone.atoms_iter().filter_geometry_naive(cylinder))
+        {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Cylinder").unwrap());
+
+        let mut i = 0;
+        for (a1, a2) in system
+            .group_iter("Rectangular")
+            .unwrap()
+            .zip(system_clone.atoms_iter().filter_geometry_naive(rectangular))
+        {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Rectangular").unwrap());
+    }
+
+    #[test]
+    fn filter_geometry_naive_mutable() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let mut system_clone = system.clone();
+
+        system.set_box(SimBox::from([100.0, 100.0, 100.0]));
+        let sphere = Sphere::new(Vector3D::new(10.5, 11.2, 1.7), 4.0);
+        system
+            .group_create_from_geometry("Sphere", "all", sphere.clone())
+            .unwrap();
+        let cylinder = Cylinder::new(Vector3D::new(0.5, 1.2, 10.3), 2.5, 4.5, Dimension::Z);
+        system
+            .group_create_from_geometry("Cylinder", "all", cylinder.clone())
+            .unwrap();
+        let rectangular = Rectangular::new(Vector3D::new(1.3, 12.4, 10.7), 6.5, 4.5, 5.0);
+        system
+            .group_create_from_geometry("Rectangular", "all", rectangular.clone())
+            .unwrap();
+
+        let mut i = 0;
+        for (a1, a2) in system
+            .group_iter_mut("Sphere")
+            .unwrap()
+            .zip(system_clone.atoms_iter_mut().filter_geometry_naive(sphere))
+        {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Sphere").unwrap());
+
+        let mut i = 0;
+        for (a1, a2) in system.group_iter_mut("Cylinder").unwrap().zip(
+            system_clone
+                .atoms_iter_mut()
+                .filter_geometry_naive(cylinder),
+        ) {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Cylinder").unwrap());
+
+        let mut i = 0;
+        for (a1, a2) in system.group_iter_mut("Rectangular").unwrap().zip(
+            system_clone
+                .atoms_iter_mut()
+                .filter_geometry_naive(rectangular),
+        ) {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Rectangular").unwrap());
+    }
 
     #[test]
     fn iterator_get_center() {
