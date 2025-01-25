@@ -338,6 +338,13 @@
 //!   - **Removes** the compilation and use of `xdrfile` library.
 //!   - If enabled, you will lose the ability to write XTC files and both read and write TRR files.
 //!
+//! - `chemfiles`: **Support for additional trajectory file formats**
+//!   - Allows the use of `ChemfilesReader` for reading [all trajectory file formats](https://chemfiles.org/chemfiles/latest/formats.html) supported by the [`chemfiles`](https://chemfiles.org) library.
+//!   - **Note that not all chemfiles trajectory formats are independently tested by `groan_rs`!**
+//!   - Note that the performance of the `ChemfilesReader` is often much worse than that of specialized readers provided by `groan_rs`
+//!     (e.g., `XtcReader` with `molly` is 4-5 times faster than `ChemfilesReader`).
+//!   - Also note that many advanced `groan_rs` features for `ChemfilesReader` are not optimized or fully implemented.
+//!
 //! Install the `groan_rs` crate with a specific feature using `cargo add groan_rs --features [FEATURE]`.
 //!
 //! ## Limitations
@@ -379,6 +386,9 @@ pub mod prelude {
 
     #[cfg(feature = "molly")]
     pub use crate::io::xtc_io::molly_xtc::GroupXtcReader;
+
+    #[cfg(feature = "chemfiles")]
+    pub use crate::io::chemfiles::ChemfilesReader;
 
     #[cfg(not(feature = "no-xdrfile"))]
     pub use crate::io::trr_io::{TrrReader, TrrWriter};

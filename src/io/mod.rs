@@ -5,6 +5,8 @@
 
 use crate::structures::atom::Atom;
 
+#[cfg(feature = "chemfiles")]
+pub mod chemfiles;
 pub mod gro_io;
 pub mod ndx_io;
 pub mod pdb_io;
