@@ -28,7 +28,7 @@ pub struct ChemfilesReader<'a> {
 /// Wrapper around a chemfiles trajectory.
 #[derive(Debug)]
 pub struct ChemfilesTrajectory {
-    path: Box<Path>,
+    filename: Box<Path>,
     traj: chemfiles::Trajectory,
     current_frame: usize,
     max_frames: usize,
@@ -81,15 +81,30 @@ impl ChemfilesFrame {
 
 impl ChemfilesTrajectory {
     #[inline]
-    fn new(filename: impl AsRef<Path>) -> Result<Self, ReadTrajError> {
+    fn new(filename: impl AsRef<Path>, system: &System) -> Result<Self, ReadTrajError> {
         let mut traj =
             chemfiles::Trajectory::open(&filename, 'r').map_err(ReadTrajError::ChemfilesError)?;
 
-        // we have to get the number of frames in the trajectory to be able to stop at the appropriate frame,
-        // since chemfiles does not return sensible errors
+        // read the first frame to check whether this is a valid trajectory file
+        let mut frame = chemfiles::Frame::new();
+        traj.read(&mut frame)
+            .map_err(ReadTrajError::ChemfilesError)?;
+
+        // check that the number of atoms matches the number of atoms in the System
+        if frame.positions().len() != system.get_n_atoms() {
+            return Err(ReadTrajError::AtomsNumberMismatch(Box::from(
+                filename.as_ref(),
+            )));
+        }
+
+        // open the trajectory again to return to the start
+        let mut traj =
+            chemfiles::Trajectory::open(&filename, 'r').map_err(ReadTrajError::ChemfilesError)?;
+
+        // we have to get the number of frames in the trajectory to be able to stop at the appropriate frame
         let max_frames = traj.nsteps();
         Ok(Self {
-            path: Box::from(filename.as_ref()),
+            filename: Box::from(filename.as_ref()),
             traj,
             max_frames,
             current_frame: 0,
@@ -122,12 +137,6 @@ impl FrameData for ChemfilesFrame {
 
         match traj_file.traj.read(&mut frame.frame) {
             Ok(_) => {
-                // we check for mismatch at every frame since chemfiles does not support checking at the start of iteration
-                if frame.frame.positions().len() != system.get_n_atoms() {
-                    return Some(Err(ReadTrajError::AtomsNumberMismatch(
-                        traj_file.path.clone(),
-                    )));
-                }
                 traj_file.current_frame += 1;
                 frame.set_time();
                 frame.set_precision();
@@ -232,7 +241,7 @@ impl<'a> TrajFullReadOpen<'a> for ChemfilesReader<'a> {
     {
         Ok(ChemfilesReader {
             system: system as *mut System,
-            trajectory: ChemfilesTrajectory::new(filename)?,
+            trajectory: ChemfilesTrajectory::new(filename, system)?,
             phantom: PhantomData,
         })
     }
@@ -246,9 +255,8 @@ impl FrameDataTime for ChemfilesFrame {
 }
 
 impl<'a> TrajRangeRead<'a> for ChemfilesReader<'a> {
-    #[inline]
     fn jump_to_start(&mut self, start_time: f32) -> Result<(), ReadTrajError> {
-        // TODO: this reads one more frame than it should
+        let mut frame_index = 0;
         loop {
             let system = unsafe { &*self.get_system() };
             match ChemfilesFrame::from_frame(&mut self.trajectory, system) {
@@ -256,10 +264,28 @@ impl<'a> TrajRangeRead<'a> for ChemfilesReader<'a> {
                 Some(Err(e)) => return Err(e),
                 Some(Ok(frame)) => {
                     if frame.current_time >= start_time - TIME_PRECISION {
+                        if frame_index > 0 {
+                            // read again the previous frame; this sets the file pointer to the correct position
+                            let mut frame = chemfiles::Frame::new();
+                            frame.resize(system.get_n_atoms());
+                            self.trajectory.traj
+                                .read_step(frame_index - 1, &mut frame)
+                                .expect("FATAL GROAN ERROR | ChemfilesReader::jump_to_start | Could not re-read a trajectory frame.");
+                        } else {
+                            // or if this is the first frame, open the trajectory again
+                            self.trajectory.traj = chemfiles::Trajectory::open(&self.trajectory.filename, 'r')
+                                .expect("FATAL GROAN ERROR | ChemfilesRead::jump_to_start | Could not re-open a trajectory file.");
+                        }
+
+                        // set the current frame index
+                        self.trajectory.current_frame = frame_index;
+
                         return Ok(());
                     }
                 }
             }
+
+            frame_index += 1;
         }
     }
 }
@@ -288,154 +314,211 @@ impl<'a> TrajStepTimeRead<'a> for ChemfilesReader<'a> {
     }
 }
 
-#[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
 #[cfg(test)]
-mod tests_read {
+mod tests {
+    use super::*;
+    use crate::test_utilities::utilities::{compare_atoms, compare_box};
     use float_cmp::assert_approx_eq;
 
-    use crate::test_utilities::utilities::{compare_atoms, compare_box};
+    fn compare_iterators<'a>(
+        mut iter1: impl Iterator<Item = Result<&'a mut System, ReadTrajError>>,
+        mut iter2: impl Iterator<Item = Result<&'a mut System, ReadTrajError>>,
+    ) {
+        while let (Some(frame1), Some(frame2)) = (iter1.next(), iter2.next()) {
+            let frame1 = frame1.unwrap();
+            let frame2 = frame2.unwrap();
 
-    use super::*;
+            /*println!(
+                "{} {}",
+                frame1.get_simulation_time(),
+                frame2.get_simulation_time()
+            );*/
 
-    #[test]
-    fn read_xtc_isolated() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
+            compare_box(frame1.get_box().unwrap(), frame2.get_box().unwrap());
+            assert_eq!(frame1.get_precision(), frame2.get_precision());
+            assert_eq!(frame1.get_simulation_step(), frame2.get_simulation_step());
+            assert_approx_eq!(
+                f32,
+                frame1.get_simulation_time(),
+                frame2.get_simulation_time()
+            );
 
-        let n_frames = system
-            .traj_iter::<ChemfilesReader>("test_files/short_trajectory.xtc")
-            .unwrap()
-            .count();
+            for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                compare_atoms(atom1, atom2);
+            }
+        }
 
-        assert_eq!(n_frames, 11);
+        // check that both iperators are exhausted
+        assert!(iter1.next().is_none() && iter2.next().is_none());
     }
 
-    #[test]
-    fn read_xtc_pass() {
-        for (gro_file, xtc_file) in [
-            "test_files/example.gro",
-            "test_files/triclinic.gro",
-            "test_files/octahedron.gro",
-            "test_files/dodecahedron.gro",
-        ]
-        .into_iter()
-        .zip(
-            [
-                "test_files/short_trajectory.xtc",
-                "test_files/triclinic_trajectory.xtc",
-                "test_files/octahedron_trajectory.xtc",
-                "test_files/dodecahedron_trajectory.xtc",
-            ]
-            .into_iter(),
-        ) {
-            let mut system_chem = System::from_file(gro_file).unwrap();
-            let mut system_xtc = system_chem.clone();
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
+    mod tests_xtc {
+        use super::*;
 
-            for (frame_xtc, frame_chem) in system_xtc
-                .xtc_iter(xtc_file)
+        #[test]
+        fn read_xtc_isolated() {
+            let mut system = System::from_file("test_files/example.gro").unwrap();
+
+            let n_frames = system
+                .traj_iter::<ChemfilesReader>("test_files/short_trajectory.xtc")
                 .unwrap()
-                .zip(system_chem.traj_iter::<ChemfilesReader>(xtc_file).unwrap())
-            {
-                let frame_xtc = frame_xtc.unwrap();
-                let frame_chem = frame_chem.unwrap();
+                .count();
 
-                compare_box(frame_chem.get_box().unwrap(), frame_xtc.get_box().unwrap());
-                assert_eq!(frame_chem.get_precision(), frame_xtc.get_precision());
-                assert_eq!(
-                    frame_chem.get_simulation_step(),
-                    frame_xtc.get_simulation_step()
-                );
-                assert_approx_eq!(
-                    f32,
-                    frame_chem.get_simulation_time(),
-                    frame_xtc.get_simulation_time()
-                );
+            assert_eq!(n_frames, 11);
+        }
 
-                for (atom_chem, atom_xtc) in frame_chem.atoms_iter().zip(frame_xtc.atoms_iter()) {
-                    compare_atoms(atom_chem, atom_xtc);
+        #[test]
+        fn read_xtc_pass() {
+            for (gro_file, xtc_file) in [
+                "test_files/example.gro",
+                "test_files/triclinic.gro",
+                "test_files/octahedron.gro",
+                "test_files/dodecahedron.gro",
+            ]
+            .into_iter()
+            .zip(
+                [
+                    "test_files/short_trajectory.xtc",
+                    "test_files/triclinic_trajectory.xtc",
+                    "test_files/octahedron_trajectory.xtc",
+                    "test_files/dodecahedron_trajectory.xtc",
+                ]
+                .into_iter(),
+            ) {
+                let mut system_chem = System::from_file(gro_file).unwrap();
+                let mut system_xtc = system_chem.clone();
+
+                for (frame_xtc, frame_chem) in system_xtc
+                    .xtc_iter(xtc_file)
+                    .unwrap()
+                    .zip(system_chem.traj_iter::<ChemfilesReader>(xtc_file).unwrap())
+                {
+                    let frame_xtc = frame_xtc.unwrap();
+                    let frame_chem = frame_chem.unwrap();
+
+                    compare_box(frame_chem.get_box().unwrap(), frame_xtc.get_box().unwrap());
+                    assert_eq!(frame_chem.get_precision(), frame_xtc.get_precision());
+                    assert_eq!(
+                        frame_chem.get_simulation_step(),
+                        frame_xtc.get_simulation_step()
+                    );
+                    assert_approx_eq!(
+                        f32,
+                        frame_chem.get_simulation_time(),
+                        frame_xtc.get_simulation_time()
+                    );
+
+                    for (atom_chem, atom_xtc) in frame_chem.atoms_iter().zip(frame_xtc.atoms_iter())
+                    {
+                        compare_atoms(atom_chem, atom_xtc);
+                    }
                 }
             }
         }
-    }
 
-    #[test]
-    fn read_xtc_unmatching() {
-        let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
+        #[test]
+        fn read_xtc_unmatching() {
+            let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
 
-        let mut iterator = system
-            .traj_iter::<ChemfilesReader>("test_files/short_trajectory.xtc")
-            .unwrap();
-        match iterator.next() {
-            None => panic!("Frame should be present."),
-            Some(Ok(_)) => panic!("XTC file should not be valid."),
-            Some(Err(ReadTrajError::AtomsNumberMismatch(_))) => (),
-            Some(Err(e)) => panic!("Unexpected error type `{}` returned.", e),
+            match system.traj_iter::<ChemfilesReader>("test_files/short_trajectory.xtc") {
+                Ok(_) => panic!("XTC file should not be valid."),
+                Err(ReadTrajError::AtomsNumberMismatch(_)) => (),
+                Err(e) => panic!("Unexpected error type `{}` returned.", e),
+            }
         }
-    }
 
-    #[test]
-    fn read_xtc_nonexistent() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
+        #[test]
+        fn read_xtc_nonexistent() {
+            let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        match system.traj_iter::<ChemfilesReader>("test_files/nonexistent.xtc") {
-            Err(ReadTrajError::ChemfilesError(_)) => (),
-            _ => panic!("XTC file should not exist."),
+            match system.traj_iter::<ChemfilesReader>("test_files/nonexistent.xtc") {
+                Err(ReadTrajError::ChemfilesError(_)) => (),
+                _ => panic!("XTC file should not exist."),
+            }
         }
-    }
 
-    #[test]
-    fn read_xtc_not_xtc() {
-        let mut system = System::from_file("test_files/example.gro").unwrap();
+        #[test]
+        fn read_xtc_not_xtc() {
+            let mut system = System::from_file("test_files/example.gro").unwrap();
 
-        let mut iterator = system
-            .traj_iter::<ChemfilesReader>("test_files/triclinic.gro")
-            .unwrap();
-
-        match iterator.next() {
-            None => panic!("Frame should be present."),
-            Some(Ok(_)) => panic!("XTC file should not be valid."),
-            Some(Err(ReadTrajError::ChemfilesError(_))) => (),
-            Some(Err(e)) => panic!("Unexpected error type `{}` returned.", e),
+            match system.traj_iter::<ChemfilesReader>("test_files/fake_xtc.xtc") {
+                Ok(_) => panic!("XTC file should not be valid."),
+                Err(ReadTrajError::ChemfilesError(_)) => (),
+                Err(e) => panic!("Unexpected error type `{}` returned.", e),
+            }
         }
-    }
 
-    #[test]
-    fn read_xtc_range() {
-        let mut system_chem = System::from_file("test_files/example.gro").unwrap();
-        let mut system_xtc = system_chem.clone();
+        #[test]
+        fn read_xtc_ranges() {
+            for (start, end) in [0.0, 200.0, 300.0, 500.0, 300.0]
+                .into_iter()
+                .zip([100_000.0, 600.0, 500.0, 500.0, 100_000.0].into_iter())
+            {
+                let mut system_chem = System::from_file("test_files/example.gro").unwrap();
+                let mut system_xtc = system_chem.clone();
 
-        for (frame_xtc, frame_chem) in system_xtc
-            .xtc_iter("test_files/short_trajectory.xtc")
-            .unwrap()
-            .with_range(300.0, 800.0)
-            .unwrap()
-            .zip(
-                system_chem
+                let xtc_iter = system_xtc
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_range(start, end)
+                    .unwrap();
+
+                let chem_iter = system_chem
                     .traj_iter::<ChemfilesReader>("test_files/short_trajectory.xtc")
                     .unwrap()
-                    .with_range(300.0, 800.0)
-                    .unwrap(),
-            )
-        {
-            let frame_xtc = frame_xtc.unwrap();
-            let frame_chem = frame_chem.unwrap();
+                    .with_range(start, end)
+                    .unwrap();
 
-            println!("{:?}", frame_chem.get_simulation_time());
-            println!("{:?}", frame_xtc.get_simulation_time());
+                compare_iterators(xtc_iter, chem_iter);
+            }
+        }
 
-            compare_box(frame_chem.get_box().unwrap(), frame_xtc.get_box().unwrap());
-            assert_eq!(frame_chem.get_precision(), frame_xtc.get_precision());
-            assert_eq!(
-                frame_chem.get_simulation_step(),
-                frame_xtc.get_simulation_step()
-            );
-            assert_approx_eq!(
-                f32,
-                frame_chem.get_simulation_time(),
-                frame_xtc.get_simulation_time()
-            );
+        #[test]
+        fn read_xtc_steps() {
+            for step in [1, 2, 3, 5, 23] {
+                let mut system_chem = System::from_file("test_files/example.gro").unwrap();
+                let mut system_xtc = system_chem.clone();
 
-            for (atom_chem, atom_xtc) in frame_chem.atoms_iter().zip(frame_xtc.atoms_iter()) {
-                compare_atoms(atom_chem, atom_xtc);
+                let xtc_iter = system_xtc
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap();
+
+                let chem_iter = system_chem
+                    .traj_iter::<ChemfilesReader>("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap();
+
+                compare_iterators(xtc_iter, chem_iter);
+            }
+        }
+
+        #[test]
+        fn read_xtc_ranges_steps() {
+            for (start, end, step) in [(0.0, 100_000.0, 1), (300.0, 800.0, 2), (100.0, 900.0, 4)] {
+                let mut system_chem = System::from_file("test_files/example.gro").unwrap();
+                let mut system_xtc = system_chem.clone();
+
+                let xtc_iter = system_xtc
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_range(start, end)
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap();
+
+                let chem_iter = system_chem
+                    .traj_iter::<ChemfilesReader>("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap()
+                    .with_range(start, end)
+                    .unwrap();
+
+                compare_iterators(xtc_iter, chem_iter);
             }
         }
     }
