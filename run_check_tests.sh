@@ -5,7 +5,7 @@
 set -e
 
 # list of features
-features=("molly" "parallel" "serde" "no-xdrfile")
+features=("molly" "parallel" "chemfiles" "serde" "no-xdrfile")
 
 # function to generate all combinations of features (powerset)
 powerset() {

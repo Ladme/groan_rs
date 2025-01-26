@@ -764,4 +764,37 @@ mod tests {
             }
         }
     }
+
+    mod tests_dcd {
+        use super::*;
+
+        #[test]
+        fn read_dcd_isolated() {
+            let mut system = System::from_file("test_files/example.gro").unwrap();
+
+            let n_frames = system
+                .traj_iter::<ChemfilesReader>("test_files/short_trajectory.dcd")
+                .unwrap()
+                .count();
+
+            assert_eq!(n_frames, 11);
+        }
+
+        #[test]
+        fn read_dcd_pass() {
+            for (gro_file, xtc_file, dcd_file) in [(
+                "test_files/example.gro",
+                "test_files/short_trajectory.xtc",
+                "test_files/short_trajectory.dcd",
+            )] {
+                let mut system_dcd = System::from_file(gro_file).unwrap();
+                let mut system_xtc = system_dcd.clone();
+
+                let xtc_iter = system_xtc.xtc_iter(xtc_file).unwrap();
+                let dcd_iter = system_dcd.traj_iter::<ChemfilesReader>(dcd_file).unwrap();
+
+                compare_iterators(xtc_iter, dcd_iter);
+            }
+        }
+    }
 }
