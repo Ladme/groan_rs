@@ -82,6 +82,9 @@ impl ChemfilesFrame {
 impl ChemfilesTrajectory {
     #[inline]
     fn new(filename: impl AsRef<Path>, system: &System) -> Result<Self, ReadTrajError> {
+        // disable intrusive warnings by the chemfiles library
+        chemfiles::set_warning_callback(|_| {});
+
         let mut traj =
             chemfiles::Trajectory::open(&filename, 'r').map_err(ReadTrajError::ChemfilesError)?;
 
@@ -147,37 +150,53 @@ impl FrameData for ChemfilesFrame {
     }
 
     fn update_system(self, system: &mut System) {
-        let positions = self.frame.positions();
+        // trr file frames do not have to contain positions
+        let positions = match self.frame.get("has_positions") {
+            None | Some(chemfiles::Property::Bool(true)) => Some(self.frame.positions()),
+            Some(chemfiles::Property::Bool(false)) => None,
+            _ => panic!("FATAL GROAN ERROR | ChemfilesFrame::update_system | `has_positions` must be boolean."),
+        };
+
         let velocities = self.frame.velocities();
         let atoms = system.atoms_iter_mut();
 
-        if let Some(velocities) = velocities {
-            for (atom, (pos, vel)) in atoms.zip(positions.iter().zip(velocities.iter())) {
-                unsafe {
-                    atom.set_position(Vector3D::new(
-                        (*pos.get_unchecked(0) / 10.0) as f32,
-                        (*pos.get_unchecked(1) / 10.0) as f32,
-                        (*pos.get_unchecked(2) / 10.0) as f32,
-                    ));
-                    atom.set_velocity(Vector3D::new(
-                        (*vel.get_unchecked(0) / 10.0) as f32,
-                        (*vel.get_unchecked(1) / 10.0) as f32,
-                        (*vel.get_unchecked(2) / 10.0) as f32,
-                    ));
+        match (positions, velocities) {
+            (Some(positions), Some(velocities)) => {
+                for (atom, (pos, vel)) in atoms.zip(positions.iter().zip(velocities.iter())) {
+                    unsafe {
+                        atom.set_position(vector_from_slice(pos));
+                        atom.set_velocity(vector_from_slice(vel));
+                    }
+                    atom.reset_force();
                 }
-                atom.reset_force();
             }
-        } else {
-            for (atom, pos) in atoms.zip(positions.iter()) {
-                unsafe {
-                    atom.set_position(Vector3D::new(
-                        (*pos.get_unchecked(0) / 10.0) as f32,
-                        (*pos.get_unchecked(1) / 10.0) as f32,
-                        (*pos.get_unchecked(2) / 10.0) as f32,
-                    ));
+
+            (Some(positions), None) => {
+                for (atom, pos) in atoms.zip(positions.iter()) {
+                    unsafe {
+                        atom.set_position(vector_from_slice(pos));
+                    }
+                    atom.reset_velocity();
+                    atom.reset_force();
                 }
-                atom.reset_velocity();
-                atom.reset_force();
+            }
+
+            (None, Some(velocities)) => {
+                for (atom, vel) in atoms.zip(velocities.iter()) {
+                    unsafe {
+                        atom.set_velocity(vector_from_slice(vel));
+                    }
+                    atom.reset_position();
+                    atom.reset_force();
+                }
+            }
+
+            (None, None) => {
+                for atom in atoms {
+                    atom.reset_position();
+                    atom.reset_velocity();
+                    atom.reset_force();
+                }
             }
         }
 
@@ -200,6 +219,16 @@ impl FrameData for ChemfilesFrame {
             .into(),
         );
     }
+}
+
+// Helper to convert a slice to a Vector3D.
+#[inline(always)]
+unsafe fn vector_from_slice(slice: &[f64; 3]) -> Vector3D {
+    Vector3D::new(
+        (*slice.get_unchecked(0) / 10.0) as f32,
+        (*slice.get_unchecked(1) / 10.0) as f32,
+        (*slice.get_unchecked(2) / 10.0) as f32,
+    )
 }
 
 impl<'a> TrajRead<'a> for ChemfilesReader<'a> {
@@ -256,6 +285,13 @@ impl FrameDataTime for ChemfilesFrame {
 
 impl<'a> TrajRangeRead<'a> for ChemfilesReader<'a> {
     fn jump_to_start(&mut self, start_time: f32) -> Result<(), ReadTrajError> {
+        // optimization is possible by assuming frames are saved at equal time intervals
+        // we could then calculate the target frame index in O(1) using the time difference (dt) between the first two frames
+        // then directly access the expected starting frame and only fall back to iteration if the estimate overshoots
+        // however, if there are multiple frames with the same time, we may start from the wrong one
+        // we must always start from the first frame with the corresponding time, not from any frame with that time
+        // therefore, such heuristics could lead to errors (although only in rare cases) which is unacceptable
+        // it might be worth it to add this optimization as an opt-in feature though
         let mut frame_index = 0;
         loop {
             let system = unsafe { &*self.get_system() };
@@ -293,6 +329,8 @@ impl<'a> TrajRangeRead<'a> for ChemfilesReader<'a> {
 impl<'a> TrajStepRead<'a> for ChemfilesReader<'a> {
     #[inline(always)]
     fn skip_frame(&mut self) -> Result<bool, ReadTrajError> {
+        // we could skip frames more efficiently using `read_step`
+        // but that would require opting out of or redoing the trajectory reader trait system
         let system = unsafe { &*self.get_system() };
         match ChemfilesFrame::from_frame(&mut self.trajectory, system) {
             None => Ok(false),
@@ -317,9 +355,10 @@ impl<'a> TrajStepTimeRead<'a> for ChemfilesReader<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utilities::utilities::{compare_atoms, compare_box};
+    use crate::test_utilities::utilities::{compare_atoms_without_forces, compare_box};
     use float_cmp::assert_approx_eq;
 
+    /// Compare two generic trajectory iterators.
     fn compare_iterators<'a>(
         mut iter1: impl Iterator<Item = Result<&'a mut System, ReadTrajError>>,
         mut iter2: impl Iterator<Item = Result<&'a mut System, ReadTrajError>>,
@@ -335,7 +374,6 @@ mod tests {
             );*/
 
             compare_box(frame1.get_box().unwrap(), frame2.get_box().unwrap());
-            assert_eq!(frame1.get_precision(), frame2.get_precision());
             assert_eq!(frame1.get_simulation_step(), frame2.get_simulation_step());
             assert_approx_eq!(
                 f32,
@@ -344,7 +382,8 @@ mod tests {
             );
 
             for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
-                compare_atoms(atom1, atom2);
+                // chemfiles does not load forces even if they are available...
+                compare_atoms_without_forces(atom1, atom2);
             }
         }
 
@@ -354,7 +393,42 @@ mod tests {
 
     #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     mod tests_xtc {
+        use crate::test_utilities::utilities::compare_atoms_without_forces;
+
         use super::*;
+
+        /// Compare two xtc iterators.
+        fn compare_xtc_iterators<'a>(
+            mut iter1: impl Iterator<Item = Result<&'a mut System, ReadTrajError>>,
+            mut iter2: impl Iterator<Item = Result<&'a mut System, ReadTrajError>>,
+        ) {
+            while let (Some(frame1), Some(frame2)) = (iter1.next(), iter2.next()) {
+                let frame1 = frame1.unwrap();
+                let frame2 = frame2.unwrap();
+
+                /*println!(
+                    "{} {}",
+                    frame1.get_simulation_time(),
+                    frame2.get_simulation_time()
+                );*/
+
+                compare_box(frame1.get_box().unwrap(), frame2.get_box().unwrap());
+                assert_eq!(frame1.get_precision(), frame2.get_precision());
+                assert_eq!(frame1.get_simulation_step(), frame2.get_simulation_step());
+                assert_approx_eq!(
+                    f32,
+                    frame1.get_simulation_time(),
+                    frame2.get_simulation_time()
+                );
+
+                for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                    compare_atoms_without_forces(atom1, atom2);
+                }
+            }
+
+            // check that both iperators are exhausted
+            assert!(iter1.next().is_none() && iter2.next().is_none());
+        }
 
         #[test]
         fn read_xtc_isolated() {
@@ -389,31 +463,10 @@ mod tests {
                 let mut system_chem = System::from_file(gro_file).unwrap();
                 let mut system_xtc = system_chem.clone();
 
-                for (frame_xtc, frame_chem) in system_xtc
-                    .xtc_iter(xtc_file)
-                    .unwrap()
-                    .zip(system_chem.traj_iter::<ChemfilesReader>(xtc_file).unwrap())
-                {
-                    let frame_xtc = frame_xtc.unwrap();
-                    let frame_chem = frame_chem.unwrap();
+                let xtc_iter = system_xtc.xtc_iter(xtc_file).unwrap();
+                let chem_iter = system_chem.traj_iter::<ChemfilesReader>(xtc_file).unwrap();
 
-                    compare_box(frame_chem.get_box().unwrap(), frame_xtc.get_box().unwrap());
-                    assert_eq!(frame_chem.get_precision(), frame_xtc.get_precision());
-                    assert_eq!(
-                        frame_chem.get_simulation_step(),
-                        frame_xtc.get_simulation_step()
-                    );
-                    assert_approx_eq!(
-                        f32,
-                        frame_chem.get_simulation_time(),
-                        frame_xtc.get_simulation_time()
-                    );
-
-                    for (atom_chem, atom_xtc) in frame_chem.atoms_iter().zip(frame_xtc.atoms_iter())
-                    {
-                        compare_atoms(atom_chem, atom_xtc);
-                    }
-                }
+                compare_xtc_iterators(xtc_iter, chem_iter);
             }
         }
 
@@ -451,10 +504,13 @@ mod tests {
 
         #[test]
         fn read_xtc_ranges() {
-            for (start, end) in [0.0, 200.0, 300.0, 500.0, 300.0]
-                .into_iter()
-                .zip([100_000.0, 600.0, 500.0, 500.0, 100_000.0].into_iter())
-            {
+            for (start, end) in [
+                (0.0, 100_000.0),
+                (200.0, 600.0),
+                (300.0, 500.0),
+                (500.0, 500.0),
+                (300.0, 100_000.0),
+            ] {
                 let mut system_chem = System::from_file("test_files/example.gro").unwrap();
                 let mut system_xtc = system_chem.clone();
 
@@ -470,7 +526,7 @@ mod tests {
                     .with_range(start, end)
                     .unwrap();
 
-                compare_iterators(xtc_iter, chem_iter);
+                compare_xtc_iterators(xtc_iter, chem_iter);
             }
         }
 
@@ -492,7 +548,7 @@ mod tests {
                     .with_step(step)
                     .unwrap();
 
-                compare_iterators(xtc_iter, chem_iter);
+                compare_xtc_iterators(xtc_iter, chem_iter);
             }
         }
 
@@ -518,7 +574,193 @@ mod tests {
                     .with_range(start, end)
                     .unwrap();
 
-                compare_iterators(xtc_iter, chem_iter);
+                compare_xtc_iterators(xtc_iter, chem_iter);
+            }
+        }
+
+        #[test]
+        fn read_xtc_fail_start_not_found() {
+            let mut system = System::from_file("test_files/example.gro").unwrap();
+
+            match system
+                .traj_iter::<ChemfilesReader>("test_files/short_trajectory.xtc")
+                .unwrap()
+                .with_range(1100.0, 2000.0)
+            {
+                Ok(_) => panic!("Function should have failed."),
+                Err(ReadTrajError::StartNotFound(_)) => (),
+                Err(e) => panic!("Unexpected error type `{}` returned.", e),
+            }
+        }
+    }
+
+    #[cfg(not(feature = "no-xdrfile"))]
+    mod tests_trr {
+        use super::*;
+
+        #[test]
+        fn read_trr_isolated() {
+            let mut system = System::from_file("test_files/example.gro").unwrap();
+
+            let n_frames = system
+                .traj_iter::<ChemfilesReader>("test_files/short_trajectory.trr")
+                .unwrap()
+                .count();
+
+            assert_eq!(n_frames, 9);
+        }
+
+        #[test]
+        fn read_trr_pass() {
+            for (gro_file, trr_file) in [
+                "test_files/example.gro",
+                "test_files/example.gro",
+                "test_files/triclinic.gro",
+                "test_files/octahedron.gro",
+                "test_files/dodecahedron.gro",
+            ]
+            .into_iter()
+            .zip(
+                [
+                    "test_files/short_trajectory.trr",
+                    "test_files/short_trajectory_double.trr",
+                    "test_files/triclinic_trajectory.trr",
+                    "test_files/octahedron_trajectory.trr",
+                    "test_files/dodecahedron_trajectory.trr",
+                ]
+                .into_iter(),
+            ) {
+                let mut system_chem = System::from_file(gro_file).unwrap();
+                let mut system_trr = system_chem.clone();
+
+                let trr_iter = system_trr.trr_iter(trr_file).unwrap();
+                let chem_iter = system_chem.traj_iter::<ChemfilesReader>(trr_file).unwrap();
+
+                compare_iterators(trr_iter, chem_iter);
+            }
+        }
+
+        #[test]
+        fn read_trr_unmatching() {
+            let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
+
+            match system.traj_iter::<ChemfilesReader>("test_files/short_trajectory.trr") {
+                Err(ReadTrajError::AtomsNumberMismatch(_)) => (),
+                Err(e) => panic!("Unexpected error `{}` returned.", e),
+                Ok(_) => panic!("TRR file should not be valid."),
+            }
+        }
+
+        #[test]
+        fn read_trr_nonexistent() {
+            let mut system = System::from_file("test_files/example.gro").unwrap();
+
+            match system.traj_iter::<ChemfilesReader>("test_files/nonexistent.trr") {
+                Err(ReadTrajError::ChemfilesError(_)) => (),
+                Err(e) => panic!("Unexpected error `{}` returned.", e),
+                Ok(_) => panic!("TRR file should not exist."),
+            }
+        }
+
+        #[test]
+        fn read_trr_not_trr() {
+            let mut system = System::from_file("test_files/example.gro").unwrap();
+
+            match system.traj_iter::<ChemfilesReader>("test_files/fake_trr.trr") {
+                Err(ReadTrajError::ChemfilesError(_)) => (),
+                Err(e) => panic!("Unexpected error `{}` returned.", e),
+                Ok(_) => panic!("File should not be a trr file."),
+            }
+        }
+
+        #[test]
+        fn read_trr_ranges() {
+            for (start, end) in [
+                (0.0, 1000.0),
+                (130.0, 400.0),
+                (200.0, 600.0),
+                (480.0, 480.0),
+                (200.0, 1000.0),
+            ] {
+                let mut system_chem = System::from_file("test_files/example.gro").unwrap();
+                let mut system_xtc = system_chem.clone();
+
+                let trr_iter = system_xtc
+                    .trr_iter("test_files/short_trajectory.trr")
+                    .unwrap()
+                    .with_range(start, end)
+                    .unwrap();
+
+                let chem_iter = system_chem
+                    .traj_iter::<ChemfilesReader>("test_files/short_trajectory.trr")
+                    .unwrap()
+                    .with_range(start, end)
+                    .unwrap();
+
+                compare_iterators(trr_iter, chem_iter);
+            }
+        }
+
+        #[test]
+        fn read_trr_steps() {
+            for step in [1, 2, 3, 5, 23] {
+                let mut system_chem = System::from_file("test_files/example.gro").unwrap();
+                let mut system_xtc = system_chem.clone();
+
+                let trr_iter = system_xtc
+                    .trr_iter("test_files/short_trajectory.trr")
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap();
+
+                let chem_iter = system_chem
+                    .traj_iter::<ChemfilesReader>("test_files/short_trajectory.trr")
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap();
+
+                compare_iterators(trr_iter, chem_iter);
+            }
+        }
+
+        #[test]
+        fn read_trr_ranges_steps() {
+            for (start, end, step) in [(0.0, 1000.0, 1), (200.0, 600.0, 2), (100.0, 500.0, 3)] {
+                let mut system_chem = System::from_file("test_files/example.gro").unwrap();
+                let mut system_xtc = system_chem.clone();
+
+                let trr_iter = system_xtc
+                    .trr_iter("test_files/short_trajectory.trr")
+                    .unwrap()
+                    .with_range(start, end)
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap();
+
+                let chem_iter = system_chem
+                    .traj_iter::<ChemfilesReader>("test_files/short_trajectory.trr")
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap()
+                    .with_range(start, end)
+                    .unwrap();
+
+                compare_iterators(trr_iter, chem_iter);
+            }
+        }
+
+        #[test]
+        fn read_trr_fail_start_not_found() {
+            let mut system = System::from_file("test_files/example.gro").unwrap();
+
+            match system
+                .traj_iter::<ChemfilesReader>("test_files/short_trajectory.trr")
+                .unwrap()
+                .with_range(720.0, 1000.0)
+            {
+                Ok(_) => panic!("Function should have failed."),
+                Err(ReadTrajError::StartNotFound(_)) => (),
+                Err(e) => panic!("Unexpected error type `{}` returned.", e),
             }
         }
     }

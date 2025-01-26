@@ -1440,7 +1440,8 @@ mod tests {
 
         match system.trr_iter("test_files/short_trajectory.trr") {
             Err(ReadTrajError::AtomsNumberMismatch(_)) => (),
-            _ => panic!("TRR file should not be valid."),
+            Err(e) => panic!("Unexpected error `{}` returned.", e),
+            Ok(_) => panic!("TRR file should not be valid."),
         }
     }
 
@@ -1450,7 +1451,19 @@ mod tests {
 
         match system.trr_iter("test_files/nonexistent.trr") {
             Err(ReadTrajError::FileNotFound(_)) => (),
-            _ => panic!("TRR file should not exist."),
+            Err(e) => panic!("Unexpected error `{}` returned.", e),
+            Ok(_) => panic!("TRR file should not exist."),
+        }
+    }
+
+    #[test]
+    fn read_trr_not_trr() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        match system.trr_iter("test_files/triclinic.gro") {
+            Err(ReadTrajError::FileNotFound(_)) => (),
+            Err(e) => panic!("Unexpected error `{}` returned.", e),
+            Ok(_) => panic!("File should not be a trr file."),
         }
     }
 
