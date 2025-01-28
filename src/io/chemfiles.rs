@@ -765,6 +765,155 @@ mod tests {
         }
     }
 
+    mod tests_tng {
+        use super::*;
+
+        #[test]
+        fn read_tng_isolated() {
+            let mut system = System::from_file("test_files/example.gro").unwrap();
+
+            let n_frames = system
+                .traj_iter::<ChemfilesReader>("test_files/short_trajectory.tng")
+                .unwrap()
+                .count();
+
+            assert_eq!(n_frames, 11);
+        }
+
+        #[test]
+        fn read_tng_pass() {
+            for (gro_file, xtc_file, tng_file) in [
+                (
+                    "test_files/example.gro",
+                    "test_files/short_trajectory.xtc",
+                    "test_files/short_trajectory.tng",
+                ),
+                (
+                    "test_files/octahedron.gro",
+                    "test_files/octahedron_trajectory.xtc",
+                    "test_files/octahedron_trajectory.tng",
+                ),
+            ] {
+                let mut system_tng = System::from_file(gro_file).unwrap();
+                let mut system_xtc = system_tng.clone();
+
+                let xtc_iter = system_xtc.xtc_iter(xtc_file).unwrap();
+                let tng_iter = system_tng.traj_iter::<ChemfilesReader>(tng_file).unwrap();
+
+                compare_iterators(xtc_iter, tng_iter);
+            }
+        }
+
+        #[test]
+        fn read_tng_unmatching() {
+            let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
+
+            match system.traj_iter::<ChemfilesReader>("test_files/short_trajectory.tng") {
+                Err(ReadTrajError::AtomsNumberMismatch(_)) => (),
+                Err(e) => panic!("Unexpected error `{}` returned.", e),
+                Ok(_) => panic!("TRR file should not be valid."),
+            }
+        }
+
+        #[test]
+        fn read_tng_nonexistent() {
+            let mut system = System::from_file("test_files/example.gro").unwrap();
+
+            match system.traj_iter::<ChemfilesReader>("test_files/nonexistent.tng") {
+                Err(ReadTrajError::ChemfilesError(_)) => (),
+                Err(e) => panic!("Unexpected error `{}` returned.", e),
+                Ok(_) => panic!("TRR file should not exist."),
+            }
+        }
+
+        #[test]
+        fn read_tng_not_tng() {
+            let mut system = System::from_file("test_files/example.gro").unwrap();
+
+            match system.traj_iter::<ChemfilesReader>("test_files/fake_tng.tng") {
+                Err(ReadTrajError::ChemfilesError(_)) => (),
+                Err(e) => panic!("Unexpected error `{}` returned.", e),
+                Ok(_) => panic!("File should not be a trr file."),
+            }
+        }
+
+        #[test]
+        fn read_tng_ranges() {
+            for (start, end) in [
+                (0.0, 100_000.0),
+                (200.0, 600.0),
+                (300.0, 500.0),
+                (500.0, 500.0),
+                (300.0, 100_000.0),
+            ] {
+                let mut system_tng = System::from_file("test_files/example.gro").unwrap();
+                let mut system_xtc = system_tng.clone();
+
+                let xtc_iter = system_xtc
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_range(start, end)
+                    .unwrap();
+
+                let tng_iter = system_tng
+                    .traj_iter::<ChemfilesReader>("test_files/short_trajectory.tng")
+                    .unwrap()
+                    .with_range(start, end)
+                    .unwrap();
+
+                compare_iterators(xtc_iter, tng_iter);
+            }
+        }
+
+        #[test]
+        fn read_tng_steps() {
+            for step in [1, 2, 3, 5, 23] {
+                let mut system_tng = System::from_file("test_files/example.gro").unwrap();
+                let mut system_xtc = system_tng.clone();
+
+                let xtc_iter = system_xtc
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap();
+
+                let tng_iter = system_tng
+                    .traj_iter::<ChemfilesReader>("test_files/short_trajectory.tng")
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap();
+
+                compare_iterators(xtc_iter, tng_iter);
+            }
+        }
+
+        #[test]
+        fn read_tng_ranges_steps() {
+            for (start, end, step) in [(0.0, 100_000.0, 1), (300.0, 800.0, 2), (100.0, 900.0, 4)] {
+                let mut system_tng = System::from_file("test_files/example.gro").unwrap();
+                let mut system_xtc = system_tng.clone();
+
+                let xtc_iter = system_xtc
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_range(start, end)
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap();
+
+                let tng_iter = system_tng
+                    .traj_iter::<ChemfilesReader>("test_files/short_trajectory.tng")
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap()
+                    .with_range(start, end)
+                    .unwrap();
+
+                compare_iterators(xtc_iter, tng_iter);
+            }
+        }
+    }
+
     mod tests_dcd {
         use super::*;
 
