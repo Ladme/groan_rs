@@ -340,10 +340,10 @@
 //!
 //! - `chemfiles`: **Support for additional trajectory file formats**
 //!   - Allows the use of `ChemfilesReader` for reading [all trajectory file formats](https://chemfiles.org/chemfiles/latest/formats.html) supported by the [`chemfiles`](https://chemfiles.org) library.
-//!   - **Note that not all chemfiles trajectory formats are independently tested by `groan_rs`!**
+//!   - **Only XTC, TRR, TNG, Amber NetCDF, DCD, and LAMMPSTRJ are independently tested by `groan_rs`!**
 //!   - Note that the performance of the `ChemfilesReader` is often much worse than that of specialized readers provided by `groan_rs`
 //!     (e.g., `XtcReader` with `molly` is 4-5 times faster than `ChemfilesReader`).
-//!   - Also note that many advanced `groan_rs` features for `ChemfilesReader` are not optimized or fully implemented.
+//!   - Also note that some advanced `groan_rs` features for `ChemfilesReader` are not optimized or fully implemented.
 //!
 //! Install the `groan_rs` crate with a specific feature using `cargo add groan_rs --features [FEATURE]`.
 //!
