@@ -8,6 +8,10 @@
 - Implemented an efficient "partial-frame" XTC reader using `molly`. It attempts to only read atoms of a specified group while ignoring the rest of the atoms. See `GroupXtcReader` and `System::group_xtc_iter` for more information.
 - `GroupXtcReader` implements a new trait `TrajGroupReadOpen`.
 
+#### Integration with the `chemfiles` Library
+- All trajectory file formats supported by `chemfiles` can be now read using `System::traj_iter<ChemfilesReader>`. However, only XTC, TRR, TNG, DCD, Amber NetCDF, and LAMMPSTRJ are independently tested by `groan_rs`. Be careful when working with other file formats since these may not work properly.
+- To enable integration with `chemfiles`, you have to enable the `chemfiles` feature.
+
 #### Changes to Trajectory Iteration
 - **Breaking change:** `TrajReadOpen` trait has been renamed to `TrajFullReadOpen`. The original `TrajReadOpen` trait now requires implementing the `initialize` method which can be used to construct either `TrajFullReadOpen` structure 
 
@@ -17,7 +21,7 @@
   - `System::traj_iter_map_reduce` can be now provided a group name in case a "partial-frame" iteration should be performed. In such case, the provided `Reader` structure must be `GroupXtcReader`.
   - The `Reader` structure in `System::traj_iter_map_reduce` still needs to implement `TrajReadOpen` but it's the new trait (see 'Changes to Trajectory Iteration`).
 
-#### Expansion of utilities for ignoring PBC
+#### Expansion of Utilities for Ignoring PBC
 - Introduced `NaiveShape` trait for geometry filtering ignoring PBC and implemented this trait for `Sphere`, `Rectangular`, and `Cylinder`.
 - Implemented `ImmutableAtomIterable::filter_geometry_naive` and `MutableAtomIterable::filter_geometry_naive` for geometry filtering of atoms from iterators ignoring PBC and box dimensions.
 

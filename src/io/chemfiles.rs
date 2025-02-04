@@ -2,6 +2,8 @@
 // Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Integration with the trajectory readers provided by `chemfiles`.
+//!
+//! See [`ChemfilesReader`] for more information.
 
 use std::{marker::PhantomData, path::Path};
 
@@ -18,7 +20,18 @@ use crate::{
 /// Used when jumping to the start of iteration.
 const TIME_PRECISION: f32 = 0.001;
 
-/// Iterator over a trajectory file using `chemfiles`.
+/// Iterator over a trajectory file using `chemfiles`. Constructed using [`System::traj_iter<ChemfilesReader>`].
+///
+/// All trajectory formats [supported by `chemfiles`](https://chemfiles.org/chemfiles/latest/formats.html) can be read.
+/// However, only XTC, TRR, TNG, DCD, Amber NetCDF (NC), and LAMMPSTRJ have been tested inside the `groan_rs` library.
+///
+/// For reading XTC and TRR files, it is better to use [`XtcReader`](crate::prelude::XtcReader) and [`TrrReader`](crate::prelude::TrrReader),
+/// respectively, as these are more efficient, especially when using the [`with_range`](crate::prelude::TrajReader::with_range)
+/// or [`with_step`](crate::prelude::TrajReader::with_step) methods.
+///
+/// ## Limitations
+/// - **DCD**: Simulation step information is not available. Instead, the frame number is returned. Simulation time is **assumed** to be in ps.
+/// - **Amber NetCDF**: Simulation step information is not available. Instead, the frame number is returned. Simulation time is currently not read.
 #[derive(Debug)]
 pub struct ChemfilesReader<'a> {
     system: *mut System,
