@@ -327,13 +327,14 @@ impl<'a> TrajRangeRead<'a> for ChemfilesReader<'a> {
                                 .read_step(frame_index - 1, &mut frame)
                                 .expect("FATAL GROAN ERROR | ChemfilesReader::jump_to_start | Could not re-read a trajectory frame.");
 
-                            // chemfiles is buggy and does not properly propagate the file pointer when using `read_step` with LAMMPSTRJ,
+                            // chemfiles is buggy and does not properly propagate the file pointer when using `read_step` with LAMMPSTRJ and DCD,
                             // so we have to move it manually
-                            // this may possibly be later fixed; in case of regression, revert to chemfiles 0.10.41
-                            if self.trajectory.filetype == FileType::LAMMPSTRJ {
+                            if self.trajectory.filetype == FileType::LAMMPSTRJ
+                                || self.trajectory.filetype == FileType::DCD
+                            {
                                 self.trajectory.traj
                                     .read(&mut frame)
-                                    .expect("FATAL GROAN ERROR | ChemfilesReader::jump_to_start | Could not re-read trajectory frame (LAMMPSTRJ).");
+                                    .expect("FATAL GROAN ERROR | ChemfilesReader::jump_to_start | Could not re-read trajectory frame (LAMMPSTRJ/DCD).");
                             }
                         } else {
                             // or if this is the first frame, open the trajectory again
@@ -859,7 +860,7 @@ mod tests {
             match system.traj_iter::<ChemfilesReader>("test_files/short_trajectory.tng") {
                 Err(ReadTrajError::AtomsNumberMismatch(_)) => (),
                 Err(e) => panic!("Unexpected error `{}` returned.", e),
-                Ok(_) => panic!("TRR file should not be valid."),
+                Ok(_) => panic!("TNG file should not be valid."),
             }
         }
 
@@ -870,7 +871,7 @@ mod tests {
             match system.traj_iter::<ChemfilesReader>("test_files/nonexistent.tng") {
                 Err(ReadTrajError::ChemfilesError(_)) => (),
                 Err(e) => panic!("Unexpected error `{}` returned.", e),
-                Ok(_) => panic!("TRR file should not exist."),
+                Ok(_) => panic!("TNG file should not exist."),
             }
         }
 
@@ -881,7 +882,7 @@ mod tests {
             match system.traj_iter::<ChemfilesReader>("test_files/fake_tng.tng") {
                 Err(ReadTrajError::ChemfilesError(_)) => (),
                 Err(e) => panic!("Unexpected error `{}` returned.", e),
-                Ok(_) => panic!("File should not be a trr file."),
+                Ok(_) => panic!("File should not be a tng file."),
             }
         }
 
@@ -965,6 +966,38 @@ mod tests {
     mod tests_dcd {
         use super::*;
 
+        /// Compare two iterators, one of which is the DCD iterator.
+        fn compare_dcd_iterators<'a>(
+            mut iter1: impl Iterator<Item = Result<&'a mut System, ReadTrajError>>,
+            mut iter2: impl Iterator<Item = Result<&'a mut System, ReadTrajError>>,
+        ) {
+            while let (Some(frame1), Some(frame2)) = (iter1.next(), iter2.next()) {
+                let frame1 = frame1.unwrap();
+                let frame2 = frame2.unwrap();
+
+                /*println!(
+                    "{} {}",
+                    frame1.get_simulation_time(),
+                    frame2.get_simulation_time()
+                );*/
+
+                compare_box(frame1.get_box().unwrap(), frame2.get_box().unwrap());
+                assert_approx_eq!(
+                    f32,
+                    frame1.get_simulation_time(),
+                    frame2.get_simulation_time()
+                );
+
+                for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                    // chemfiles does not load forces even if they are available...
+                    compare_atoms_without_forces(atom1, atom2);
+                }
+            }
+
+            // check that both iperators are exhausted
+            assert!(iter1.next().is_none() && iter2.next().is_none());
+        }
+
         #[test]
         fn read_dcd_isolated() {
             let mut system = System::from_file("test_files/example.gro").unwrap();
@@ -979,18 +1012,134 @@ mod tests {
 
         #[test]
         fn read_dcd_pass() {
-            for (gro_file, xtc_file, dcd_file) in [(
-                "test_files/example.gro",
-                "test_files/short_trajectory.xtc",
-                "test_files/short_trajectory.dcd",
-            )] {
+            for (gro_file, xtc_file, dcd_file) in [
+                (
+                    "test_files/example.gro",
+                    "test_files/short_trajectory.xtc",
+                    "test_files/short_trajectory.dcd",
+                ),
+                (
+                    "test_files/octahedron.gro",
+                    "test_files/octahedron_trajectory.xtc",
+                    "test_files/octahedron_trajectory.dcd",
+                ),
+            ] {
                 let mut system_dcd = System::from_file(gro_file).unwrap();
                 let mut system_xtc = system_dcd.clone();
 
                 let xtc_iter = system_xtc.xtc_iter(xtc_file).unwrap();
                 let dcd_iter = system_dcd.traj_iter::<ChemfilesReader>(dcd_file).unwrap();
 
-                compare_iterators(xtc_iter, dcd_iter);
+                compare_dcd_iterators(xtc_iter, dcd_iter);
+            }
+        }
+
+        #[test]
+        fn read_dcd_unmatching() {
+            let mut system = System::from_file("test_files/example_novelocities.gro").unwrap();
+
+            match system.traj_iter::<ChemfilesReader>("test_files/short_trajectory.dcd") {
+                Err(ReadTrajError::AtomsNumberMismatch(_)) => (),
+                Err(e) => panic!("Unexpected error `{}` returned.", e),
+                Ok(_) => panic!("DCD file should not be valid."),
+            }
+        }
+
+        #[test]
+        fn read_dcd_nonexistent() {
+            let mut system = System::from_file("test_files/example.gro").unwrap();
+
+            match system.traj_iter::<ChemfilesReader>("test_files/nonexistent.dcd") {
+                Err(ReadTrajError::ChemfilesError(_)) => (),
+                Err(e) => panic!("Unexpected error `{}` returned.", e),
+                Ok(_) => panic!("DCD file should not exist."),
+            }
+        }
+
+        #[test]
+        fn read_dcd_not_dcd() {
+            let mut system = System::from_file("test_files/example.gro").unwrap();
+
+            match system.traj_iter::<ChemfilesReader>("test_files/fake_dcd.dcd") {
+                Err(ReadTrajError::ChemfilesError(_)) => (),
+                Err(e) => panic!("Unexpected error `{}` returned.", e),
+                Ok(_) => panic!("File should not be a dcd file."),
+            }
+        }
+
+        #[test]
+        fn read_dcd_ranges() {
+            for (start, end) in [
+                (0.0, 100_000.0),
+                (200.0, 600.0),
+                (300.0, 500.0),
+                (500.0, 500.0),
+                (300.0, 100_000.0),
+            ] {
+                let mut system_dcd = System::from_file("test_files/example.gro").unwrap();
+                let mut system_xtc = system_dcd.clone();
+
+                let xtc_iter = system_xtc
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_range(start, end)
+                    .unwrap();
+
+                let dcd_iter = system_dcd
+                    .traj_iter::<ChemfilesReader>("test_files/short_trajectory.dcd")
+                    .unwrap()
+                    .with_range(start, end)
+                    .unwrap();
+
+                compare_dcd_iterators(xtc_iter, dcd_iter);
+            }
+        }
+
+        #[test]
+        fn read_dcd_steps() {
+            for step in [1, 2, 3, 5, 23] {
+                let mut system_dcd = System::from_file("test_files/example.gro").unwrap();
+                let mut system_xtc = system_dcd.clone();
+
+                let xtc_iter = system_xtc
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap();
+
+                let dcd_iter = system_dcd
+                    .traj_iter::<ChemfilesReader>("test_files/short_trajectory.dcd")
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap();
+
+                compare_dcd_iterators(xtc_iter, dcd_iter);
+            }
+        }
+
+        #[test]
+        fn read_dcd_ranges_steps() {
+            for (start, end, step) in [(0.0, 100_000.0, 1), (300.0, 800.0, 2), (100.0, 900.0, 4)] {
+                let mut system_dcd = System::from_file("test_files/example.gro").unwrap();
+                let mut system_xtc = system_dcd.clone();
+
+                let xtc_iter = system_xtc
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_range(start, end)
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap();
+
+                let dcd_iter = system_dcd
+                    .traj_iter::<ChemfilesReader>("test_files/short_trajectory.dcd")
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap()
+                    .with_range(start, end)
+                    .unwrap();
+
+                compare_dcd_iterators(xtc_iter, dcd_iter);
             }
         }
     }
