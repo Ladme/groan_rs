@@ -16,7 +16,8 @@ use crate::errors::WriteTrajError;
 use crate::io::check_coordinate_sizes;
 use crate::io::traj_write::{PrivateTrajWrite, TrajWrite};
 use crate::prelude::{
-    AtomIterator, TrajFullReadOpen, TrajRead, TrajReadOpen, TrajReader, TrajStepRead, Vector3D,
+    AtomIterator, TrajFullReadOpen, TrajRangeRead, TrajRead, TrajReadOpen, TrajReader,
+    TrajStepRead, Vector3D,
 };
 use crate::structures::group::Group;
 use crate::{
@@ -125,6 +126,37 @@ fn read_box(reader: &mut GroFile) -> Result<SimBox, ReadTrajError> {
     super::line_as_box(&line).map_err(|_| ReadTrajError::FrameNotFound)
 }
 
+/// Read the title, simulation time and step (optional), and the number of atoms.
+fn read_header(
+    reader: &mut GroFile,
+    expected_n_atoms: usize,
+) -> Option<Result<(String, Option<f32>, Option<u64>, usize), ReadTrajError>> {
+    let mut title = String::new();
+    match reader.buffer.read_line(&mut title) {
+        Ok(0) => return None,
+        Ok(_) => (),
+        Err(_) => return Some(Err(ReadTrajError::FrameNotFound)),
+    }
+
+    let (time, step) = match extract_time_step(&title) {
+        Some((x, y)) => (Some(x), Some(y)),
+        None => (None, None),
+    };
+
+    let n_atoms = match super::get_natoms(&mut reader.buffer, reader.filename.clone()) {
+        Ok(x) => x,
+        Err(_) => return Some(Err(ReadTrajError::FrameNotFound)),
+    };
+
+    if n_atoms != expected_n_atoms {
+        return Some(Err(ReadTrajError::AtomsNumberMismatch(
+            reader.filename.clone(),
+        )));
+    } else {
+        Some(Ok((title, time, step, n_atoms)))
+    }
+}
+
 impl FrameData for GroFrameData {
     type TrajFile = GroFile;
 
@@ -135,29 +167,10 @@ impl FrameData for GroFrameData {
     where
         Self: Sized,
     {
-        // read title
-        let mut title = String::new();
-        match traj_file.buffer.read_line(&mut title) {
-            Ok(0) => return None,
-            Ok(_) => (),
-            Err(_) => return Some(Err(ReadTrajError::FrameNotFound)),
-        }
-
-        let (time, step) = match extract_time_step(&title) {
-            Some((x, y)) => (Some(x), Some(y)),
-            None => (None, None),
-        };
-
-        let n_atoms = match super::get_natoms(&mut traj_file.buffer, traj_file.filename.clone()) {
+        let (_, time, step, n_atoms) = match read_header(traj_file, system.get_n_atoms())? {
             Ok(x) => x,
-            Err(_) => return Some(Err(ReadTrajError::FrameNotFound)),
+            Err(e) => return Some(Err(e)),
         };
-
-        if n_atoms != system.get_n_atoms() {
-            return Some(Err(ReadTrajError::AtomsNumberMismatch(
-                traj_file.filename.clone(),
-            )));
-        }
 
         let mut positions = Vec::with_capacity(n_atoms);
         let mut velocities = Vec::with_capacity(n_atoms);
