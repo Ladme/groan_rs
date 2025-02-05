@@ -23,16 +23,19 @@ const TIME_PRECISION: f32 = 0.001;
 /// Iterator over a trajectory file using `chemfiles`. Constructed using [`System::traj_iter<ChemfilesReader>`].
 ///
 /// All trajectory formats [supported by `chemfiles`](https://chemfiles.org/chemfiles/latest/formats.html) can be read.
-/// However, only XTC, TRR, TNG, GRO, DCD, Amber NetCDF (NC), and LAMMPSTRJ have been tested inside the `groan_rs` library.
+/// However, only XTC, TRR, TNG, GRO, PDB, DCD, Amber NetCDF (NC), and LAMMPSTRJ have been tested inside the `groan_rs` library.
 ///
-/// For reading XTC and TRR files, it is better to use [`XtcReader`](crate::prelude::XtcReader) and [`TrrReader`](crate::prelude::TrrReader),
-/// respectively, as these are more efficient, especially when using the [`with_range`](crate::prelude::TrajReader::with_range)
-/// or [`with_step`](crate::prelude::TrajReader::with_step) methods.
+/// - For reading XTC and TRR files, it is better to use [`XtcReader`](crate::prelude::XtcReader) and [`TrrReader`](crate::prelude::TrrReader),
+///   respectively, as these are more efficient, especially when using the [`with_range`](crate::prelude::TrajReader::with_range)
+///   or [`with_step`](crate::prelude::TrajReader::with_step) methods.
+/// - For reading GRO trajectories, it is better to use [`GroReader`](crate::prelude::GroReader), since it is also much faster and
+///   it can read information about the simulation time (if available).
 ///
 /// ## Limitations
 /// - **DCD**: Simulation step information is not available. Instead, the frame number is returned. Simulation time is **assumed** to be in ps.
 /// - **Amber NetCDF**: Simulation step information is not available. Instead, the frame number is returned. Simulation time is currently not read.
-/// - **GRO**: Simulation step and simulation time information is not available.
+/// - **GRO**: Simulation step and simulation time information is not available. Unlike `GroReader`, velocities are set to 0, not `None`, when not present.
+/// - **PDB**: Simulation step and simulation time information is not available.
 #[derive(Debug)]
 pub struct ChemfilesReader<'a> {
     system: *mut System,
@@ -1080,7 +1083,7 @@ mod tests {
             match system.traj_iter::<ChemfilesReader>("test_files/fake_dcd.dcd") {
                 Err(ReadTrajError::ChemfilesError(_)) => (),
                 Err(e) => panic!("Unexpected error `{}` returned.", e),
-                Ok(_) => panic!("File should not be a dcd file."),
+                Ok(_) => panic!("File should not be a DCD file."),
             }
         }
 
@@ -1235,7 +1238,7 @@ mod tests {
             match system.traj_iter::<ChemfilesReader>("test_files/short_trajectory.nc") {
                 Err(ReadTrajError::AtomsNumberMismatch(_)) => (),
                 Err(e) => panic!("Unexpected error `{}` returned.", e),
-                Ok(_) => panic!("TRR file should not be valid."),
+                Ok(_) => panic!("NC file should not be valid."),
             }
         }
 
@@ -1246,7 +1249,7 @@ mod tests {
             match system.traj_iter::<ChemfilesReader>("test_files/nonexistent.nc") {
                 Err(ReadTrajError::ChemfilesError(_)) => (),
                 Err(e) => panic!("Unexpected error `{}` returned.", e),
-                Ok(_) => panic!("TRR file should not exist."),
+                Ok(_) => panic!("NC file should not exist."),
             }
         }
 
@@ -1257,7 +1260,7 @@ mod tests {
             match system.traj_iter::<ChemfilesReader>("test_files/fake_nc.nc") {
                 Err(ReadTrajError::ChemfilesError(_)) => (),
                 Err(e) => panic!("Unexpected error `{}` returned.", e),
-                Ok(_) => panic!("File should not be an nc file."),
+                Ok(_) => panic!("File should not be an NC file."),
             }
         }
     }
@@ -1325,7 +1328,7 @@ mod tests {
             match system.traj_iter::<ChemfilesReader>("test_files/short_trajectory.lammpstrj") {
                 Err(ReadTrajError::AtomsNumberMismatch(_)) => (),
                 Err(e) => panic!("Unexpected error `{}` returned.", e),
-                Ok(_) => panic!("TRR file should not be valid."),
+                Ok(_) => panic!("LAMMPSTRJ file should not be valid."),
             }
         }
 
@@ -1336,7 +1339,7 @@ mod tests {
             match system.traj_iter::<ChemfilesReader>("test_files/nonexistent.lammpstrj") {
                 Err(ReadTrajError::ChemfilesError(_)) => (),
                 Err(e) => panic!("Unexpected error `{}` returned.", e),
-                Ok(_) => panic!("TRR file should not exist."),
+                Ok(_) => panic!("LAMMPSTRJ file should not exist."),
             }
         }
 
@@ -1347,7 +1350,7 @@ mod tests {
             match system.traj_iter::<ChemfilesReader>("test_files/fake_lammps.lammpstrj") {
                 Err(ReadTrajError::ChemfilesError(_)) => (),
                 Err(e) => panic!("Unexpected error `{}` returned.", e),
-                Ok(_) => panic!("File should not be a lammpstrj file."),
+                Ok(_) => panic!("File should not be a LAMMPSTRJ file."),
             }
         }
 
@@ -1489,7 +1492,7 @@ mod tests {
             match system.traj_iter::<ChemfilesReader>("test_files/protein_trajectory.gro") {
                 Err(ReadTrajError::AtomsNumberMismatch(_)) => (),
                 Err(e) => panic!("Unexpected error `{}` returned.", e),
-                Ok(_) => panic!("TRR file should not be valid."),
+                Ok(_) => panic!("GRO file should not be valid."),
             }
         }
 
@@ -1500,7 +1503,7 @@ mod tests {
             match system.traj_iter::<ChemfilesReader>("test_files/nonexistent.gro") {
                 Err(ReadTrajError::ChemfilesError(_)) => (),
                 Err(e) => panic!("Unexpected error `{}` returned.", e),
-                Ok(_) => panic!("TRR file should not exist."),
+                Ok(_) => panic!("GRO file should not exist."),
             }
         }
 
@@ -1511,7 +1514,7 @@ mod tests {
             match system.traj_iter::<ChemfilesReader>("test_files/example_empty.gro") {
                 Err(ReadTrajError::ChemfilesError(_)) => (),
                 Err(e) => panic!("Unexpected error `{}` returned.", e),
-                Ok(_) => panic!("File should not be a gro file."),
+                Ok(_) => panic!("File should not be a GRO file."),
             }
         }
 
@@ -1534,6 +1537,116 @@ mod tests {
                     .unwrap();
 
                 compare_gro_iterators(gro_iter, chemfiles_iter);
+            }
+        }
+    }
+
+    mod tests_pdb {
+        use crate::test_utilities::utilities::compare_box_low_precision;
+
+        use super::*;
+
+        /// Compare two iterators at least one of which is a pdb iterator.
+        fn compare_pdb_iterators<'a>(
+            mut iter1: impl Iterator<Item = Result<&'a mut System, ReadTrajError>>,
+            mut iter2: impl Iterator<Item = Result<&'a mut System, ReadTrajError>>,
+        ) {
+            while let (Some(frame1), Some(frame2)) = (iter1.next(), iter2.next()) {
+                let frame1 = frame1.unwrap();
+                let frame2 = frame2.unwrap();
+
+                compare_box_low_precision(frame1.get_box().unwrap(), frame2.get_box().unwrap());
+
+                for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                    compare_atoms_without_forces(atom1, atom2);
+                }
+            }
+
+            // check that both operators are exhausted
+            assert!(iter1.next().is_none() && iter2.next().is_none());
+        }
+
+        #[test]
+        fn read_pdb_isolated() {
+            let mut system = System::from_file("test_files/protein_trajectory.pdb").unwrap();
+
+            let n_frames = system
+                .traj_iter::<ChemfilesReader>("test_files/protein_trajectory.pdb")
+                .unwrap()
+                .count();
+
+            assert_eq!(n_frames, 11);
+        }
+
+        #[test]
+        fn read_pdb_pass() {
+            let mut system_gro = System::from_file("test_files/protein_trajectory.pdb").unwrap();
+            let mut system_pdb = system_gro.clone();
+
+            let gro_iter = system_gro
+                .gro_iter("test_files/protein_trajectory.gro")
+                .unwrap();
+            let pdb_iter = system_pdb
+                .traj_iter::<ChemfilesReader>("test_files/protein_trajectory.pdb")
+                .unwrap();
+
+            compare_pdb_iterators(gro_iter, pdb_iter);
+        }
+
+        #[test]
+        fn read_pdb_unmatching() {
+            let mut system = System::from_file("test_files/example.gro").unwrap();
+
+            match system.traj_iter::<ChemfilesReader>("test_files/protein_trajectory.pdb") {
+                Err(ReadTrajError::AtomsNumberMismatch(_)) => (),
+                Err(e) => panic!("Unexpected error `{}` returned.", e),
+                Ok(_) => panic!("PDB file should not be valid."),
+            }
+        }
+
+        #[test]
+        fn read_pdb_nonexistent() {
+            let mut system = System::from_file("test_files/protein_trajectory.gro").unwrap();
+
+            match system.traj_iter::<ChemfilesReader>("test_files/nonexistent.pdb") {
+                Err(ReadTrajError::ChemfilesError(_)) => (),
+                Err(e) => panic!("Unexpected error `{}` returned.", e),
+                Ok(_) => panic!("PDB file should not exist."),
+            }
+        }
+
+        // this test panics because `chemfiles` is buggy as hell
+        /*#[test]
+        fn read_pdb_not_pdb() {
+            let mut system = System::from_file("test_files/protein_trajectory.gro").unwrap();
+
+            match system.traj_iter::<ChemfilesReader>("test_files/fake_pdb.pdb") {
+                Err(ReadTrajError::ChemfilesError(_)) => (),
+                Err(e) => panic!("Unexpected error `{}` returned.", e),
+                Ok(_) => panic!("File should not be a PDB file."),
+            }
+        }*/
+
+        #[test]
+        fn read_pdb_steps() {
+            for step in [1, 2, 3, 5, 23] {
+                let mut system_gro =
+                    System::from_file("test_files/protein_trajectory.gro").unwrap();
+                let mut system_pdb = system_gro.clone();
+
+                let gro_iter = system_gro
+                    .gro_iter("test_files/protein_trajectory.gro")
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap();
+
+                let pdb_iter = system_pdb
+                    .traj_iter::<ChemfilesReader>("test_files/protein_trajectory.pdb")
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap();
+
+                compare_pdb_iterators(gro_iter, pdb_iter);
             }
         }
     }
