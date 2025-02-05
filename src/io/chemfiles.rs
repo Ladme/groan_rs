@@ -23,7 +23,7 @@ const TIME_PRECISION: f32 = 0.001;
 /// Iterator over a trajectory file using `chemfiles`. Constructed using [`System::traj_iter<ChemfilesReader>`].
 ///
 /// All trajectory formats [supported by `chemfiles`](https://chemfiles.org/chemfiles/latest/formats.html) can be read.
-/// However, only XTC, TRR, TNG, DCD, Amber NetCDF (NC), and LAMMPSTRJ have been tested inside the `groan_rs` library.
+/// However, only XTC, TRR, TNG, GRO, DCD, Amber NetCDF (NC), and LAMMPSTRJ have been tested inside the `groan_rs` library.
 ///
 /// For reading XTC and TRR files, it is better to use [`XtcReader`](crate::prelude::XtcReader) and [`TrrReader`](crate::prelude::TrrReader),
 /// respectively, as these are more efficient, especially when using the [`with_range`](crate::prelude::TrajReader::with_range)
@@ -32,6 +32,7 @@ const TIME_PRECISION: f32 = 0.001;
 /// ## Limitations
 /// - **DCD**: Simulation step information is not available. Instead, the frame number is returned. Simulation time is **assumed** to be in ps.
 /// - **Amber NetCDF**: Simulation step information is not available. Instead, the frame number is returned. Simulation time is currently not read.
+/// - **GRO**: Simulation step and simulation time information is not available.
 #[derive(Debug)]
 pub struct ChemfilesReader<'a> {
     system: *mut System,
@@ -450,7 +451,7 @@ mod tests {
             }
         }
 
-        // check that both iperators are exhausted
+        // check that both operators are exhausted
         assert!(iter1.next().is_none() && iter2.next().is_none());
     }
 
@@ -489,7 +490,7 @@ mod tests {
                 }
             }
 
-            // check that both iperators are exhausted
+            // check that both operators are exhausted
             assert!(iter1.next().is_none() && iter2.next().is_none());
         }
 
@@ -1010,7 +1011,7 @@ mod tests {
                 }
             }
 
-            // check that both iperators are exhausted
+            // check that both operators are exhausted
             assert!(iter1.next().is_none() && iter2.next().is_none());
         }
 
@@ -1187,7 +1188,7 @@ mod tests {
                 }
             }
 
-            // check that both iperators are exhausted
+            // check that both operators are exhausted
             assert!(iter1.next().is_none() && iter2.next().is_none());
         }
 
@@ -1256,7 +1257,7 @@ mod tests {
             match system.traj_iter::<ChemfilesReader>("test_files/fake_nc.nc") {
                 Err(ReadTrajError::ChemfilesError(_)) => (),
                 Err(e) => panic!("Unexpected error `{}` returned.", e),
-                Ok(_) => panic!("File should not be a trr file."),
+                Ok(_) => panic!("File should not be an nc file."),
             }
         }
     }
@@ -1346,7 +1347,7 @@ mod tests {
             match system.traj_iter::<ChemfilesReader>("test_files/fake_lammps.lammpstrj") {
                 Err(ReadTrajError::ChemfilesError(_)) => (),
                 Err(e) => panic!("Unexpected error `{}` returned.", e),
-                Ok(_) => panic!("File should not be a trr file."),
+                Ok(_) => panic!("File should not be a lammpstrj file."),
             }
         }
 
@@ -1424,6 +1425,116 @@ mod tests {
                 .unwrap();
 
             compare_iterators(xtc_iter, lammps_iter);
+        }
+    }
+
+    mod tests_gro {
+        use crate::test_utilities::utilities::compare_atoms_without_forces_and_velocities;
+
+        use super::*;
+
+        /// Compare two iterators at least one of which is a gro iterator.
+        fn compare_gro_iterators<'a>(
+            mut iter1: impl Iterator<Item = Result<&'a mut System, ReadTrajError>>,
+            mut iter2: impl Iterator<Item = Result<&'a mut System, ReadTrajError>>,
+        ) {
+            while let (Some(frame1), Some(frame2)) = (iter1.next(), iter2.next()) {
+                let frame1 = frame1.unwrap();
+                let frame2 = frame2.unwrap();
+
+                compare_box(frame1.get_box().unwrap(), frame2.get_box().unwrap());
+
+                for (atom1, atom2) in frame1.atoms_iter().zip(frame2.atoms_iter()) {
+                    // if velocities are missing from a gro file, chemfiles set them to 0 which is not consistent with
+                    // either other chemfiles formats nor the groan_rs convention
+                    compare_atoms_without_forces_and_velocities(atom1, atom2);
+                }
+            }
+
+            // check that both operators are exhausted
+            assert!(iter1.next().is_none() && iter2.next().is_none());
+        }
+
+        #[test]
+        fn read_gro_isolated() {
+            let mut system = System::from_file("test_files/protein_trajectory.gro").unwrap();
+
+            let n_frames = system
+                .traj_iter::<ChemfilesReader>("test_files/protein_trajectory.gro")
+                .unwrap()
+                .count();
+
+            assert_eq!(n_frames, 11);
+        }
+
+        #[test]
+        fn read_gro_pass() {
+            let mut system = System::from_file("test_files/protein_trajectory.gro").unwrap();
+            let mut system_chemfiles = system.clone();
+
+            let gro_iter = system
+                .gro_iter("test_files/protein_trajectory.gro")
+                .unwrap();
+            let chemfiles_iter = system_chemfiles
+                .traj_iter::<ChemfilesReader>("test_files/protein_trajectory.gro")
+                .unwrap();
+
+            compare_gro_iterators(gro_iter, chemfiles_iter);
+        }
+
+        #[test]
+        fn read_gro_unmatching() {
+            let mut system = System::from_file("test_files/example.gro").unwrap();
+
+            match system.traj_iter::<ChemfilesReader>("test_files/protein_trajectory.gro") {
+                Err(ReadTrajError::AtomsNumberMismatch(_)) => (),
+                Err(e) => panic!("Unexpected error `{}` returned.", e),
+                Ok(_) => panic!("TRR file should not be valid."),
+            }
+        }
+
+        #[test]
+        fn read_gro_nonexistent() {
+            let mut system = System::from_file("test_files/protein_trajectory.gro").unwrap();
+
+            match system.traj_iter::<ChemfilesReader>("test_files/nonexistent.gro") {
+                Err(ReadTrajError::ChemfilesError(_)) => (),
+                Err(e) => panic!("Unexpected error `{}` returned.", e),
+                Ok(_) => panic!("TRR file should not exist."),
+            }
+        }
+
+        #[test]
+        fn read_gro_not_gro() {
+            let mut system = System::from_file("test_files/protein_trajectory.gro").unwrap();
+
+            match system.traj_iter::<ChemfilesReader>("test_files/example_empty.gro") {
+                Err(ReadTrajError::ChemfilesError(_)) => (),
+                Err(e) => panic!("Unexpected error `{}` returned.", e),
+                Ok(_) => panic!("File should not be a gro file."),
+            }
+        }
+
+        #[test]
+        fn read_gro_steps() {
+            for step in [1, 2, 3, 5, 23] {
+                let mut system = System::from_file("test_files/protein_trajectory.gro").unwrap();
+                let mut system_chemfiles = system.clone();
+
+                let gro_iter = system
+                    .gro_iter("test_files/protein_trajectory.gro")
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap();
+
+                let chemfiles_iter = system_chemfiles
+                    .traj_iter::<ChemfilesReader>("test_files/protein_trajectory.gro")
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap();
+
+                compare_gro_iterators(gro_iter, chemfiles_iter);
+            }
         }
     }
 }
