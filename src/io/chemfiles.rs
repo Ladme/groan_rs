@@ -11,7 +11,7 @@ use crate::{
     errors::ReadTrajError,
     files::FileType,
     prelude::{
-        FrameData, FrameDataTime, TrajFile, TrajFullReadOpen, TrajRangeRead, TrajRead,
+        FrameData, FrameDataTime, SimBox, TrajFile, TrajFullReadOpen, TrajRangeRead, TrajRead,
         TrajReadOpen, TrajStepRead, TrajStepTimeRead, Vector3D,
     },
     system::System,
@@ -19,6 +19,8 @@ use crate::{
 
 /// Used when jumping to the start of iteration.
 const TIME_PRECISION: f32 = 0.001;
+/// Used when rounding box dimensions.
+const SPATIAL_PRECISION: f32 = 1e-8;
 
 /// Iterator over a trajectory file using `chemfiles`. Constructed using [`System::traj_iter<ChemfilesReader>`].
 ///
@@ -241,20 +243,28 @@ impl FrameData for ChemfilesFrame {
         system.set_simulation_time(self.current_time);
         system.set_precision(self.precision);
         let cell = self.frame.cell().matrix();
-        system.set_box(
-            [
-                (cell[0][0] / 10.0) as f32,
-                (cell[1][1] / 10.0) as f32,
-                (cell[2][2] / 10.0) as f32,
-                (cell[1][0] / 10.0) as f32,
-                (cell[2][0] / 10.0) as f32,
-                (cell[0][1] / 10.0) as f32,
-                (cell[2][1] / 10.0) as f32,
-                (cell[0][2] / 10.0) as f32,
-                (cell[1][2] / 10.0) as f32,
-            ]
-            .into(),
-        );
+        let simbox = SimBox::from([
+            round_box_dim((cell[0][0] / 10.0) as f32),
+            round_box_dim((cell[1][1] / 10.0) as f32),
+            round_box_dim((cell[2][2] / 10.0) as f32),
+            round_box_dim((cell[1][0] / 10.0) as f32),
+            round_box_dim((cell[2][0] / 10.0) as f32),
+            round_box_dim((cell[0][1] / 10.0) as f32),
+            round_box_dim((cell[2][1] / 10.0) as f32),
+            round_box_dim((cell[0][2] / 10.0) as f32),
+            round_box_dim((cell[1][2] / 10.0) as f32),
+        ]);
+        system.set_box(simbox);
+    }
+}
+
+/// Round box dimension. This is necessary to avoid some floating point errors.
+#[inline(always)]
+fn round_box_dim(value: f32) -> f32 {
+    if value.abs() < SPATIAL_PRECISION {
+        0.0
+    } else {
+        value
     }
 }
 
