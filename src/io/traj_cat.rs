@@ -529,6 +529,52 @@ mod tests {
     }
 
     #[test]
+    fn cat_xtc_duplicate_not_at_boundary() {
+        let mut system_cat = System::from_file("test_files/example.gro").unwrap();
+
+        let traj_cat = system_cat
+            .traj_cat_iter::<XtcReader>(&[
+                "test_files/split/traj1.xtc",
+                "test_files/split/traj2.xtc",
+                "test_files/split/traj3b.xtc",
+                "test_files/split/traj4.xtc",
+                "test_files/split/traj5.xtc",
+                "test_files/split/traj6.xtc",
+            ])
+            .unwrap();
+
+        for (frame, time) in traj_cat.zip([
+            0.0, 100.0, 200.0, 300.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0, 900.0, 1000.0,
+        ]) {
+            let frame = frame.unwrap();
+            assert_approx_eq!(f32, frame.get_simulation_time(), time);
+        }
+    }
+
+    #[test]
+    fn cat_xtc_duplicate_not_at_boundary_step3() {
+        let mut system_cat = System::from_file("test_files/example.gro").unwrap();
+
+        let traj_cat = system_cat
+            .traj_cat_iter::<XtcReader>(&[
+                "test_files/split/traj1.xtc",
+                "test_files/split/traj2.xtc",
+                "test_files/split/traj3b.xtc",
+                "test_files/split/traj4.xtc",
+                "test_files/split/traj5.xtc",
+                "test_files/split/traj6.xtc",
+            ])
+            .unwrap()
+            .with_step(3)
+            .unwrap();
+
+        for (frame, time) in traj_cat.zip([0.0, 300.0, 500.0, 800.0]) {
+            let frame = frame.unwrap();
+            assert_approx_eq!(f32, frame.get_simulation_time(), time);
+        }
+    }
+
+    #[test]
     fn cat_xtc_steps_with_ranges() {
         let ranges = vec![(0.0, 570.0), (320.0, f32::MAX), (220.0, 800.0)];
 

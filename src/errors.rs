@@ -399,9 +399,13 @@ pub enum ReadTrajError {
     /// Used when the group of atoms selected to be read from a trajectory file does not exist.
     #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
     GroupNotFound(String),
+    /// Used when reading a trajectory using chemfiles.
     #[cfg(feature = "chemfiles")]
     #[error("{} trajectory reading error: {}", "error:".red().bold(), .0)]
-    ChemfilesError(chemfiles::Error)
+    ChemfilesError(chemfiles::Error),
+    /// Used when an unknown error occurs.
+    #[error("{} an unknown error occured when reading a trajectory: '{}'", "error:".red().bold(), .0.yellow())]
+    UnknownError(String),
 }
 
 /// Errors that can occur when writing a trajectory file.
