@@ -3,6 +3,7 @@
 
 //! Small functions for testing purposes.
 
+#[allow(unused)]
 #[cfg(test)]
 pub(crate) mod utilities {
     use crate::structures::{atom::Atom, simbox::SimBox};

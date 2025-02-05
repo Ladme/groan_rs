@@ -174,7 +174,6 @@ impl FrameData for GroFrameData {
             Ok(x) => x,
             Err(e) => return Some(Err(e)),
         };
-        println!("{:?} {:?}", time, step);
 
         let mut positions = Vec::with_capacity(n_atoms);
         let mut velocities = Vec::with_capacity(n_atoms);
@@ -324,10 +323,6 @@ impl<'a> TrajStepTimeRead<'a> for GroReader<'a> {
             }
         }
 
-        println!(
-            "Skipped time: {}",
-            time.unwrap_or(system.get_simulation_time())
-        );
         // if the time information is not available, return the time from system
         Ok(Some(time.unwrap_or(system.get_simulation_time())))
     }

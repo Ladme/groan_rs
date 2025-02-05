@@ -494,7 +494,10 @@ mod tests {
 
     use tempfile::NamedTempFile;
 
-    use crate::{errors::AtomError, prelude::TrajFullReadOpen};
+    use crate::{
+        errors::AtomError,
+        prelude::{TrajFullReadOpen, Vector3D},
+    };
 
     #[cfg(not(feature = "no-xdrfile"))]
     use crate::io::trr_io::TrrReader;
@@ -1533,6 +1536,164 @@ mod tests {
                 {
                     assert_eq!(item1, item2);
                 }
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Default)]
+    struct AtomPosOrdered {
+        thread_id: usize,
+        positions: Vec<Vector3D>,
+    }
+
+    impl ParallelTrajData for AtomPosOrdered {
+        fn initialize(&mut self, thread_id: usize) {
+            self.thread_id = thread_id;
+        }
+
+        fn reduce(mut data: Vec<Self>) -> Self {
+            // sort the data by thread id to ensure correct order
+            data.sort_by(|a, b| a.thread_id.cmp(&b.thread_id));
+
+            // interleave the positions
+            let mut positions = Vec::new();
+
+            let mut iterators: Vec<_> = data.into_iter().map(|v| v.positions.into_iter()).collect();
+
+            loop {
+                let mut pushed = false;
+
+                for iter in &mut iterators {
+                    if let Some(value) = iter.next() {
+                        positions.push(value);
+                        pushed = true;
+                    }
+                }
+
+                if !pushed {
+                    break;
+                }
+            }
+
+            AtomPosOrdered {
+                thread_id: 0,
+                positions,
+            }
+        }
+    }
+
+    fn frame_get_pos(system: &System, data: &mut AtomPosOrdered) -> Result<(), AtomError> {
+        data.positions
+            .push(system.get_atom(0)?.get_position().unwrap().clone());
+
+        Ok(())
+    }
+
+    fn run_traj_iter_atompos_single_threaded<'a, Reader>(
+        system: &'a mut System,
+        filename: &str,
+        start: Option<f32>,
+        end: Option<f32>,
+        step: Option<usize>,
+    ) -> AtomPosOrdered
+    where
+        Reader: TrajFullReadOpen<'a> + TrajRangeRead<'a> + TrajStepRead<'a> + TrajRead<'a> + 'a,
+        <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
+    {
+        let mut positions = AtomPosOrdered::default();
+
+        let start = start.unwrap_or(0.0);
+        let end = end.unwrap_or(f32::MAX);
+        let step = step.unwrap_or(1);
+
+        for frame in system
+            .traj_iter::<Reader>(filename)
+            .unwrap()
+            .with_range(start, end)
+            .unwrap()
+            .with_step(step)
+            .unwrap()
+        {
+            let frame = frame.unwrap();
+
+            positions
+                .positions
+                .push(frame.get_atom(0).unwrap().get_position().unwrap().clone());
+        }
+
+        positions
+    }
+
+    fn run_traj_iter_atompos_map_reduce<'a, Reader>(
+        system: &'a System,
+        filename: &str,
+        n_threads: usize,
+        start: Option<f32>,
+        end: Option<f32>,
+        step: Option<usize>,
+        progress: Option<ProgressPrinter>,
+    ) -> AtomPosOrdered
+    where
+        Reader: TrajFullReadOpen<'a> + TrajRangeRead<'a> + TrajStepRead<'a> + TrajRead<'a> + 'a,
+        <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
+    {
+        let positions = system
+            .traj_iter_map_reduce::<Reader, AtomPosOrdered, AtomError>(
+                filename,
+                n_threads,
+                frame_get_pos,
+                AtomPosOrdered::default(),
+                None,
+                start,
+                end,
+                step,
+                progress,
+            )
+            .unwrap();
+
+        positions
+    }
+
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
+    #[test]
+    fn gro_iter_map_reduce_basic() {
+        use float_cmp::assert_approx_eq;
+
+        use crate::prelude::GroReader;
+
+        let mut system = System::from_file("test_files/protein_trajectory.gro").unwrap();
+        let result_singlethreaded = run_traj_iter_atompos_single_threaded::<GroReader>(
+            &mut system,
+            "test_files/protein_trajectory.gro",
+            None,
+            None,
+            None,
+        );
+
+        for n_threads in 1..=16 {
+            let result_multithreaded = run_traj_iter_atompos_map_reduce::<GroReader>(
+                &system,
+                "test_files/protein_trajectory.gro",
+                n_threads,
+                None,
+                None,
+                None,
+                None,
+            );
+
+            assert_eq!(
+                result_singlethreaded.positions.len(),
+                result_multithreaded.positions.len()
+            );
+
+            for (pos1, pos2) in result_singlethreaded
+                .positions
+                .iter()
+                .zip(result_multithreaded.positions.iter())
+            {
+                assert_approx_eq!(f32, pos1.x, pos2.x);
+                assert_approx_eq!(f32, pos1.y, pos2.y);
+                assert_approx_eq!(f32, pos1.z, pos2.z);
             }
         }
     }

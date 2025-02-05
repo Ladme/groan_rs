@@ -414,6 +414,7 @@ fn lammps_time_convert(time: f64, units: &str) -> f32 {
     (time * converter) as f32
 }
 
+#[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -827,6 +828,7 @@ mod tests {
         }
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     mod tests_tng {
         use super::*;
 
@@ -976,6 +978,7 @@ mod tests {
         }
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     mod tests_dcd {
         use super::*;
 
@@ -1157,6 +1160,7 @@ mod tests {
         }
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     mod tests_nc {
         use super::*;
 
@@ -1257,6 +1261,7 @@ mod tests {
         }
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     mod tests_lammps {
         use super::super::lammps_time_convert;
         use super::*;
