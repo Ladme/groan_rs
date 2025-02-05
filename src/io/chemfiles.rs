@@ -36,6 +36,7 @@ const TIME_PRECISION: f32 = 0.001;
 /// - **Amber NetCDF**: Simulation step information is not available. Instead, the frame number is returned. Simulation time is currently not read.
 /// - **GRO**: Simulation step and simulation time information is not available. Unlike `GroReader`, velocities are set to 0, not `None`, when not present.
 /// - **PDB**: Simulation step and simulation time information is not available.
+/// - **TNG**: Due to the bugginess of the `chemfiles` library, TNG trajectories can only be read when their first frame corresponds to the simulation step of 0.
 #[derive(Debug)]
 pub struct ChemfilesReader<'a> {
     system: *mut System,
