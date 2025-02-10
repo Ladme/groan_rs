@@ -342,14 +342,14 @@ impl<'a> TrajRangeRead<'a> for GroReader<'a> {
                 Some(Ok((_, time, _, n_atoms))) => (time, n_atoms),
             };
 
-            if let Some(time) = time {
-                if time >= start_time - TIME_PRECISION {
-                    // revert to the start of the frame
-                    self.gro.buffer.seek(std::io::SeekFrom::Start(pos))
-                        .expect("FATAL GROAN ERROR | GroReader::jump_to_start | Could not seek to an already visited position.");
+            let time = time.unwrap_or(system.get_simulation_time());
 
-                    return Ok(());
-                }
+            if time >= start_time - TIME_PRECISION {
+                // revert to the start of the frame
+                self.gro.buffer.seek(std::io::SeekFrom::Start(pos))
+                    .expect("FATAL GROAN ERROR | GroReader::jump_to_start | Could not seek to an already visited position.");
+
+                return Ok(());
             }
 
             for _ in 0..(n_atoms + 1) {
@@ -726,10 +726,10 @@ mod tests_read {
             (300.0, 100_000.0),
         ];
 
-        let mut system = System::from_file("test_files/protein_trajectory.gro").unwrap();
-        let mut system2 = System::from_file("test_files/example.gro").unwrap();
-
         for range in ranges.into_iter() {
+            let mut system = System::from_file("test_files/protein_trajectory.gro").unwrap();
+            let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
             for (frame1, frame2) in system
                 .gro_iter("test_files/protein_trajectory.gro")
                 .unwrap()
@@ -756,6 +756,19 @@ mod tests_read {
                     compare_atoms(a1, a2);
                 }
             }
+        }
+    }
+
+    #[test]
+    fn gro_iter_no_time_with_range() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        if let Err(e) = system
+            .gro_iter("test_files/example.gro")
+            .unwrap()
+            .with_range(0.0, f32::INFINITY)
+        {
+            panic!("Function failed: `{}`", e);
         }
     }
 
