@@ -43,7 +43,7 @@ impl Name {
             // definitions, see `System::guess_elements`
             // these are rare so it should not matter
             Name::Regex(r) => {
-                let group_names = system.get_groups().keys();
+                let group_names = system.get_groups().names_iter();
 
                 for name in group_names {
                     if r.is_match(name) {

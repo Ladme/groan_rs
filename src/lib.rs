@@ -416,4 +416,6 @@ pub mod prelude {
     #[cfg(any(feature = "parallel", doc))]
     pub use crate::system::ParallelTrajData;
     pub use crate::system::System;
+
+    pub use crate::system::groups::Groups;
 }

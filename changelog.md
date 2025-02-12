@@ -25,9 +25,10 @@
 - Introduced `NaiveShape` trait for geometry filtering ignoring PBC and implemented this trait for `Sphere`, `Rectangular`, and `Cylinder`.
 - Implemented `ImmutableAtomIterable::filter_geometry_naive` and `MutableAtomIterable::filter_geometry_naive` for geometry filtering of atoms from iterators ignoring PBC and box dimensions.
 
-#### Other changes
+#### Other Changes
 - Introduced `Atom::reset_bonded` and `System::clear_bonds` for simpler removal of bonding information.
 - Sodium atoms should be less often misclassified as sulfur when guessing elements.
+- Reworked how groups are stored inside a system. Introduced a new `Groups` structure for storing groups.
 
 ***
 

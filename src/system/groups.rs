@@ -5,6 +5,7 @@
 
 use std::collections::HashSet;
 
+use indexmap::map::{Iter, Keys};
 use indexmap::IndexMap;
 
 use crate::errors::{GroupError, SimBoxError};
@@ -49,10 +50,7 @@ impl System {
             Err(e) => return Err(GroupError::InvalidQuery(e)),
         };
 
-        match self.get_groups_mut().insert(name.to_string(), group) {
-            None => Ok(()),
-            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
-        }
+        self.groups.add(name, group)
     }
 
     /// Make a group with a given name from the given Groan selection language query and geometry specification.
@@ -116,10 +114,7 @@ impl System {
             Err(e) => return Err(GroupError::InvalidQuery(e)),
         };
 
-        match self.get_groups_mut().insert(name.to_string(), group) {
-            None => Ok(()),
-            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
-        }
+        self.groups.add(name, group)
     }
 
     /// Make a group with a given name from the given Groan selection language query and any number of geometry specifications.
@@ -189,10 +184,7 @@ impl System {
             Err(e) => return Err(GroupError::InvalidQuery(e)),
         };
 
-        match self.get_groups_mut().insert(name.to_string(), group) {
-            None => Ok(()),
-            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
-        }
+        self.groups.add(name, group)
     }
 
     /// Create a group with a given name from the provided atom indices.
@@ -219,20 +211,14 @@ impl System {
     /// - In case a group with the given name already exists, it is replaced with the new group.
     /// - The following characters are not allowed in group names: '"&|!@()<>=
     /// - The created Group will be valid even if the input `atom_indices` vector contains multiple identical indices.
+    #[inline(always)]
     pub fn group_create_from_indices(
         &mut self,
         name: &str,
         atom_indices: Vec<usize>,
     ) -> Result<(), GroupError> {
-        if !crate::auxiliary::name_is_valid(name) {
-            return Err(GroupError::InvalidName(name.to_string()));
-        }
-
-        let group = Group::from_indices(atom_indices, self.get_n_atoms());
-        match self.get_groups_mut().insert(name.to_string(), group) {
-            None => Ok(()),
-            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
-        }
+        self.groups
+            .create_from_indices(name, atom_indices, self.get_n_atoms())
     }
 
     /// Create a group with a given name from the provided atom ranges.
@@ -259,21 +245,14 @@ impl System {
     /// - In case a group with the given name already exists, it is replaced with the new group.
     /// - The following characters are not allowed in group names: '"&|!@()<>=
     /// - The created Group will be valid even if the input `atom_ranges` vector contains overlapping atom ranges.
+    #[inline(always)]
     pub fn group_create_from_ranges(
         &mut self,
         name: &str,
         atom_ranges: Vec<(usize, usize)>,
     ) -> Result<(), GroupError> {
-        if !crate::auxiliary::name_is_valid(name) {
-            return Err(GroupError::InvalidName(name.to_string()));
-        }
-
-        let group = Group::from_ranges(atom_ranges, self.get_n_atoms());
-
-        match self.get_groups_mut().insert(name.to_string(), group) {
-            None => Ok(()),
-            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
-        }
+        self.groups
+            .create_from_ranges(name, atom_ranges, self.get_n_atoms())
     }
 
     /// Make a group with a given name from the given Selection tree (`Select` structure).
@@ -327,10 +306,7 @@ impl System {
             Err(e) => return Err(GroupError::InvalidQuery(e)),
         };
 
-        match self.get_groups_mut().insert(name.to_string(), group) {
-            None => Ok(()),
-            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
-        }
+        self.groups.add(name, group)
     }
 
     /// Split atoms by their residue numbers creating a group for each residue number.
@@ -585,26 +561,18 @@ impl System {
     ///
     /// ## Returns
     /// `Ok` if successful, `GroupError::NotFound` in case the group does not exist.
+    #[inline(always)]
     pub fn group_make_writable(&mut self, name: &str) -> Result<(), GroupError> {
-        match self.get_groups_mut().get_mut(name) {
-            None => return Err(GroupError::NotFound(name.to_owned())),
-            Some(group) => group.print_ndx = true,
-        }
-
-        Ok(())
+        self.groups.make_writable(name)
     }
 
     /// Make target group ndx-nonwritable, i.e. the group will NOT be written into an ndx file when using `System::write_ndx`.
     ///
     /// ## Returns
     /// `Ok` if successful, `GroupError::NotFound` in case the group does not exist.
+    #[inline(always)]
     pub fn group_make_nonwritable(&mut self, name: &str) -> Result<(), GroupError> {
-        match self.get_groups_mut().get_mut(name) {
-            None => return Err(GroupError::NotFound(name.to_owned())),
-            Some(group) => group.print_ndx = false,
-        }
-
-        Ok(())
+        self.groups.make_nonwritable(name)
     }
 
     /// Remove target group from the system.
@@ -621,12 +589,9 @@ impl System {
     /// - This function maintains the order of the groups in the system.
     /// - Time complexity is O(n).
     #[allow(dead_code)]
+    #[inline(always)]
     pub(crate) fn group_remove(&mut self, name: &str) -> Result<(), GroupError> {
-        if self.get_groups_mut().shift_remove(name).is_none() {
-            Err(GroupError::NotFound(name.to_owned()))
-        } else {
-            Ok(())
-        }
+        self.groups.remove(name)
     }
 
     /// Rename target group in the system.
@@ -647,23 +612,15 @@ impl System {
     ///   which is placed to the last position.
     /// - Time complexity is O(n).
     #[allow(dead_code)]
+    #[inline(always)]
     pub(crate) fn group_rename(&mut self, old: &str, new: &str) -> Result<(), GroupError> {
-        // get the old group
-        let group = match self.get_groups_mut().shift_remove(old) {
-            Some(x) => x,
-            None => return Err(GroupError::NotFound(old.to_owned())),
-        };
-
-        // reinsert the group with the new name
-        match self.get_groups_mut().insert(new.to_owned(), group) {
-            Some(_) => Err(GroupError::AlreadyExistsWarning(new.to_owned())),
-            None => Ok(()),
-        }
+        self.groups.rename(old, new)
     }
 
     /// Check whether a group with a given name exists in the system.
+    #[inline(always)]
     pub fn group_exists(&self, name: &str) -> bool {
-        self.get_groups().contains_key(name)
+        self.groups.exists(name)
     }
 
     /// Check whether the target group contains the atom of target index.
@@ -677,13 +634,9 @@ impl System {
     ///   The atoms in `System` are numbered starting from 0.
     /// - The time complexity of this operation is somewhere between `O(1)` and `O(n)`
     ///   where `n` is the number of atoms in the group.
+    #[inline(always)]
     pub fn group_isin(&self, name: &str, index: usize) -> Result<bool, GroupError> {
-        let group = self
-            .get_groups()
-            .get(name)
-            .ok_or(GroupError::NotFound(name.to_string()))?;
-
-        Ok(group.get_atoms().isin(index))
+        self.groups.isin(name, index)
     }
 
     /// Get the number of atoms in target group.
@@ -707,13 +660,9 @@ impl System {
     /// let system = System::from_file("system.gro").unwrap();
     /// let n_atoms = system.group_get_n_atoms("Protein");
     /// ```
+    #[inline(always)]
     pub fn group_get_n_atoms(&self, name: &str) -> Result<usize, GroupError> {
-        let group = self
-            .get_groups()
-            .get(name)
-            .ok_or(GroupError::NotFound(name.to_string()))?;
-
-        Ok(group.get_n_atoms())
+        self.groups.get_n_atoms(name)
     }
 
     /// Create a new group that is the union of the provided groups.
@@ -726,27 +675,14 @@ impl System {
     /// ## Notes
     /// - If a group with the name `union` already exists, it is overwritten.
     /// - `group1` and `group2` are unchanged.
+    #[inline(always)]
     pub fn group_union(
         &mut self,
         group1: &str,
         group2: &str,
         union: &str,
     ) -> Result<(), GroupError> {
-        let group1 = self
-            .get_groups()
-            .get(group1)
-            .ok_or(GroupError::NotFound(group1.to_string()))?;
-        let group2 = self
-            .get_groups()
-            .get(group2)
-            .ok_or(GroupError::NotFound(group2.to_string()))?;
-
-        let group = Group::union(group1, group2);
-
-        match self.get_groups_mut().insert(union.to_string(), group) {
-            None => Ok(()),
-            Some(_) => Err(GroupError::AlreadyExistsWarning(union.to_string())),
-        }
+        self.groups.union(group1, group2, union)
     }
 
     /// Create a new group that is the intersection of the provided groups.
@@ -759,30 +695,14 @@ impl System {
     /// ## Notes
     /// - If a group with the name `intersection` already exists, it is overwritten.
     /// - `group1` and `group2` are unchanged.
+    #[inline(always)]
     pub fn group_intersection(
         &mut self,
         group1: &str,
         group2: &str,
         intersection: &str,
     ) -> Result<(), GroupError> {
-        let group1 = self
-            .get_groups()
-            .get(group1)
-            .ok_or(GroupError::NotFound(group1.to_string()))?;
-        let group2 = self
-            .get_groups()
-            .get(group2)
-            .ok_or(GroupError::NotFound(group2.to_string()))?;
-
-        let group = Group::intersection(group1, group2);
-
-        match self
-            .get_groups_mut()
-            .insert(intersection.to_string(), group)
-        {
-            None => Ok(()),
-            Some(_) => Err(GroupError::AlreadyExistsWarning(intersection.to_string())),
-        }
+        self.groups.intersection(group1, group2, intersection)
     }
 
     /// Extend the group `group` by the group `extend`.
@@ -792,11 +712,9 @@ impl System {
     ///
     /// ## Notes
     /// - `extend` is unchanged.
+    #[inline(always)]
     pub fn group_extend(&mut self, group: &str, extend: &str) -> Result<(), GroupError> {
-        match self.group_union(group, extend, group) {
-            Ok(_) | Err(GroupError::AlreadyExistsWarning(_)) => Ok(()),
-            Err(e) => Err(e),
-        }
+        self.groups.extend(group, extend)
     }
 
     /// Get all group names associated with the system including ndx-nonwritable (default) groups.
@@ -817,8 +735,9 @@ impl System {
     /// assert!(names.contains(&"all".to_string()));
     /// assert!(names.contains(&"All".to_string()));
     /// ```
+    #[inline(always)]
     pub fn group_names(&self) -> Vec<String> {
-        self.get_groups().keys().map(|key| key.to_owned()).collect()
+        self.groups.names()
     }
 
     /// Get all group names associated with the system excluding ndx-nonwritable (default) groups.
@@ -838,12 +757,9 @@ impl System {
     /// assert!(!names.contains(&"all".to_string()));
     /// assert!(!names.contains(&"All".to_string()));
     /// ```
+    #[inline(always)]
     pub fn group_names_writable(&self) -> Vec<String> {
-        self.get_groups()
-            .iter()
-            .filter(|(_, group)| group.print_ndx)
-            .map(|(key, _)| key.to_owned())
-            .collect()
+        self.groups.names_writable()
     }
 
     /// Check whether target group is empty.
@@ -852,25 +768,271 @@ impl System {
     /// ## Returns
     /// - `true` if the group contains no atoms. `false` if it contains at least one atom.
     /// - `GroupError` if the group does not exist.
+    #[inline(always)]
     pub fn group_isempty(&self, name: &str) -> Result<bool, GroupError> {
-        let group = self
-            .get_groups()
-            .get(name)
-            .ok_or(GroupError::NotFound(name.to_string()))?;
-
-        Ok(group.get_atoms().is_empty())
+        self.groups.is_empty(name)
     }
 
     /// Collect names of all groups the atom at target index is a member of.
     /// Atoms are indexed starting from 0.
     /// In case the index is out of range, returns an empty vector.
     /// The names are returned in their order of insertion.
+    #[inline(always)]
     pub fn groups_member(&self, index: usize) -> Vec<String> {
-        self.get_groups()
+        self.groups.member(index)
+    }
+}
+
+/// Structure for storing groups of a system.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields, transparent))]
+pub struct Groups(IndexMap<String, Group>);
+
+impl Default for Groups {
+    fn default() -> Self {
+        Groups(IndexMap::new())
+    }
+}
+
+impl Groups {
+    /// Create two groups each containing all atoms of the system: "all" and "All".
+    ///
+    /// ## Returns
+    /// - `Ok` if both groups were created or GroupError in case any group with the same name already exists.
+    pub(super) fn make_default_groups(&mut self, n_atoms: usize) -> Result<(), GroupError> {
+        self.create_from_ranges("all", vec![(0, n_atoms)], n_atoms)?;
+        self.create_from_ranges("All", vec![(0, n_atoms)], n_atoms)?;
+
+        self.make_nonwritable("all")
+            .expect("FATAL GROAN ERROR | System::group_create_all | Group 'all' is not available immediately after its construction.");
+
+        self.make_nonwritable("All")
+            .expect("FATAL GROAN ERROR | System::group_create_all | Group 'All' is not available immediately after its construction.");
+
+        Ok(())
+    }
+
+    /// Create a group with a given name from the provided atom ranges.  
+    /// See [System::group_create_from_ranges] for details.
+    pub fn create_from_ranges(
+        &mut self,
+        name: &str,
+        atom_ranges: Vec<(usize, usize)>,
+        n_atoms: usize,
+    ) -> Result<(), GroupError> {
+        if !crate::auxiliary::name_is_valid(name) {
+            return Err(GroupError::InvalidName(name.to_string()));
+        }
+
+        let group = Group::from_ranges(atom_ranges, n_atoms);
+
+        match self.0.insert(name.to_string(), group) {
+            None => Ok(()),
+            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
+        }
+    }
+
+    /// Create a group with a given name from the provided atom indices.  
+    /// See [System::group_create_from_indices] for details.
+    pub fn create_from_indices(
+        &mut self,
+        name: &str,
+        atom_indices: Vec<usize>,
+        n_atoms: usize,
+    ) -> Result<(), GroupError> {
+        if !crate::auxiliary::name_is_valid(name) {
+            return Err(GroupError::InvalidName(name.to_string()));
+        }
+
+        let group = Group::from_indices(atom_indices, n_atoms);
+
+        match self.0.insert(name.to_string(), group) {
+            None => Ok(()),
+            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
+        }
+    }
+
+    /// Get the number of groups in the collection.
+    #[inline(always)]
+    pub fn n_groups(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Get a reference to the group with the given name.
+    /// If the group does not exists, returns a GroupError.
+    #[inline(always)]
+    pub fn get(&self, name: &str) -> Result<&Group, GroupError> {
+        self.0
+            .get(name)
+            .ok_or(GroupError::NotFound(name.to_string()))
+    }
+
+    /// Get a mutable reference to the group with the given name.
+    /// If the group does not exist, returns a GroupError.
+    #[inline(always)]
+    pub fn get_mut(&mut self, name: &str) -> Result<&mut Group, GroupError> {
+        self.0
+            .get_mut(name)
+            .ok_or(GroupError::NotFound(name.to_string()))
+    }
+
+    /// Add a group into the collection.
+    /// If a group with the same name already exists, returns `GroupError::AlreadyExistsWarning`.
+    #[inline(always)]
+    pub fn add(&mut self, name: &str, group: Group) -> Result<(), GroupError> {
+        match self.0.insert(name.to_string(), group) {
+            None => Ok(()),
+            Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
+        }
+    }
+
+    /// Check whether a group with a given name exists in the collection.
+    #[inline(always)]
+    pub fn exists(&self, name: &str) -> bool {
+        self.0.contains_key(name)
+    }
+
+    /// Check whether the target group contains the atom of target index.
+    /// Time complexity O(1) - O(n), depending of the complexity of the group.  
+    /// See [System::group_isin] for more information.
+    #[inline]
+    pub fn isin(&self, name: &str, index: usize) -> Result<bool, GroupError> {
+        Ok(self.get(name)?.get_atoms().isin(index))
+    }
+
+    /// Get the number of atoms in target group.
+    /// Time complexity O(1) - O(n), depending of the complexity of the group.  
+    /// See [System::group_get_n_atoms] for more information.
+    #[inline]
+    pub fn get_n_atoms(&self, name: &str) -> Result<usize, GroupError> {
+        Ok(self.get(name)?.get_n_atoms())
+    }
+
+    /// Make target group ndx-writable, i.e. the group will be written into an ndx file when using `System::write_ndx`.
+    ///
+    /// ## Returns
+    /// `Ok` if successful, `GroupError::NotFound` in case the group does not exist.
+    #[inline]
+    pub fn make_writable(&mut self, name: &str) -> Result<(), GroupError> {
+        self.get_mut(name)?.print_ndx = true;
+        Ok(())
+    }
+
+    /// Make target group ndx-nonwritable, i.e. the group will NOT be written into an ndx file when using `System::write_ndx`.
+    ///
+    /// ## Returns
+    /// `Ok` if successful, `GroupError::NotFound` in case the group does not exist.
+    #[inline]
+    pub fn make_nonwritable(&mut self, name: &str) -> Result<(), GroupError> {
+        self.get_mut(name)?.print_ndx = false;
+        Ok(())
+    }
+
+    /// Create a new group that is the union of the provided groups.  
+    /// See [System::group_union] for more information.
+    pub fn union(&mut self, group1: &str, group2: &str, union: &str) -> Result<(), GroupError> {
+        let group1 = self.get(group1)?;
+        let group2 = self.get(group2)?;
+        let group = Group::union(group1, group2);
+
+        self.add(union, group)
+    }
+
+    /// Create a new group that is the intersection of the provided groups.  
+    /// See [System::group_intersection] for more information.
+    pub fn intersection(
+        &mut self,
+        group1: &str,
+        group2: &str,
+        intersection: &str,
+    ) -> Result<(), GroupError> {
+        let group1 = self.get(group1)?;
+        let group2 = self.get(group2)?;
+        let group = Group::intersection(group1, group2);
+
+        self.add(intersection, group)
+    }
+
+    /// Extend the group `group` by the group `extend`.  
+    /// See [System::group_extend] for more information.
+    #[inline(always)]
+    pub fn extend(&mut self, group: &str, extend: &str) -> Result<(), GroupError> {
+        match self.union(group, extend, group) {
+            Ok(_) | Err(GroupError::AlreadyExistsWarning(_)) => Ok(()),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Get all group names in the collection including ndx-nonwritable (default) groups.  
+    /// See [System::group_names] for more information.
+    #[inline(always)]
+    pub fn names(&self) -> Vec<String> {
+        self.0.keys().map(|key| key.to_owned()).collect()
+    }
+
+    /// Get an iterator over all group names in the collection including ndx-nonwritable (default) groups.
+    #[inline(always)]
+    pub(crate) fn names_iter(&self) -> Keys<'_, String, Group> {
+        self.0.keys()
+    }
+
+    /// Get all group names in the collection excluding ndx-nonwritable (default) groups.  
+    /// See [System::group_names_writable] for more information.
+    pub fn names_writable(&self) -> Vec<String> {
+        self.0
+            .iter()
+            .filter(|(_, group)| group.print_ndx)
+            .map(|(key, _)| key.to_owned())
+            .collect()
+    }
+
+    /// Check whether target group is empty. O(1) time complexity.  
+    /// See [System::group_isempty] for more information.
+    #[inline]
+    pub fn is_empty(&self, name: &str) -> Result<bool, GroupError> {
+        Ok(self.get(name)?.get_atoms().is_empty())
+    }
+
+    /// Collect names of all groups the atom at target index is a member of.  
+    /// See [System::groups_member] for more information.
+    pub fn member(&self, index: usize) -> Vec<String> {
+        self.0
             .iter()
             .filter(|(_, group)| group.get_atoms().isin(index))
             .map(|(name, _)| name.to_owned())
             .collect()
+    }
+
+    /// Iterate over pairs of group name - group.
+    #[inline]
+    pub fn iter(&self) -> Iter<'_, String, Group> {
+        self.0.iter()
+    }
+
+    /// Remove target group from the collection. O(n) time complexity.
+    /// See [System::group_remove] for more information.
+    #[allow(dead_code)]
+    pub(crate) fn remove(&mut self, name: &str) -> Result<(), GroupError> {
+        if self.0.shift_remove(name).is_none() {
+            Err(GroupError::NotFound(name.to_owned()))
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Rename target group in the collection. O(n) time complexity.
+    /// See [System::group_rename] for more information.
+    #[allow(dead_code)]
+    pub(crate) fn rename(&mut self, old: &str, new: &str) -> Result<(), GroupError> {
+        // get the old group
+        let group = match self.0.shift_remove(old) {
+            Some(x) => x,
+            None => return Err(GroupError::NotFound(old.to_owned())),
+        };
+
+        // reinsert the group with the new name
+        self.add(new, group)
     }
 }
 

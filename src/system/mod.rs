@@ -4,8 +4,8 @@
 //! Implementation of the System structure and its methods.
 
 use getset::{CopyGetters, Getters, Setters};
+use groups::Groups;
 use hashbrown::HashMap;
-use indexmap::IndexMap;
 use std::collections::HashSet;
 use std::error::Error;
 use std::path::Path;
@@ -15,10 +15,10 @@ use crate::files::FileType;
 use crate::io::traj_write::SystemWriters;
 use crate::io::{gro_io, pqr_io};
 use crate::io::{pdb_io, tpr_io};
-use crate::structures::{atom::Atom, group::Group, simbox::SimBox, vector3d::Vector3D};
+use crate::structures::{atom::Atom, simbox::SimBox, vector3d::Vector3D};
 
 mod analysis;
-mod groups;
+pub mod groups;
 pub mod guess;
 pub(crate) mod iterating;
 mod labeled_atoms;
@@ -45,7 +45,7 @@ pub struct System {
     simulation_box: Option<SimBox>,
     /// Groups of atoms associated with the system.
     #[getset(get = "pub with_prefix")]
-    groups: IndexMap<String, Group>,
+    groups: Groups,
     /// Atoms that have been specifically labeled with a string.
     /// Each atom can have multiple labels, but one label specifies a single atom.
     labeled_atoms: HashMap<String, usize>,
@@ -142,7 +142,7 @@ impl System {
             name: name.to_string(),
             atoms,
             simulation_box,
-            groups: IndexMap::new(),
+            groups: Groups::default(),
             labeled_atoms: HashMap::new(),
             simulation_step: 0u64,
             simulation_time: 0.0f32,
@@ -152,7 +152,7 @@ impl System {
             trajectory_writers: SystemWriters::default(),
         };
 
-        match system.group_create_all() {
+        match system.group_create_default() {
             Err(_) => {
                 panic!("FATAL GROAN ERROR | System::new | Group 'all' or 'All' already exists as the System is created.");
             }
@@ -239,21 +239,9 @@ impl System {
     ///
     /// ## Returns
     /// - `Ok` if both groups were created or GroupError in case any group with the same name already exists.
-    fn group_create_all(&mut self) -> Result<(), GroupError> {
-        self.group_create_from_ranges("all", vec![(0, self.get_n_atoms())])?;
-        self.group_create_from_ranges("All", vec![(0, self.get_n_atoms())])?;
-
-        self.get_groups_mut()
-            .get_mut("all")
-            .expect("FATAL GROAN ERROR | System::group_create_all | Group 'all' is not available immediately after its construction.")
-            .print_ndx = false;
-
-        self.get_groups_mut()
-            .get_mut("All")
-            .expect("FATAL GROAN ERROR | System::group_create_all | Group 'All' is not available immediately after its construction.")
-            .print_ndx = false;
-
-        Ok(())
+    #[inline(always)]
+    fn group_create_default(&mut self) -> Result<(), GroupError> {
+        self.groups.make_default_groups(self.get_n_atoms())
     }
 
     /// Get mutable slice of the atoms in the system.
@@ -276,13 +264,14 @@ impl System {
     ///   these groups may cause the behavior of many other functions associated with `System`
     ///   to become incorrect.
     #[inline(always)]
-    pub(crate) fn get_groups_mut(&mut self) -> &mut IndexMap<String, Group> {
+    #[allow(dead_code)]
+    pub(crate) fn get_groups_mut(&mut self) -> &mut Groups {
         &mut self.groups
     }
 
     /// Get copy of the groups in the system.
     #[inline(always)]
-    pub fn get_groups_copy(&self) -> IndexMap<String, Group> {
+    pub fn get_groups_copy(&self) -> Groups {
         self.groups.clone()
     }
 
@@ -338,7 +327,7 @@ impl System {
     /// Get the number of groups in the system. This counts all groups, even the default ones.
     #[inline(always)]
     pub fn get_n_groups(&self) -> usize {
-        self.groups.len()
+        self.groups.n_groups()
     }
 
     /// Set simulation box.
@@ -583,7 +572,7 @@ impl System {
 mod tests {
     use crate::{
         errors::ParsePdbConnectivityError,
-        structures::element::Elements,
+        structures::{element::Elements, group::Group},
         test_utilities::utilities::{compare_atoms, compare_atoms_tpr_with_pdb, compare_box},
     };
 
@@ -872,13 +861,13 @@ mod tests {
 
         let mut groups = system.get_groups_copy();
 
-        assert!(groups.contains_key("all"));
+        assert!(groups.exists("all"));
 
         let new_group = Group::from_indices(vec![1, 3, 6, 8], 1000);
-        groups.insert("Test".to_string(), new_group);
+        groups.add("Test", new_group).unwrap();
 
-        assert!(groups.contains_key("Test"));
-        assert!(!system.get_groups().contains_key("Test"));
+        assert!(groups.exists("Test"));
+        assert!(!system.group_exists("Test"));
     }
 
     #[test]

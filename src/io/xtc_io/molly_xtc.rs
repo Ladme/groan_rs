@@ -550,11 +550,10 @@ impl<'a> TrajGroupReadOpen<'a> for GroupXtcReader<'a> {
     where
         Self: Sized,
     {
-        let group = match system.get_groups().get(group) {
-            Some(x) => x,
-            None => return Err(ReadTrajError::GroupNotFound(group.to_owned())),
-        };
-
+        let group = system
+            .get_groups()
+            .get(group)
+            .map_err(|_| ReadTrajError::GroupNotFound(group.to_owned()))?;
         let xtc = MollyXtc::new(&filename, system.get_n_atoms(), Some(group))?;
         Ok(GroupXtcReader {
             system,

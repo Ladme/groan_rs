@@ -493,7 +493,7 @@ impl PrivateTrajWrite for GroWriter {
             Some(x) => system
                 .get_groups()
                 .get(x)
-                .ok_or_else(|| WriteTrajError::GroupNotFound(x.to_owned()))?
+                .map_err(|_| WriteTrajError::GroupNotFound(x.to_owned()))?
                 .clone(),
             None => system
                 .get_groups()

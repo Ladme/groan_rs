@@ -146,7 +146,7 @@ impl System {
 
         let mut writer = BufWriter::new(output);
 
-        for (name, group) in self.get_groups() {
+        for (name, group) in self.get_groups().iter() {
             // skip default groups
             if group.print_ndx {
                 group.write_ndx(&mut writer, name)?

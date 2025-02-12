@@ -41,10 +41,7 @@ impl System {
     /// };
     /// ```
     pub fn group_iter(&self, name: &str) -> Result<AtomIterator, GroupError> {
-        let group = self
-            .get_groups()
-            .get(name)
-            .ok_or(GroupError::NotFound(name.to_string()))?;
+        let group = self.groups.get(name)?;
 
         Ok(AtomIterator::new(
             self.get_atoms(),
@@ -80,11 +77,7 @@ impl System {
     pub fn group_iter_mut(&mut self, name: &str) -> Result<MutAtomIterator, GroupError> {
         let simbox = self.get_box().map(|x| x as *const SimBox);
 
-        let group = {
-            self.get_groups_mut()
-                .get_mut(name)
-                .ok_or(GroupError::NotFound(name.to_string()))? as *mut Group
-        };
+        let group = { self.groups.get_mut(name)? as *mut Group };
 
         unsafe {
             Ok(MutAtomIterator::new(
