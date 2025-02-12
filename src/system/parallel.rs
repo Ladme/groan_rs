@@ -3,7 +3,13 @@
 
 //! Basic utilities for parallel implementations of functions.
 
-use std::path::Path;
+use std::{
+    path::Path,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 use crate::{
     io::traj_read::{
@@ -14,6 +20,9 @@ use crate::{
     structures::container::AtomContainer,
     system::System,
 };
+
+/// Specifies how often (in number of analyzed frames) an error flag should be checked inside parallel iteration.
+const ERROR_FLAG_FREQ: usize = 10;
 
 /// A trait that must be implemented by structures used in [System::traj_iter_map_reduce](System::traj_iter_map_reduce).
 pub trait ParallelTrajData: Send + Sized {
@@ -216,6 +225,8 @@ impl System {
             panic!("FATAL GROAN ERROR | System::traj_iter_map_reduce | Number of threads to spawn must be > 0.");
         }
 
+        let error_flag = Arc::new(AtomicBool::new(false));
+
         std::thread::scope(
             |s| -> Result<Data, Box<dyn std::error::Error + Send + Sync>> {
                 let mut handles = Vec::new();
@@ -226,6 +237,7 @@ impl System {
                     let filename = trajectory_file.clone();
                     let progress_clone = progress_printer.clone();
                     let mut data = init_data.clone();
+                    let error_flag_clone = error_flag.clone();
                     data.initialize(n);
 
                     let handle = s.spawn(
@@ -241,6 +253,7 @@ impl System {
                                 end_time,
                                 step,
                                 progress_clone,
+                                error_flag_clone,
                             ) {
                                 (Ok(_), step, time) => (Ok(data), step, time),
                                 (Err(e), step, time) => (Err(e), step, time),
@@ -307,6 +320,7 @@ impl System {
         end_time: Option<f32>,
         step: Option<usize>,
         progress_printer: Option<ProgressPrinter>,
+        error_flag: Arc<AtomicBool>,
     ) -> (
         Result<(), Box<dyn std::error::Error + Send + Sync>>,
         u64,
@@ -330,7 +344,10 @@ impl System {
             group,
         ) {
             Ok(x) => TrajReader::wrap_traj(x),
-            Err(e) => return (Err(Box::from(e)), 0, 0.0),
+            Err(e) => {
+                error_flag.store(true, Ordering::Relaxed);
+                return (Err(Box::from(e)), 0, 0.0);
+            }
         };
 
         // associate the progress printer with the iterator only in the master thread
@@ -343,7 +360,10 @@ impl System {
         // find the start of the reading
         let mut iterator = match iterator.with_range(start, end) {
             Ok(x) => x,
-            Err(e) => return (Err(Box::from(e)), 0, 0.0),
+            Err(e) => {
+                error_flag.store(true, Ordering::Relaxed);
+                return (Err(Box::from(e)), 0, 0.0);
+            }
         };
 
         // prepare the iterator for reading (skip N frames)
@@ -351,11 +371,12 @@ impl System {
             match iterator.next() {
                 Some(Ok(_)) => (),
                 Some(Err(e)) => {
+                    error_flag.store(true, Ordering::Relaxed);
                     return (
                         Err(Box::from(e)),
                         self.get_simulation_step(),
                         self.get_simulation_time(),
-                    )
+                    );
                 }
                 // if the iterator has nothing to read, then just finish with Ok
                 None => return (Ok(()), 0, 0.0),
@@ -365,22 +386,39 @@ impl System {
         // the iterator should step by N * n_threads frames
         let iterator = match iterator.with_step(step * n_threads) {
             Ok(x) => x,
-            Err(e) => return (Err(Box::from(e)), 0, 0.0),
+            Err(e) => {
+                error_flag.store(true, Ordering::Relaxed);
+                return (Err(Box::from(e)), 0, 0.0);
+            }
         };
 
-        for frame in iterator {
+        for (i, frame) in iterator.enumerate() {
+            if i % ERROR_FLAG_FREQ == 0 {
+                // an error was detected in another thread
+                if error_flag.load(Ordering::Relaxed) {
+                    // we abort but return Ok, because it's not this thread that has encountered an error
+                    return (
+                        Ok(()),
+                        self.get_simulation_step(),
+                        self.get_simulation_time(),
+                    );
+                }
+            }
+
             let frame = match frame {
                 Ok(x) => x,
                 Err(e) => {
+                    error_flag.store(true, Ordering::Relaxed);
                     return (
                         Err(Box::from(e)),
                         self.get_simulation_step(),
                         self.get_simulation_time(),
-                    )
+                    );
                 }
             };
 
             if let Err(e) = body(frame, data) {
+                error_flag.store(true, Ordering::Relaxed);
                 return (
                     Err(Box::from(e)),
                     frame.get_simulation_step(),
