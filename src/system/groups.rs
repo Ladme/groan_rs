@@ -2754,6 +2754,23 @@ mod tests {
     }
 
     #[test]
+    fn group_union_invalid_group_name() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.group_union("Protein", "W", "Protein()W") {
+            Err(GroupError::InvalidName(x)) => assert_eq!(x, "Protein()W"),
+            Ok(_) => panic!("Creating union should have failed but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+
+        assert!(!system.group_exists("Protein()W"));
+    }
+
+    #[test]
     fn group_intersection_simple() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
@@ -2831,6 +2848,23 @@ mod tests {
         }
 
         assert!(!system.group_exists("Test"));
+    }
+
+    #[test]
+    fn group_intersection_invalid_group_name() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        match system.group_intersection("Protein", "Transmembrane", "@ProteinTransmembrane") {
+            Err(GroupError::InvalidName(x)) => assert_eq!(x, "@ProteinTransmembrane"),
+            Ok(_) => panic!("Creating intersection should have failed but it was successful."),
+            Err(e) => panic!(
+                "Failed successfully but incorrect error type `{:?}` was returned.",
+                e
+            ),
+        }
+
+        assert!(!system.group_exists("@ProteinTransmembrane"));
     }
 
     #[test]
