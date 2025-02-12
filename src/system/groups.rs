@@ -796,6 +796,37 @@ impl Default for Groups {
 }
 
 impl Groups {
+    /// Merges groups from `rhs` into `self`.
+    ///
+    /// - If a group exists in both `self` and `rhs`, the group from `rhs` replaces the existing one, and a warning is returned.
+    /// - If the operation completes without conflicts, `self` will contain all groups from both instances.
+    /// - If multiple groups are replaced, a `MultipleAlreadyExistWarning` is returned.
+    /// - If an unexpected error occurs, the function panics.
+    ///
+    /// Returns:
+    /// - `Ok` if all groups are added without conflict.
+    /// - `GroupError::MultipleAlreadyExistWarning` if one or more groups were replaced.
+    pub fn update(&mut self, rhs: Groups) -> Result<(), GroupError> {
+        let mut duplicates = HashSet::new();
+        for (name, group) in rhs.0.into_iter() {
+            match self.add(&name, group) {
+                Ok(_) => (),
+                Err(GroupError::AlreadyExistsWarning(_)) => {
+                    duplicates.insert(name);
+                },
+                Err(e) => panic!("FATAL GROAN ERROR | Groups::update | Unexpected error type `{}` returned by `Groups::add`.", e)
+            }
+        }
+
+        if !duplicates.is_empty() {
+            Err(GroupError::MultipleAlreadyExistWarning(Box::new(
+                duplicates,
+            )))
+        } else {
+            Ok(())
+        }
+    }
+
     /// Create two groups each containing all atoms of the system: "all" and "All".
     ///
     /// ## Returns
@@ -879,8 +910,13 @@ impl Groups {
 
     /// Add a group into the collection.
     /// If a group with the same name already exists, returns `GroupError::AlreadyExistsWarning`.
+    /// If the group has an invalid name, returns `GroupError::InvalidName`.
     #[inline(always)]
     pub fn add(&mut self, name: &str, group: Group) -> Result<(), GroupError> {
+        if !crate::auxiliary::name_is_valid(name) {
+            return Err(GroupError::InvalidName(name.to_string()));
+        }
+
         match self.0.insert(name.to_string(), group) {
             None => Ok(()),
             Some(_) => Err(GroupError::AlreadyExistsWarning(name.to_string())),
@@ -932,6 +968,10 @@ impl Groups {
     /// Create a new group that is the union of the provided groups.  
     /// See [System::group_union] for more information.
     pub fn union(&mut self, group1: &str, group2: &str, union: &str) -> Result<(), GroupError> {
+        if !crate::auxiliary::name_is_valid(union) {
+            return Err(GroupError::InvalidName(union.to_string()));
+        }
+
         let group1 = self.get(group1)?;
         let group2 = self.get(group2)?;
         let group = Group::union(group1, group2);
@@ -947,6 +987,10 @@ impl Groups {
         group2: &str,
         intersection: &str,
     ) -> Result<(), GroupError> {
+        if !crate::auxiliary::name_is_valid(intersection) {
+            return Err(GroupError::InvalidName(intersection.to_string()));
+        }
+
         let group1 = self.get(group1)?;
         let group2 = self.get(group2)?;
         let group = Group::intersection(group1, group2);
@@ -2977,5 +3021,94 @@ mod tests {
         // index out of range is part of no groups
         let groups = system.groups_member(16844);
         assert!(groups.is_empty());
+    }
+
+    #[test]
+    fn groups_update_simple() {
+        let mut groups1 = Groups::default();
+        groups1
+            .add("Membrane", Group::from_indices(vec![1, 2, 3, 5], 100))
+            .unwrap();
+        groups1
+            .add("Protein", Group::from_indices(vec![4, 6, 10, 15, 20], 100))
+            .unwrap();
+
+        let groups2 = Groups::default();
+        groups1.update(groups2).unwrap();
+        assert_eq!(groups1.n_groups(), 2);
+        assert_eq!(groups1.get_n_atoms("Membrane").unwrap(), 4);
+        assert_eq!(groups1.get_n_atoms("Protein").unwrap(), 5);
+
+        let mut groups2 = Groups::default();
+        groups2
+            .add("Water", Group::from_indices(vec![21, 22, 24], 100))
+            .unwrap();
+        groups1.update(groups2).unwrap();
+        assert_eq!(groups1.n_groups(), 3);
+        assert_eq!(groups1.get_n_atoms("Membrane").unwrap(), 4);
+        assert_eq!(groups1.get_n_atoms("Protein").unwrap(), 5);
+        assert_eq!(groups1.get_n_atoms("Water").unwrap(), 3);
+    }
+
+    #[test]
+    fn groups_update_overwrite_single() {
+        let mut groups1 = Groups::default();
+        groups1
+            .add("Membrane", Group::from_indices(vec![1, 2, 3, 5], 100))
+            .unwrap();
+        groups1
+            .add("Protein", Group::from_indices(vec![4, 6, 10, 15, 20], 100))
+            .unwrap();
+
+        let mut groups2 = Groups::default();
+        groups2
+            .add("Protein", Group::from_indices(vec![4, 6], 100))
+            .unwrap();
+
+        match groups1.update(groups2) {
+            Ok(_) => panic!("Function should have returned a warning."),
+            Err(GroupError::MultipleAlreadyExistWarning(x)) => {
+                assert_eq!(x.len(), 1);
+                assert!(x.contains("Protein"));
+            }
+            Err(e) => panic!("Unexpected error type `{}` returned.", e),
+        }
+
+        assert_eq!(groups1.n_groups(), 2);
+        assert_eq!(groups1.get_n_atoms("Membrane").unwrap(), 4);
+        assert_eq!(groups1.get_n_atoms("Protein").unwrap(), 2);
+    }
+
+    #[test]
+    fn groups_update_overwrite_multiple() {
+        let mut groups1 = Groups::default();
+        groups1
+            .add("Membrane", Group::from_indices(vec![1, 2, 3, 5], 100))
+            .unwrap();
+        groups1
+            .add("Protein", Group::from_indices(vec![4, 6, 10, 15, 20], 100))
+            .unwrap();
+
+        let mut groups2 = Groups::default();
+        groups2
+            .add("Membrane", Group::from_indices(vec![], 100))
+            .unwrap();
+        groups2
+            .add("Protein", Group::from_indices(vec![4, 6], 100))
+            .unwrap();
+
+        match groups1.update(groups2) {
+            Ok(_) => panic!("Function should have returned a warning."),
+            Err(GroupError::MultipleAlreadyExistWarning(x)) => {
+                assert_eq!(x.len(), 2);
+                assert!(x.contains("Protein"));
+                assert!(x.contains("Membrane"));
+            }
+            Err(e) => panic!("Unexpected error type `{}` returned.", e),
+        }
+
+        assert_eq!(groups1.n_groups(), 2);
+        assert_eq!(groups1.get_n_atoms("Membrane").unwrap(), 0);
+        assert_eq!(groups1.get_n_atoms("Protein").unwrap(), 2);
     }
 }
