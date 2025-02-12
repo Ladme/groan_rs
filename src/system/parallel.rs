@@ -200,8 +200,8 @@ impl System {
     /// - If frame 10 and frame 1200 are both analyzed by the same thread, they are guaranteed to be visited in this order.
     /// - The original `System` structure is not modified and remains in the same state as at the start of the iteration.
     ///   That is different from the standard (serial) iteration over trajectories.
-    /// - If a single thread encounters an error during the iteration, the entire function returns an error.
-    ///   However, this error is propagated only after all the other threads finish their work.
+    /// - If a single thread encounters an error during the iteration, all threads will abort within [`ERROR_FLAG_FREQ`] frames
+    ///   and the entire function returns an error.
     #[allow(clippy::too_many_arguments)]
     pub fn traj_iter_map_reduce<'a, Reader, Data, Error>(
         &self,

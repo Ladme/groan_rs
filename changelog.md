@@ -20,6 +20,7 @@
   - The `Data` structure in `System::traj_iter_map_reduce` no longer needs to implement `Add`. Instead, it needs to implement `ParallelTrajData` which requires the user to specify how the data structures should be reduced (merged). `ParallelTrajData` also allows the user to provide a custom `initialize` function which accepts thread ID and is automatically called after spawning a thread. This allows the user to implement thread-specific behavior or to properly sort the final results.
   - `System::traj_iter_map_reduce` can be now provided a group name in case a "partial-frame" iteration should be performed. In such case, the provided `Reader` structure must be `GroupXtcReader`.
   - The `Reader` structure in `System::traj_iter_map_reduce` still needs to implement `TrajReadOpen` but it's the new trait (see 'Changes to Trajectory Iteration`).
+  - Made error propagation better. If a single thread encounters an error, all other threads will abort within 10 trajectory frames.
 
 #### Expansion of Utilities for Ignoring PBC
 - Introduced `NaiveShape` trait for geometry filtering ignoring PBC and implemented this trait for `Sphere`, `Rectangular`, and `Cylinder`.
