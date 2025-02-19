@@ -544,6 +544,9 @@ pub enum SimBoxError {
     /// Used when the simulation box is not orthogonal but is required to be.
     #[error("{} simulation box is not orthogonal but is required to be", "error:".red().bold())]
     NotOrthogonal,
+    /// Used when all dimensions of the simulation box are zero but they are required not to be.
+    #[error("{} all dimensions of the simulation box are zero", "error".red().bold())]
+    AllDimensionsZero,
 }
 
 /// Errors that can occur when working with positions of atoms.
@@ -671,4 +674,20 @@ pub enum TrajConvertAnalysisError<ConvertAnalyzerError: std::error::Error> {
     /// Used when frame of the trajectory could not be converted or analyzed.
     #[error("{}", .0)]
     ConversionAnalysisError(ConvertAnalyzerError),
+}
+
+/// Errors that can occur when working with CellGrid.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum CellGridError {
+    /// Used when the simulation box is undefined or not orthogonal.
+    #[error("{}", .0)]
+    SimBoxError(SimBoxError),
+
+    /// Used when there was some issue with groups while working with the CellGrid.
+    #[error("{}", .0)]
+    GroupError(GroupError),
+
+    /// Used when an error occurs while working with an atom of the system.
+    #[error("{}", .0)]
+    AtomError(AtomError),
 }

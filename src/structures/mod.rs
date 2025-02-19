@@ -4,6 +4,7 @@
 //! Implementation of various structures used in the `groan_rs` library.
 
 pub mod atom;
+pub mod cellgrid;
 pub(crate) mod container;
 pub mod dimension;
 pub mod element;
