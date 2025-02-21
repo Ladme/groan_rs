@@ -299,6 +299,50 @@ impl<'a> AtomIterable<'a> for MoleculeIterator<'a> {
     type AtomRef = &'a Atom;
 }
 
+/// Immutable iterator over atoms.
+/// The atoms may be returned in any order.
+#[derive(Debug, Clone)]
+pub struct UnorderedAtomIterator<'a, I: Iterator<Item = usize>> {
+    atoms: &'a [Atom],
+    iterator: I,
+    simbox: Option<&'a SimBox>,
+}
+
+impl<'a, I: Iterator<Item = usize>> Iterator for UnorderedAtomIterator<'a, I> {
+    type Item = &'a Atom;
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<Self::Item> {
+        unsafe {
+            self.iterator
+                .next()
+                .and_then(|index| Some(self.atoms.get_unchecked(index)))
+        }
+    }
+}
+
+impl<'a, I: Iterator<Item = usize>> HasBox for UnorderedAtomIterator<'a, I> {
+    #[inline(always)]
+    fn get_simbox(&self) -> Option<&SimBox> {
+        self.simbox
+    }
+}
+
+impl<'a, I: Iterator<Item = usize>> AtomIterable<'a> for UnorderedAtomIterator<'a, I> {
+    type AtomRef = &'a Atom;
+}
+
+impl<'a, I: Iterator<Item = usize>> UnorderedAtomIterator<'a, I> {
+    #[inline(always)]
+    pub(crate) fn new(atoms: &'a [Atom], iterator: I, simbox: Option<&'a SimBox>) -> Self {
+        UnorderedAtomIterator {
+            atoms,
+            iterator,
+            simbox,
+        }
+    }
+}
+
 /**************************/
 /*    MUTABLE ITERATORS   */
 /**************************/

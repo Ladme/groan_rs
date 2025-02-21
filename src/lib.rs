@@ -417,5 +417,6 @@ pub mod prelude {
     pub use crate::system::ParallelTrajData;
     pub use crate::system::System;
 
+    pub use crate::structures::cellgrid::{CellGrid, CellNeighbors};
     pub use crate::system::groups::Groups;
 }

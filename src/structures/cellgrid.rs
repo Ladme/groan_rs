@@ -5,6 +5,9 @@
 
 // TODO! Write documentation for methods.
 
+use std::ops::Range;
+
+use itertools::iproduct;
 use ndarray::Array3;
 
 use crate::{
@@ -13,18 +16,95 @@ use crate::{
     system::System,
 };
 
-use super::{atom::Atom, simbox::SimBox};
+use super::{atom::Atom, iterators::UnorderedAtomIterator, simbox::SimBox};
 
 /// Only supports orthogonal simulation boxes.
 #[derive(Debug, Clone)]
-pub struct CellGrid {
+pub struct CellGrid<'a> {
+    /// Grid of cells storing atom indices.
     grid: Array3<Vec<usize>>,
-    cell_dim: Vector3D,
+    /// Dimensions of each cell of the grid.
+    cell_size: Vector3D,
+    /// List of all atoms in the system.
+    atoms: &'a [Atom],
+    /// Simulation box.
+    simbox: &'a SimBox,
 }
 
-impl CellGrid {
+/// Specifies the range of cells, relative to the reference cell, which should
+/// be visited in each dimension when searching for neighbours in a CellGrid.
+/// When this structure is used in `neighbors_iter` method, it guarantess that no
+/// cell is visited multiple times.
+#[derive(Debug, Clone)]
+pub struct CellNeighbors {
+    /// Range of neighboring cells along the x-axis.
+    x: Range<isize>,
+    /// Range of neighboring cells along the y-axis.
+    y: Range<isize>,
+    /// Range of neighboring cells along the z-axis.
+    z: Range<isize>,
+}
+
+impl Default for CellNeighbors {
+    /// Construct a default `CellNeighbors` structure.
+    /// Use only if your cutoff is isotropic and the size of
+    /// the cells of your grid is equal to or larger than the cutoff.
+    fn default() -> Self {
+        CellNeighbors {
+            x: -1..2,
+            y: -1..2,
+            z: -1..2,
+        }
+    }
+}
+
+impl CellNeighbors {
+    /// Set the range of cells, relative to the reference cell,
+    /// which should be visited in each dimension when searching for
+    /// neighbours in a CellGrid.
+    ///
+    /// ## Examples
+    /// The examples assume that the size of each cell in your grid is 1×1×1 nm.
+    /// - If your cutoff is 0.8 nm, use a range of `-1..=1` for each dimension.
+    ///   (In this scenario, you can also simply call `CellNeighbors::default`.)
+    /// - If your cutoff is 2.9 nm, use a range of `-3..=3` for each dimension.
+    /// - If your cutoff is 0.9 nm in the xy-plane and 1.3 nm along the z-axis,
+    ///   use a range of `-1..=1` for x- and y-dimensions and `-2..=2` for the z-dimension.
+    /// - If your cutoff is 1.3 nm in the z-dimension and there is no cutoff for the
+    ///   x- and y-dimensions, use a range of `-2..=2` for the z-dimension and
+    ///   `isize::MIN..=isize::MAX` for the x- and y-dimensions.
+    ///   *The range will be automatically "trimmed" to include all cells along these dimensions exactly once.*
+    /// - If your cutoff is 1.8 nm, but only in the positive direction of each dimension
+    ///   (i.e., you are not interested what is "behind" and "below" the reference point),
+    ///   use a range of `0..=2` for each dimension.
+    pub fn new(x: Range<isize>, y: Range<isize>, z: Range<isize>) -> Self {
+        CellNeighbors { x, y, z }
+    }
+
+    /// Trim the ranges so that each cell is visited at most once.
+    fn trim(&mut self, xcells: usize, ycells: usize, zcells: usize) {
+        if self.x.len() > xcells {
+            self.x = 0..xcells as isize;
+        }
+
+        if self.y.len() > ycells {
+            self.y = 0..ycells as isize;
+        }
+
+        if self.z.len() > zcells {
+            self.z = 0..zcells as isize;
+        }
+    }
+}
+
+impl<'a> CellGrid<'a> {
     /// If `cell_size` is larger than any dimension of the simulation box, the smallest dimension of the box is used instead.
-    pub fn new(system: &System, group: &str, cell_size: f32) -> Result<CellGrid, CellGridError> {
+    /// TODO: error for negative cell size
+    pub fn new(
+        system: &'a System,
+        group: &str,
+        cell_size: f32,
+    ) -> Result<CellGrid<'a>, CellGridError> {
         let simbox = system
             .get_box()
             .ok_or_else(|| CellGridError::SimBoxError(SimBoxError::DoesNotExist))?;
@@ -41,7 +121,7 @@ impl CellGrid {
         let ycells = Self::n_cells(simbox.y, cell_size);
         let zcells = Self::n_cells(simbox.z, cell_size);
 
-        let cell_dim = Vector3D::new(
+        let cell_size = Vector3D::new(
             simbox.x / xcells as f32,
             simbox.y / ycells as f32,
             simbox.z / zcells as f32,
@@ -54,7 +134,7 @@ impl CellGrid {
             .group_iter(group)
             .map_err(CellGridError::GroupError)?
         {
-            let index = Self::atom2cell(atom, &cell_dim, simbox)?;
+            let index = Self::atom2cell(atom, &cell_size, simbox)?;
 
             match grid.get_mut(index) {
                 Some(x) => {
@@ -68,51 +148,65 @@ impl CellGrid {
             }
         }
 
-        Ok(CellGrid { grid, cell_dim })
+        Ok(CellGrid {
+            grid,
+            cell_size,
+            atoms: system.get_atoms(),
+            simbox,
+        })
     }
 
-    /// Iterate through all atoms that are located inside the same cell as the `reference` and in the neighbouring cells.
-    /// The `reference` atom IS ALSO included in the iterator. The order of iteration is undefined.
-    /// The `atoms` must be all the atoms of the system.
-    pub fn iter_neighbours<'a>(
-        &self,
-        reference: usize,
-        atoms: &'a [Atom],
-        simbox: &SimBox,
-    ) -> Result<impl Iterator<Item = &'a Atom> + use<'a, '_>, CellGridError> {
+    /// Returns an iterator over all atoms that have been assigned into the `CellGrid`
+    /// and that are located in the same cell as the `reference` point and its neighboring cells.
+    ///
+    /// ## Params
+    /// - `reference` - coordinates of the reference point
+    /// - `ranges` - specifies what cells should be considered neighbors,
+    ///    see [`CellNeighbors`] for more information
+    ///
+    /// ## Notes
+    /// - Assumes periodic boundary conditions in all dimensions.
+    /// - The order in which the neighboring atoms are visited is **undefined**,
+    ///   but each atom will be visited at most once.
+    /// - The `reference` point does not need to be wrapped into the simulation box.
+    ///   It is wrapped automatically inside the method.
+    /// - Note that **no** optimization in the form of removing distant diagonal cells is performed.
+    ///
+    pub fn neighbors_iter(
+        &'a self,
+        mut reference: Vector3D,
+        mut ranges: CellNeighbors,
+    ) -> Result<UnorderedAtomIterator<'a, impl Iterator<Item = usize> + 'a>, CellGridError> {
+        reference.wrap(&self.simbox);
+        let [x, y, z] = Self::pos2index(&reference, &self.cell_size);
         let (xcells, ycells, zcells) = self.grid.dim();
 
-        let atom = atoms
-            .get(reference)
-            .ok_or_else(|| CellGridError::AtomError(AtomError::OutOfRange(reference)))?;
-        let [x, y, z] = Self::atom2cell(atom, &self.cell_dim, simbox)?;
+        // make sure that no cell is visited multiple times
+        ranges.trim(xcells, ycells, zcells);
 
-        Ok([-1isize, 0, 1]
-            .iter()
-            .flat_map(move |&dz| {
-                [-1isize, 0, 1].iter().flat_map(move |&dy| {
-                    [-1isize, 0, 1].iter().flat_map(move |&dx| {
-                        let nx = ((x as isize + dx).rem_euclid(xcells as isize)) as usize;
-                        let ny = ((y as isize + dy).rem_euclid(ycells as isize)) as usize;
-                        let nz = ((z as isize + dz).rem_euclid(zcells as isize)) as usize;
-                        self.grid
-                            .get([nx, ny, nz])
-                            .expect("FATAL GROAN ERROR | CellGrid::iter_neighbours | Nonexistent cell visited.")
-                            .iter()
-                    })
-                })
-            })
-            .map(|index| atoms
-                .get(*index)
-                .expect("FATAL GROAN ERROR | CellGrid::iter_neighbours | Atom should be present in the vector of atoms.")
-            )
-        )
+        let iterator = iproduct!(ranges.z, ranges.y, ranges.x).flat_map(move |(dz, dy, dx)| {
+            let nx = ((x as isize + dx).rem_euclid(xcells as isize)) as usize;
+            let ny = ((y as isize + dy).rem_euclid(ycells as isize)) as usize;
+            let nz = ((z as isize + dz).rem_euclid(zcells as isize)) as usize;
+
+            self.grid
+                .get([nx, ny, nz])
+                .expect("FATAL GROAN ERROR | CellGrid::iter_neighbours | Nonexistent cell visited.")
+                .iter()
+                .cloned()
+        });
+
+        Ok(UnorderedAtomIterator::new(
+            &self.atoms,
+            iterator,
+            Some(&self.simbox),
+        ))
     }
 
-    /// Calculate the number of bins along a dimension of the simulation box.
+    /// Calculate the number of cells along a dimension of the simulation box.
     ///
     /// ## Panics
-    /// - Panics if `box_len` or `bin_size` are not positive.
+    /// - Panics if `box_len` or `cell_size` are not positive.
     #[inline]
     fn n_cells(box_len: f32, cell_size: f32) -> usize {
         assert!(
@@ -127,10 +221,10 @@ impl CellGrid {
         (box_len / cell_size).floor().max(1.0) as usize
     }
 
-    /// Get the cell of the grid this atom is located in.
+    /// Get the index of the cell this atom is located in.
     fn atom2cell(
         atom: &Atom,
-        cell_dim: &Vector3D,
+        cell_size: &Vector3D,
         simbox: &SimBox,
     ) -> Result<[usize; 3], CellGridError> {
         let mut pos = atom
@@ -144,16 +238,16 @@ impl CellGrid {
         // wrap the atom into the simulation box
         pos.wrap(simbox);
 
-        Ok(Self::pos2index(&pos, cell_dim))
+        Ok(Self::pos2index(&pos, cell_size))
     }
 
     /// Convert a position to index of the cell of the grid.
     #[inline(always)]
-    fn pos2index(pos: &Vector3D, cell_dim: &Vector3D) -> [usize; 3] {
+    fn pos2index(pos: &Vector3D, cell_size: &Vector3D) -> [usize; 3] {
         [
-            (pos.x / cell_dim.x).floor() as usize,
-            (pos.y / cell_dim.y).floor() as usize,
-            (pos.z / cell_dim.z).floor() as usize,
+            (pos.x / cell_size.x).floor() as usize,
+            (pos.y / cell_size.y).floor() as usize,
+            (pos.z / cell_size.z).floor() as usize,
         ]
     }
 }
@@ -197,14 +291,17 @@ mod tests {
 
         let cellgrid = CellGrid::new(&system, "Protein", 0.5).unwrap();
 
+        println!("{:?}", cellgrid.cell_size);
+        println!("{:?}", cellgrid.grid.dim());
+        println!("{:?}", cellgrid.grid);
+
         let mut nearby_cellgrid: Vec<Vec<usize>> = Vec::new();
         for atom in system.group_iter("Protein").unwrap() {
             nearby_cellgrid.push(
                 cellgrid
-                    .iter_neighbours(
-                        atom.get_index(),
-                        system.get_atoms(),
-                        system.get_box().unwrap(),
+                    .neighbors_iter(
+                        atom.get_position().unwrap().clone(),
+                        CellNeighbors::default(),
                     )
                     .unwrap()
                     .filter_map(|a| {
