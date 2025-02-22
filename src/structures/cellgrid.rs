@@ -312,6 +312,7 @@ impl<'a> CellGrid<'a> {
         let xcells = Self::n_cells(simbox.x, cell_size);
         let ycells = Self::n_cells(simbox.y, cell_size);
         let zcells = Self::n_cells(simbox.z, cell_size);
+        let cells = [xcells, ycells, zcells];
 
         let cell_size = Vector3D::new(
             simbox.x / xcells as f32,
@@ -326,14 +327,14 @@ impl<'a> CellGrid<'a> {
             .group_iter(group)
             .map_err(CellGridError::GroupError)?
         {
-            let index = Self::atom2cell(atom, &cell_size, simbox)?;
+            let index = Self::atom2cell(atom, &cell_size, &cells, simbox)?;
 
             match grid.get_mut(index) {
                 Some(x) => {
                     x.push(atom.get_index());
                 }
                 None => panic!(
-                    "FATAL GROAN ERROR | CellGrid::new | Bin index `{:?}` is out of range.",
+                    "FATAL GROAN ERROR | CellGrid::new | Cell index `{:?}` is out of range.",
                     index
                 ),
             }
@@ -368,7 +369,8 @@ impl<'a> CellGrid<'a> {
         ranges: CellNeighbors,
     ) -> UnorderedAtomIterator<'a, impl Iterator<Item = usize> + 'a> {
         reference.wrap(&self.simbox);
-        let [x, y, z] = Self::pos2index(&reference, &self.cell_size);
+        let cells = self.grid.dim();
+        let [x, y, z] = Self::pos2index(&reference, &self.cell_size, &[cells.0, cells.1, cells.2]);
         let (xcells, ycells, zcells) = self.grid.dim();
 
         // make sure that no cell is visited multiple times
@@ -429,6 +431,7 @@ impl<'a> CellGrid<'a> {
     fn atom2cell(
         atom: &Atom,
         cell_size: &Vector3D,
+        ncells: &[usize; 3],
         simbox: &SimBox,
     ) -> Result<[usize; 3], CellGridError> {
         let mut pos = atom
@@ -442,16 +445,16 @@ impl<'a> CellGrid<'a> {
         // wrap the atom into the simulation box
         pos.wrap(simbox);
 
-        Ok(Self::pos2index(&pos, cell_size))
+        Ok(Self::pos2index(&pos, cell_size, ncells))
     }
 
     /// Convert a position to index of the cell of the grid.
     #[inline(always)]
-    fn pos2index(pos: &Vector3D, cell_size: &Vector3D) -> [usize; 3] {
+    fn pos2index(pos: &Vector3D, cell_size: &Vector3D, ncells: &[usize; 3]) -> [usize; 3] {
         [
-            (pos.x / cell_size.x).floor() as usize,
-            (pos.y / cell_size.y).floor() as usize,
-            (pos.z / cell_size.z).floor() as usize,
+            ((pos.x / cell_size.x).floor() as usize).rem_euclid(ncells[0]),
+            ((pos.y / cell_size.y).floor() as usize).rem_euclid(ncells[1]),
+            ((pos.z / cell_size.z).floor() as usize).rem_euclid(ncells[2]),
         ]
     }
 }
