@@ -690,4 +690,8 @@ pub enum CellGridError {
     /// Used when an error occurs while working with an atom of the system.
     #[error("{}", .0)]
     AtomError(AtomError),
+
+    /// Used when the requested minimal cell size is not positive.
+    #[error("{} minimal cell size for a cell grid must be larger than 0.0, not `{}`", "error:".red().bold(), .0.yellow())]
+    InvalidCellSize(String)
 }
