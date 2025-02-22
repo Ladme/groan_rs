@@ -526,6 +526,27 @@ mod tests {
     }
 
     #[test]
+    fn test_new_cellgrid_at_edges() {
+        let atoms = iproduct!(1..11, 1..10, 1..14)
+            .map(|(x, y, z)| {
+                Atom::new(1, "LYS", 1, "BB")
+                    .with_position(Vector3D::new(x as f32, y as f32, z as f32))
+            })
+            .collect::<Vec<Atom>>();
+
+        let system = System::new(
+            "Artificial system for testing cell grid",
+            atoms,
+            Some([10.0, 9.0, 13.0].into()),
+        );
+
+        let cellgrid = CellGrid::new(&system, "all", 1.0).unwrap();
+        for cell in cellgrid.grid.iter() {
+            assert_eq!(cell.len(), 1);
+        }
+    }
+
+    #[test]
     fn test_artificial_neighbors_iter() {
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
         let atoms = iproduct!(0..10, 0..9, 0..13)
