@@ -533,6 +533,10 @@ pub enum ElementError {
     /// This is a warning and does not indicate failure of the function.
     #[error("{} when guessing bonds, following concerns have been raised:\n{}", "warning:".yellow().bold(), .0.to_string())]
     BondsGuessWarning(Box<BondsGuessInfo>),
+
+    /// Used in `System::guess_bonds`. The only possible error is a CellGrid error.
+    #[error("{} (this error occured when guessing bonds)", .0)]
+    BondGuessError(CellGridError),
 }
 
 /// Errors that can occur when working with simulation box.

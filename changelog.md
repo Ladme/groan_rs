@@ -12,6 +12,13 @@
 - All trajectory file formats supported by `chemfiles` can be now read using `System::traj_iter<ChemfilesReader>`. However, only XTC, TRR, TNG, DCD, Amber NetCDF, and LAMMPSTRJ are independently tested by `groan_rs`. Be careful when working with other file formats since these may not work properly.
 - To enable integration with `chemfiles`, you have to enable the `chemfiles` feature.
 
+#### CellGrid
+- Implemented a `CellGrid` (also known as cell lists) structure for efficient pairwise distance calculations within a cutoff.
+- New atom iterator, `UnorderedAtomIterator`, has been implemented.
+- `System::guess_bonds` has been reimplemented using a `CellGrid` making it **much** more efficient, especially for large systems.
+- **Breaking change:** `System::guess_bonds_parallel` has been removed. (But the new `System::guess_bonds` is now much faster than `System::guess_bonds_parallel` has been.)
+
+
 #### Changes to Trajectory Iteration
 - **Breaking change:** `TrajReadOpen` trait has been renamed to `TrajFullReadOpen`. The original `TrajReadOpen` trait now requires implementing the `initialize` method which can be used to construct either `TrajFullReadOpen` structure 
 

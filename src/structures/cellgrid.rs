@@ -34,6 +34,8 @@ use super::{atom::Atom, iterators::UnorderedAtomIterator, simbox::SimBox};
 /// for each lipid molecule:
 ///
 /// ```no_run
+/// # use groan_rs::prelude::*;
+/// #
 /// // Calculate the local membrane center for each lipid molecule in a molecular system.
 /// fn calc_local_membrane_centers() -> Result<Vec<Vector3D>, Box<dyn std::error::Error + Send + Sync>>
 /// {
@@ -83,6 +85,8 @@ use super::{atom::Atom, iterators::UnorderedAtomIterator, simbox::SimBox};
 /// and use it to efficiently select nearby atoms:
 ///
 /// ```no_run
+/// # use groan_rs::prelude::*;
+/// #
 /// // Calculate the local membrane center for each lipid molecule in a molecular system using a CellGrid.
 /// fn calc_local_membrane_centers_cellgrid(
 /// ) -> Result<Vec<Vector3D>, Box<dyn std::error::Error + Send + Sync>> {
@@ -117,7 +121,7 @@ use super::{atom::Atom, iterators::UnorderedAtomIterator, simbox::SimBox};
 ///                 // additionally, it considers all cells above and below along the z-axis, since the
 ///                 // cylinder has an infinite height in the z-direction
 ///                 CellNeighbors::new(-1..=1, -1..=1, ..),
-///             )?
+///             )
 ///             // select only the neighboring atoms that are inside the cylinder
 ///             .filter_geometry(cylinder)
 ///             // compute the geometric center of these atoms
@@ -362,7 +366,7 @@ impl<'a> CellGrid<'a> {
         &'a self,
         mut reference: Vector3D,
         ranges: CellNeighbors,
-    ) -> Result<UnorderedAtomIterator<'a, impl Iterator<Item = usize> + 'a>, CellGridError> {
+    ) -> UnorderedAtomIterator<'a, impl Iterator<Item = usize> + 'a> {
         reference.wrap(&self.simbox);
         let [x, y, z] = Self::pos2index(&reference, &self.cell_size);
         let (xcells, ycells, zcells) = self.grid.dim();
@@ -382,11 +386,7 @@ impl<'a> CellGrid<'a> {
                 .cloned()
         });
 
-        Ok(UnorderedAtomIterator::new(
-            &self.atoms,
-            iterator,
-            Some(&self.simbox),
-        ))
+        UnorderedAtomIterator::new(&self.atoms, iterator, Some(&self.simbox))
     }
 
     /// Check that the simulation box exists, is non-zero and orthogonal.
@@ -584,7 +584,6 @@ mod tests {
                             Vector3D::new(x as f32 + dx, y as f32 + dy, z as f32 + dz),
                             neighbors.clone()
                         )
-                        .unwrap()
                         .count(),
                     expected
                 );
@@ -670,7 +669,6 @@ mod tests {
         nearby_atoms.push(
             cellgrid
                 .neighbors_iter(position, neighbors)
-                .unwrap()
                 .filter_geometry(geometry)
                 .map(|atom| atom.get_index())
                 .collect::<Vec<usize>>(),

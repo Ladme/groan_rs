@@ -440,6 +440,7 @@ impl System {
     ///
     /// `n_atoms` must be >= `n_threads`.
     /// `n_threads` must be > 0.
+    #[allow(dead_code)]
     pub(crate) fn distribute_atoms(&self, n_atoms: usize, n_threads: usize) -> Vec<(usize, usize)> {
         let atoms_per_thread = n_atoms / n_threads;
         let mut extra_atoms = n_atoms % n_threads;
