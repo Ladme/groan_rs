@@ -463,7 +463,7 @@ impl<'a> CellGrid<'a> {
 mod tests {
     use float_cmp::assert_approx_eq;
     use itertools::izip;
-    use rand::{seq::SliceRandom, Rng, SeedableRng};
+    use rand::{seq::IndexedRandom, Rng, SeedableRng};
 
     use crate::prelude::{AtomIteratorWithBox, Cylinder, Dimension, Rectangular, Shape, Sphere};
 
@@ -551,7 +551,7 @@ mod tests {
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
         let atoms = iproduct!(0..10, 0..9, 0..13)
             .map(|(x, y, z)| {
-                let (dx, dy, dz): (f32, f32, f32) = (rng.gen(), rng.gen(), rng.gen());
+                let (dx, dy, dz): (f32, f32, f32) = (rng.random(), rng.random(), rng.random());
                 Atom::new(1, "LYS", 1, "BB").with_position(Vector3D::new(
                     x as f32 + dx,
                     y as f32 + dy,
@@ -601,7 +601,7 @@ mod tests {
             (CellNeighbors::new(RangeFull, RangeFull, RangeFull), 1170),
         ] {
             for (x, y, z) in iproduct!(-1..11, -1..10, -1..14) {
-                let (dx, dy, dz): (f32, f32, f32) = (rng.gen(), rng.gen(), rng.gen());
+                let (dx, dy, dz): (f32, f32, f32) = (rng.random(), rng.random(), rng.random());
                 assert_eq!(
                     cellgrid
                         .neighbors_iter(

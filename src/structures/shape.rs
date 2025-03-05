@@ -549,12 +549,12 @@ mod tests_sphere {
 
         let sphere = Sphere::new(sphere_center.clone(), sphere_radius);
         let simbox = SimBox::from([5.0, 5.0, 5.0]);
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         for _ in 0..100 {
-            let x = rng.gen_range(0.0..5.0);
-            let y = rng.gen_range(0.0..5.0);
-            let z = rng.gen_range(0.0..5.0);
+            let x = rng.random_range(0.0..5.0);
+            let y = rng.random_range(0.0..5.0);
+            let z = rng.random_range(0.0..5.0);
 
             let point = Vector3D::new(x, y, z);
 
@@ -589,12 +589,12 @@ mod tests_sphere {
         let sphere_radius = 2.5;
 
         let sphere = Sphere::new(sphere_center.clone(), sphere_radius);
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         for _ in 0..100 {
-            let x = rng.gen_range(0.0..5.0);
-            let y = rng.gen_range(0.0..5.0);
-            let z = rng.gen_range(0.0..5.0);
+            let x = rng.random_range(0.0..5.0);
+            let y = rng.random_range(0.0..5.0);
+            let z = rng.random_range(0.0..5.0);
 
             let point = Vector3D::new(x, y, z);
 
