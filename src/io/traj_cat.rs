@@ -6,7 +6,7 @@
 use std::marker::PhantomData;
 use std::path::Path;
 
-use crate::prelude::TrajFullReadOpen;
+use crate::prelude::{TrajFullReadOpen, TrajGroupReadOpen};
 use crate::{errors::ReadTrajError, io::traj_read::TrajRead, system::System};
 
 use crate::io::traj_read::{
@@ -353,6 +353,38 @@ impl System {
         let readers: Result<Vec<Read>, _> = filenames
             .iter()
             .map(|name| unsafe { Read::new(&mut *system, name) })
+            .collect();
+
+        readers.map(TrajConcatenator::new)
+    }
+}
+
+#[cfg(feature = "molly")]
+impl System {
+    /// Iterate through multiple trajectory files while reading only the coordinates
+    /// of the specified group.
+    ///
+    /// In all other aspects, works the same as [`System::traj_cat_iter`].
+    ///
+    /// See also [`System::group_xtc_iter`] for more information about partial frame reading.
+    ///
+    pub fn group_traj_cat_iter<'a, Read>(
+        &mut self,
+        filenames: &[impl AsRef<Path>],
+        group: &str,
+    ) -> Result<TrajReader<'a, TrajConcatenator<'a, Read>>, ReadTrajError>
+    where
+        Read: TrajGroupReadOpen<'a>,
+        Read::FrameData: FrameDataTime,
+    {
+        if filenames.is_empty() {
+            return Err(ReadTrajError::CatNoTrajectories);
+        }
+
+        let system = self as *mut System;
+        let readers: Result<Vec<Read>, _> = filenames
+            .iter()
+            .map(|name| unsafe { Read::new(&mut *system, name, group) })
             .collect();
 
         readers.map(TrajConcatenator::new)
@@ -951,6 +983,126 @@ mod tests {
                 "test_files/split/traj_nonexistent.trr"
             ),
             Err(e) => panic!("Incorrect error type returned `{}`", e),
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "molly")]
+    fn cat_xtc_group_simple() {
+        use crate::prelude::GroupXtcReader;
+
+        let mut system_single = System::from_file("test_files/example.gro").unwrap();
+        system_single.group_create("Protein", "@protein").unwrap();
+        let mut system_cat = System::from_file("test_files/example.gro").unwrap();
+        system_cat.group_create("Protein", "@protein").unwrap();
+
+        let traj_single = system_single
+            .group_xtc_iter("test_files/short_trajectory.xtc", "Protein")
+            .unwrap();
+        let traj_cat = system_cat
+            .group_traj_cat_iter::<GroupXtcReader>(
+                &[
+                    "test_files/split/traj1.xtc",
+                    "test_files/split/traj2.xtc",
+                    "test_files/split/traj3.xtc",
+                    "test_files/split/traj4.xtc",
+                    "test_files/split/traj5.xtc",
+                    "test_files/split/traj6.xtc",
+                ],
+                "Protein",
+            )
+            .unwrap();
+
+        for (frame_single, frame_cat) in traj_single.zip(traj_cat) {
+            let frame_single = frame_single.unwrap();
+            let frame_cat = frame_cat.unwrap();
+
+            assert_approx_eq!(
+                f32,
+                frame_single.get_simulation_time(),
+                frame_cat.get_simulation_time()
+            );
+            assert_eq!(
+                frame_single.get_simulation_step(),
+                frame_cat.get_simulation_step()
+            );
+
+            compare_box(
+                frame_single.get_box().unwrap(),
+                frame_cat.get_box().unwrap(),
+            );
+
+            for (atom_single, atom_cat) in frame_single.atoms_iter().zip(frame_cat.atoms_iter()) {
+                compare_atoms(atom_single, atom_cat);
+            }
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "molly")]
+    fn cat_xtc_group_steps_with_ranges() {
+        use crate::prelude::GroupXtcReader;
+
+        let ranges = vec![(0.0, 570.0), (320.0, f32::MAX), (220.0, 800.0)];
+
+        for step in 2..=11 {
+            for (start, end) in &ranges {
+                let mut system_single = System::from_file("test_files/example.gro").unwrap();
+                system_single.group_create("Protein", "@protein").unwrap();
+                let mut system_cat = System::from_file("test_files/example.gro").unwrap();
+                system_cat.group_create("Protein", "@protein").unwrap();
+
+                let traj_single = system_single
+                    .group_xtc_iter("test_files/short_trajectory.xtc", "Protein")
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap()
+                    .with_range(*start, *end)
+                    .unwrap();
+                let traj_cat = system_cat
+                    .group_traj_cat_iter::<GroupXtcReader>(
+                        &[
+                            "test_files/split/traj1.xtc",
+                            "test_files/split/traj2.xtc",
+                            "test_files/split/traj3.xtc",
+                            "test_files/split/traj4.xtc",
+                            "test_files/split/traj5.xtc",
+                            "test_files/split/traj6.xtc",
+                        ],
+                        "Protein",
+                    )
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap()
+                    .with_range(*start, *end)
+                    .unwrap();
+
+                for (frame_single, frame_cat) in traj_single.zip(traj_cat) {
+                    let frame_single = frame_single.unwrap();
+                    let frame_cat = frame_cat.unwrap();
+
+                    assert_approx_eq!(
+                        f32,
+                        frame_single.get_simulation_time(),
+                        frame_cat.get_simulation_time()
+                    );
+                    assert_eq!(
+                        frame_single.get_simulation_step(),
+                        frame_cat.get_simulation_step()
+                    );
+
+                    compare_box(
+                        frame_single.get_box().unwrap(),
+                        frame_cat.get_box().unwrap(),
+                    );
+
+                    for (atom_single, atom_cat) in
+                        frame_single.atoms_iter().zip(frame_cat.atoms_iter())
+                    {
+                        compare_atoms(atom_single, atom_cat);
+                    }
+                }
+            }
         }
     }
 }
