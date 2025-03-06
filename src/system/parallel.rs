@@ -11,12 +11,12 @@ use std::{
     },
 };
 
+#[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
+use crate::io::traj_cat::TrajConcatenator;
+
 use crate::{
-    io::{
-        traj_cat::TrajConcatenator,
-        traj_read::{
-            FrameDataTime, TrajMasterRead, TrajRangeRead, TrajRead, TrajReadOpen, TrajStepRead,
-        },
+    io::traj_read::{
+        FrameDataTime, TrajMasterRead, TrajRangeRead, TrajRead, TrajReadOpen, TrajStepRead,
     },
     prelude::{TrajReader, TrajStepTimeRead},
     progress::{ProgressPrinter, ProgressStatus},
@@ -268,81 +268,6 @@ impl System {
         })
     }
 
-    /// This method performs embarrassingly parallel iteration over multiple trajectory files using the MapReduce parallel scheme.
-    /// Duplicate frames at trajectory boundaries are ignored.
-    ///
-    /// See [`System::traj_iter_map_reduce`] for more information about parallel iteration.
-    ///
-    /// See [`System::traj_cat_iter`] for more information about trajectory concatenation.
-    #[allow(clippy::too_many_arguments)]
-    pub fn traj_iter_cat_map_reduce<'a, Reader, Data, Error>(
-        &self,
-        trajectory_files: &[impl AsRef<Path> + Send + Sync],
-        n_threads: usize,
-        body: impl Fn(&System, &mut Data) -> Result<(), Error> + Send + Clone,
-        init_data: Data,
-        group: Option<&str>,
-        start_time: Option<f32>,
-        end_time: Option<f32>,
-        step: Option<usize>,
-        progress_printer: Option<ProgressPrinter>,
-    ) -> Result<Data, Box<dyn std::error::Error + Send + Sync>>
-    where
-        Reader: TrajReadOpen<'a>
-            + TrajRangeRead<'a>
-            + TrajStepRead<'a>
-            + TrajStepTimeRead<'a>
-            + TrajRead<'a>
-            + 'a,
-        <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
-        Data: Clone + ParallelTrajData,
-        Error: std::error::Error + Send + Sync + 'static,
-    {
-        if n_threads == 0 {
-            panic!("FATAL GROAN ERROR | System::traj_iter_cat_map_reduce | Number of threads to spawn must be > 0.");
-        }
-
-        let error_flag = Arc::new(AtomicBool::new(false));
-
-        std::thread::scope(|s| {
-            let mut handles = Vec::new();
-
-            for n in 0..n_threads {
-                let system_clone = self.clone();
-                let body_clone = body.clone();
-                let filenames = trajectory_files;
-                let progress_clone = progress_printer.clone();
-                let mut data = init_data.clone();
-                let error_flag_clone = error_flag.clone();
-                data.initialize(n);
-
-                let handle = s.spawn(
-                move || -> (Result<Data, Box<dyn std::error::Error + Send + Sync>>, u64, f32) {
-                    match system_clone.thread_cat_iter::<Reader, Data, Error>(
-                        &mut data,
-                        filenames,
-                        n,
-                        n_threads,
-                        body_clone,
-                        group,
-                        start_time,
-                        end_time,
-                        step,
-                        progress_clone,
-                        error_flag_clone,
-                    ) {
-                        (Ok(_), step, time) => (Ok(data), step, time),
-                        (Err(e), step, time) => (Err(e), step, time),
-                    }
-                },
-            );
-                handles.push(handle);
-            }
-
-            Self::process_thread_results(handles, progress_printer)
-        })
-    }
-
     /// Process results from the individual threads.
     #[inline(always)]
     fn process_thread_results<Data: ParallelTrajData>(
@@ -435,61 +360,6 @@ impl System {
                 return (Err(Box::from(e)), 0, 0.0);
             }
         };
-
-        self.thread_run(
-            data,
-            iterator,
-            thread_number,
-            n_threads,
-            body,
-            start_time,
-            end_time,
-            step,
-            progress_printer,
-            error_flag,
-        )
-    }
-
-    /// Iterate over a part of concatenated trajectories in a single thread.
-    #[allow(clippy::too_many_arguments)]
-    fn thread_cat_iter<'a, Reader, Data, Error>(
-        mut self,
-        data: &mut Data,
-        filenames: &[impl AsRef<Path>],
-        thread_number: usize,
-        n_threads: usize,
-        body: impl Fn(&System, &mut Data) -> Result<(), Error>,
-        group: Option<&str>,
-        start_time: Option<f32>,
-        end_time: Option<f32>,
-        step: Option<usize>,
-        progress_printer: Option<ProgressPrinter>,
-        error_flag: Arc<AtomicBool>,
-    ) -> (
-        Result<(), Box<dyn std::error::Error + Send + Sync>>,
-        u64,
-        f32,
-    )
-    where
-        Reader: TrajReadOpen<'a>
-            + TrajRangeRead<'a>
-            + TrajStepRead<'a>
-            + TrajStepTimeRead<'a>
-            + TrajRead<'a>
-            + 'a,
-        <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
-        Data: ParallelTrajData,
-        Error: std::error::Error + Send + Sync + 'static,
-    {
-        // prepare the iterator
-        let iterator: TrajReader<'_, TrajConcatenator<'_, Reader>> =
-            match self.traj_cat_iter_initialize(filenames, group) {
-                Ok(iter) => iter,
-                Err(e) => {
-                    error_flag.store(true, Ordering::Relaxed);
-                    return (Err(Box::from(e)), 0, 0.0);
-                }
-            };
 
         self.thread_run(
             data,
@@ -709,6 +579,139 @@ impl System {
 
         atom_distribution
     }*/
+}
+
+#[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
+impl System {
+    /// This method performs embarrassingly parallel iteration over multiple trajectory files using the MapReduce parallel scheme.
+    /// Duplicate frames at trajectory boundaries are ignored.
+    ///
+    /// See [`System::traj_iter_map_reduce`] for more information about parallel iteration.
+    ///
+    /// See [`System::traj_cat_iter`] for more information about trajectory concatenation.
+    #[allow(clippy::too_many_arguments)]
+    pub fn traj_iter_cat_map_reduce<'a, Reader, Data, Error>(
+        &self,
+        trajectory_files: &[impl AsRef<Path> + Send + Sync],
+        n_threads: usize,
+        body: impl Fn(&System, &mut Data) -> Result<(), Error> + Send + Clone,
+        init_data: Data,
+        group: Option<&str>,
+        start_time: Option<f32>,
+        end_time: Option<f32>,
+        step: Option<usize>,
+        progress_printer: Option<ProgressPrinter>,
+    ) -> Result<Data, Box<dyn std::error::Error + Send + Sync>>
+    where
+        Reader: TrajReadOpen<'a>
+            + TrajRangeRead<'a>
+            + TrajStepRead<'a>
+            + TrajStepTimeRead<'a>
+            + TrajRead<'a>
+            + 'a,
+        <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
+        Data: Clone + ParallelTrajData,
+        Error: std::error::Error + Send + Sync + 'static,
+    {
+        if n_threads == 0 {
+            panic!("FATAL GROAN ERROR | System::traj_iter_cat_map_reduce | Number of threads to spawn must be > 0.");
+        }
+
+        let error_flag = Arc::new(AtomicBool::new(false));
+
+        std::thread::scope(|s| {
+            let mut handles = Vec::new();
+
+            for n in 0..n_threads {
+                let system_clone = self.clone();
+                let body_clone = body.clone();
+                let filenames = trajectory_files;
+                let progress_clone = progress_printer.clone();
+                let mut data = init_data.clone();
+                let error_flag_clone = error_flag.clone();
+                data.initialize(n);
+
+                let handle = s.spawn(
+                move || -> (Result<Data, Box<dyn std::error::Error + Send + Sync>>, u64, f32) {
+                    match system_clone.thread_cat_iter::<Reader, Data, Error>(
+                        &mut data,
+                        filenames,
+                        n,
+                        n_threads,
+                        body_clone,
+                        group,
+                        start_time,
+                        end_time,
+                        step,
+                        progress_clone,
+                        error_flag_clone,
+                    ) {
+                        (Ok(_), step, time) => (Ok(data), step, time),
+                        (Err(e), step, time) => (Err(e), step, time),
+                    }
+                },
+            );
+                handles.push(handle);
+            }
+
+            Self::process_thread_results(handles, progress_printer)
+        })
+    }
+
+    /// Iterate over a part of concatenated trajectories in a single thread.
+    #[allow(clippy::too_many_arguments)]
+    fn thread_cat_iter<'a, Reader, Data, Error>(
+        mut self,
+        data: &mut Data,
+        filenames: &[impl AsRef<Path>],
+        thread_number: usize,
+        n_threads: usize,
+        body: impl Fn(&System, &mut Data) -> Result<(), Error>,
+        group: Option<&str>,
+        start_time: Option<f32>,
+        end_time: Option<f32>,
+        step: Option<usize>,
+        progress_printer: Option<ProgressPrinter>,
+        error_flag: Arc<AtomicBool>,
+    ) -> (
+        Result<(), Box<dyn std::error::Error + Send + Sync>>,
+        u64,
+        f32,
+    )
+    where
+        Reader: TrajReadOpen<'a>
+            + TrajRangeRead<'a>
+            + TrajStepRead<'a>
+            + TrajStepTimeRead<'a>
+            + TrajRead<'a>
+            + 'a,
+        <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
+        Data: ParallelTrajData,
+        Error: std::error::Error + Send + Sync + 'static,
+    {
+        // prepare the iterator
+        let iterator: TrajReader<'_, TrajConcatenator<'_, Reader>> =
+            match self.traj_cat_iter_initialize(filenames, group) {
+                Ok(iter) => iter,
+                Err(e) => {
+                    error_flag.store(true, Ordering::Relaxed);
+                    return (Err(Box::from(e)), 0, 0.0);
+                }
+            };
+
+        self.thread_run(
+            data,
+            iterator,
+            thread_number,
+            n_threads,
+            body,
+            start_time,
+            end_time,
+            step,
+            progress_printer,
+            error_flag,
+        )
+    }
 }
 
 #[cfg(test)]
