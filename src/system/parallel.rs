@@ -12,10 +12,13 @@ use std::{
 };
 
 use crate::{
-    io::traj_read::{
-        FrameDataTime, TrajMasterRead, TrajRangeRead, TrajRead, TrajReadOpen, TrajStepRead,
+    io::{
+        traj_cat::TrajConcatenator,
+        traj_read::{
+            FrameDataTime, TrajMasterRead, TrajRangeRead, TrajRead, TrajReadOpen, TrajStepRead,
+        },
     },
-    prelude::TrajReader,
+    prelude::{TrajReader, TrajStepTimeRead},
     progress::{ProgressPrinter, ProgressStatus},
     structures::container::AtomContainer,
     system::System,
@@ -46,8 +49,7 @@ pub trait ParallelTrajData: Send + Sized {
 }
 
 impl System {
-    /// This method performs embarrassingly parallel iteration over a trajectory (xtc or trr) file,
-    /// using the MapReduce parallel scheme.
+    /// This method performs embarrassingly parallel iteration over a trajectory file using the MapReduce parallel scheme.
     ///
     /// The trajectory is divided into `n_threads` threads, each analyzing a portion of the data independently (`map` phase).
     /// The results from each thread are subsequently merged to produce a single result (`reduce` phase).
@@ -227,83 +229,171 @@ impl System {
 
         let error_flag = Arc::new(AtomicBool::new(false));
 
-        std::thread::scope(
-            |s| -> Result<Data, Box<dyn std::error::Error + Send + Sync>> {
-                let mut handles = Vec::new();
+        std::thread::scope(|s| {
+            let mut handles = Vec::new();
 
-                for n in 0..n_threads {
-                    let system_clone = self.clone();
-                    let body_clone = body.clone();
-                    let filename = trajectory_file.clone();
-                    let progress_clone = progress_printer.clone();
-                    let mut data = init_data.clone();
-                    let error_flag_clone = error_flag.clone();
-                    data.initialize(n);
+            for n in 0..n_threads {
+                let system_clone = self.clone();
+                let body_clone = body.clone();
+                let filename = trajectory_file.clone();
+                let progress_clone = progress_printer.clone();
+                let mut data = init_data.clone();
+                let error_flag_clone = error_flag.clone();
+                data.initialize(n);
 
-                    let handle = s.spawn(
-                        move || -> (Result<Data, Box<dyn std::error::Error + Send + Sync>>, u64, f32) {
-                            match system_clone.thread_iter::<Reader, Data, Error>(
-                                &mut data,
-                                filename,
-                                n,
-                                n_threads,
-                                body_clone,
-                                group,
-                                start_time,
-                                end_time,
-                                step,
-                                progress_clone,
-                                error_flag_clone,
-                            ) {
-                                (Ok(_), step, time) => (Ok(data), step, time),
-                                (Err(e), step, time) => (Err(e), step, time),
-                            }
-                        },
-                    );
-                    handles.push(handle);
-                }
-
-                // unpack data from the threads
-                let mut data = Vec::new();
-                let mut last_step = 0u64;
-                let mut last_time = 0.0f32;
-                for handle in handles {
-                    let (result, step, time) = handle.join().expect(
-                        "FATAL GROAN ERROR | System::traj_iter_map_reduce | A thread panicked!",
-                    );
-
-                    // get the last frame of the trajectory that was analyzed by any thread
-                    if time > last_time {
-                        last_step = step;
-                        last_time = time;
-                    }
-
-                    match result {
-                        Ok(x) => data.push(x),
-                        Err(e) => {
-                            // set the progress printer to FAILED if an error is detected
-                            if let Some(mut progress) = progress_printer {
-                                progress.set_status(ProgressStatus::Failed);
-                                // print information about the frame where the trajectory reading failed
-                                progress.print(0, step, time);
-                            }
-                            // propagate the error
-                            return Err(e);
+                let handle = s.spawn(
+                    move || -> (Result<Data, Box<dyn std::error::Error + Send + Sync>>, u64, f32) {
+                        match system_clone.thread_iter::<Reader, Data, Error>(
+                            &mut data,
+                            filename,
+                            n,
+                            n_threads,
+                            body_clone,
+                            group,
+                            start_time,
+                            end_time,
+                            step,
+                            progress_clone,
+                            error_flag_clone,
+                        ) {
+                            (Ok(_), step, time) => (Ok(data), step, time),
+                            (Err(e), step, time) => (Err(e), step, time),
                         }
+                    },
+                );
+                handles.push(handle);
+            }
+
+            Self::process_thread_results(handles, progress_printer)
+        })
+    }
+
+    /// This method performs embarrassingly parallel iteration over multiple trajectory files using the MapReduce parallel scheme.
+    /// Duplicate frames at trajectory boundaries are ignored.
+    ///
+    /// See [`System::traj_iter_map_reduce`] for more information about parallel iteration.
+    ///
+    /// See [`System::traj_cat_iter`] for more information about trajectory concatenation.
+    #[allow(clippy::too_many_arguments)]
+    pub fn traj_iter_cat_map_reduce<'a, Reader, Data, Error>(
+        &self,
+        trajectory_files: &[impl AsRef<Path> + Send + Sync],
+        n_threads: usize,
+        body: impl Fn(&System, &mut Data) -> Result<(), Error> + Send + Clone,
+        init_data: Data,
+        group: Option<&str>,
+        start_time: Option<f32>,
+        end_time: Option<f32>,
+        step: Option<usize>,
+        progress_printer: Option<ProgressPrinter>,
+    ) -> Result<Data, Box<dyn std::error::Error + Send + Sync>>
+    where
+        Reader: TrajReadOpen<'a>
+            + TrajRangeRead<'a>
+            + TrajStepRead<'a>
+            + TrajStepTimeRead<'a>
+            + TrajRead<'a>
+            + 'a,
+        <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
+        Data: Clone + ParallelTrajData,
+        Error: std::error::Error + Send + Sync + 'static,
+    {
+        if n_threads == 0 {
+            panic!("FATAL GROAN ERROR | System::traj_iter_cat_map_reduce | Number of threads to spawn must be > 0.");
+        }
+
+        let error_flag = Arc::new(AtomicBool::new(false));
+
+        std::thread::scope(|s| {
+            let mut handles = Vec::new();
+
+            for n in 0..n_threads {
+                let system_clone = self.clone();
+                let body_clone = body.clone();
+                let filenames = trajectory_files;
+                let progress_clone = progress_printer.clone();
+                let mut data = init_data.clone();
+                let error_flag_clone = error_flag.clone();
+                data.initialize(n);
+
+                let handle = s.spawn(
+                move || -> (Result<Data, Box<dyn std::error::Error + Send + Sync>>, u64, f32) {
+                    match system_clone.thread_cat_iter::<Reader, Data, Error>(
+                        &mut data,
+                        filenames,
+                        n,
+                        n_threads,
+                        body_clone,
+                        group,
+                        start_time,
+                        end_time,
+                        step,
+                        progress_clone,
+                        error_flag_clone,
+                    ) {
+                        (Ok(_), step, time) => (Ok(data), step, time),
+                        (Err(e), step, time) => (Err(e), step, time),
                     }
-                }
+                },
+            );
+                handles.push(handle);
+            }
 
-                // print information about the actual last frame read, not about the last frame from the master thread
-                if let Some(mut progress) = progress_printer {
-                    progress.set_status(ProgressStatus::Completed);
-                    // frame number can be any => printing will be done anyway because of the Completed status
-                    progress.print(0, last_step, last_time);
-                }
+            Self::process_thread_results(handles, progress_printer)
+        })
+    }
 
-                // reduce the data
-                Ok(ParallelTrajData::reduce(data))
-            },
-        )
+    /// Process results from the individual threads.
+    #[inline(always)]
+    fn process_thread_results<Data: ParallelTrajData>(
+        handles: Vec<
+            std::thread::ScopedJoinHandle<(
+                Result<Data, Box<dyn std::error::Error + Send + Sync>>,
+                u64,
+                f32,
+            )>,
+        >,
+        progress_printer: Option<ProgressPrinter>,
+    ) -> Result<Data, Box<dyn std::error::Error + Send + Sync>> {
+        let mut data = Vec::new();
+        let mut last_step = 0u64;
+        let mut last_time = 0.0f32;
+
+        for handle in handles {
+            let (result, step, time) = handle
+                .join()
+                .expect("FATAL GROAN ERROR | System::process_thread_results | A thread panicked!");
+
+            // get the last frame of the trajectory that was analyzed by any thread
+            if time > last_time {
+                last_step = step;
+                last_time = time;
+            }
+
+            match result {
+                Ok(x) => data.push(x),
+                Err(e) => {
+                    // set the progress printer to FAILED if an error is detected
+                    if let Some(mut progress) = progress_printer {
+                        progress.set_status(ProgressStatus::Failed);
+                        // print information about the frame where the trajectory reading failed
+                        progress.print(0, step, last_time);
+                    }
+                    // propagate the error
+                    return Err(e);
+                }
+            }
+        }
+
+        // print information about the actual last frame read, not about the last frame from the master thread
+        if let Some(mut progress) = progress_printer {
+            progress.set_status(ProgressStatus::Completed);
+            // frame number can be any => printing will be done anyway because of the Completed status
+            progress.print(0, last_step, last_time);
+        }
+
+        // reduce the data
+        Ok(ParallelTrajData::reduce(data))
     }
 
     /// Iterate over a part of the trajectory in a single thread.
@@ -332,13 +422,9 @@ impl System {
         Data: ParallelTrajData,
         Error: std::error::Error + Send + Sync + 'static,
     {
-        let start = start_time.unwrap_or(0.0);
-        let end = end_time.unwrap_or(f32::MAX);
-        let step = step.unwrap_or(1);
-
         // prepare the iterator
         // TODO: remove this unsafe
-        let mut iterator = match Reader::initialize(
+        let iterator = match Reader::initialize(
             unsafe { &mut *(&mut self as *mut System) },
             &filename,
             group,
@@ -349,6 +435,105 @@ impl System {
                 return (Err(Box::from(e)), 0, 0.0);
             }
         };
+
+        self.thread_run(
+            data,
+            iterator,
+            thread_number,
+            n_threads,
+            body,
+            start_time,
+            end_time,
+            step,
+            progress_printer,
+            error_flag,
+        )
+    }
+
+    /// Iterate over a part of concatenated trajectories in a single thread.
+    #[allow(clippy::too_many_arguments)]
+    fn thread_cat_iter<'a, Reader, Data, Error>(
+        mut self,
+        data: &mut Data,
+        filenames: &[impl AsRef<Path>],
+        thread_number: usize,
+        n_threads: usize,
+        body: impl Fn(&System, &mut Data) -> Result<(), Error>,
+        group: Option<&str>,
+        start_time: Option<f32>,
+        end_time: Option<f32>,
+        step: Option<usize>,
+        progress_printer: Option<ProgressPrinter>,
+        error_flag: Arc<AtomicBool>,
+    ) -> (
+        Result<(), Box<dyn std::error::Error + Send + Sync>>,
+        u64,
+        f32,
+    )
+    where
+        Reader: TrajReadOpen<'a>
+            + TrajRangeRead<'a>
+            + TrajStepRead<'a>
+            + TrajStepTimeRead<'a>
+            + TrajRead<'a>
+            + 'a,
+        <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
+        Data: ParallelTrajData,
+        Error: std::error::Error + Send + Sync + 'static,
+    {
+        // prepare the iterator
+        let iterator: TrajReader<'_, TrajConcatenator<'_, Reader>> =
+            match self.traj_cat_iter_initialize(filenames, group) {
+                Ok(iter) => iter,
+                Err(e) => {
+                    error_flag.store(true, Ordering::Relaxed);
+                    return (Err(Box::from(e)), 0, 0.0);
+                }
+            };
+
+        self.thread_run(
+            data,
+            iterator,
+            thread_number,
+            n_threads,
+            body,
+            start_time,
+            end_time,
+            step,
+            progress_printer,
+            error_flag,
+        )
+    }
+
+    /// Iterate over a prepared iterator.
+    #[allow(clippy::too_many_arguments)]
+    #[inline(always)]
+    fn thread_run<'a, Reader, Data, Error>(
+        self,
+        data: &mut Data,
+        mut iterator: TrajReader<'a, Reader>,
+        thread_number: usize,
+        n_threads: usize,
+        body: impl Fn(&System, &mut Data) -> Result<(), Error>,
+        start_time: Option<f32>,
+        end_time: Option<f32>,
+        step: Option<usize>,
+        progress_printer: Option<ProgressPrinter>,
+        error_flag: Arc<AtomicBool>,
+    ) -> (
+        Result<(), Box<dyn std::error::Error + Send + Sync>>,
+        u64,
+        f32,
+    )
+    where
+        Reader: TrajRangeRead<'a> + TrajStepRead<'a> + TrajRead<'a> + 'a,
+        <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
+        Data: ParallelTrajData,
+        Error: std::error::Error + Send + Sync + 'static,
+    {
+        let start = start_time.unwrap_or(0.0);
+        let end = end_time.unwrap_or(f32::MAX);
+        let step = step.unwrap_or(1);
 
         // associate the progress printer with the iterator only in the master thread
         if thread_number == 0 {

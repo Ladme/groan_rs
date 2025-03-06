@@ -6,7 +6,7 @@
 use std::marker::PhantomData;
 use std::path::Path;
 
-use crate::prelude::{TrajFullReadOpen, TrajGroupReadOpen};
+use crate::prelude::{TrajFullReadOpen, TrajGroupReadOpen, TrajReadOpen};
 use crate::{errors::ReadTrajError, io::traj_read::TrajRead, system::System};
 
 use crate::io::traj_read::{
@@ -357,10 +357,7 @@ impl System {
 
         readers.map(TrajConcatenator::new)
     }
-}
 
-#[cfg(feature = "molly")]
-impl System {
     /// Iterate through multiple trajectory files while reading only the coordinates
     /// of the specified group.
     ///
@@ -385,6 +382,32 @@ impl System {
         let readers: Result<Vec<Read>, _> = filenames
             .iter()
             .map(|name| unsafe { Read::new(&mut *system, name, group) })
+            .collect();
+
+        readers.map(TrajConcatenator::new)
+    }
+
+    /// Iterate through multiple trajectory files while either reading the full frames
+    /// or only a specific group from each frame.
+    ///
+    /// Helper method for dispatching into either [`System::traj_cat_iter`] or [`System::group_traj_cat_iter`].
+    pub(crate) fn traj_cat_iter_initialize<'a, Read>(
+        &mut self,
+        filenames: &[impl AsRef<Path>],
+        group: Option<&str>,
+    ) -> Result<TrajReader<'a, TrajConcatenator<'a, Read>>, ReadTrajError>
+    where
+        Read: TrajReadOpen<'a>,
+        Read::FrameData: FrameDataTime,
+    {
+        if filenames.is_empty() {
+            return Err(ReadTrajError::CatNoTrajectories);
+        }
+
+        let system = self as *mut System;
+        let readers: Result<Vec<Read>, _> = filenames
+            .iter()
+            .map(|name| unsafe { Read::initialize(&mut *system, name, group) })
             .collect();
 
         readers.map(TrajConcatenator::new)
