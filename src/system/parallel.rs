@@ -874,6 +874,42 @@ mod tests {
         steps
     }
 
+    fn run_traj_iter_cat_map_reduce<'a, Reader>(
+        system: &'a System,
+        filenames: &[&str],
+        n_threads: usize,
+        start: Option<f32>,
+        end: Option<f32>,
+        step: Option<usize>,
+        progress: Option<ProgressPrinter>,
+    ) -> Steps
+    where
+        Reader: TrajReadOpen<'a>
+            + TrajRangeRead<'a>
+            + TrajStepRead<'a>
+            + TrajStepTimeRead<'a>
+            + TrajRead<'a>
+            + 'a,
+        <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
+    {
+        let mut steps = system
+            .traj_iter_cat_map_reduce::<Reader, Steps, AtomError>(
+                filenames,
+                n_threads,
+                frame_get_number,
+                Steps::default(),
+                None,
+                start,
+                end,
+                step,
+                progress,
+            )
+            .unwrap();
+
+        steps.0.sort();
+        steps
+    }
+
     fn run_traj_iter_map_reduce_fails<'a, Reader>(
         system: &'a System,
         filename: &str,
@@ -1218,6 +1254,147 @@ mod tests {
         std::fs::remove_file("xtc_iter_map_reduce_progress_print_many_threads.txt").unwrap();
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
+    #[test]
+    fn xtc_iter_cat_map_reduce_basic() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let result_singlethreaded = run_traj_iter_single_threaded::<XtcReader>(
+            &mut system,
+            "test_files/short_trajectory.xtc",
+            None,
+            None,
+            None,
+        );
+
+        for n_threads in 1..=16 {
+            let result_multithreaded = run_traj_iter_cat_map_reduce::<XtcReader>(
+                &system,
+                &[
+                    "test_files/split/traj1.xtc",
+                    "test_files/split/traj2.xtc",
+                    "test_files/split/traj3.xtc",
+                    "test_files/split/traj4.xtc",
+                    "test_files/split/traj5.xtc",
+                    "test_files/split/traj6.xtc",
+                ],
+                n_threads,
+                None,
+                None,
+                None,
+                None,
+            );
+
+            assert_ne!(result_multithreaded.0.len(), 0);
+            assert_eq!(result_singlethreaded.0.len(), result_multithreaded.0.len());
+
+            for (item1, item2) in result_singlethreaded
+                .0
+                .iter()
+                .zip(result_multithreaded.0.iter())
+            {
+                assert_eq!(item1, item2);
+            }
+        }
+    }
+
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
+    #[test]
+    fn xtc_iter_cat_map_reduce_start_end_step() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let result_singlethreaded = run_traj_iter_single_threaded::<XtcReader>(
+            &mut system,
+            "test_files/short_trajectory.xtc",
+            Some(200.0),
+            Some(750.0),
+            Some(3),
+        );
+
+        for n_threads in 1..=16 {
+            let result_multithreaded = run_traj_iter_cat_map_reduce::<XtcReader>(
+                &system,
+                &[
+                    "test_files/split/traj1.xtc",
+                    "test_files/split/traj2.xtc",
+                    "test_files/split/traj3.xtc",
+                    "test_files/split/traj4.xtc",
+                    "test_files/split/traj5.xtc",
+                    "test_files/split/traj6.xtc",
+                ],
+                n_threads,
+                Some(200.0),
+                Some(750.0),
+                Some(3),
+                None,
+            );
+
+            assert_ne!(result_multithreaded.0.len(), 0);
+            assert_eq!(result_singlethreaded.0.len(), result_multithreaded.0.len());
+
+            for (item1, item2) in result_singlethreaded
+                .0
+                .iter()
+                .zip(result_multithreaded.0.iter())
+            {
+                assert_eq!(item1, item2);
+            }
+        }
+    }
+
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
+    #[test]
+    fn xtc_iter_cat_map_reduce_progress_print() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let result_singlethreaded = run_traj_iter_single_threaded::<XtcReader>(
+            &mut system,
+            "test_files/short_trajectory.xtc",
+            None,
+            None,
+            None,
+        );
+
+        let output = File::create("xtc_iter_cat_map_reduce_progress_print.txt").unwrap();
+
+        let printer = ProgressPrinter::new()
+            .with_output(Box::from(output))
+            .with_print_freq(1)
+            .with_colored(false)
+            .with_terminating("\n");
+
+        let result_multithreaded = run_traj_iter_cat_map_reduce::<XtcReader>(
+            &system,
+            &[
+                "test_files/split/traj1.xtc",
+                "test_files/split/traj2.xtc",
+                "test_files/split/traj3.xtc",
+                "test_files/split/traj4.xtc",
+                "test_files/split/traj5.xtc",
+                "test_files/split/traj6.xtc",
+            ],
+            4,
+            None,
+            None,
+            None,
+            Some(printer),
+        );
+
+        assert_ne!(result_multithreaded.0.len(), 0);
+        assert_eq!(result_singlethreaded.0.len(), result_multithreaded.0.len());
+
+        for (item1, item2) in result_singlethreaded
+            .0
+            .iter()
+            .zip(result_multithreaded.0.iter())
+        {
+            assert_eq!(item1, item2);
+        }
+
+        let mut result = File::open("xtc_iter_cat_map_reduce_progress_print.txt").unwrap();
+        let mut expected = File::open("test_files/progress_multithreaded_4.txt").unwrap();
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+
+        std::fs::remove_file("xtc_iter_cat_map_reduce_progress_print.txt").unwrap();
+    }
+
     #[test]
     #[cfg(not(feature = "no-xdrfile"))]
     fn trr_iter_map_reduce_basic() {
@@ -1417,6 +1594,92 @@ mod tests {
             let result_multithreaded = run_traj_iter_map_reduce::<TrrReader>(
                 &system,
                 "test_files/short_trajectory.trr",
+                n_threads,
+                Some(200.0),
+                Some(510.0),
+                Some(3),
+                None,
+            );
+
+            assert_ne!(result_multithreaded.0.len(), 0);
+            assert_eq!(result_singlethreaded.0.len(), result_multithreaded.0.len());
+
+            for (item1, item2) in result_singlethreaded
+                .0
+                .iter()
+                .zip(result_multithreaded.0.iter())
+            {
+                assert_eq!(item1, item2);
+            }
+        }
+    }
+
+    #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
+    fn trr_iter_cat_map_reduce_basic() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let result_singlethreaded = run_traj_iter_single_threaded::<TrrReader>(
+            &mut system,
+            "test_files/short_trajectory.trr",
+            None,
+            None,
+            None,
+        );
+
+        for n_threads in 1..=16 {
+            let result_multithreaded = run_traj_iter_cat_map_reduce::<TrrReader>(
+                &system,
+                &[
+                    "test_files/split/traj1.trr",
+                    "test_files/split/traj2.trr",
+                    "test_files/split/traj3.trr",
+                    "test_files/split/traj4.trr",
+                    "test_files/split/traj5.trr",
+                    "test_files/split/traj6.trr",
+                ],
+                n_threads,
+                None,
+                None,
+                None,
+                None,
+            );
+
+            assert_ne!(result_multithreaded.0.len(), 0);
+            assert_eq!(result_singlethreaded.0.len(), result_multithreaded.0.len());
+
+            for (item1, item2) in result_singlethreaded
+                .0
+                .iter()
+                .zip(result_multithreaded.0.iter())
+            {
+                assert_eq!(item1, item2);
+            }
+        }
+    }
+
+    #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
+    fn trr_iter_cat_map_reduce_start_end_step() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let result_singlethreaded = run_traj_iter_single_threaded::<TrrReader>(
+            &mut system,
+            "test_files/short_trajectory.trr",
+            Some(200.0),
+            Some(510.0),
+            Some(3),
+        );
+
+        for n_threads in 1..=16 {
+            let result_multithreaded = run_traj_iter_cat_map_reduce::<TrrReader>(
+                &system,
+                &[
+                    "test_files/split/traj1.trr",
+                    "test_files/split/traj2.trr",
+                    "test_files/split/traj3.trr",
+                    "test_files/split/traj4.trr",
+                    "test_files/split/traj5.trr",
+                    "test_files/split/traj6.trr",
+                ],
                 n_threads,
                 Some(200.0),
                 Some(510.0),
@@ -1690,6 +1953,43 @@ mod tests {
             steps
         }
 
+        fn run_group_traj_iter_cat_map_reduce<'a, Reader>(
+            system: &'a System,
+            filenames: &[&str],
+            n_threads: usize,
+            group: &str,
+            start: Option<f32>,
+            end: Option<f32>,
+            step: Option<usize>,
+            progress: Option<ProgressPrinter>,
+        ) -> Steps
+        where
+            Reader: TrajGroupReadOpen<'a>
+                + TrajRangeRead<'a>
+                + TrajStepRead<'a>
+                + TrajStepTimeRead<'a>
+                + TrajRead<'a>
+                + 'a,
+            <Reader as TrajRead<'a>>::FrameData: FrameDataTime,
+        {
+            let mut steps = system
+                .traj_iter_cat_map_reduce::<Reader, Steps, AtomError>(
+                    filenames,
+                    n_threads,
+                    frame_get_number,
+                    Steps::default(),
+                    Some(group),
+                    start,
+                    end,
+                    step,
+                    progress,
+                )
+                .unwrap();
+
+            steps.0.sort();
+            steps
+        }
+
         #[test]
         fn group_xtc_iter_map_reduce_basic() {
             let mut system = System::from_file("test_files/example.gro").unwrap();
@@ -1745,6 +2045,96 @@ mod tests {
                 let result_multithreaded = run_group_traj_iter_map_reduce::<GroupXtcReader>(
                     &system,
                     "test_files/short_trajectory.xtc",
+                    n_threads,
+                    "Membrane",
+                    Some(200.0),
+                    Some(510.0),
+                    Some(3),
+                    None,
+                );
+
+                assert_ne!(result_multithreaded.0.len(), 0);
+                assert_eq!(result_singlethreaded.0.len(), result_multithreaded.0.len());
+
+                for (item1, item2) in result_singlethreaded
+                    .0
+                    .iter()
+                    .zip(result_multithreaded.0.iter())
+                {
+                    assert_eq!(item1, item2);
+                }
+            }
+        }
+
+        #[test]
+        fn group_xtc_iter_cat_map_reduce_basic() {
+            let mut system = System::from_file("test_files/example.gro").unwrap();
+            let result_singlethreaded = run_traj_iter_single_threaded::<XtcReader>(
+                &mut system,
+                "test_files/short_trajectory.xtc",
+                None,
+                None,
+                None,
+            );
+
+            system.group_create("Membrane", "@membrane").unwrap();
+
+            for n_threads in 1..=16 {
+                let result_multithreaded = run_group_traj_iter_cat_map_reduce::<GroupXtcReader>(
+                    &system,
+                    &[
+                        "test_files/split/traj1.xtc",
+                        "test_files/split/traj2.xtc",
+                        "test_files/split/traj3.xtc",
+                        "test_files/split/traj4.xtc",
+                        "test_files/split/traj5.xtc",
+                        "test_files/split/traj6.xtc",
+                    ],
+                    n_threads,
+                    "Membrane",
+                    None,
+                    None,
+                    None,
+                    None,
+                );
+
+                assert_ne!(result_multithreaded.0.len(), 0);
+                assert_eq!(result_singlethreaded.0.len(), result_multithreaded.0.len());
+
+                for (item1, item2) in result_singlethreaded
+                    .0
+                    .iter()
+                    .zip(result_multithreaded.0.iter())
+                {
+                    assert_eq!(item1, item2);
+                }
+            }
+        }
+
+        #[test]
+        fn group_xtc_iter_cat_map_range_steps() {
+            let mut system = System::from_file("test_files/example.gro").unwrap();
+            let result_singlethreaded = run_traj_iter_single_threaded::<XtcReader>(
+                &mut system,
+                "test_files/short_trajectory.xtc",
+                Some(200.0),
+                Some(510.0),
+                Some(3),
+            );
+
+            system.group_create("Membrane", "@membrane").unwrap();
+
+            for n_threads in 1..=16 {
+                let result_multithreaded = run_group_traj_iter_cat_map_reduce::<GroupXtcReader>(
+                    &system,
+                    &[
+                        "test_files/split/traj1.xtc",
+                        "test_files/split/traj2.xtc",
+                        "test_files/split/traj3.xtc",
+                        "test_files/split/traj4.xtc",
+                        "test_files/split/traj5.xtc",
+                        "test_files/split/traj6.xtc",
+                    ],
                     n_threads,
                     "Membrane",
                     Some(200.0),
