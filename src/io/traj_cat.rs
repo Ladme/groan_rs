@@ -6,12 +6,15 @@
 use std::marker::PhantomData;
 use std::path::Path;
 
-use crate::prelude::{TrajFullReadOpen, TrajGroupReadOpen, TrajReadOpen};
+use crate::prelude::{TrajFullReadOpen, TrajGroupReadOpen};
 use crate::{errors::ReadTrajError, io::traj_read::TrajRead, system::System};
 
 use crate::io::traj_read::{
     FrameData, FrameDataTime, TrajRangeRead, TrajStepRead, TrajStepTimeRead,
 };
+
+#[cfg(feature = "parallel")]
+use crate::prelude::TrajReadOpen;
 
 use super::traj_read::{TrajFile, TrajReader};
 
@@ -386,7 +389,10 @@ impl System {
 
         readers.map(TrajConcatenator::new)
     }
+}
 
+#[cfg(feature = "parallel")]
+impl System {
     /// Iterate through multiple trajectory files while either reading the full frames
     /// or only a specific group from each frame.
     ///
