@@ -302,7 +302,7 @@ impl System {
                     if let Some(mut progress) = progress_printer {
                         progress.set_status(ProgressStatus::Failed);
                         // print information about the frame where the trajectory reading failed
-                        progress.print(0, step, last_time);
+                        progress.print(0, step, time);
                     }
                     // propagate the error
                     return Err(e);
@@ -447,16 +447,14 @@ impl System {
             }
         };
 
+        let mut last_step = self.get_simulation_step();
+        let mut last_time = self.get_simulation_time();
         for (i, frame) in iterator.enumerate() {
             if i % ERROR_FLAG_FREQ == 0 {
                 // an error was detected in another thread
                 if error_flag.load(Ordering::Relaxed) {
                     // we abort but return Ok, because it's not this thread that has encountered an error
-                    return (
-                        Ok(()),
-                        self.get_simulation_step(),
-                        self.get_simulation_time(),
-                    );
+                    return (Ok(()), last_step, last_time);
                 }
             }
 
@@ -464,31 +462,22 @@ impl System {
                 Ok(x) => x,
                 Err(e) => {
                     error_flag.store(true, Ordering::Relaxed);
-                    return (
-                        Err(Box::from(e)),
-                        self.get_simulation_step(),
-                        self.get_simulation_time(),
-                    );
+                    return (Err(Box::from(e)), last_step, last_time);
                 }
             };
 
+            last_step = frame.get_simulation_step();
+            last_time = frame.get_simulation_time();
+
             if let Err(e) = body(frame, data) {
                 error_flag.store(true, Ordering::Relaxed);
-                return (
-                    Err(Box::from(e)),
-                    frame.get_simulation_step(),
-                    frame.get_simulation_time(),
-                );
+                return (Err(Box::from(e)), last_step, last_time);
             }
         }
 
         // we return the final simulation step and time so we can print correct
         // information about the completion of the trajectory reading
-        (
-            Ok(()),
-            self.get_simulation_step(),
-            self.get_simulation_time(),
-        )
+        (Ok(()), last_step, last_time)
     }
 
     /// Distribute all atoms of the system between threads.
