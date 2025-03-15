@@ -863,6 +863,7 @@ mod tests {
         steps
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     fn run_traj_iter_cat_map_reduce<'a, Reader>(
         system: &'a System,
         filenames: &[&str],
