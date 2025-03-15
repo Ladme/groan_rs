@@ -13,6 +13,7 @@
 //! - [Iterate over atoms](`crate::system::System::atoms_iter`) and access their [properties](`crate::structures::atom::Atom`), including connectivity (bonds).
 //! - Select atoms using a [selection language](https://ladme.github.io/gsl-guide/) similar to VMD.
 //! - Calculate RMSD and perform RMSD fit for [individual](`crate::system::System::calc_rmsd`) [structures](`crate::system::System::calc_rmsd_and_fit`) and for [entire](`crate::prelude::RMSDTrajRead::calc_rmsd`) [trajectories](`crate::prelude::RMSDTrajRead::calc_rmsd_and_fit`).
+//! - [Identify hydrogen bonds](`crate::system::hbonds::HBondTrajRead::hbonds_analyze`) in a trajectory.
 //! - [Calculate distances between atoms](`crate::system::System::atoms_distance`) respecting periodic boundary conditions.
 //! - [Select atoms based on geometric conditions.](`crate::system::System::group_create_from_geometry`)
 //! - [Assign elements](`crate::system::System::guess_elements`) to atoms and [guess connectivity](`crate::system::System::guess_bonds`) between the atoms.
