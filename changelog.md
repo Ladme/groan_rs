@@ -18,6 +18,8 @@
 - `System::guess_bonds` has been reimplemented using a `CellGrid` making it **much** more efficient, especially for large systems.
 - **Breaking change:** `System::guess_bonds_parallel` has been removed. (But the new `System::guess_bonds` is now much faster than `System::guess_bonds_parallel` has been.)
 
+#### Hydrogen bond analysis
+- Implemented a way to identify hydrogen bonds (`HBondAnalysis`) in a trajectory. The analysis can be performed with any trajectory reader (`HBondTrajRead::hbonds_analyze`).
 
 #### Changes to Trajectory Iteration
 - **Breaking change:** `TrajReadOpen` trait has been renamed to `TrajFullReadOpen`. The original `TrajReadOpen` trait now requires implementing the `initialize` method which can be used to construct either `TrajFullReadOpen` structure 

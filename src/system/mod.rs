@@ -20,6 +20,7 @@ use crate::structures::{atom::Atom, simbox::SimBox, vector3d::Vector3D};
 mod analysis;
 pub mod groups;
 pub mod guess;
+pub mod hbonds;
 pub(crate) mod iterating;
 mod labeled_atoms;
 mod modifying;

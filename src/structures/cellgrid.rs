@@ -14,7 +14,7 @@ use crate::{
     system::System,
 };
 
-use super::{atom::Atom, iterators::UnorderedAtomIterator, simbox::SimBox};
+use super::{atom::Atom, group::Group, iterators::UnorderedAtomIterator, simbox::SimBox};
 
 /// A structure for efficient searches within a cutoff.
 ///
@@ -303,6 +303,24 @@ impl<'a> CellGrid<'a> {
         group: &str,
         cell_size: f32,
     ) -> Result<CellGrid<'a>, CellGridError> {
+        let group = system
+            .get_groups()
+            .get(group)
+            .map_err(CellGridError::GroupError)?;
+
+        // safety: group originates directly from the system, therefore atom indices must be valid
+        unsafe { CellGrid::new_from_group(system, group, cell_size) }
+    }
+
+    /// Create a new [`CellGrid`], providing an external group.
+    ///
+    /// ## Safety
+    /// `group` must be a valid group consistent with the System and must only contain valid atom indices.
+    pub(crate) unsafe fn new_from_group(
+        system: &'a System,
+        group: &Group,
+        cell_size: f32,
+    ) -> Result<CellGrid<'a>, CellGridError> {
         if cell_size <= 0.0 {
             return Err(CellGridError::InvalidCellSize(cell_size.to_string()));
         }
@@ -323,10 +341,9 @@ impl<'a> CellGrid<'a> {
         let mut grid: Array3<Vec<usize>> = Array3::from_elem((xcells, ycells, zcells), Vec::new());
 
         // assign atoms to the grid
-        for atom in system
-            .group_iter(group)
-            .map_err(CellGridError::GroupError)?
-        {
+        for a in group.get_atoms().iter() {
+            // safety: indices in `group` must be valid atoms
+            let atom = system.get_atom_unchecked(a);
             let index = Self::atom2cell(atom, &cell_size, &cells, simbox)?;
 
             match grid.get_mut(index) {
@@ -334,7 +351,7 @@ impl<'a> CellGrid<'a> {
                     x.push(atom.get_index());
                 }
                 None => panic!(
-                    "FATAL GROAN ERROR | CellGrid::new | Cell index `{:?}` is out of range.",
+                    "FATAL GROAN ERROR | CellGrid::new_from_group | Cell index `{:?}` is out of range.",
                     index
                 ),
             }

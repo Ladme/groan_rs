@@ -691,20 +691,43 @@ pub trait TrajMasterRead<'a>:
         self.set_progress_printer(printer);
         self
     }
+
+    /// Method specifying how to get a mutable pointer to the `System` structure.
+    fn get_system(&mut self) -> *mut System;
 }
 
-impl<'a, R: TrajRead<'a>> TrajMasterRead<'a> for TrajReader<'a, R> {}
-
-impl<'a, R: TrajRangeRead<'a>> TrajMasterRead<'a> for TrajRangeReader<'a, R> where
-    R::FrameData: FrameDataTime
-{
+impl<'a, R: TrajRead<'a>> TrajMasterRead<'a> for TrajReader<'a, R> {
+    #[inline(always)]
+    fn get_system(&mut self) -> *mut System {
+        self.traj_reader.get_system()
+    }
 }
 
-impl<'a, R: TrajStepRead<'a>> TrajMasterRead<'a> for TrajStepReader<'a, R> {}
-
-impl<'a, R: TrajRangeRead<'a> + TrajStepRead<'a>> TrajMasterRead<'a> for TrajRangeStepReader<'a, R> where
-    R::FrameData: FrameDataTime
+impl<'a, R: TrajRangeRead<'a>> TrajMasterRead<'a> for TrajRangeReader<'a, R>
+where
+    R::FrameData: FrameDataTime,
 {
+    #[inline(always)]
+    fn get_system(&mut self) -> *mut System {
+        self.traj_reader.get_system()
+    }
+}
+
+impl<'a, R: TrajStepRead<'a>> TrajMasterRead<'a> for TrajStepReader<'a, R> {
+    #[inline(always)]
+    fn get_system(&mut self) -> *mut System {
+        self.traj_reader.get_system()
+    }
+}
+
+impl<'a, R: TrajRangeRead<'a> + TrajStepRead<'a>> TrajMasterRead<'a> for TrajRangeStepReader<'a, R>
+where
+    R::FrameData: FrameDataTime,
+{
+    #[inline(always)]
+    fn get_system(&mut self) -> *mut System {
+        self.traj_reader.get_system()
+    }
 }
 
 /***************************************/

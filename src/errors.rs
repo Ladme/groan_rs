@@ -638,6 +638,42 @@ pub enum RMSDError {
 }
 
 
+/// Errors that can occur when performing hydrogen bond analysis.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum HBondError {
+    /// Used when parsing of a GSL query fails.
+    #[error("{}", .0)]
+    SelectError(SelectError),
+
+    /// Used when construction of a cell grid fails.
+    #[error("{}", .0)]
+    CellGridError(CellGridError),
+
+    /// Used when AtomError occurs during the analysis.
+    #[error("{}", .0)]
+    AtomError(AtomError),
+
+    /// Used when the simulation box is invalid.
+    #[error("{}", .0)]
+    InvalidSimBox(SimBoxError),
+
+    /// Used when no acceptors or donors were identifier for a chain.
+    #[error("{} no acceptor and no donor atoms detected for chain; chain can form no hydrogen bonds", "error:".red().bold())]
+    EmptyChain,
+
+    /// Used when the analysis should be performed for a non-existent chain.
+    #[error("{} chain index '{}' requested for analysis of hydrogen bonds does not exist", "error:".red().bold(), .0.to_string().yellow())]
+    NonexistentChain(usize),
+
+    /// Used when a calculation between pair of chains is requested multiple times.
+    #[error("{} analysis of hydrogen bonds between chains '{}' and '{}' requested multiple times", "error:".red().bold(), .0.to_string().yellow(), .1.to_string().yellow())]
+    PairSpecifiedMultipleTimes(usize, usize),
+
+    /// Used when a chain specified for the hydrogen bonds analysis is not used.
+    #[error("{} not all chains specified for the analysis of hydrogen bonds are used", "error:".red().bold())]
+    UnusedChain,
+}
+
 /// Errors originating from trajectory converters.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum TrajConvertError<ConvertError: std::error::Error> {

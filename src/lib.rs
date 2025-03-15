@@ -419,4 +419,6 @@ pub mod prelude {
 
     pub use crate::structures::cellgrid::{CellGrid, CellNeighbors, NeighborsRange};
     pub use crate::system::groups::Groups;
+
+    pub use crate::system::hbonds::{HBond, HBondChain, HBondMap, HBondTrajRead};
 }
