@@ -18,7 +18,7 @@
 - `System::guess_bonds` has been reimplemented using a `CellGrid` making it **much** more efficient, especially for large systems.
 - **Breaking change:** `System::guess_bonds_parallel` has been removed. (But the new `System::guess_bonds` is now much faster than `System::guess_bonds_parallel` has been.)
 
-#### Hydrogen bond analysis
+#### Hydrogen Bond Analysis
 - Implemented a way to identify hydrogen bonds (`HBondAnalysis`) in a trajectory. The analysis can be performed with any trajectory reader (`HBondTrajRead::hbonds_analyze`).
 
 #### Changes to Trajectory Iteration
@@ -39,6 +39,7 @@
 - Introduced `Atom::reset_bonded` and `System::clear_bonds` for simpler removal of bonding information.
 - Sodium atoms should be less often misclassified as sulfur when guessing elements.
 - Reworked how groups are stored inside a system. Introduced a new `Groups` structure for storing groups.
+- **Bug fix:** Fixed undefined behavior in xdrfile jumping which lead to TRR files being read incorrectly when using clang.
 
 ***
 
