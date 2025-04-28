@@ -1778,6 +1778,8 @@ int xdr_jump(XDRFILE *xdp, long offset)
 {
 	if (fseek(xdp->fp, offset, SEEK_CUR) < 0)
 		return 1;
+
+	return 0;
 }
 
 /* Dont try do document Fortran interface, since
