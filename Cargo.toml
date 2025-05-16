@@ -1,7 +1,7 @@
 [package]
 name = "groan_rs"
 description = "Gromacs Analysis Library for Rust"
-version = "0.10.0-dev.5"
+version = "0.10.0-dev.6"
 license = "MIT"
 edition = "2021"
 authors = ["Ladislav Bartos"]
@@ -30,7 +30,7 @@ serde = { version = "1.0.218", features = ["derive"] }
 serde_yaml = "0.9"
 fancy-regex = "0.14.0"
 nalgebra = "0.33.2"
-minitpr = "0.2.2"
+minitpr = "0.2.3"
 ndarray = "0.16.1"
 hashbrown = "0.15.2"
 getset = "0.1.5"

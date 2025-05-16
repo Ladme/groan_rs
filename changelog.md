@@ -40,6 +40,7 @@
 - Sodium atoms should be less often misclassified as sulfur when guessing elements.
 - Reworked how groups are stored inside a system. Introduced a new `Groups` structure for storing groups.
 - **Bug fix:** Fixed undefined behavior in xdrfile jumping which lead to TRR files being read incorrectly when using clang.
+- **Bug fix:** Fixed incorrect parsing of some TPR files generated with Gromacs 2025.
 
 ***
 
