@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Traits and structures for writing trajectory files.
 
@@ -7,6 +7,7 @@
 /*  WRITING TRAJECTORIES  */
 /**************************/
 
+#[cfg(not(feature = "no-xdrfile"))]
 use crate::files::FileType;
 use crate::{errors::WriteTrajError, system::System};
 use hashbrown::HashMap;
@@ -18,8 +19,11 @@ pub(crate) use multi_threaded::SystemWriters;
 #[cfg(not(feature = "parallel"))]
 pub(crate) use single_threaded::SystemWriters;
 
+#[cfg(not(feature = "no-xdrfile"))]
 use super::gro_io::GroWriter;
+#[cfg(not(feature = "no-xdrfile"))]
 use super::trr_io::TrrWriter;
+#[cfg(not(feature = "no-xdrfile"))]
 use super::xtc_io::XtcWriter;
 
 /// ## Associating trajectory writers with System.
@@ -37,15 +41,18 @@ impl System {
     /// ## Examples
     /// To start writing trajectories, initialize a trajectory writer:
     /// ```no_run
+    /// # #[cfg(not(feature = "no-xdrfile"))] {
     /// # use groan_rs::prelude::*;
     /// #
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.traj_writer_init::<XtcWriter>("output.xtc").unwrap();
+    /// # }
     /// ```
     ///
     /// After initialization, an XTC trajectory writer is now associated with the system, targeting `output.xtc`.
     /// Additional trajectory writers can be attached to the same system:
     /// ```no_run
+    /// # #[cfg(not(feature = "no-xdrfile"))] {
     /// # use groan_rs::prelude::*;
     /// # let mut system = System::from_file("system.gro").unwrap();
     /// #
@@ -54,15 +61,18 @@ impl System {
     /// // attach an XTC trajectory writer for a specific group
     /// system.group_create("Protein", "@protein").unwrap();
     /// system.traj_group_writer_init::<XtcWriter>("output_protein.xtc", "Protein").unwrap();
+    /// # }
     /// ```
     ///
     /// Now three writers are associated with the system. To write the current system state into each writer:
     /// ```no_run
+    /// # #[cfg(not(feature = "no-xdrfile"))] {
     /// # use groan_rs::prelude::*;
     /// # let mut system = System::from_file("system.gro").unwrap();
     /// # system.traj_writer_init::<XtcWriter>("output.xtc").unwrap();
     /// #
     /// system.traj_write_frame().unwrap();
+    /// # }
     /// ```
     ///
     /// This writes the current system state to `output.xtc` (XTC format) and `output.trr` (TRR format), and
@@ -70,30 +80,36 @@ impl System {
     ///
     /// To write the current system state to a specific writer, specify the writer’s filename:
     /// ```no_run
+    /// # #[cfg(not(feature = "no-xdrfile"))] {
     /// # use groan_rs::prelude::*;
     /// # let mut system = System::from_file("system.gro").unwrap();
     /// # system.traj_writer_init::<XtcWriter>("output.xtc").unwrap();
     /// #
     /// system.traj_write_frame_to_file("output.xtc").unwrap();
+    /// # }
     /// ```
     /// This writes a frame only to `output.xtc` in XTC format.
     ///
     /// Trajectory files close automatically when the `System` goes out of scope. To manually close all writers:
     /// ```no_run
+    /// # #[cfg(not(feature = "no-xdrfile"))] {
     /// # use groan_rs::prelude::*;
     /// # let mut system = System::from_file("system.gro").unwrap();
     /// # system.traj_writer_init::<XtcWriter>("output.xtc").unwrap();
     /// #
     /// system.traj_close();
+    /// # }
     /// ```
     ///
     /// To close a specific writer by its filename:
     /// ```no_run
+    /// # #[cfg(not(feature = "no-xdrfile"))] {
     /// # use groan_rs::prelude::*;
     /// # let mut system = System::from_file("system.gro").unwrap();
     /// # system.traj_writer_init::<XtcWriter>("output.xtc").unwrap();
     /// #
     /// system.traj_close_file("output.xtc");
+    /// # }
     /// ```
     ///
     /// ## Notes
@@ -128,7 +144,7 @@ impl System {
     /// - `Ok` if the trajectory writer is successfully created for the specified group and associated
     ///   with the `System`.
     /// - `WriteTrajError` if an error occurs, such as if a writer for the same file already exists or
-    ///    if the group does not exist.
+    ///   if the group does not exist.
     ///
     /// ## Notes
     /// - Once the writer is initialized, the group can be removed from the system. The trajectory writer retains
@@ -154,6 +170,7 @@ impl System {
     /// based on the file extension and calls [`System::traj_writer_init`].
     /// Returns an error if the extension is unknown or unsupported.
     #[inline]
+    #[cfg(not(feature = "no-xdrfile"))]
     pub fn traj_writer_auto_init(
         &mut self,
         filename: impl AsRef<Path>,
@@ -175,6 +192,7 @@ impl System {
     /// based on the file extension and calls [`System::traj_group_writer_init`].
     /// Returns an error if the extension is unknown or unsupported.
     #[inline]
+    #[cfg(not(feature = "no-xdrfile"))]
     pub fn traj_group_writer_auto_init(
         &mut self,
         filename: impl AsRef<Path>,
@@ -449,6 +467,7 @@ pub(super) trait PrivateTrajWrite {
 }
 
 #[cfg(test)]
+#[cfg(not(feature = "no-xdrfile"))]
 mod tests {
     use std::{fs::File, path::PathBuf};
 

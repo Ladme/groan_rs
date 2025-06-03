@@ -1,9 +1,9 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Implementation of iterators over atoms and filter functions.
 
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ops::Deref};
 
 use crate::{
     auxiliary::PI_X2,
@@ -16,7 +16,7 @@ use crate::{
     },
 };
 
-use super::{simbox::simbox_check, vector3d::Vector3D};
+use super::{shape::NaiveShape, simbox::simbox_check, vector3d::Vector3D};
 
 /**************************/
 /*  IMMUTABLE ITERATORS   */
@@ -135,7 +135,7 @@ impl<'a> AtomIterable<'a> for OwnedAtomIterator<'a> {
 
 impl<'a> OrderedAtomIterator<'a> for OwnedAtomIterator<'a> {}
 
-/// Immutable iterator over atoms with applied geometry filter.
+/// Immutable iterator over atoms with applied geometry filter. Takes PBC into consideration.
 /// Constructed by calling `filter_geometry` method on `AtomIterator` or `FilterAtomIterator`.
 ///
 /// ## Notes
@@ -144,7 +144,7 @@ impl<'a> OrderedAtomIterator<'a> for OwnedAtomIterator<'a> {}
 pub struct FilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a Atom>,
-    S: Shape,
+    S: Shape + Clone,
 {
     iterator: I,
     geometry: S,
@@ -154,7 +154,7 @@ where
 impl<'a, I, S> Iterator for FilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a Atom>,
-    S: Shape,
+    S: Shape + Clone,
 {
     type Item = &'a Atom;
 
@@ -175,7 +175,7 @@ where
 impl<'a, I, S> HasBox for FilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a Atom>,
-    S: Shape,
+    S: Shape + Clone,
 {
     #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
@@ -185,16 +185,64 @@ where
 
 impl<'a, I, S> AtomIterable<'a> for FilterAtomIterator<'a, I, S>
 where
-    I: Iterator<Item = &'a Atom>,
-    S: Shape,
+    I: Iterator<Item = &'a Atom> + Clone,
+    S: Shape + Clone,
 {
     type AtomRef = &'a Atom;
 }
 
 impl<'a, I, S> OrderedAtomIterator<'a> for FilterAtomIterator<'a, I, S>
 where
+    I: Iterator<Item = &'a Atom> + Clone,
+    S: Shape + Clone,
+{
+}
+
+/// Immutable iterator over atoms with applied geometry filter that does not take PBC into consideration.
+/// Constructed by calling `filter_geometry_naive` method on `AtomIterator`, `FilterAtomIterator` or `NaiveFilterAtomIterator`.
+///
+/// ## Notes
+/// - Atoms with no positions set are never inside any geometric shape.
+#[derive(Debug, Clone)]
+pub struct NaiveFilterAtomIterator<'a, I, S>
+where
     I: Iterator<Item = &'a Atom>,
-    S: Shape,
+    S: NaiveShape,
+{
+    iterator: I,
+    geometry: S,
+}
+
+impl<'a, I, S> Iterator for NaiveFilterAtomIterator<'a, I, S>
+where
+    I: Iterator<Item = &'a Atom>,
+    S: NaiveShape,
+{
+    type Item = &'a Atom;
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iterator.find(|atom| {
+            atom.has_position()
+                && self.geometry.inside_naive(atom.get_position().expect(
+                    "FATAL GROAN ERROR | FilterAtomIterator::next | Atom should have position.",
+                ))
+        })
+    }
+}
+
+impl<'a, I, S> AtomIterable<'a> for NaiveFilterAtomIterator<'a, I, S>
+where
+    I: Iterator<Item = &'a Atom> + Clone,
+    S: NaiveShape + Clone,
+{
+    type AtomRef = &'a Atom;
+}
+
+impl<'a, I, S> OrderedAtomIterator<'a> for NaiveFilterAtomIterator<'a, I, S>
+where
+    I: Iterator<Item = &'a Atom> + Clone,
+    S: NaiveShape + Clone,
 {
 }
 
@@ -249,6 +297,49 @@ impl<'a> HasBox for MoleculeIterator<'a> {
 
 impl<'a> AtomIterable<'a> for MoleculeIterator<'a> {
     type AtomRef = &'a Atom;
+}
+
+/// Immutable iterator over atoms.
+/// The atoms may be returned in any order.
+#[derive(Debug, Clone)]
+pub struct UnorderedAtomIterator<'a, I: Iterator<Item = usize> + Clone> {
+    atoms: &'a [Atom],
+    iterator: I,
+    simbox: Option<&'a SimBox>,
+}
+
+impl<'a, I: Iterator<Item = usize> + Clone> Iterator for UnorderedAtomIterator<'a, I> {
+    type Item = &'a Atom;
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<Self::Item> {
+        unsafe {
+            self.iterator
+                .next().map(|index| self.atoms.get_unchecked(index))
+        }
+    }
+}
+
+impl<'a, I: Iterator<Item = usize> + Clone> HasBox for UnorderedAtomIterator<'a, I> {
+    #[inline(always)]
+    fn get_simbox(&self) -> Option<&SimBox> {
+        self.simbox
+    }
+}
+
+impl<'a, I: Iterator<Item = usize> + Clone> AtomIterable<'a> for UnorderedAtomIterator<'a, I> {
+    type AtomRef = &'a Atom;
+}
+
+impl<'a, I: Iterator<Item = usize> + Clone> UnorderedAtomIterator<'a, I> {
+    #[inline(always)]
+    pub(crate) fn new(atoms: &'a [Atom], iterator: I, simbox: Option<&'a SimBox>) -> Self {
+        UnorderedAtomIterator {
+            atoms,
+            iterator,
+            simbox,
+        }
+    }
 }
 
 /**************************/
@@ -366,7 +457,7 @@ impl<'a> Iterator for OwnedMutAtomIterator<'a> {
 
 impl<'a> OrderedAtomIterator<'a> for OwnedMutAtomIterator<'a> {}
 
-/// Mutable iterator over atoms with applied geometry filter.
+/// Mutable iterator over atoms with applied geometry filter. Takes PBC into consideration.
 /// Constructed by calling `filter_geometry` method on `MutAtomIterator` or `MutFilterAtomIterator`.
 ///
 /// ## Notes
@@ -375,7 +466,7 @@ impl<'a> OrderedAtomIterator<'a> for OwnedMutAtomIterator<'a> {}
 pub struct MutFilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a mut Atom>,
-    S: Shape,
+    S: Shape + Clone,
 {
     iterator: I,
     geometry: S,
@@ -385,7 +476,7 @@ where
 impl<'a, I, S> HasBox for MutFilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a mut Atom>,
-    S: Shape,
+    S: Shape + Clone,
 {
     #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
@@ -395,8 +486,8 @@ where
 
 impl<'a, I, S> AtomIterable<'a> for MutFilterAtomIterator<'a, I, S>
 where
-    I: Iterator<Item = &'a mut Atom>,
-    S: Shape,
+    I: Iterator<Item = &'a mut Atom> + Clone,
+    S: Shape + Clone,
 {
     type AtomRef = &'a mut Atom;
 }
@@ -404,7 +495,7 @@ where
 impl<'a, I, S> Iterator for MutFilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a mut Atom>,
-    S: Shape,
+    S: Shape + Clone,
 {
     type Item = &'a mut Atom;
 
@@ -421,8 +512,56 @@ where
 
 impl<'a, I, S> OrderedAtomIterator<'a> for MutFilterAtomIterator<'a, I, S>
 where
+    I: Iterator<Item = &'a mut Atom> + Clone,
+    S: Shape + Clone,
+{
+}
+
+/// Mutable iterator over atoms with applied geometry filter that does not take PBC into consideration.
+/// Constructed by calling `filter_geometry_naive` method on `MutAtomIterator`, `MutFilterAtomIterator`, or `MutNaiveFilterAtomIterator`.
+///
+/// ## Notes
+/// - Atoms with no positions set are never inside any geometric shape.
+#[derive(Debug, Clone)]
+pub struct MutNaiveFilterAtomIterator<'a, I, S>
+where
     I: Iterator<Item = &'a mut Atom>,
-    S: Shape,
+    S: NaiveShape + Clone,
+{
+    iterator: I,
+    geometry: S,
+}
+
+impl<'a, I, S> AtomIterable<'a> for MutNaiveFilterAtomIterator<'a, I, S>
+where
+    I: Iterator<Item = &'a mut Atom> + Clone,
+    S: NaiveShape + Clone,
+{
+    type AtomRef = &'a mut Atom;
+}
+
+impl<'a, I, S> Iterator for MutNaiveFilterAtomIterator<'a, I, S>
+where
+    I: Iterator<Item = &'a mut Atom>,
+    S: NaiveShape + Clone,
+{
+    type Item = &'a mut Atom;
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iterator.find(|atom| {
+            atom.has_position()
+                && self.geometry.inside_naive(atom.get_position().expect(
+                    "FATAL GROAN ERROR | MutFilterAtomIterator::next | Atom should have position.",
+                ))
+        })
+    }
+}
+
+impl<'a, I, S> OrderedAtomIterator<'a> for MutNaiveFilterAtomIterator<'a, I, S>
+where
+    I: Iterator<Item = &'a mut Atom> + Clone,
+    S: NaiveShape + Clone,
 {
 }
 
@@ -585,8 +724,8 @@ where
 
 impl<'a, A, I1, I2> HasBox for UnionAtomIterator<'a, A, I1, I2>
 where
-    I1: OrderedAtomIterator<'a, AtomRef = A>,
-    I2: OrderedAtomIterator<'a, AtomRef = A>,
+    I1: OrderedAtomIterator<'a, AtomRef = A> + HasBox,
+    I2: OrderedAtomIterator<'a, AtomRef = A> + HasBox,
     A: std::ops::Deref<Target = Atom> + 'a,
 {
     #[inline(always)]
@@ -661,8 +800,8 @@ where
 
 impl<'a, A, I1, I2> HasBox for IntersectionAtomIterator<'a, A, I1, I2>
 where
-    I1: OrderedAtomIterator<'a, AtomRef = A>,
-    I2: OrderedAtomIterator<'a, AtomRef = A>,
+    I1: OrderedAtomIterator<'a, AtomRef = A> + HasBox,
+    I2: OrderedAtomIterator<'a, AtomRef = A> + HasBox,
     A: std::ops::Deref<Target = Atom> + 'a,
 {
     #[inline(always)]
@@ -700,14 +839,15 @@ pub trait HasBox {
 }
 
 /// Trait implemented by all iterators over atoms.
-pub trait AtomIterable<'a>: Iterator<Item = Self::AtomRef> + Sized {
+pub trait AtomIterable<'a>: Iterator<Item = Self::AtomRef> + Sized + Clone {
     // AtomRef is either &'a Atom or &'a mut Atom
     type AtomRef: std::ops::Deref<Target = Atom> + 'a;
 
     /// Calculate the center of geometry of a group of atoms selected by an iterator.
     /// This method **does not account for periodic boundary conditions**.
     ///
-    /// If you want to consider PBC, use [`AtomIteratorWithBox::get_center`].
+    /// If you want to consider PBC, use [`AtomIteratorWithBox::get_center`]
+    /// or [`AtomIteratorWithBox::estimate_center`].
     ///
     /// ## Returns
     /// - `Vector3D` corresponding to the geometric center of the selected atoms.
@@ -765,7 +905,8 @@ pub trait AtomIterable<'a>: Iterator<Item = Self::AtomRef> + Sized {
     /// Calculate the center of mass of a group of atoms selected by an iterator.
     /// This method **does not account for periodic boundary conditions**.
     ///
-    /// If you want to consider PBC, use [`AtomIteratorWithBox::get_com`].
+    /// If you want to consider PBC, use [`AtomIteratorWithBox::get_com`]
+    /// or [`AtomIteratorWithBox::estimate_com`].
     ///
     /// ## Returns
     /// - `Vector3D` corresponding to the center of mass of the selected atoms.
@@ -826,6 +967,88 @@ pub trait AtomIterable<'a>: Iterator<Item = Self::AtomRef> + Sized {
     }
 }
 
+/// Trait implemented by all `AtomIterable` structures returning immutable atom references.
+pub trait ImmutableAtomIterable<'a>: AtomIterable<'a, AtomRef = &'a Atom, Item = &'a Atom> {
+    /// Filter atoms located inside the specified geometric shape.
+    /// **Ignores** periodic boundary conditions.
+    ///
+    /// If you want to consider PBC, see [`AtomIteratorWithBox::filter_geometry`].
+    ///
+    /// ## Example
+    /// Iterating over all atoms of the system
+    /// that are located in a sphere around a specific point.
+    /// **Periodic boundary conditions are ignored!**
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let system = System::from_file("system.gro").unwrap();
+    ///
+    /// // construct a sphere located at x = 1, y = 2, z = 3 with a radius of 2.5 nm
+    /// let sphere = Sphere::new([1.0, 2.0, 3.0].into(), 2.5);
+    ///
+    /// for atom in system.atoms_iter().filter_geometry_naive(sphere) {
+    ///     println!("{:?}", atom);
+    /// }
+    /// ```
+    #[inline(always)]
+    fn filter_geometry_naive(
+        self,
+        geometry: impl NaiveShape + Clone,
+    ) -> NaiveFilterAtomIterator<'a, Self, impl NaiveShape + Clone> {
+        NaiveFilterAtomIterator {
+            iterator: self,
+            geometry,
+        }
+    }
+}
+
+/// Trait implemented by all `AtomIterable` structures returning mutable atom references.
+pub trait MutableAtomIterable<'a>:
+    AtomIterable<'a, AtomRef = &'a mut Atom, Item = &'a mut Atom>
+{
+    /// Filter atoms located inside the specified geometric shape.
+    /// **Ignores** periodic boundary conditions.
+    ///
+    /// If you want to consider PBC, see [`MutAtomIteratorWithBox::filter_geometry`].
+    ///
+    /// ## Example
+    /// Iterating over all atoms of the system
+    /// that are located in a sphere around a specific point
+    /// and changing their names.
+    /// **Periodic boundary conditions are ignored!**
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    ///
+    /// // construct a sphere located at x = 1, y = 2, z = 3 with a radius of 2.5 nm
+    /// let sphere = Sphere::new([1.0, 2.0, 3.0].into(), 2.5);
+    ///
+    /// for atom in system.atoms_iter_mut().filter_geometry_naive(sphere) {
+    ///     atom.set_atom_name("XYZ");
+    /// }
+    /// ```
+    fn filter_geometry_naive(
+        self,
+        geometry: impl NaiveShape + Clone,
+    ) -> MutNaiveFilterAtomIterator<'a, Self, impl NaiveShape + Clone> {
+        MutNaiveFilterAtomIterator {
+            iterator: self,
+            geometry,
+        }
+    }
+}
+
+impl<'a, T> ImmutableAtomIterable<'a> for T where
+    T: AtomIterable<'a, AtomRef = &'a Atom, Item = &'a Atom>
+{
+}
+
+impl<'a, T> MutableAtomIterable<'a> for T where
+    T: AtomIterable<'a, AtomRef = &'a mut Atom, Item = &'a mut Atom>
+{
+}
+
 /// Trait implemented by all IMMUTABLE iterators over atoms that contain information about the simulation box.
 pub trait AtomIteratorWithBox<'a>: HasBox
 where
@@ -845,6 +1068,9 @@ where
     }
 
     /// Filter atoms located inside the specified geometric shape.
+    /// Takes PBC into consideration.
+    ///
+    /// If you do not want to use PBC, see [`ImmutableAtomIterable::filter_geometry_naive`].
     ///
     /// ## Panics
     /// Panics if the iterator has no associated simulation box.
@@ -864,7 +1090,11 @@ where
     ///     println!("{:?}", atom);
     /// }
     /// ```
-    fn filter_geometry(self, geometry: impl Shape) -> FilterAtomIterator<'a, Self, impl Shape> {
+    #[inline(always)]
+    fn filter_geometry(
+        self,
+        geometry: impl Shape + Clone,
+    ) -> FilterAtomIterator<'a, Self, impl Shape + Clone> {
         let simbox = self.get_simbox_unwrap().clone();
 
         FilterAtomIterator {
@@ -874,12 +1104,14 @@ where
         }
     }
 
-    /// Calculate center of geometry of a group of atoms selected by an iterator.
-    /// Takes periodic boundary conditions into consideration.
+    /// Calculate an pproximate center of geometry of a group of atoms selected by an iterator.
+    /// Takes periodic boundary conditions into consideration
+    /// and returns an approximate center of geometry.
+    /// Works for any group of atoms which are not completely homogeneously distributed.
     /// Useful for the calculation of local center of geometry.
     ///
     /// ## Returns
-    /// - `Vector3D` corresponding to the geometric center of the selected atoms.
+    /// - `Vector3D` corresponding to the approximate geometric center of the selected atoms.
     /// - `AtomError::InvalidSimBox` if the iterator has no simulation box
     ///   or the simulation box is not orthogonal.
     /// - `AtomError::InvalidPosition` if any of the atoms of the iterator has no position.
@@ -900,8 +1132,8 @@ where
     ///     .unwrap()
     ///     .filter_geometry(sphere);
     ///
-    /// // calculate center of geometry of "atoms"
-    /// let center = match atoms.get_center() {
+    /// // calculate approximate center of geometry of "atoms"
+    /// let center = match atoms.estimate_center() {
     ///     Ok(x) => x,
     ///     Err(e) => {
     ///         eprintln!("{}", e);
@@ -912,11 +1144,12 @@ where
     ///
     /// ## Notes
     /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
-    /// - It is able to calculate correct center of geometry for any distribution of atoms
+    /// - It is able to calculate approximate but correct center of geometry for any distribution of atoms
     ///   that is not completely homogeneous.
     /// - In case the iterator is empty, the center of geometry is NaN.
+    /// - If you want a more precise (but more computationally expensive) calculation, use [`AtomIteratorWithBox::get_center`].
     /// - If you do **not** want to consider periodic boundary conditions during the calculation, use [`AtomIterable::get_center_naive`].
-    fn get_center(self) -> Result<Vector3D, AtomError> {
+    fn estimate_center(self) -> Result<Vector3D, AtomError> {
         let simbox = simbox_check(self.get_simbox()).map_err(AtomError::InvalidSimBox)?;
         let scaling = Vector3D::new(PI_X2 / simbox.x, PI_X2 / simbox.y, PI_X2 / simbox.z);
         let simbox = simbox as *const SimBox;
@@ -957,12 +1190,89 @@ where
         ))
     }
 
-    /// Calculate center of mass of a group of atoms selected by an iterator.
+    /// Calculate the center of geometry of a group of atoms selected by an iterator.
     /// Takes periodic boundary conditions into consideration.
-    /// Useful for the calculation of local center of geometry.
+    /// Only works for groups smaller than half the size of the simulation box.
     ///
     /// ## Returns
-    /// - `Vector3D` corresponding to the center of mass of the selected atoms.
+    /// - `Vector3D` corresponding to the geometric center of the selected atoms.
+    /// - `AtomError::InvalidSimBox` if the iterator has no simulation box
+    ///   or the simulation box is not orthogonal.
+    /// - `AtomError::InvalidPosition` if any of the atoms of the iterator has no position.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.read_ndx("index.ndx").unwrap();
+    ///
+    /// let sphere = Sphere::new(Vector3D::new(1.0, 2.0, 3.0), 2.5);
+    ///
+    /// // select atoms of the group "Group" located inside a sphere with
+    /// // a radius of 2.5 nm centered at [1.0, 2.0, 3.0]
+    /// let atoms = system
+    ///     .group_iter("Group")
+    ///     .unwrap()
+    ///     .filter_geometry(sphere);
+    ///
+    /// // calculate the center of geometry of "atoms"
+    /// let center = match atoms.get_center() {
+    ///     Ok(x) => x,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;    
+    ///     }
+    /// };
+    /// ```
+    ///
+    /// ## Notes
+    /// - This method first estimates the geometric center using the Bai and Breen method and
+    ///   then makes the group whole in the simulation box. Once the group is no longer broken
+    ///   at periodic boundaries, precise center of geometry is calculated naively.
+    /// - The molecular system is not modified.
+    /// - In case the iterator is empty, the center of geometry is NaN.
+    /// - If you want a less precise (but much faster) calculation, use [`AtomIteratorWithBox::estimate_center`].
+    /// - If you do **not** want to consider periodic boundary conditions during the calculation, use [`AtomIterable::get_center_naive`].
+    fn get_center(self) -> Result<Vector3D, AtomError> {
+        // estimate the geometric center of the atoms of the iterator
+        let center = self.clone().estimate_center()?;
+
+        let simbox =
+            simbox_check(self.get_simbox()).map_err(AtomError::InvalidSimBox)? as *const SimBox;
+
+        // iterate through all atoms of the iterator
+        let mut total_pos = Vector3D::default();
+        let mut n_atoms = 0usize;
+        for atom in self {
+            let position = (*atom).get_position().ok_or_else(|| {
+                AtomError::InvalidPosition(PositionError::NoPosition((*atom).get_index()))
+            })?;
+
+            // get the shortest vector between the group center and the atom
+            let vector = center.vector_to(position, unsafe { &*simbox });
+
+            // modify the position
+            let new_position = Vector3D(center.deref() + vector.deref());
+
+            total_pos.x += new_position.x;
+            total_pos.y += new_position.y;
+            total_pos.z += new_position.z;
+
+            n_atoms += 1;
+        }
+
+        Ok(total_pos / n_atoms as f32)
+    }
+
+    /// Calculate an approximate center of mass of a group of atoms selected by an iterator.
+    /// Takes periodic boundary conditions into consideration
+    /// and returns an approximate center of mass.
+    /// Works for any group of atoms which are not completely homogeneously distributed.
+    /// Useful for the calculation of local center of mass.
+    ///
+    /// ## Returns
+    /// - `Vector3D` corresponding to the approximate center of mass of the selected atoms.
     /// - `AtomError::InvalidSimBox` if the iterator has no simulation box
     ///   or the simulation box is not orthogonal.
     /// - `AtomError::InvalidPosition` if any of the atoms of the iterator has no position.
@@ -985,7 +1295,7 @@ where
     ///     .filter_geometry(sphere);
     ///
     /// // calculate center of mass of "atoms"
-    /// let center = match atoms.get_com() {
+    /// let center = match atoms.estimate_com() {
     ///     Ok(x) => x,
     ///     Err(e) => {
     ///         eprintln!("{}", e);
@@ -996,11 +1306,12 @@ where
     ///
     /// ## Notes
     /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
-    /// - It is able to calculate correct center of mass for any distribution of atoms
+    /// - It is able to calculate approximate but correct center of mass for any distribution of atoms
     ///   that is not completely homogeneous.
     /// - In case the iterator is empty, the center of mass is NaN.
+    /// - If you want a more precise (but more computationally expensive) calculation, use [`AtomIteratorWithBox::get_com`].
     /// - If you do **not** want to consider periodic boundary conditions during the calculation, use [`AtomIterable::get_com_naive`].
-    fn get_com(self) -> Result<Vector3D, AtomError> {
+    fn estimate_com(self) -> Result<Vector3D, AtomError> {
         let simbox = simbox_check(self.get_simbox()).map_err(AtomError::InvalidSimBox)?;
         let scaling = Vector3D::new(PI_X2 / simbox.x, PI_X2 / simbox.y, PI_X2 / simbox.z);
         let simbox = simbox as *const SimBox;
@@ -1044,14 +1355,90 @@ where
             sum_zeta, sum_xi, &scaling,
         ))
     }
+
+    /// Calculate the center of mass of a group of atoms selected by an iterator.
+    /// Takes periodic boundary conditions into consideration.
+    /// Only works for groups smaller than half the size of the simulation box.
+    ///
+    /// ## Returns
+    /// - `Vector3D` corresponding to the center of mass of the selected atoms.
+    /// - `AtomError::InvalidSimBox` if the iterator has no simulation box
+    ///   or the simulation box is not orthogonal.
+    /// - `AtomError::InvalidPosition` if any of the atoms of the iterator has no position.
+    /// - `AtomError::InvalidMass` if any of the atoms of the iterator has no mass.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.read_ndx("index.ndx").unwrap();
+    ///
+    /// let sphere = Sphere::new(Vector3D::new(1.0, 2.0, 3.0), 2.5);
+    ///
+    /// // select atoms of the group "Group" located inside a sphere with
+    /// // a radius of 2.5 nm centered at [1.0, 2.0, 3.0]
+    /// let atoms = system
+    ///     .group_iter("Group")
+    ///     .unwrap()
+    ///     .filter_geometry(sphere);
+    ///
+    /// // calculate the center of mass of "atoms"
+    /// let center = match atoms.get_com() {
+    ///     Ok(x) => x,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;    
+    ///     }
+    /// };
+    /// ```
+    ///
+    /// ## Notes
+    /// - This method first estimates the center of *geometry* using the Bai and Breen method and
+    ///   then makes the group whole in the simulation box. Once the group is no longer broken
+    ///   at periodic boundaries, precise center of mass is calculated naively.
+    /// - The molecular system is not modified.
+    /// - In case the iterator is empty, the center of mass is NaN.
+    /// - If you want a less precise (but much faster) calculation, use [`AtomIteratorWithBox::estimate_com`].
+    /// - If you do **not** want to consider periodic boundary conditions during the calculation, use [`AtomIterable::get_com_naive`].
+    fn get_com(self) -> Result<Vector3D, AtomError> {
+        // estimate the center of geometry of the atoms of the iterator
+        // we do not calculate COM, since this is cheaper and the exact center does not matter here
+        let center = self.clone().estimate_center()?;
+
+        let simbox =
+            simbox_check(self.get_simbox()).map_err(AtomError::InvalidSimBox)? as *const SimBox;
+
+        // iterate through all atoms of the iterator
+        let mut total_pos = Vector3D::default();
+        let mut sum = 0f32;
+        for atom in self {
+            let position = (*atom).get_position().ok_or_else(|| {
+                AtomError::InvalidPosition(PositionError::NoPosition((*atom).get_index()))
+            })?;
+
+            let mass = (*atom)
+                .get_mass()
+                .ok_or_else(|| AtomError::InvalidMass(MassError::NoMass((*atom).get_index())))?;
+
+            // get the shortest vector between the group center and the atom
+            let vector = center.vector_to(position, unsafe { &*simbox });
+
+            // modify the position
+            let new_position = Vector3D(center.deref() + vector.deref());
+
+            total_pos.x += new_position.x * mass;
+            total_pos.y += new_position.y * mass;
+            total_pos.z += new_position.z * mass;
+
+            sum += mass;
+        }
+
+        Ok(total_pos / sum)
+    }
 }
 
-impl<'a, T> AtomIteratorWithBox<'a> for T
-where
-    T: AtomIterable<'a, AtomRef = &'a Atom>,
-    T: HasBox,
-{
-}
+impl<'a, T> AtomIteratorWithBox<'a> for T where T: AtomIterable<'a, AtomRef = &'a Atom> + HasBox {}
 
 /// Trait implemented by all MUTABLE iterators over atoms that contain information about the simulation box.
 pub trait MutAtomIteratorWithBox<'a>: HasBox
@@ -1071,6 +1458,9 @@ where
     }
 
     /// Filter atoms located inside the specified geometric shape.
+    /// Takes PBC into consideration.
+    ///
+    /// If you do not want to use PBC, see [`MutableAtomIterable::filter_geometry_naive`].
     ///
     /// ## Panics
     /// Panics if the iterator has no associated simulation box.
@@ -1078,7 +1468,7 @@ where
     /// ## Example
     /// Iterating over all atoms of the system
     /// that are located in a sphere around a specific point
-    /// and change their names.
+    /// and changing their names.
     /// ```no_run
     /// # use groan_rs::prelude::*;
     /// #
@@ -1091,7 +1481,11 @@ where
     ///     atom.set_atom_name("XYZ");
     /// }
     /// ```
-    fn filter_geometry(self, geometry: impl Shape) -> MutFilterAtomIterator<'a, Self, impl Shape> {
+    #[inline(always)]
+    fn filter_geometry(
+        self,
+        geometry: impl Shape + Clone,
+    ) -> MutFilterAtomIterator<'a, Self, impl Shape + Clone> {
         let simbox = self.get_simbox_unwrap().clone();
 
         MutFilterAtomIterator {
@@ -1159,16 +1553,14 @@ where
     }
 }
 
-impl<'a, T> MutAtomIteratorWithBox<'a> for T
-where
-    T: AtomIterable<'a, AtomRef = &'a mut Atom>,
-    T: HasBox,
+impl<'a, T> MutAtomIteratorWithBox<'a> for T where
+    T: AtomIterable<'a, AtomRef = &'a mut Atom> + HasBox
 {
 }
 
 /// Trait implemented by mutable or immutable iterators which yield atoms in the order
 /// in which they are defined in the parent System.
-pub trait OrderedAtomIterator<'a>: AtomIterable<'a> + HasBox {
+pub trait OrderedAtomIterator<'a>: AtomIterable<'a> {
     /// Create a new iterator that is the union of the provided iterators.
     ///
     /// ## Notes
@@ -1295,12 +1687,242 @@ mod tests {
     use float_cmp::assert_approx_eq;
 
     use crate::{
-        prelude::{Cylinder, Dimension},
+        prelude::{Cylinder, Dimension, Rectangular},
         structures::{element::Elements, shape::Sphere},
         system::System,
+        test_utilities::utilities::compare_atoms,
     };
 
     use super::*;
+
+    #[test]
+    fn filter_geometry_immutable() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        let sphere = Sphere::new(Vector3D::new(10.5, 11.2, 1.7), 4.0);
+        system
+            .group_create_from_geometry("Sphere", "all", sphere.clone())
+            .unwrap();
+        let cylinder = Cylinder::new(Vector3D::new(0.5, 1.2, 10.3), 2.5, 4.5, Dimension::Z);
+        system
+            .group_create_from_geometry("Cylinder", "all", cylinder.clone())
+            .unwrap();
+        let rectangular = Rectangular::new(Vector3D::new(1.3, 12.4, 10.7), 6.5, 4.5, 5.0);
+        system
+            .group_create_from_geometry("Rectangular", "all", rectangular.clone())
+            .unwrap();
+
+        let mut i = 0;
+        for (a1, a2) in system
+            .group_iter("Sphere")
+            .unwrap()
+            .zip(system.atoms_iter().filter_geometry(sphere))
+        {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Sphere").unwrap());
+
+        let mut i = 0;
+        for (a1, a2) in system
+            .group_iter("Cylinder")
+            .unwrap()
+            .zip(system.atoms_iter().filter_geometry(cylinder))
+        {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Cylinder").unwrap());
+
+        let mut i = 0;
+        for (a1, a2) in system
+            .group_iter("Rectangular")
+            .unwrap()
+            .zip(system.atoms_iter().filter_geometry(rectangular))
+        {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Rectangular").unwrap());
+    }
+
+    #[test]
+    fn filter_geometry_mutable() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let mut system_clone = system.clone();
+
+        let sphere = Sphere::new(Vector3D::new(10.5, 11.2, 1.7), 4.0);
+        system
+            .group_create_from_geometry("Sphere", "all", sphere.clone())
+            .unwrap();
+        let cylinder = Cylinder::new(Vector3D::new(0.5, 1.2, 10.3), 2.5, 4.5, Dimension::Z);
+        system
+            .group_create_from_geometry("Cylinder", "all", cylinder.clone())
+            .unwrap();
+        let rectangular = Rectangular::new(Vector3D::new(1.3, 12.4, 10.7), 6.5, 4.5, 5.0);
+        system
+            .group_create_from_geometry("Rectangular", "all", rectangular.clone())
+            .unwrap();
+
+        let mut i = 0;
+        for (a1, a2) in system
+            .group_iter_mut("Sphere")
+            .unwrap()
+            .zip(system_clone.atoms_iter_mut().filter_geometry(sphere))
+        {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Sphere").unwrap());
+
+        let mut i = 0;
+        for (a1, a2) in system
+            .group_iter_mut("Cylinder")
+            .unwrap()
+            .zip(system_clone.atoms_iter_mut().filter_geometry(cylinder))
+        {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Cylinder").unwrap());
+
+        let mut i = 0;
+        for (a1, a2) in system
+            .group_iter_mut("Rectangular")
+            .unwrap()
+            .zip(system_clone.atoms_iter_mut().filter_geometry(rectangular))
+        {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Rectangular").unwrap());
+    }
+
+    #[test]
+    fn filter_geometry_naive_immutable() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let system_clone = system.clone();
+
+        system.set_box(SimBox::from([100.0, 100.0, 100.0]));
+        let sphere = Sphere::new(Vector3D::new(10.5, 11.2, 1.7), 4.0);
+        system
+            .group_create_from_geometry("Sphere", "all", sphere.clone())
+            .unwrap();
+        let cylinder = Cylinder::new(Vector3D::new(0.5, 1.2, 10.3), 2.5, 4.5, Dimension::Z);
+        system
+            .group_create_from_geometry("Cylinder", "all", cylinder.clone())
+            .unwrap();
+        let rectangular = Rectangular::new(Vector3D::new(1.3, 12.4, 10.7), 6.5, 4.5, 5.0);
+        system
+            .group_create_from_geometry("Rectangular", "all", rectangular.clone())
+            .unwrap();
+
+        let mut i = 0;
+        for (a1, a2) in system
+            .group_iter("Sphere")
+            .unwrap()
+            .zip(system_clone.atoms_iter().filter_geometry_naive(sphere))
+        {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Sphere").unwrap());
+
+        let mut i = 0;
+        for (a1, a2) in system
+            .group_iter("Cylinder")
+            .unwrap()
+            .zip(system_clone.atoms_iter().filter_geometry_naive(cylinder))
+        {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Cylinder").unwrap());
+
+        let mut i = 0;
+        for (a1, a2) in system
+            .group_iter("Rectangular")
+            .unwrap()
+            .zip(system_clone.atoms_iter().filter_geometry_naive(rectangular))
+        {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Rectangular").unwrap());
+    }
+
+    #[test]
+    fn filter_geometry_naive_mutable() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let mut system_clone = system.clone();
+
+        system.set_box(SimBox::from([100.0, 100.0, 100.0]));
+        let sphere = Sphere::new(Vector3D::new(10.5, 11.2, 1.7), 4.0);
+        system
+            .group_create_from_geometry("Sphere", "all", sphere.clone())
+            .unwrap();
+        let cylinder = Cylinder::new(Vector3D::new(0.5, 1.2, 10.3), 2.5, 4.5, Dimension::Z);
+        system
+            .group_create_from_geometry("Cylinder", "all", cylinder.clone())
+            .unwrap();
+        let rectangular = Rectangular::new(Vector3D::new(1.3, 12.4, 10.7), 6.5, 4.5, 5.0);
+        system
+            .group_create_from_geometry("Rectangular", "all", rectangular.clone())
+            .unwrap();
+
+        let mut i = 0;
+        for (a1, a2) in system
+            .group_iter_mut("Sphere")
+            .unwrap()
+            .zip(system_clone.atoms_iter_mut().filter_geometry_naive(sphere))
+        {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Sphere").unwrap());
+
+        let mut i = 0;
+        for (a1, a2) in system.group_iter_mut("Cylinder").unwrap().zip(
+            system_clone
+                .atoms_iter_mut()
+                .filter_geometry_naive(cylinder),
+        ) {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Cylinder").unwrap());
+
+        let mut i = 0;
+        for (a1, a2) in system.group_iter_mut("Rectangular").unwrap().zip(
+            system_clone
+                .atoms_iter_mut()
+                .filter_geometry_naive(rectangular),
+        ) {
+            compare_atoms(a1, a2);
+            i += 1;
+        }
+        assert_eq!(i, system.group_get_n_atoms("Rectangular").unwrap());
+    }
+
+    #[test]
+    fn iterator_estimate_center() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let sphere_pos = system.group_estimate_center("Protein").unwrap();
+        let sphere = Sphere::new(sphere_pos.clone(), 2.0);
+
+        let center = system
+            .group_iter("Membrane")
+            .unwrap()
+            .filter_geometry(sphere)
+            .estimate_center()
+            .unwrap();
+
+        assert_approx_eq!(f32, center.x, 9.8453);
+        assert_approx_eq!(f32, center.y, 2.4803874);
+        assert_approx_eq!(f32, center.z, 5.434977);
+    }
 
     #[test]
     fn iterator_get_center() {
@@ -1317,9 +1939,9 @@ mod tests {
             .get_center()
             .unwrap();
 
-        assert_approx_eq!(f32, center.x, 9.8453);
-        assert_approx_eq!(f32, center.y, 2.4803874);
-        assert_approx_eq!(f32, center.z, 5.434977);
+        assert_approx_eq!(f32, center.x, 9.848716);
+        assert_approx_eq!(f32, center.y, 2.4805717);
+        assert_approx_eq!(f32, center.z, 5.4309845);
     }
 
     #[test]
@@ -1367,6 +1989,32 @@ mod tests {
     }
 
     #[test]
+    fn iterator_estimate_com() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+
+        system.group_create("Peptide", "@protein").unwrap();
+        system.group_create("Membrane", "@membrane").unwrap();
+
+        system.guess_elements(Elements::default()).unwrap();
+
+        let sphere_pos = system.group_get_center("Peptide").unwrap();
+        let sphere = Sphere::new(sphere_pos.clone(), 1.0);
+
+        let com = system
+            .group_iter("Membrane")
+            .unwrap()
+            .filter_geometry(sphere)
+            .estimate_com()
+            .unwrap();
+
+        println!("{:?}", com);
+
+        assert_approx_eq!(f32, com.x, 3.985978);
+        assert_approx_eq!(f32, com.y, 3.7461767);
+        assert_approx_eq!(f32, com.z, 3.3526845);
+    }
+
+    #[test]
     fn iterator_get_com() {
         let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
 
@@ -1385,9 +2033,9 @@ mod tests {
             .get_com()
             .unwrap();
 
-        assert_approx_eq!(f32, com.x, 4.0072813);
-        assert_approx_eq!(f32, com.y, 3.7480402);
-        assert_approx_eq!(f32, com.z, 3.3228612);
+        assert_approx_eq!(f32, com.x, 3.9912941);
+        assert_approx_eq!(f32, com.y, 3.744326);
+        assert_approx_eq!(f32, com.z, 3.3532307);
     }
 
     #[test]

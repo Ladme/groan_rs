@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Implementation of System methods for modifying the system.
 
@@ -401,7 +401,7 @@ impl System {
     /// ## Notes
     /// - This function works similarly to [`System::make_molecules_whole`], but it only affects a single group of atoms,
     ///   which do **not** need to be connected by bonds.
-    /// - The method may not work properly for groups that are larger than the simulation box.
+    /// - The method will not work properly for groups that are larger than half of the simulation box.
     /// - Instead of using a reference atom, the function repositions the atoms in the group based on the group's center of geometry.
     ///
     /// ### Example
@@ -445,8 +445,8 @@ impl System {
     ///
     /// Atoms of type B remain unaffected.
     pub fn make_group_whole(&mut self, group: &str) -> Result<(), GroupError> {
-        // get the geometric center of the group which is by definition inside the simulation box
-        let center = self.group_get_center(group)?;
+        // estimate the geometric center of the group which is by definition inside the simulation box
+        let center = self.group_estimate_center(group)?;
 
         let simbox =
             simbox_check(self.get_box()).map_err(GroupError::InvalidSimBox)? as *const SimBox;
@@ -472,6 +472,18 @@ impl System {
         }
 
         Ok(())
+    }
+
+    /// Removes all information about bonds from the system.
+    /// This method calls [`System::reset_mol_references`](crate::prelude::System::reset_mol_references).
+    #[inline]
+    pub fn clear_bonds(&mut self) {
+        // safety: we are removing all bonded information and we are calling `reset_mol_references` afterwards
+        self.get_atoms_mut()
+            .iter_mut()
+            .for_each(|atom| unsafe { atom.reset_bonded() });
+
+        self.reset_mol_references();
     }
 }
 
@@ -1205,5 +1217,17 @@ mod tests {
                 e
             ),
         }
+    }
+
+    #[test]
+    fn clear_bonds() {
+        let mut system = System::from_file("test_files/example.tpr").unwrap();
+        assert!(system.has_bonds());
+        system.create_mol_references();
+        assert!(system.mol_references.is_some());
+
+        system.clear_bonds();
+        assert!(!system.has_bonds());
+        assert!(system.mol_references.is_none());
     }
 }

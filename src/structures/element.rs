@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Implementation of the Element structure and its methods.
 
@@ -134,7 +134,7 @@ impl Elements {
         match yaml_file.read_to_string(&mut yaml_string) {
             Ok(_) => Ok(yaml_string),
             Err(_) => {
-                return Err(ParseElementError::FileCouldNotBeRead(Box::from(
+                Err(ParseElementError::FileCouldNotBeRead(Box::from(
                     filename.as_ref(),
                 )))
             }

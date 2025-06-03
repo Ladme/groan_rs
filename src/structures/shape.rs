@@ -1,7 +1,9 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Implementation of shapes for geometry selection.
+
+use dyn_clone::DynClone;
 
 use crate::structures::{dimension::Dimension, simbox::SimBox, vector3d::Vector3D};
 
@@ -66,10 +68,12 @@ pub struct TriangularPrism {
 }
 
 /// Any structure implementing this trait can be used for geometry selection.
-pub trait Shape {
+pub trait Shape: DynClone {
     /// Returns `true` if target point is inside the `Shape`. Else returns `false`.
     fn inside(&self, point: &Vector3D, simbox: &SimBox) -> bool;
 }
+
+dyn_clone::clone_trait_object!(Shape);
 
 impl Sphere {
     /// Construct a new Sphere.
@@ -104,7 +108,9 @@ impl Sphere {
 }
 
 impl Shape for Sphere {
-    /// Check if point is inside the sphere.
+    /// Check if point is inside the sphere. Takes PBC into consideration.
+    ///
+    /// For PBC-unsafe variant, see [Sphere::inside_naive].
     fn inside(&self, point: &Vector3D, simbox: &SimBox) -> bool {
         point.distance(&self.position, Dimension::XYZ, simbox) < self.radius
     }
@@ -157,7 +163,9 @@ impl Rectangular {
 }
 
 impl Shape for Rectangular {
-    /// Check if point is inside the rectangular box.
+    /// Check if point is inside the rectangular box. Takes PBC into consideration.
+    ///
+    /// For PBC-unsafe variant, see [Rectangular::inside_naive].
     fn inside(&self, point: &Vector3D, simbox: &SimBox) -> bool {
         let mut dx = point.distance(&self.position, Dimension::X, simbox);
         if dx < 0.0 {
@@ -242,7 +250,9 @@ impl Cylinder {
 }
 
 impl Shape for Cylinder {
-    /// Check if point is inside the cylinder.
+    /// Check if point is inside the cylinder. Takes PBC into consideration.
+    ///
+    /// For PBC-unsafe variant, see [Cylinder::inside_naive].
     fn inside(&self, point: &Vector3D, simbox: &SimBox) -> bool {
         let mut distance_axis = point.distance(&self.position, self.orientation, simbox);
 
@@ -450,6 +460,48 @@ impl Shape for TriangularPrism {
     }
 }
 
+/// Trait implemented by structures that can be used for geometry selection without PBC.
+pub trait NaiveShape: DynClone {
+    /// Returns `true` if target point is inside the `NaiveShape`. **Does not take periodic boundary conditions into consideration.**
+    fn inside_naive(&self, point: &Vector3D) -> bool;
+}
+
+impl NaiveShape for Sphere {
+    /// Check if point is inside the sphere. **Does not take PBC into consideration.**
+    ///
+    /// For PBC-safe variant, see [Sphere::inside].
+    fn inside_naive(&self, point: &Vector3D) -> bool {
+        point.distance_naive(&self.position, Dimension::XYZ) < self.radius
+    }
+}
+
+impl NaiveShape for Cylinder {
+    /// Check if point is inside the cylinder. **Does not take PBC into consideration.**
+    ///
+    /// For PBC-safe variant, see [Cylinder::inside].
+    fn inside_naive(&self, point: &Vector3D) -> bool {
+        let dist = point.distance_naive(&self.position, self.orientation);
+        dist >= 0.0
+            && dist < self.height
+            && point.distance_naive(&self.position, self.plane) < self.radius
+    }
+}
+
+impl NaiveShape for Rectangular {
+    /// Check if point is inside the rectangular box.
+    ///
+    /// For PBC-safe variant, see [Rectangular::inside].
+    fn inside_naive(&self, point: &Vector3D) -> bool {
+        let dx = point.distance_naive(&self.position, Dimension::X);
+        let dy = point.distance_naive(&self.position, Dimension::Y);
+        let dz = point.distance_naive(&self.position, Dimension::Z);
+
+        dx >= 0.0 && dx <= self.x && dy >= 0.0 && dy <= self.y && dz >= 0.0 && dz <= self.z
+    }
+}
+
+dyn_clone::clone_trait_object!(NaiveShape);
+
 #[cfg(test)]
 mod tests_sphere {
     use super::*;
@@ -503,18 +555,58 @@ mod tests_sphere {
 
         let sphere = Sphere::new(sphere_center.clone(), sphere_radius);
         let simbox = SimBox::from([5.0, 5.0, 5.0]);
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         for _ in 0..100 {
-            let x = rng.gen_range(0.0..5.0);
-            let y = rng.gen_range(0.0..5.0);
-            let z = rng.gen_range(0.0..5.0);
+            let x = rng.random_range(0.0..5.0);
+            let y = rng.random_range(0.0..5.0);
+            let z = rng.random_range(0.0..5.0);
 
             let point = Vector3D::new(x, y, z);
 
             assert_eq!(
                 sphere.inside(&point, &simbox),
                 point.distance(&sphere_center, Dimension::XYZ, &simbox) < sphere_radius
+            );
+        }
+    }
+
+    #[test]
+    fn inside_naive() {
+        let sphere = Sphere::new([1.0, 2.0, 3.0].into(), 1.5);
+        let point = Vector3D::new(2.0, 2.5, 2.4);
+        assert!(sphere.inside_naive(&point));
+    }
+
+    #[test]
+    fn not_inside_naive() {
+        let sphere = Sphere::new([1.0, 2.0, 4.5].into(), 1.5);
+        let point = Vector3D::new(4.8, 2.1, 0.3);
+        assert!(!sphere.inside_naive(&point));
+
+        let sphere = Sphere::new([1.0, 2.0, 4.5].into(), 1.5);
+        let point = Vector3D::new(4.0, 2.1, 0.3);
+        assert!(!sphere.inside_naive(&point));
+    }
+
+    #[test]
+    fn inside_random_naive() {
+        let sphere_center = Vector3D::new(1.0, 2.0, 3.0);
+        let sphere_radius = 2.5;
+
+        let sphere = Sphere::new(sphere_center.clone(), sphere_radius);
+        let mut rng = rand::rng();
+
+        for _ in 0..100 {
+            let x = rng.random_range(0.0..5.0);
+            let y = rng.random_range(0.0..5.0);
+            let z = rng.random_range(0.0..5.0);
+
+            let point = Vector3D::new(x, y, z);
+
+            assert_eq!(
+                sphere.inside_naive(&point),
+                point.distance_naive(&sphere_center, Dimension::XYZ) < sphere_radius
             );
         }
     }
@@ -546,6 +638,7 @@ mod tests_rectangular {
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(rect.inside(&point, &simbox));
+        assert!(rect.inside_naive(&point));
     }
 
     #[test]
@@ -556,6 +649,7 @@ mod tests_rectangular {
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(rect.inside(&point, &simbox));
+        assert!(rect.inside_naive(&point));
     }
 
     #[test]
@@ -566,6 +660,7 @@ mod tests_rectangular {
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(!rect.inside(&point, &simbox));
+        assert!(!rect.inside_naive(&point));
     }
 
     #[test]
@@ -576,6 +671,7 @@ mod tests_rectangular {
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(!rect.inside(&point, &simbox));
+        assert!(!rect.inside_naive(&point));
     }
 
     #[test]
@@ -586,6 +682,7 @@ mod tests_rectangular {
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(!rect.inside(&point, &simbox));
+        assert!(!rect.inside_naive(&point));
     }
 
     #[test]
@@ -596,6 +693,7 @@ mod tests_rectangular {
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert!(rect.inside(&point, &simbox));
+        assert!(!rect.inside_naive(&point));
     }
 
     #[test]
@@ -606,6 +704,7 @@ mod tests_rectangular {
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert!(rect.inside(&point, &simbox));
+        assert!(!rect.inside_naive(&point));
     }
 
     #[test]
@@ -616,6 +715,7 @@ mod tests_rectangular {
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert!(rect.inside(&point, &simbox));
+        assert!(!rect.inside_naive(&point));
     }
 }
 
@@ -644,8 +744,8 @@ mod tests_cylinder {
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(cylinder.inside(&point, &simbox));
+        assert!(cylinder.inside_naive(&point));
     }
-
     #[test]
     fn not_inside_x_nopbc() {
         let cylinder = Cylinder::new([3.0, 3.0, 3.0].into(), 2.0, 4.0, Dimension::X);
@@ -654,6 +754,7 @@ mod tests_cylinder {
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(!cylinder.inside(&point, &simbox));
+        assert!(!cylinder.inside_naive(&point));
     }
 
     #[test]
@@ -664,6 +765,7 @@ mod tests_cylinder {
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(!cylinder.inside(&point, &simbox));
+        assert!(!cylinder.inside_naive(&point));
     }
 
     #[test]
@@ -674,6 +776,7 @@ mod tests_cylinder {
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert!(cylinder.inside(&point, &simbox));
+        assert!(!cylinder.inside_naive(&point));
     }
 
     #[test]
@@ -684,6 +787,7 @@ mod tests_cylinder {
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert!(cylinder.inside(&point, &simbox));
+        assert!(!cylinder.inside_naive(&point));
     }
 
     #[test]
@@ -694,6 +798,7 @@ mod tests_cylinder {
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(cylinder.inside(&point, &simbox));
+        assert!(cylinder.inside_naive(&point));
     }
 
     #[test]
@@ -704,6 +809,7 @@ mod tests_cylinder {
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(!cylinder.inside(&point, &simbox));
+        assert!(!cylinder.inside_naive(&point));
     }
 
     #[test]
@@ -714,6 +820,7 @@ mod tests_cylinder {
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(!cylinder.inside(&point, &simbox));
+        assert!(!cylinder.inside_naive(&point));
     }
 
     #[test]
@@ -724,6 +831,7 @@ mod tests_cylinder {
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert!(cylinder.inside(&point, &simbox));
+        assert!(!cylinder.inside_naive(&point));
     }
 
     #[test]
@@ -734,6 +842,7 @@ mod tests_cylinder {
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert!(cylinder.inside(&point, &simbox));
+        assert!(!cylinder.inside_naive(&point));
     }
 
     #[test]
@@ -744,6 +853,7 @@ mod tests_cylinder {
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(cylinder.inside(&point, &simbox));
+        assert!(cylinder.inside_naive(&point));
     }
 
     #[test]
@@ -754,6 +864,7 @@ mod tests_cylinder {
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(!cylinder.inside(&point, &simbox));
+        assert!(!cylinder.inside_naive(&point));
     }
 
     #[test]
@@ -764,6 +875,7 @@ mod tests_cylinder {
         let simbox = SimBox::from([10.0, 10.0, 10.0]);
 
         assert!(!cylinder.inside(&point, &simbox));
+        assert!(!cylinder.inside_naive(&point));
     }
 
     #[test]
@@ -774,6 +886,7 @@ mod tests_cylinder {
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert!(cylinder.inside(&point, &simbox));
+        assert!(!cylinder.inside_naive(&point));
     }
 
     #[test]
@@ -784,6 +897,7 @@ mod tests_cylinder {
         let simbox = SimBox::from([4.0, 4.0, 4.0]);
 
         assert!(cylinder.inside(&point, &simbox));
+        assert!(!cylinder.inside_naive(&point));
     }
 }
 

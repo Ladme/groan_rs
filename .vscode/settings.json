@@ -1,8 +1,0 @@
-{
-    "rust-analyzer.cargo.features": [
-        "serde",
-        "parallel",
-    ],
-    "editor.formatOnSave": true,
-    "rust-analyzer.check.features": null
-}

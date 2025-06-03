@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Implementation of the Group structure and its methods.
 
@@ -221,7 +221,7 @@ impl Group {
                     Some(x) => x,
                 };
 
-                Ok(identifiers.iter().any(|&target| target == chain))
+                Ok(identifiers.contains(&chain))
             }
 
             Select::GroupName(names) => {

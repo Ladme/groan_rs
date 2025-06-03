@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Implementation of functions for reading and writing trr files.
 
@@ -14,7 +14,7 @@ use crate::io::traj_read::{
     TrajStepTimeRead,
 };
 use crate::io::xdrfile::{self, OpenMode, XdrFile};
-use crate::prelude::AtomIterator;
+use crate::prelude::{AtomIterator, TrajFullReadOpen};
 use crate::structures::group::Group;
 use crate::structures::{simbox::SimBox, vector3d::Vector3D};
 use crate::system::System;
@@ -160,7 +160,33 @@ impl<'a> TrajRead<'a> for TrrReader<'a> {
 
 impl<'a> TrajReadOpen<'a> for TrrReader<'a> {
     /// Create an iterator over a trr file.
-    fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<TrrReader, ReadTrajError> {
+    ///
+    /// ## Panic
+    /// Panics if the `group` is **not** None.
+    ///
+    /// ## Note
+    /// Prefer using [`TrrReader::new`] which does not panic.
+    fn initialize(
+        system: &'a mut System,
+        filename: impl AsRef<Path>,
+        group: Option<&str>,
+    ) -> Result<Self, ReadTrajError>
+    where
+        Self: Sized,
+    {
+        match group {
+            None => TrrReader::new(system, filename),
+            Some(_) => panic!("FATAL GROAN ERROR | TrrReader::initialize | TrrReader does not support partial-frame reading."),
+        }
+    }
+}
+
+impl<'a> TrajFullReadOpen<'a> for TrrReader<'a> {
+    /// Create an iterator over a trr file.
+    fn new(
+        system: &'a mut System,
+        filename: impl AsRef<Path>,
+    ) -> Result<TrrReader<'a>, ReadTrajError> {
         let n_atoms = system.get_n_atoms();
 
         // sanity check the number of atoms
@@ -381,7 +407,7 @@ impl System {
     pub fn trr_cat_iter<'a>(
         &'a mut self,
         filenames: &[impl AsRef<Path>],
-    ) -> Result<TrajReader<'a, TrajConcatenator<'a, TrrReader>>, ReadTrajError> {
+    ) -> Result<TrajReader<'a, TrajConcatenator<'a, TrrReader<'a>>>, ReadTrajError> {
         self.traj_cat_iter::<TrrReader>(filenames)
     }
 }
@@ -435,7 +461,7 @@ impl PrivateTrajWrite for TrrWriter {
             Some(x) => system
                 .get_groups()
                 .get(x)
-                .ok_or_else(|| WriteTrajError::GroupNotFound(x.to_owned()))?
+                .map_err(|_| WriteTrajError::GroupNotFound(x.to_string()))?
                 .clone(),
             None => system
                 .get_groups()
@@ -1417,7 +1443,8 @@ mod tests {
 
         match system.trr_iter("test_files/short_trajectory.trr") {
             Err(ReadTrajError::AtomsNumberMismatch(_)) => (),
-            _ => panic!("TRR file should not be valid."),
+            Err(e) => panic!("Unexpected error `{}` returned.", e),
+            Ok(_) => panic!("TRR file should not be valid."),
         }
     }
 
@@ -1427,7 +1454,19 @@ mod tests {
 
         match system.trr_iter("test_files/nonexistent.trr") {
             Err(ReadTrajError::FileNotFound(_)) => (),
-            _ => panic!("TRR file should not exist."),
+            Err(e) => panic!("Unexpected error `{}` returned.", e),
+            Ok(_) => panic!("TRR file should not exist."),
+        }
+    }
+
+    #[test]
+    fn read_trr_not_trr() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        match system.trr_iter("test_files/triclinic.gro") {
+            Err(ReadTrajError::FileNotFound(_)) => (),
+            Err(e) => panic!("Unexpected error `{}` returned.", e),
+            Ok(_) => panic!("File should not be a trr file."),
         }
     }
 

@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Implementation of the Atom structure and its methods.
 
@@ -78,6 +78,7 @@ impl Atom {
     ///   `mass`, `vdw`, `expected_max_bonds`, `expected_min_bonds`, `element_name`, and `element_symbol`
     ///   set to `None`. You can provide this information using the `Atom::with_*` methods.
     /// - Index of an atom after construction is 0. Valid index is only assigned once the atom is added to a System.
+    #[inline(always)]
     pub fn new(
         residue_number: usize,
         residue_name: &str,
@@ -106,192 +107,228 @@ impl Atom {
     }
 
     /// Add position information to target atom.
+    #[inline(always)]
     pub fn with_position(mut self, position: Vector3D) -> Self {
         self.set_position(position);
         self
     }
 
     /// Add velocity information to target atom.
+    #[inline(always)]
     pub fn with_velocity(mut self, velocity: Vector3D) -> Self {
         self.set_velocity(velocity);
         self
     }
 
     /// Add force information to target atom
+    #[inline(always)]
     pub fn with_force(mut self, force: Vector3D) -> Self {
         self.set_force(force);
         self
     }
 
     /// Add chain information to target atom.
+    #[inline(always)]
     pub fn with_chain(mut self, chain: char) -> Self {
         self.set_chain(chain);
         self
     }
 
     /// Add charge to target atom.
+    #[inline(always)]
     pub fn with_charge(mut self, charge: f32) -> Self {
         self.set_charge(charge);
         self
     }
 
     /// Add mass to target atom.
+    #[inline(always)]
     pub fn with_mass(mut self, mass: f32) -> Self {
         self.set_mass(mass);
         self
     }
 
     /// Add vdw to target atom.
+    #[inline(always)]
     pub fn with_vdw(mut self, vdw: f32) -> Self {
         self.set_vdw(vdw);
         self
     }
 
     /// Add expected maximal number of bonds to target atom.
+    #[inline(always)]
     pub fn with_expected_max_bonds(mut self, expected_max_bonds: u8) -> Self {
         self.set_expected_max_bonds(expected_max_bonds);
         self
     }
 
     /// Add expected minimal number of bonds to target atom.
+    #[inline(always)]
     pub fn with_expected_min_bonds(mut self, expected_min_bonds: u8) -> Self {
         self.set_expected_min_bonds(expected_min_bonds);
         self
     }
 
     /// Add element name to target atom.
+    #[inline(always)]
     pub fn with_element_name(mut self, name: &str) -> Self {
         self.set_element_name(name);
         self
     }
 
     /// Add element name to target atom.
+    #[inline(always)]
     pub fn with_element_symbol(mut self, symbol: &str) -> Self {
         self.set_element_symbol(symbol);
         self
     }
 
     /// Set the name of the residue to which the atom belongs.
+    #[inline(always)]
     pub fn set_residue_name(&mut self, resname: &str) {
         self.residue_name = resname.to_string();
     }
 
     /// Set the name of the atom.
+    #[inline(always)]
     pub fn set_atom_name(&mut self, atomname: &str) {
         self.atom_name = atomname.to_string();
     }
 
     /// Set the chain of the atom.
+    #[inline(always)]
     pub fn set_chain(&mut self, chain: char) {
         self.chain = Some(chain);
     }
 
     /// Set the chain of the atom to `None`.
+    #[inline(always)]
     pub fn reset_chain(&mut self) {
         self.chain = None;
     }
 
     /// Set the charge of the atom.
+    #[inline(always)]
     pub fn set_charge(&mut self, charge: f32) {
         self.charge = Some(charge);
     }
 
     /// Set the charge of the atom to `None`.
+    #[inline(always)]
     pub fn reset_charge(&mut self) {
         self.charge = None;
     }
 
     /// Set the mass of the atom.
+    #[inline(always)]
     pub fn set_mass(&mut self, mass: f32) {
         self.mass = Some(mass);
     }
 
     /// Set mass of the atom to `None`.
+    #[inline(always)]
     pub fn reset_mass(&mut self) {
         self.mass = None;
     }
 
     /// Set the vdW radius of the atom.
+    #[inline(always)]
     pub fn set_vdw(&mut self, vdw: f32) {
         self.vdw = Some(vdw);
     }
 
     /// Set the vdW radius of the atom to `None`.
+    #[inline(always)]
     pub fn reset_vdw(&mut self) {
         self.vdw = None;
     }
 
     /// Set the expected maximal number of bonds of the atom.
+    #[inline(always)]
     pub fn set_expected_max_bonds(&mut self, expected_max_bonds: u8) {
         self.expected_max_bonds = Some(expected_max_bonds);
     }
 
     /// Set the expected maximal number of bonds of the atom to `None`.
+    #[inline(always)]
     pub fn reset_expected_max_bonds(&mut self) {
         self.expected_max_bonds = None;
     }
 
     /// Set the expected minimal number of bonds of the atom.
+    #[inline(always)]
     pub fn set_expected_min_bonds(&mut self, expected_min_bonds: u8) {
         self.expected_min_bonds = Some(expected_min_bonds);
     }
 
     /// Set the expected minimal number of bonds of the atom to `None`.
+    #[inline(always)]
     pub fn reset_expected_min_bonds(&mut self) {
         self.expected_min_bonds = None;
     }
 
     /// Get the element name of the atom.
+    #[inline(always)]
     pub fn get_element_name(&self) -> Option<&String> {
         self.element_name.as_ref()
     }
 
     /// Set the element name of the atom.
+    #[inline(always)]
     pub fn set_element_name(&mut self, name: &str) {
         self.element_name = Some(name.to_string());
     }
 
     /// Set the element name of the atom to `None`.
+    #[inline(always)]
     pub fn reset_element_name(&mut self) {
         self.element_name = None;
     }
 
     /// Get the element symbol of the atom.
+    #[inline(always)]
     pub fn get_element_symbol(&self) -> Option<&String> {
         self.element_symbol.as_ref()
     }
 
     /// Set the element symbol of the atom.
+    #[inline(always)]
     pub fn set_element_symbol(&mut self, symbol: &str) {
         self.element_symbol = Some(symbol.to_string());
     }
 
     /// Set the element symbol of the atom to `None`.
+    #[inline(always)]
     pub fn reset_element_symbol(&mut self) {
         self.element_symbol = None;
     }
 
     /// Get the coordinates of the atom.
+    #[inline(always)]
     pub fn get_position(&self) -> Option<&Vector3D> {
         self.position.as_ref()
     }
 
     /// Get mutable reference to the coordinates of the atom.
+    #[inline(always)]
     pub fn get_position_mut(&mut self) -> Option<&mut Vector3D> {
         self.position.as_mut()
     }
 
     /// Set the coordinates of the atom.
+    #[inline(always)]
     pub fn set_position(&mut self, pos: Vector3D) {
         self.position = Some(pos);
     }
 
     /// Set the coordinates of the atom to `None`.
+    #[inline(always)]
     pub fn reset_position(&mut self) {
         self.position = None;
     }
 
     /// Set the x-coordinate of the atom.
+    #[inline(always)]
     pub fn set_position_x(&mut self, x: f32) {
         match self.position {
             None => self.position = Some(Vector3D::new(x, 0.0, 0.0)),
@@ -300,6 +337,7 @@ impl Atom {
     }
 
     /// Set the y-coordinate of the atom.
+    #[inline(always)]
     pub fn set_position_y(&mut self, y: f32) {
         match self.position {
             None => self.position = Some(Vector3D::new(0.0, y, 0.0)),
@@ -308,6 +346,7 @@ impl Atom {
     }
 
     /// Set the z-coordinate of the atom.
+    #[inline(always)]
     pub fn set_position_z(&mut self, z: f32) {
         match self.position {
             None => self.position = Some(Vector3D::new(0.0, 0.0, z)),
@@ -316,46 +355,55 @@ impl Atom {
     }
 
     /// Get the velocity vector of the atom.
+    #[inline(always)]
     pub fn get_velocity(&self) -> Option<&Vector3D> {
         self.velocity.as_ref()
     }
 
     /// Get mutable reference to the velocity vector of the atom.
+    #[inline(always)]
     pub fn get_velocity_mut(&mut self) -> Option<&mut Vector3D> {
         self.velocity.as_mut()
     }
 
     /// Set the velocity vector of the atom.
+    #[inline(always)]
     pub fn set_velocity(&mut self, vel: Vector3D) {
         self.velocity = Some(vel);
     }
 
     /// Set the velocity vector of the atom to `None`.
+    #[inline(always)]
     pub fn reset_velocity(&mut self) {
         self.velocity = None;
     }
 
     /// Get the vector of the total force acting on the atom.
+    #[inline(always)]
     pub fn get_force(&self) -> Option<&Vector3D> {
         self.force.as_ref()
     }
 
     /// Get mutable reference to the total force acting on the atom.
+    #[inline(always)]
     pub fn get_force_mut(&mut self) -> Option<&mut Vector3D> {
         self.force.as_mut()
     }
 
     /// Set the vector of the total force acting on the atom.
+    #[inline(always)]
     pub fn set_force(&mut self, force: Vector3D) {
         self.force = Some(force);
     }
 
     /// Set the vector of the total force acting on the atom to `None`.
+    #[inline(always)]
     pub fn reset_force(&mut self) {
         self.force = None;
     }
 
     /// Get the atoms bonded to this atom.
+    #[inline(always)]
     pub fn get_bonded(&self) -> &AtomContainer {
         &self.bonded
     }
@@ -371,7 +419,8 @@ impl Atom {
     ///
     /// c) index of this atom is also added between bonded atoms of all atoms included in `indices`,
     ///
-    /// d) `System::reset_mol_references` method is applied to the `System` this atom is part of.
+    /// d) [`System::reset_mol_references`](crate::prelude::System::reset_mol_references) method is applied to the `System` this atom is part of.
+    #[inline(always)]
     pub unsafe fn set_bonded(&mut self, indices: Vec<usize>) {
         self.bonded = AtomContainer::from_indices(indices, usize::MAX);
     }
@@ -387,15 +436,28 @@ impl Atom {
     ///
     /// c) index of this atom is also added between bonded atoms of the atom `index`,
     ///
-    /// d) `System::reset_mol_references` method is applied to the `System` this atom is part of.
+    /// d) [`System::reset_mol_references`](crate::prelude::System::reset_mol_references) method is applied to the `System` this atom is part of.
+    #[inline(always)]
     pub unsafe fn add_bonded(&mut self, index: usize) {
         self.bonded.add(index, usize::MAX);
+    }
+
+    /// Removes bonding information for atoms connected to this atom.
+    ///
+    /// ## Safety
+    /// This method is safe only if [`System::reset_mol_references`](crate::prelude::System::reset_mol_references) is called on
+    /// the `System` containing this atom, and if bonding information is also
+    /// cleared from the atoms previously bonded to this one.
+    #[inline(always)]
+    pub unsafe fn reset_bonded(&mut self) {
+        self.bonded = AtomContainer::empty();
     }
 
     /// Get the number of bonded atoms associated with this atom.
     ///
     /// ## Returns
     /// The number of atoms bonded to this atom. 0 if no connectivity information is available.
+    #[inline(always)]
     pub fn get_n_bonded(&self) -> usize {
         self.bonded.get_n_atoms()
     }
@@ -404,6 +466,7 @@ impl Atom {
     ///
     /// ## Returns
     /// `true` if the atom has information about position. `false` otherwise.
+    #[inline(always)]
     pub fn has_position(&self) -> bool {
         self.position.is_some()
     }
@@ -412,6 +475,7 @@ impl Atom {
     ///
     /// ## Returns
     /// `true` if the atom has information about velocity. `false` otherwise.
+    #[inline(always)]
     pub fn has_velocity(&self) -> bool {
         self.velocity.is_some()
     }
@@ -420,6 +484,7 @@ impl Atom {
     ///
     /// ## Returns
     /// `true` if the atom has information about force acting on it. `false` otherwise.
+    #[inline(always)]
     pub fn has_force(&self) -> bool {
         self.force.is_some()
     }
@@ -429,6 +494,7 @@ impl Atom {
     ///
     /// ## Returns
     /// `Ok` or `AtomError::InvalidPosition` if the atom has an undefined position.
+    #[inline(always)]
     pub fn translate(&mut self, translate: &Vector3D, sbox: &SimBox) -> Result<(), AtomError> {
         if let Some(ref mut pos) = self.position {
             pos.x += translate.x;
@@ -449,6 +515,7 @@ impl Atom {
     ///
     /// ## Returns
     /// `Ok` of `AtomError::InvalidPosition` if the atom has an undefined position.
+    #[inline(always)]
     pub fn translate_nopbc(&mut self, translate: &Vector3D) -> Result<(), AtomError> {
         if let Some(ref mut pos) = self.position {
             pos.0 += translate.0;
@@ -464,6 +531,7 @@ impl Atom {
     ///
     /// ## Returns
     /// `Ok` of `AtomError::InvalidPosition` if the atom has an undefined position.
+    #[inline(always)]
     pub fn wrap(&mut self, sbox: &SimBox) -> Result<(), AtomError> {
         match self.position {
             None => Err(AtomError::InvalidPosition(PositionError::NoPosition(
@@ -1153,7 +1221,7 @@ mod tests {
     }
 
     #[test]
-    fn get_set_bonded() {
+    fn get_set_reset_bonded() {
         let mut atom = make_default_atom();
         assert_eq!(atom.get_n_bonded(), 0);
 
@@ -1167,6 +1235,13 @@ mod tests {
         assert_eq!(atom.get_n_bonded(), 3);
         let bonded = atom.get_bonded();
         assert_eq!(bonded, &AtomContainer::from_indices(vec![1, 2, 5], 10));
+
+        unsafe {
+            atom.reset_bonded();
+        }
+
+        assert_eq!(atom.get_n_bonded(), 0);
+        assert_eq!(atom.get_bonded(), &AtomContainer::empty());
     }
 
     #[test]

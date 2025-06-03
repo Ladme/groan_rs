@@ -1,9 +1,10 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Implementation of various structures used in the `groan_rs` library.
 
 pub mod atom;
+pub mod cellgrid;
 pub(crate) mod container;
 pub mod dimension;
 pub mod element;

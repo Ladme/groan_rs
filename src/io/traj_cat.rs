@@ -1,16 +1,20 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Structures and functions for efficient trajectory concatenation.
 
 use std::marker::PhantomData;
 use std::path::Path;
 
+use crate::prelude::{TrajFullReadOpen, TrajGroupReadOpen};
 use crate::{errors::ReadTrajError, io::traj_read::TrajRead, system::System};
 
 use crate::io::traj_read::{
-    FrameData, FrameDataTime, TrajRangeRead, TrajReadOpen, TrajStepRead, TrajStepTimeRead,
+    FrameData, FrameDataTime, TrajRangeRead, TrajStepRead, TrajStepTimeRead,
 };
+
+#[cfg(feature = "parallel")]
+use crate::prelude::TrajReadOpen;
 
 use super::traj_read::{TrajFile, TrajReader};
 
@@ -340,7 +344,7 @@ impl System {
         filenames: &[impl AsRef<Path>],
     ) -> Result<TrajReader<'a, TrajConcatenator<'a, Read>>, ReadTrajError>
     where
-        Read: TrajReadOpen<'a>,
+        Read: TrajFullReadOpen<'a>,
         Read::FrameData: FrameDataTime,
     {
         if filenames.is_empty() {
@@ -352,6 +356,64 @@ impl System {
         let readers: Result<Vec<Read>, _> = filenames
             .iter()
             .map(|name| unsafe { Read::new(&mut *system, name) })
+            .collect();
+
+        readers.map(TrajConcatenator::new)
+    }
+
+    /// Iterate through multiple trajectory files while reading only the coordinates
+    /// of the specified group.
+    ///
+    /// In all other aspects, works the same as [`System::traj_cat_iter`].
+    ///
+    /// See also [`System::group_xtc_iter`] for more information about partial frame reading.
+    ///
+    pub fn group_traj_cat_iter<'a, Read>(
+        &mut self,
+        filenames: &[impl AsRef<Path>],
+        group: &str,
+    ) -> Result<TrajReader<'a, TrajConcatenator<'a, Read>>, ReadTrajError>
+    where
+        Read: TrajGroupReadOpen<'a>,
+        Read::FrameData: FrameDataTime,
+    {
+        if filenames.is_empty() {
+            return Err(ReadTrajError::CatNoTrajectories);
+        }
+
+        let system = self as *mut System;
+        let readers: Result<Vec<Read>, _> = filenames
+            .iter()
+            .map(|name| unsafe { Read::new(&mut *system, name, group) })
+            .collect();
+
+        readers.map(TrajConcatenator::new)
+    }
+}
+
+#[cfg(feature = "parallel")]
+impl System {
+    /// Iterate through multiple trajectory files while either reading the full frames
+    /// or only a specific group from each frame.
+    ///
+    /// Helper method for dispatching into either [`System::traj_cat_iter`] or [`System::group_traj_cat_iter`].
+    pub(crate) fn traj_cat_iter_initialize<'a, Read>(
+        &mut self,
+        filenames: &[impl AsRef<Path>],
+        group: Option<&str>,
+    ) -> Result<TrajReader<'a, TrajConcatenator<'a, Read>>, ReadTrajError>
+    where
+        Read: TrajReadOpen<'a>,
+        Read::FrameData: FrameDataTime,
+    {
+        if filenames.is_empty() {
+            return Err(ReadTrajError::CatNoTrajectories);
+        }
+
+        let system = self as *mut System;
+        let readers: Result<Vec<Read>, _> = filenames
+            .iter()
+            .map(|name| unsafe { Read::initialize(&mut *system, name, group) })
             .collect();
 
         readers.map(TrajConcatenator::new)
@@ -369,6 +431,7 @@ mod tests {
     use float_cmp::assert_approx_eq;
 
     use crate::io::traj_read::TrajMasterRead;
+    #[cfg(not(feature = "no-xdrfile"))]
     use crate::io::trr_io::TrrReader;
     use crate::io::xtc_io::XtcReader;
     use crate::progress::ProgressPrinter;
@@ -527,6 +590,52 @@ mod tests {
     }
 
     #[test]
+    fn cat_xtc_duplicate_not_at_boundary() {
+        let mut system_cat = System::from_file("test_files/example.gro").unwrap();
+
+        let traj_cat = system_cat
+            .traj_cat_iter::<XtcReader>(&[
+                "test_files/split/traj1.xtc",
+                "test_files/split/traj2.xtc",
+                "test_files/split/traj3b.xtc",
+                "test_files/split/traj4.xtc",
+                "test_files/split/traj5.xtc",
+                "test_files/split/traj6.xtc",
+            ])
+            .unwrap();
+
+        for (frame, time) in traj_cat.zip([
+            0.0, 100.0, 200.0, 300.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0, 900.0, 1000.0,
+        ]) {
+            let frame = frame.unwrap();
+            assert_approx_eq!(f32, frame.get_simulation_time(), time);
+        }
+    }
+
+    #[test]
+    fn cat_xtc_duplicate_not_at_boundary_step3() {
+        let mut system_cat = System::from_file("test_files/example.gro").unwrap();
+
+        let traj_cat = system_cat
+            .traj_cat_iter::<XtcReader>(&[
+                "test_files/split/traj1.xtc",
+                "test_files/split/traj2.xtc",
+                "test_files/split/traj3b.xtc",
+                "test_files/split/traj4.xtc",
+                "test_files/split/traj5.xtc",
+                "test_files/split/traj6.xtc",
+            ])
+            .unwrap()
+            .with_step(3)
+            .unwrap();
+
+        for (frame, time) in traj_cat.zip([0.0, 300.0, 500.0, 800.0]) {
+            let frame = frame.unwrap();
+            assert_approx_eq!(f32, frame.get_simulation_time(), time);
+        }
+    }
+
+    #[test]
     fn cat_xtc_steps_with_ranges() {
         let ranges = vec![(0.0, 570.0), (320.0, f32::MAX), (220.0, 800.0)];
 
@@ -587,6 +696,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn cat_trr_simple() {
         let mut system_single = System::from_file("test_files/example.gro").unwrap();
         let mut system_cat = System::from_file("test_files/example.gro").unwrap();
@@ -631,6 +741,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn cat_trr_with_ranges() {
         let mut system_single = System::from_file("test_files/example.gro").unwrap();
         let mut system_cat = System::from_file("test_files/example.gro").unwrap();
@@ -684,6 +795,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn cat_trr_steps() {
         for step in 2..=11 {
             let mut system_single = System::from_file("test_files/example.gro").unwrap();
@@ -735,6 +847,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn cat_trr_steps_with_ranges() {
         let ranges = vec![(0.0, 400.0), (250.0, f32::MAX), (250.0, 400.0)];
 
@@ -883,6 +996,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn cat_traj_nonexistent() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         let empty: Vec<&str> = vec![
@@ -898,6 +1012,126 @@ mod tests {
                 "test_files/split/traj_nonexistent.trr"
             ),
             Err(e) => panic!("Incorrect error type returned `{}`", e),
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "molly")]
+    fn cat_xtc_group_simple() {
+        use crate::prelude::GroupXtcReader;
+
+        let mut system_single = System::from_file("test_files/example.gro").unwrap();
+        system_single.group_create("Protein", "@protein").unwrap();
+        let mut system_cat = System::from_file("test_files/example.gro").unwrap();
+        system_cat.group_create("Protein", "@protein").unwrap();
+
+        let traj_single = system_single
+            .group_xtc_iter("test_files/short_trajectory.xtc", "Protein")
+            .unwrap();
+        let traj_cat = system_cat
+            .group_traj_cat_iter::<GroupXtcReader>(
+                &[
+                    "test_files/split/traj1.xtc",
+                    "test_files/split/traj2.xtc",
+                    "test_files/split/traj3.xtc",
+                    "test_files/split/traj4.xtc",
+                    "test_files/split/traj5.xtc",
+                    "test_files/split/traj6.xtc",
+                ],
+                "Protein",
+            )
+            .unwrap();
+
+        for (frame_single, frame_cat) in traj_single.zip(traj_cat) {
+            let frame_single = frame_single.unwrap();
+            let frame_cat = frame_cat.unwrap();
+
+            assert_approx_eq!(
+                f32,
+                frame_single.get_simulation_time(),
+                frame_cat.get_simulation_time()
+            );
+            assert_eq!(
+                frame_single.get_simulation_step(),
+                frame_cat.get_simulation_step()
+            );
+
+            compare_box(
+                frame_single.get_box().unwrap(),
+                frame_cat.get_box().unwrap(),
+            );
+
+            for (atom_single, atom_cat) in frame_single.atoms_iter().zip(frame_cat.atoms_iter()) {
+                compare_atoms(atom_single, atom_cat);
+            }
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "molly")]
+    fn cat_xtc_group_steps_with_ranges() {
+        use crate::prelude::GroupXtcReader;
+
+        let ranges = vec![(0.0, 570.0), (320.0, f32::MAX), (220.0, 800.0)];
+
+        for step in 2..=11 {
+            for (start, end) in &ranges {
+                let mut system_single = System::from_file("test_files/example.gro").unwrap();
+                system_single.group_create("Protein", "@protein").unwrap();
+                let mut system_cat = System::from_file("test_files/example.gro").unwrap();
+                system_cat.group_create("Protein", "@protein").unwrap();
+
+                let traj_single = system_single
+                    .group_xtc_iter("test_files/short_trajectory.xtc", "Protein")
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap()
+                    .with_range(*start, *end)
+                    .unwrap();
+                let traj_cat = system_cat
+                    .group_traj_cat_iter::<GroupXtcReader>(
+                        &[
+                            "test_files/split/traj1.xtc",
+                            "test_files/split/traj2.xtc",
+                            "test_files/split/traj3.xtc",
+                            "test_files/split/traj4.xtc",
+                            "test_files/split/traj5.xtc",
+                            "test_files/split/traj6.xtc",
+                        ],
+                        "Protein",
+                    )
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap()
+                    .with_range(*start, *end)
+                    .unwrap();
+
+                for (frame_single, frame_cat) in traj_single.zip(traj_cat) {
+                    let frame_single = frame_single.unwrap();
+                    let frame_cat = frame_cat.unwrap();
+
+                    assert_approx_eq!(
+                        f32,
+                        frame_single.get_simulation_time(),
+                        frame_cat.get_simulation_time()
+                    );
+                    assert_eq!(
+                        frame_single.get_simulation_step(),
+                        frame_cat.get_simulation_step()
+                    );
+
+                    compare_box(
+                        frame_single.get_box().unwrap(),
+                        frame_cat.get_box().unwrap(),
+                    );
+
+                    for (atom_single, atom_cat) in
+                        frame_single.atoms_iter().zip(frame_cat.atoms_iter())
+                    {
+                        compare_atoms(atom_single, atom_cat);
+                    }
+                }
+            }
         }
     }
 }

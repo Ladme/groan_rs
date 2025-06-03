@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Enum capturing file types supported by `groan_rs`.
 
@@ -23,6 +23,10 @@ pub enum FileType {
     PQR,
     TPR,
     YAML,
+    NC,
+    DCD,
+    TNG,
+    LAMMPSTRJ,
 }
 
 impl Display for FileType {
@@ -37,6 +41,10 @@ impl Display for FileType {
             Self::PQR => "pqr",
             Self::TPR => "tpr",
             Self::YAML => "yaml",
+            Self::NC => "nc",
+            Self::DCD => "dcd",
+            Self::TNG => "tng",
+            Self::LAMMPSTRJ => "lammpstrj",
         };
 
         write!(f, "{}", string)
@@ -60,6 +68,10 @@ impl FileType {
             Some("pqr") => FileType::PQR,
             Some("tpr") => FileType::TPR,
             Some("yml") | Some("yaml") => FileType::YAML,
+            Some("nc") => FileType::NC,
+            Some("dcd") => FileType::DCD,
+            Some("tng") => FileType::TNG,
+            Some("lammpstrj") => FileType::LAMMPSTRJ,
             Some(_) | None => FileType::Unknown,
         }
     }
@@ -72,59 +84,51 @@ mod tests {
     use super::*;
 
     #[test]
-    fn identify_gro() {
-        assert_eq!(FileType::from_name("file.gro"), FileType::GRO);
-    }
+    fn identify() {
+        let files = [
+            "file.gro",
+            "file.pdb",
+            "file.xtc",
+            "file.ndx",
+            "file.trr",
+            "file.pqr",
+            "file.tpr",
+            "file.yaml",
+            "file.yml",
+            "file.nc",
+            "file.dcd",
+            "file.tng",
+            "file.lammpstrj",
+            "file.txt",
+            "file",
+        ];
 
-    #[test]
-    fn identify_pdb() {
-        assert_eq!(FileType::from_name("file.pdb"), FileType::PDB);
-    }
+        let formats = [
+            FileType::GRO,
+            FileType::PDB,
+            FileType::XTC,
+            FileType::NDX,
+            FileType::TRR,
+            FileType::PQR,
+            FileType::TPR,
+            FileType::YAML,
+            FileType::YAML,
+            FileType::NC,
+            FileType::DCD,
+            FileType::TNG,
+            FileType::LAMMPSTRJ,
+            FileType::Unknown,
+            FileType::Unknown,
+        ];
 
-    #[test]
-    fn identify_xtc() {
-        assert_eq!(FileType::from_name("file.xtc"), FileType::XTC);
-    }
-
-    #[test]
-    fn identify_ndx() {
-        assert_eq!(FileType::from_name("file.ndx"), FileType::NDX);
-    }
-
-    #[test]
-    fn identify_trr() {
-        assert_eq!(FileType::from_name("file.trr"), FileType::TRR);
-    }
-
-    #[test]
-    fn identity_pqr() {
-        assert_eq!(FileType::from_name("file.pqr"), FileType::PQR);
-    }
-
-    #[test]
-    fn identify_tpr() {
-        assert_eq!(FileType::from_name("file.tpr"), FileType::TPR);
-    }
-
-    #[test]
-    fn identity_yaml() {
-        assert_eq!(FileType::from_name("file.yaml"), FileType::YAML);
-        assert_eq!(FileType::from_name("file.yml"), FileType::YAML);
-    }
-
-    #[test]
-    fn identify_unknown() {
-        assert_eq!(FileType::from_name("file.txt"), FileType::Unknown);
-    }
-
-    #[test]
-    fn identify_noextension() {
-        assert_eq!(FileType::from_name("file"), FileType::Unknown);
+        for (file, format) in files.into_iter().zip(formats.into_iter()) {
+            assert_eq!(FileType::from_name(file), format);
+        }
     }
 
     #[test]
     fn display() {
-        let files = vec![
+        let files = [
             FileType::Unknown,
             FileType::GRO,
             FileType::PDB,
@@ -134,6 +138,10 @@ mod tests {
             FileType::PQR,
             FileType::TPR,
             FileType::YAML,
+            FileType::NC,
+            FileType::DCD,
+            FileType::TNG,
+            FileType::LAMMPSTRJ,
         ];
 
         let mut string = String::new();
@@ -141,7 +149,10 @@ mod tests {
             write!(&mut string, "{} ", file).unwrap();
         }
 
-        assert_eq!(string, "unknown gro pdb xtc ndx trr pqr tpr yaml ");
+        assert_eq!(
+            string,
+            "unknown gro pdb xtc ndx trr pqr tpr yaml nc dcd tng lammpstrj "
+        );
     }
 }
 

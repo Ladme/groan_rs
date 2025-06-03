@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Implementation of errors that can be returned by the library.
 
@@ -387,6 +387,25 @@ pub enum ReadTrajError {
     /// Used when information about the length of the trajectory (file size) could not be obtained.
     #[error("{} could not get length of the trajectory '{}'", "error:".red().bold(), path_to_yellow(.0))]
     CouldNotGetTrajLen(Box<Path>),
+    /// Used as a wrapper around errors returned by the `molly` crate.
+    #[error("{} could not read frame in a trajectory file (molly error: '{}')", "error:".red().bold(), .0)]
+    MollyXtcError(String),
+    /// Used when magic number could not be read from an input file.
+    #[error("{} could not read magic number from a trajectory file (the file is empty?)", "error:".red().bold())]
+    CouldNotReadMagic,
+    /// Used when the file is not an XTC file but should be.
+    #[error("{} file '{}' is not an xtc file (invalid magic number)", "error:".red().bold(), path_to_yellow(.0))]
+    NotXtc(Box<Path>),
+    /// Used when the group of atoms selected to be read from a trajectory file does not exist.
+    #[error("{} group '{}' does not exist", "error:".red().bold(), .0.yellow())]
+    GroupNotFound(String),
+    /// Used when reading a trajectory using chemfiles.
+    #[cfg(feature = "chemfiles")]
+    #[error("{} trajectory reading error: {}", "error:".red().bold(), .0)]
+    ChemfilesError(chemfiles::Error),
+    /// Used when an unknown error occurs.
+    #[error("{} an unknown error occured when reading a trajectory: '{}'", "error:".red().bold(), .0.yellow())]
+    UnknownError(String),
 }
 
 /// Errors that can occur when writing a trajectory file.
@@ -514,6 +533,10 @@ pub enum ElementError {
     /// This is a warning and does not indicate failure of the function.
     #[error("{} when guessing bonds, following concerns have been raised:\n{}", "warning:".yellow().bold(), .0.to_string())]
     BondsGuessWarning(Box<BondsGuessInfo>),
+
+    /// Used in `System::guess_bonds`. The only possible error is a CellGrid error.
+    #[error("{} (this error occured when guessing bonds)", .0)]
+    BondGuessError(CellGridError),
 }
 
 /// Errors that can occur when working with simulation box.
@@ -525,6 +548,9 @@ pub enum SimBoxError {
     /// Used when the simulation box is not orthogonal but is required to be.
     #[error("{} simulation box is not orthogonal but is required to be", "error:".red().bold())]
     NotOrthogonal,
+    /// Used when all dimensions of the simulation box are zero but they are required not to be.
+    #[error("{} all dimensions of the simulation box are zero", "error".red().bold())]
+    AllDimensionsZero,
 }
 
 /// Errors that can occur when working with positions of atoms.
@@ -612,6 +638,42 @@ pub enum RMSDError {
 }
 
 
+/// Errors that can occur when performing hydrogen bond analysis.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum HBondError {
+    /// Used when parsing of a GSL query fails.
+    #[error("{}", .0)]
+    SelectError(SelectError),
+
+    /// Used when construction of a cell grid fails.
+    #[error("{}", .0)]
+    CellGridError(CellGridError),
+
+    /// Used when AtomError occurs during the analysis.
+    #[error("{}", .0)]
+    AtomError(AtomError),
+
+    /// Used when the simulation box is invalid.
+    #[error("{}", .0)]
+    InvalidSimBox(SimBoxError),
+
+    /// Used when no acceptors or donors were identifier for a chain.
+    #[error("{} no acceptor and no donor atoms detected for chain; chain can form no hydrogen bonds", "error:".red().bold())]
+    EmptyChain,
+
+    /// Used when the analysis should be performed for a non-existent chain.
+    #[error("{} chain index '{}' requested for analysis of hydrogen bonds does not exist", "error:".red().bold(), .0.to_string().yellow())]
+    NonexistentChain(usize),
+
+    /// Used when a calculation between pair of chains is requested multiple times.
+    #[error("{} analysis of hydrogen bonds between chains '{}' and '{}' requested multiple times", "error:".red().bold(), .0.to_string().yellow(), .1.to_string().yellow())]
+    PairSpecifiedMultipleTimes(usize, usize),
+
+    /// Used when a chain specified for the hydrogen bonds analysis is not used.
+    #[error("{} not all chains specified for the analysis of hydrogen bonds are used", "error:".red().bold())]
+    UnusedChain,
+}
+
 /// Errors originating from trajectory converters.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum TrajConvertError<ConvertError: std::error::Error> {
@@ -652,4 +714,24 @@ pub enum TrajConvertAnalysisError<ConvertAnalyzerError: std::error::Error> {
     /// Used when frame of the trajectory could not be converted or analyzed.
     #[error("{}", .0)]
     ConversionAnalysisError(ConvertAnalyzerError),
+}
+
+/// Errors that can occur when working with CellGrid.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum CellGridError {
+    /// Used when the simulation box is undefined or not orthogonal.
+    #[error("{}", .0)]
+    SimBoxError(SimBoxError),
+
+    /// Used when there was some issue with groups while working with the CellGrid.
+    #[error("{}", .0)]
+    GroupError(GroupError),
+
+    /// Used when an error occurs while working with an atom of the system.
+    #[error("{}", .0)]
+    AtomError(AtomError),
+
+    /// Used when the requested minimal cell size is not positive.
+    #[error("{} minimal cell size for a cell grid must be larger than 0.0, not `{}`", "error:".red().bold(), .0.yellow())]
+    InvalidCellSize(String)
 }

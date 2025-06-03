@@ -57,9 +57,21 @@ fn benchmark(c: &mut Criterion) {
         })
     });
 
+    c.bench_function("System::group_estimate_center (Protein)", |b| {
+        b.iter(|| {
+            std::hint::black_box(system.group_estimate_center("Protein").unwrap());
+        })
+    });
+
     c.bench_function("System::group_get_center (Protein)", |b| {
         b.iter(|| {
             std::hint::black_box(system.group_get_center("Protein").unwrap());
+        })
+    });
+
+    c.bench_function("System::group_estimate_center (Membrane)", |b| {
+        b.iter(|| {
+            std::hint::black_box(system.group_estimate_center("Membrane").unwrap());
         })
     });
 

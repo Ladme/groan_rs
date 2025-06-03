@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Implementation of ProgressPrinter structure for printing the progress of trajectory reading.
 
@@ -124,13 +124,14 @@ impl ProgressPrinter {
     /// - `jumping_msg`: `"JUMPING".bright_purple()` (string printed when the trajectory reader is jumping to the iteration start)
     /// - `terminating`: `\r` (string terminating the progress message; useful to set to `\n` when printing to a file)
     /// - `newline_at_end`: `true` (should newline be printed once iteration is finished or failed?;
-    ///    useful to set to `false` when reading multiple trajectories sequentially)
+    ///   useful to set to `false` when reading multiple trajectories sequentially)
     ///
     /// You can set custom values for any of the parameters by using `with_%PARAMETER()` method
     /// when constructing the `ProgressPrinter`.
     ///
     /// ## Examples
     /// ```no_run
+    /// # #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))] {
     /// # use groan_rs::prelude::*;
     /// # use colored::Colorize;
     /// #
@@ -157,6 +158,7 @@ impl ProgressPrinter {
     ///     let frame = frame.unwrap();
     ///     // analyze the frame
     /// }
+    /// # }
     /// ```
     ///
     /// By default, `ProgressPrinter` prints to standard output.

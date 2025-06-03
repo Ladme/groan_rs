@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Implementation of the AtomContainer structure and its methods.
 
@@ -250,6 +250,7 @@ impl AtomContainer {
     }
 
     /// Returns `true` if the `AtomContainer` contains the atom with target index.
+    #[inline(always)]
     pub fn isin(&self, index: usize) -> bool {
         for block in &self.atom_blocks {
             // blocks are ordered; if index is smaller than the start of the current block,

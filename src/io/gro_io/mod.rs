@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Implementation of functions for reading and writing gro files.
 
@@ -25,9 +25,9 @@ fn get_title(
 ) -> Result<String, ParseGroError> {
     let mut title = String::new();
     match buffer.read_line(&mut title) {
-        Ok(0) | Err(_) => return Err(ParseGroError::LineNotFound(Box::from(filename.as_ref()))),
-        Ok(_) => return Ok(title.trim().to_string()),
-    };
+        Ok(0) | Err(_) => Err(ParseGroError::LineNotFound(Box::from(filename.as_ref()))),
+        Ok(_) => Ok(title.trim().to_string()),
+    }
 }
 
 /// Read the next line in the provided buffer and parse it as the number of atoms.

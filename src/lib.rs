@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! # groan_rs: Gromacs Analysis Library for Rust
 //!
@@ -11,13 +11,15 @@
 //! - Read and write [gro](`crate::io::gro_io::read_gro`), [pdb](`crate::io::pdb_io::read_pdb`), [pqr](`crate::io::pqr_io::read_pqr`), [ndx](`crate::system::System::read_ndx`), [xtc](`crate::system::System::xtc_iter`) and [trr](`crate::system::System::trr_iter`) files.
 //! - Read topology and structure of the system from [tpr](`crate::io::tpr_io::read_tpr`) files (using the [`minitpr`](`minitpr`) crate).
 //! - [Iterate over atoms](`crate::system::System::atoms_iter`) and access their [properties](`crate::structures::atom::Atom`), including connectivity (bonds).
-//! - Select atoms using a [selection language](#groan-selection-language) similar to VMD.
+//! - Select atoms using a [selection language](https://ladme.github.io/gsl-guide/) similar to VMD.
 //! - Calculate RMSD and perform RMSD fit for [individual](`crate::system::System::calc_rmsd`) [structures](`crate::system::System::calc_rmsd_and_fit`) and for [entire](`crate::prelude::RMSDTrajRead::calc_rmsd`) [trajectories](`crate::prelude::RMSDTrajRead::calc_rmsd_and_fit`).
+//! - [Identify hydrogen bonds](`crate::system::hbonds::HBondTrajRead::hbonds_analyze`) in a trajectory.
 //! - [Calculate distances between atoms](`crate::system::System::atoms_distance`) respecting periodic boundary conditions.
 //! - [Select atoms based on geometric conditions.](`crate::system::System::group_create_from_geometry`)
 //! - [Assign elements](`crate::system::System::guess_elements`) to atoms and [guess connectivity](`crate::system::System::guess_bonds`) between the atoms.
 //! - Calculate [center of geometry](`crate::system::System::group_get_center`) or [mass](`crate::system::System::group_get_com`) for *any* group of atoms.
 //! - [Center a group of atoms](`crate::system::System::atoms_center`) in a simulation box.
+//! - Perform [multithreaded iteration over a trajectory](`crate::system::System::traj_iter_map_reduce`) (if the `parallel` feature is enabled).
 //! - Help with specific analyses by providing utility data structures (e.g., [`GridMaps`](`crate::structures::gridmap::GridMap`)).
 //! - Some other minor stuff...
 //!
@@ -71,7 +73,7 @@
 //!
 //! #### Selecting atoms
 //!
-//! You can select atoms using a query language similar to VMD (see 'groan selection language' below).
+//! You can select atoms using a [query language](https://ladme.github.io/gsl-guide/) similar to VMD.
 //!
 //! ```no_run
 //! use groan_rs::prelude::*;
@@ -190,6 +192,7 @@
 //! You can read trajectory files in XTC, TRR, or GRO format.
 //!
 //! ```no_run
+//! # #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))] {
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
@@ -209,12 +212,14 @@
 //!
 //!     Ok(())
 //! }
+//! # }
 //! ```
 //!
 //! You can also read only part of the trajectory file and/or skip some trajectory frames.
 //! You can concatenate trajectory files and print the progress of any trajectory iteration.
 //!
 //! ```no_run
+//! # #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))] {
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
@@ -236,6 +241,7 @@
 //!
 //!     Ok(())
 //! }
+//! # }
 //! ```
 //!
 //! #### Calculating RMSD
@@ -243,6 +249,7 @@
 //! You can calculate RMSD for two systems or for entire trajectories.
 //!
 //! ```no_run
+//! # #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))] {
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
@@ -263,6 +270,7 @@
 //!
 //!     Ok(())
 //! }
+//! # }
 //! ```
 //!
 //! #### Writing trajectory files
@@ -270,6 +278,7 @@
 //! You can not only read but also write trajectory files in XTC, TRR, or GRO format.
 //!
 //! ```no_run
+//! # #[cfg(not(feature = "no-xdrfile"))] {
 //! use groan_rs::prelude::*;
 //! use std::error::Error;
 //!
@@ -289,132 +298,13 @@
 //!
 //!     Ok(())
 //! }
+//! # }
 //! ```
 //!
-//! ## Groan selection language
+//! ## Selecting atoms using GSL
 //!
 //! Groan selection language (GSL) is a query language for selecting atoms in the `groan_rs` library. In general, GSL is similar to the selection language used by VMD.
-//!
-//! **Basic queries**
-//!
-//! You can select atoms based on:
-//! - Their **residue names** using `resname XYZ`. For instance, `resname POPE` will select all atoms of the system corresponding to residues named POPE.
-//! - Their **residue numbers** using `resid XYZ` or `resnum XYZ`. For instance, `resid 17` will select all atoms of the system corresponding to residues with number 17.
-//! - Their **atom names** using `name XYZ` or `atomname XYZ`. For instance, `name P` will select all atoms of the system which name is P.
-//! - Their **real atom numbers** using `serial XYZ`. For instance, `serial 256` will select the atom with the number 256 (this is guaranteed to be a single atom). Note that in this case, the atoms are selected based on their "real" atom numbers, as understood by gromacs, **not** by the atom numbers specified in the `gro` or `pdb` file the system originates from.
-//! - Their **gro atom numbers** using `atomnum XYZ`. For instance, `atomnum 124` will select all atoms which have the atom number 124 in the `gro` or `pdb` file the system originates from. This can be multiple atoms.
-//! - Their **chain identifiers** using `chain X`. For instance `chain A` will select all atoms belonging to the chain 'A'. The information about chains is usually present in pdb files. Note that if no chain information is present, using this keyword will select no atoms.
-//! - Their **element names** using `element name XYZ` or `elname XYZ`. For instance, `element name carbon` will select all carbon atoms. Note that atoms must be assigned elements to be selected, read below.
-//! - Their **element symbols** using `element symbol X` or `elsymbol X`. For instance, `element symbol C` will select all carbon atoms. Note that atoms must be assigned elements to be selected, read below.
-//! - Their **labels** using `label XYZ`, see below.
-//!
-//! **Multiple identifiers**
-//!
-//! You can specify multiple identifiers in the query. For instance, by using `resname POPE POPG`, you will select all atoms of the system corresponding to residues named POPE as well as atoms corresponding to residues named POPG. See examples of similar queries below:
-//!
-//! - `resid 13 15 16 17` will select all atoms corresponding to residues with numbers 13, 15, 16, or 17.
-//! - `name P CA HA` will select all atoms with atom names P, CA, or HA.
-//! - `serial 245 267 269 271` will select atoms numbered 245, 267, 269, or 271.
-//! - `chain A B C` will select atoms belonging to the chains 'A', 'B', or 'C'.
-//! - `elname carbon hydrogen` will select all carbon and hydrogen atoms.
-//! - `elsymbol C H` will select all carbon and hydrogen atoms.
-//!
-//! **Selecting atoms using groups**
-//!
-//! You can also select atoms using previously created groups of atoms. For instance, if you have previously created groups named "Protein" and "Membrane", you can use query `group Protein Membrane` or just `Protein Membrane` to select atoms of these two groups. In case any of the groups does not exist, an error will be raised.
-//!
-//! If you load an `ndx file` for your system using `System::read_ndx()`, you can also use groups from the `ndx file`.
-//!
-//! In case your group consists of multiple words, you have to enclose it into quotes (' or "). For instance `Protein 'My Group'` will select all atoms of the group "Protein" as well as all atoms of the group "My Group".
-//!
-//! **Selecting atoms by autodetection**
-//!
-//! You can select atoms using internally defined macros. Currently, `groan_rs` library provides six of such macros:
-//! - `@protein` will select all atoms corresponding to amino acids (supports some 140 different amino acids).
-//! - `@water` will select all atoms of water.
-//! - `@ion` will select all atoms of ions.
-//! - `@membrane` will select all atoms corresponding to membrane lipids (supports over 200 membrane lipid types).
-//! - `@dna` will select all atoms belonging to a DNA molecule.
-//! - `@rna` will select all atoms belonging to an RNA molecule.
-//!
-//! Please be aware that while groan macros are generally dependable, there is no absolute guarantee that they will unfailingly identify all atoms correctly. Be careful when using them.
-//!
-//! **Selecting all atoms**
-//!
-//! You can select all atoms of the system by using `all`.
-//!
-//! **Ranges**
-//!
-//! Instead of writing residue or atom numbers explicitly, you can use keyword `to` or `-` to specify a range. For example, instead of writing `resid 14 15 16 17 18 19 20`, you can use `resid 14 to 20` or `resid 14-20`. This will select all atoms corresponding to residues with residue numbers 14, 15, 16, 17, 18, 19, or 20.
-//!
-//! You can also specify multiple ranges in a single query or combine ranges with explicitly provided numbers. For example, `serial 1 3 to 6 10 12 - 14 17` will expand to `serial 1 3 4 5 6 10 12 13 14 17`.
-//!
-//! Open-ended ranges can be specified using the `<`, `>`, `<=`, and `>=` operators. For example, instead of writing `serial 1 to 180`, you can use `serial <= 180`. This will select all atoms with atom numbers lower than or equal to 180. Similarly, `resid > 33` will select atoms of all residues with residue number 34 or higher.
-//!
-//! Open-ended ranges can be combined with from-to ranges and explicitly provided numbers. For instance, `serial 1 3-6 >=20` will select all atoms with atom numbers 1, 3, 4, 5, 6, or 20 and higher.
-//!
-//! **Negations**
-//!
-//! Using keyword `not` or `!` in front of a query will negate it. For example, the query `not name CA` or `! name CA` will select all atoms which name does **not** correspond to CA. Similarly, `not resname POPE POPG` will select all atoms that correspond to residues with names other than POPE or POPG. `!Protein` will then select all atoms that are not part of the group named `Protein`.
-//!
-//! **Binary operations**
-//!
-//! You can combine basic queries by using `and` (`&&`) and `or` (`||`) operators.
-//!
-//! Joining two queries by `and` will select only atoms that were selected by **both** of the queries. For example, `resname POPE and name P` will select all atoms that belong to residues named POPE and that have the name P. Similarly, `resid 17 18 && serial 256 to 271` will select only atoms corresponding to residue 17 or 18 and with atom numbers between 256 and 271 (including 271).
-//!
-//! Joining two queries by `or` will select atoms that were selected by **either** of the queries (at least one of them). For example, `resname POPE or name P` will select all atoms that belong to residues named POPE as well as all atoms with the name P. Similarly, `resid 17 18 || serial 256 to 271` will select all atoms corresponding to residue 17 or 18 as well as all atoms with atom numbers between 256 and 271.
-//!
-//! In case multiple `and` and/or `or` operators are used in a single query, they are evaluated from left to right. For example, `resname POPE or name CA and not Protein` will select all atoms belonging to residues named POPE or having the atom name CA but all these atoms can not belong to the group named `Protein`.
-//!
-//! Autodetection macros can also be combined with other sub-queries using operators, i.e. `@membrane or group 'My Lipids'` will select all autodetected membrane lipids and all atoms of the group "My Lipids".
-//!
-//! **Parentheses**
-//!
-//! You can change the order in which the individual sub-queries and operations are evaluated by using parentheses `(` and `)`. Expressions enclosed in parentheses are evaluated first (think math). For example, `resname POPE or (name CA and not resid 18 to 21)` will select all atoms belonging to residues named POPE along with all atoms that
-//! - have the atom name P **and**
-//! - do not correspond to residues numbered 18 to 21.
-//!
-//! Meanwhile `(resname POPE or name CA) and not resid 18 to 21` is equivalent to `resname POPE or name CA and not resid 18 to 21`. This will select all atoms belonging to residues named POPE or having the atom name CA but all of these atoms can not belong to residues 18 to 21.
-//!
-//! You can place parenthetical expressions into other parenthetical expressions. For example `serial 1 to 6 or (name CA and resname POPE || (resid 1 to 7 or serial 123 to 128)) and Protein` is a valid query, albeit possibly way too convoluted.
-//!
-//! You can also place `not` (`!`) operator in front of a parenthetical expression. For example, `!(serial 1 to 6 && name P)` will select all atoms that do **not** have atom number between 1 and 6 while also having the atom name P.
-//!
-//! **Selecting molecules**
-//!
-//! You can select all atoms that are part of a specific molecule using the `molecule with` (or `mol with`) operator. For instance, `molecule with serial 15` will select all atoms that are part of the same molecule as the atom with atom number 15 (including the atom 15).
-//! Similarly, `molecule with resid 4 17 29` will select all atoms of all molecules which contain _any_ of the atoms of the residues 4, 17, or 29.
-//! `molecule with name P` will then select all atoms of all molecules that contain an atom with name `P`. Note that a) by molecule we mean a collection of atoms connected by bonds and b) molecule is not a residue.
-//!
-//! The `molecule with` operator relates only to the first sub-query to its right. For instance, `molecule with serial 15 or name BB` will select all atoms that are either part of the same molecule as atom 15 or have name `BB`.
-//! Meanwhile, `molecule with (serial 15 or name BB)` will select all molecules containing either the atom 15 or any atom with name `BB` (i.e., if a molecule contains an atom named BB, all its atoms will be selected).
-//!
-//! Note that to be able to select molecules, the system must contain topology information. Otherwise, no atoms are selected.
-//!
-//! **Labeling and selecting atoms**
-//!
-//! The `groan_rs` library allows you to label specific atoms by strings (see [`System::label_atom`](`crate::system::System::label_atom`)). Such labels can be used as identifiers in the Groan Selection Language. Each label is associated with a single atom which means that it can be used to select this atom. In other words, labels are similar to groups but are guaranteed to contain a single atom.
-//!
-//! For example, labeling a specific atom as `MyAtom` allows you to later select it using the query `label MyAtom`. You can also select multiple labeled atoms by chaining the labels together (e.g., `label MyAtom AnotherAtom OneMoreAtom`). Like groups, labels can be composed of multiple words. In such cases, the label must be enclosed by quotes (' or "), e.g., `label 'Very interesting atom'`.
-//!
-//! **Regular expressions**
-//!
-//! Atom, residue, and group names, as well as element names, element symbols, and labels can be specified using regular expressions. For instance all hydrogens atoms in the system can be selected using `name r'^[1-9]?H.*'` (or using `elname hydrogen`). Similarly, all phosphatidylcholine lipids can be selected using `resname r'^.*PC'`. Query `group r'^P'` or just `r'^P'` will then select atoms of all groups which name starts with 'P' (case sensitive).
-//!
-//! Note that the regular expression must be enclosed inside "regular expression block" starting with `r'` and ending with `'`. You can specify multiple regular expressions in a single query and use them alongside normal strings.
-//!
-//! Regular expressions are evaluated using the `regex crate`. For more information about the supported regular expressions, visit <https://docs.rs/regex/latest/regex/>.
-//!
-//! **Note on selecting elements**
-//!
-//! Note that the atoms of the system are not implicitly assigned elements by the `groan_rs` library. When using `element name` or `element symbol` keywords, the atoms will only be selected if they have been assigned an element.
-//! Inside the `groan_rs` library, you can achieve this either by creating the `System` structure from a tpr file or by calling the `System::guess_elements` function.
-//! If you are a user of a program employing the groan selection language, make sure that the program assigns elements to the atoms before relying on the `element` keyword.
-//!
-//! **Note on whitespace**
-//!
-//! Operators and parentheses do not have to be separated by whitespace from the rest of the query, unless the meaning of the query would become unclear. For instance, `not(name CA)or(serial 1to45||Protein)` is a valid query, while `not(name CA)or(serial 1to45orProtein)` is **not** valid, as `orProtein` becomes uninterpretable. However, enclosing the `Protein` in parentheses, i.e. `not(name CA)or(serial 1to45or(Protein))`, turns the query into a valid one again.
+//! To understand the capabilities (and limitations) of the language, read [this guide](https://ladme.github.io/gsl-guide/).
 //!
 //! ## Error handling
 //! Proper error handling and propagation is at heart of the `groan_rs` library.
@@ -430,8 +320,32 @@
 //! Note that `groan_rs` will still work correctly even if you do not explicitly include the error types.
 //!
 //! ## Features
-//! - **Serialization Support (`serde`)**: Enables the serialization and deserialization of `groan_rs` data structures through integration with the `serde` framework.
-//! - **Concurrency Enhancement (`parallel`)**: Expands the `groan_rs` library with functions designed for multi-threaded execution.
+//!
+//! ### Default
+//! - `molly`: **Blazingly Fast Reading of XTC Files**
+//!   - Enables the use of the [`molly`](https://crates.io/crates/molly) crate for very fast reading of xtc files.
+//!   - Enables the use of [`GroupXtcReader`](crate::prelude::System::group_xtc_iter) for partial reading of XTC frames.
+//!   - *This feature is enabled by default.*
+//!   - If disabled, `xdrfile` library will be used instead to read XTC files and partial reading of XTC frames will not be supported.
+//!
+//! ### Additional
+//! - `serde`: **Serialization Support**
+//!   - Enables the serialization and deserialization of `groan_rs` data structures through integration with the `serde` framework.
+//!
+//! - `parallel`: **Concurrency**
+//!   - Expands the `groan_rs` library with functions designed for multi-threaded execution.
+//!
+//! - `no-xdrfile`: **Pure Rust experience with no external C libraries**
+//!   - **Removes** the compilation and use of `xdrfile` library.
+//!   - If enabled, you will lose the ability to write XTC files and both read and write TRR files.
+//!
+//! - `chemfiles`: **Support for additional trajectory file formats**
+//!   - Allows the use of `ChemfilesReader` for reading [all trajectory file formats](https://chemfiles.org/chemfiles/latest/formats.html) supported by the [`chemfiles`](https://chemfiles.org) library.
+//!   - **Only XTC, TRR, TNG, GRO, PDB, Amber NetCDF, DCD, and LAMMPSTRJ are independently tested by `groan_rs`!**
+//!   - Note that the performance of the `ChemfilesReader` is often much worse than that of specialized readers provided by `groan_rs`
+//!     (e.g., `XtcReader` with `molly` is 4-5 times faster than `ChemfilesReader`).
+//!   - Also note that some advanced `groan_rs` features for `ChemfilesReader` are not optimized or fully implemented.
+//!   - Currently requires you to have `cmake` version <4.0.
 //!
 //! Install the `groan_rs` crate with a specific feature using `cargo add groan_rs --features [FEATURE]`.
 //!
@@ -464,13 +378,25 @@ pub mod prelude {
     pub use crate::files::FileType;
     pub use crate::io::gro_io::{GroReader, GroWriter};
     pub use crate::io::traj_read::{
-        FrameData, FrameDataTime, TrajFile, TrajMasterRead, TrajRangeRead, TrajRangeReader,
-        TrajRangeStepReader, TrajRead, TrajReadOpen, TrajReader, TrajStepRead, TrajStepReader,
-        TrajStepTimeRead,
+        FrameData, FrameDataTime, TrajFile, TrajFullReadOpen, TrajGroupReadOpen, TrajMasterRead,
+        TrajRangeRead, TrajRangeReader, TrajRangeStepReader, TrajRead, TrajReadOpen, TrajReader,
+        TrajStepRead, TrajStepReader, TrajStepTimeRead,
     };
     pub use crate::io::traj_write::TrajWrite;
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
+    pub use crate::io::xtc_io::XtcReader;
+
+    #[cfg(feature = "molly")]
+    pub use crate::io::xtc_io::molly_xtc::GroupXtcReader;
+
+    #[cfg(feature = "chemfiles")]
+    pub use crate::io::chemfiles::ChemfilesReader;
+
+    #[cfg(not(feature = "no-xdrfile"))]
     pub use crate::io::trr_io::{TrrReader, TrrWriter};
-    pub use crate::io::xtc_io::{XtcReader, XtcWriter};
+    #[cfg(not(feature = "no-xdrfile"))]
+    pub use crate::io::xtc_io::XtcWriter;
+
     pub use crate::progress::ProgressPrinter;
     pub use crate::structures::atom::Atom;
     pub use crate::structures::dimension::Dimension;
@@ -478,13 +404,23 @@ pub mod prelude {
     pub use crate::structures::gridmap::GridMap;
     pub use crate::structures::iterators::{
         AtomIterable, AtomIterator, AtomIteratorWithBox, AtomPairIterator, FilterAtomIterator,
-        IntersectionAtomIterator, MoleculeIterator, MutAtomIterator, MutAtomIteratorWithBox,
-        MutAtomPairIterator, MutFilterAtomIterator, MutMoleculeIterator, OrderedAtomIterator,
-        OwnedAtomIterator, OwnedMutAtomIterator, UnionAtomIterator,
+        ImmutableAtomIterable, IntersectionAtomIterator, MoleculeIterator, MutAtomIterator,
+        MutAtomIteratorWithBox, MutAtomPairIterator, MutFilterAtomIterator, MutMoleculeIterator,
+        MutableAtomIterable, OrderedAtomIterator, OwnedAtomIterator, OwnedMutAtomIterator,
+        UnionAtomIterator,
     };
-    pub use crate::structures::shape::{Cylinder, Rectangular, Shape, Sphere, TriangularPrism};
+    pub use crate::structures::shape::{
+        Cylinder, NaiveShape, Rectangular, Shape, Sphere, TriangularPrism,
+    };
     pub use crate::structures::simbox::SimBox;
     pub use crate::structures::vector3d::Vector3D;
     pub use crate::system::rmsd::RMSDTrajRead;
+    #[cfg(any(feature = "parallel", doc))]
+    pub use crate::system::ParallelTrajData;
     pub use crate::system::System;
+
+    pub use crate::structures::cellgrid::{CellGrid, CellNeighbors, NeighborsRange};
+    pub use crate::system::groups::Groups;
+
+    pub use crate::system::hbonds::{HBond, HBondChain, HBondMap, HBondTrajRead};
 }

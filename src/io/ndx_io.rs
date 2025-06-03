@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Implementation of functions for reading and writing ndx files.
 
@@ -7,11 +7,11 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 
-use indexmap::IndexMap;
 use std::collections::HashSet;
 
 use crate::errors::{GroupError, ParseNdxError, WriteNdxError};
-use crate::structures::atom::Atom;
+use crate::prelude::Groups;
+use crate::structures::group::Group;
 use crate::system::System;
 
 /// ## Methods for reading and writing ndx files.
@@ -21,14 +21,14 @@ impl System {
     /// ## Returns
     /// - `Ok` if the parsing is successful.
     /// - `ParseNdxError::InvalidNamesWarning` if any of the groups has an invalid name.
-    ///    Has priority over `DuplicateGroupsWarning`.
+    ///   Has priority over `DuplicateGroupsWarning`.
     /// - `ParseNdxError::DuplicateGroupsWarning` if any of the groups already exists in the system.
     /// - Other `ParseNdxError` errors if the file does not exist or parsing failed.
     ///
     /// ## Notes
     /// - Overwrites all groups with the same names in the system, returning a warning.
     /// - In case duplicate groups are present in the ndx file, the last one
-    ///   is input into the system
+    ///   is input into the system.
     /// - The indices in an ndx file do not correspond to atom numbers
     ///   from a gro file, but to actual atom numbers as used by gromacs.
     /// - In case an error other than `ParseNdxError::DuplicateGroupsWarning` or
@@ -37,78 +37,19 @@ impl System {
     /// - Duplicate atom numbers are ignored.
     /// - Empty lines are skipped.
     pub fn read_ndx(&mut self, filename: impl AsRef<Path>) -> Result<(), ParseNdxError> {
-        let file = match File::open(filename.as_ref()) {
-            Ok(x) => x,
-            Err(_) => return Err(ParseNdxError::FileNotFound(Box::from(filename.as_ref()))),
-        };
-
-        let buffer = BufReader::new(file);
-        let mut groups: IndexMap<String, Vec<usize>> = IndexMap::new();
-
-        let mut current_name = "".to_string();
-        let mut atom_indices = Vec::new();
-
-        let mut duplicate_names: HashSet<String> = HashSet::new();
-
-        for raw_line in buffer.lines() {
-            let line = match raw_line {
-                Ok(x) => x,
-                Err(_) => return Err(ParseNdxError::LineNotFound(Box::from(filename.as_ref()))),
-            };
-
-            // skip empty lines
-            if line.trim().is_empty() {
-                continue;
+        let (groups, invalid, mut duplicates) = Groups::from_ndx(filename, self.get_n_atoms())?;
+        match self.get_groups_mut().update(groups) {
+            Ok(_) => (),
+            Err(GroupError::MultipleAlreadyExistWarning(more_duplicates)) => {
+                duplicates.extend(*more_duplicates);
             }
-
-            // read ndx group name
-            if line.contains('[') && line.contains(']') {
-                // store previously loaded group
-                if !current_name.is_empty()
-                    && groups.insert(current_name.clone(), atom_indices).is_some()
-                {
-                    duplicate_names.insert(current_name);
-                }
-                atom_indices = Vec::new();
-
-                // read next group name
-                current_name = parse_group_name(&line)?;
-
-            // read standard line
-            } else {
-                atom_indices.extend(parse_ndx_line(&line, self.get_atoms())?);
-            }
+            Err(e) => panic!("FATAL GROAN ERROR | System::read_ndx | Unexpected error type `{}` returned by `Groups::update`.", e),
         }
 
-        // load the last group
-        if !current_name.is_empty() && groups.insert(current_name.clone(), atom_indices).is_some() {
-            duplicate_names.insert(current_name);
-        }
-
-        let mut invalid_names: HashSet<String> = HashSet::new();
-
-        // create groups
-        for (groupname, atoms) in groups.into_iter() {
-            match self.group_create_from_indices(&groupname, atoms) {
-                Ok(_) => (),
-                Err(GroupError::AlreadyExistsWarning(e)) => {
-                    duplicate_names.insert(e.to_string());
-                }
-                Err(GroupError::InvalidName(e)) => {
-                    invalid_names.insert(e.to_string());
-                }
-                Err(_) => panic!(
-                    "FATAL GROAN ERROR | System::read_ndx | Unexpected error returned from `group_create_from_indices`."
-                ),
-            }
-        }
-
-        if !invalid_names.is_empty() {
-            Err(ParseNdxError::InvalidNamesWarning(Box::new(invalid_names)))
-        } else if !duplicate_names.is_empty() {
-            Err(ParseNdxError::DuplicateGroupsWarning(Box::new(
-                duplicate_names,
-            )))
+        if !invalid.is_empty() {
+            Err(ParseNdxError::InvalidNamesWarning(Box::new(invalid)))
+        } else if !duplicates.is_empty() {
+            Err(ParseNdxError::DuplicateGroupsWarning(Box::new(duplicates)))
         } else {
             Ok(())
         }
@@ -146,7 +87,7 @@ impl System {
 
         let mut writer = BufWriter::new(output);
 
-        for (name, group) in self.get_groups() {
+        for (name, group) in self.get_groups().iter() {
             // skip default groups
             if group.print_ndx {
                 group.write_ndx(&mut writer, name)?
@@ -156,6 +97,104 @@ impl System {
         writer.flush().map_err(|_| WriteNdxError::CouldNotWrite)?;
 
         Ok(())
+    }
+}
+
+impl Groups {
+    /// Construct a new `Groups` structure from an ndx file.
+    /// Returns a list of invalid group names and duplicate group names.
+    pub fn from_ndx(
+        filename: impl AsRef<Path>,
+        n_atoms: usize,
+    ) -> Result<(Self, HashSet<String>, HashSet<String>), ParseNdxError> {
+        let file = match File::open(filename.as_ref()) {
+            Ok(x) => x,
+            Err(_) => return Err(ParseNdxError::FileNotFound(Box::from(filename.as_ref()))),
+        };
+        let buffer = BufReader::new(file);
+
+        let mut groups = Self::default();
+
+        let mut current_name = "".to_string();
+        let mut atom_indices = Vec::new();
+
+        let mut duplicate_names: HashSet<String> = HashSet::new();
+        let mut invalid_names: HashSet<String> = HashSet::new();
+
+        for line in buffer.lines() {
+            let line =
+                line.map_err(|_| ParseNdxError::LineNotFound(Box::from(filename.as_ref())))?;
+
+            // skip empty lines
+            if line.trim().is_empty() {
+                continue;
+            }
+
+            // read ndx group name
+            if line.contains('[') && line.contains(']') {
+                // store previously loaded group
+                if !current_name.is_empty() {
+                    add_to_groups_store_warnings(
+                        &mut groups,
+                        &current_name,
+                        atom_indices.clone(),
+                        n_atoms,
+                        &mut invalid_names,
+                        &mut duplicate_names,
+                    );
+                }
+
+                atom_indices.clear();
+
+                // read next group name
+                current_name = parse_group_name(&line)?;
+
+            // read standard line
+            } else {
+                atom_indices.extend(parse_ndx_line(&line, n_atoms)?);
+            }
+        }
+
+        // load the last group
+        if !current_name.is_empty() {
+            add_to_groups_store_warnings(
+                &mut groups,
+                &current_name,
+                atom_indices,
+                n_atoms,
+                &mut invalid_names,
+                &mut duplicate_names,
+            );
+        }
+
+        Ok((groups, invalid_names, duplicate_names))
+    }
+}
+
+/// Add a group to a Groups collection.
+/// If the group name has an invalid name, store the group name to `invalids`.
+/// If the group already exists, store the group name to `duplicates`.
+fn add_to_groups_store_warnings(
+    groups: &mut Groups,
+    name: &str,
+    indices: Vec<usize>,
+    n_atoms: usize,
+    invalids: &mut HashSet<String>,
+    duplicates: &mut HashSet<String>,
+) {
+    let group = Group::from_indices(indices, n_atoms);
+    match groups.add(name, group) {
+        Ok(_) => (),
+        Err(GroupError::AlreadyExistsWarning(_)) => {
+            duplicates.insert(name.to_owned());
+        },
+        Err(GroupError::InvalidName(_)) => {
+            invalids.insert(name.to_owned());
+        }
+        Err(e) => panic!(
+            "FATAL GROAN ERROR | ndx_io::add_to_groups_store_warnings | Groups::add returned an unexpected error type `{}`.", 
+            e
+        )
     }
 }
 
@@ -171,7 +210,7 @@ fn parse_group_name(line: &str) -> Result<String, ParseNdxError> {
 }
 
 /// Parse a line of an ndx file as gmx atom numbers for an atom Group.
-fn parse_ndx_line(line: &str, atoms: &[Atom]) -> Result<Vec<usize>, ParseNdxError> {
+fn parse_ndx_line(line: &str, n_atoms: usize) -> Result<Vec<usize>, ParseNdxError> {
     let mut indices = Vec::new();
 
     for raw_id in line.split_whitespace() {
@@ -180,7 +219,7 @@ fn parse_ndx_line(line: &str, atoms: &[Atom]) -> Result<Vec<usize>, ParseNdxErro
             Err(_) => return Err(ParseNdxError::ParseLineErr(line.to_string())),
         };
 
-        if id == 0 || id > atoms.len() {
+        if id == 0 || id > n_atoms {
             return Err(ParseNdxError::InvalidAtomIndex(id));
         }
 

@@ -1,6 +1,58 @@
 
 ## Changelog for the `groan_rs` library
 
+### Version 0.10.0
+
+#### New XTC Parser
+- Now using [`molly`](https://crates.io/crates/molly) for faster reading of XTC files. Requires the `molly` feature to be active, otherwise the standard `xdrfile` library is used. With `molly` iterating through XTC files is ~50% faster compared to `xdrfile`.
+- Implemented an efficient "partial-frame" XTC reader using `molly`. It attempts to only read atoms of a specified group while ignoring the rest of the atoms. See `GroupXtcReader` and `System::group_xtc_iter` for more information.
+- `GroupXtcReader` implements a new trait `TrajGroupReadOpen`.
+
+#### Integration with the `chemfiles` Library
+- All trajectory file formats supported by `chemfiles` can be now read using `System::traj_iter<ChemfilesReader>`. However, only XTC, TRR, TNG, DCD, Amber NetCDF, and LAMMPSTRJ are independently tested by `groan_rs`. Be careful when working with other file formats since these may not work properly.
+- To enable integration with `chemfiles`, you have to enable the `chemfiles` feature. If you do this, you need to have `cmake` version LOWER than 4.0.
+
+#### More Precise Center of Geometry/Mass Calculations
+- **IMPORTANT Breaking changes:**
+  - Implemented the Refined Bai-Breen algorithm similar to the pseudo-center of mass recentering algorithm described in https://arxiv.org/abs/2501.14578.
+  - Methods `AtomIteratorWithBox::get_center` and `AtomIteratorWithBox::get_com` using the original Bai-Breen algorithm have been RENAMED to `AtomIteratorWithBox::estimate_center` and `AtomIteratorWithBox::estimate_com`, respectively.
+  - Similarly, `System::group_get_center` and `System::group_get_com` have been renamed to `System::group_estimate_center` and `System::group_estimate_com`.
+  - New functions called `AtomIteratorWithBox::get_center`, `AtomIteratorWithBox::get_com`, `System::group_get_center`, `System::group_get_com` use the **Refined Bai-Breen algorithm** which consists of 1) calculating the pseudo-center of geometry of the selected atoms, 2) making the group whole in the simulation box, 3) naive calculation of center of geometry or mass in the simulation box.
+  - The refined Bai-Breen algorithm is much more precise than the original Bai-Breen algorithm but only works for groups that are smaller than half the simulation box. It is also ~50% slower than the original Bai-Breen algorithm.
+  - All internal `groan_rs` methods now use the Refined Bai-Breen algorithm, with the exception of `System::atoms_center` and `System::atoms_center_mass` which continue to use the original Bai-Breen algorithm but are recommended to only be used for visual centering.
+
+#### CellGrid
+- Implemented a `CellGrid` (also known as cell lists) structure for efficient pairwise distance calculations within a cutoff.
+- New atom iterator, `UnorderedAtomIterator`, has been implemented.
+- `System::guess_bonds` has been reimplemented using a `CellGrid` making it **much** more efficient, especially for large systems.
+- **Breaking change:** `System::guess_bonds_parallel` has been removed. (But the new `System::guess_bonds` is now much faster than `System::guess_bonds_parallel` has been.)
+
+#### Hydrogen Bond Analysis
+- Implemented a way to identify hydrogen bonds (`HBondAnalysis`) in a trajectory. The analysis can be performed with any trajectory reader (`HBondTrajRead::hbonds_analyze`).
+
+#### Changes to Trajectory Iteration
+- **Breaking change:** `TrajReadOpen` trait has been renamed to `TrajFullReadOpen`. The original `TrajReadOpen` trait now requires implementing the `initialize` method which can be used to construct either `TrajFullReadOpen` structure 
+
+#### Changes to `System::traj_iter_map_reduce` (as is tradition)
+- **Breaking changes:** 
+  - The `Data` structure in `System::traj_iter_map_reduce` no longer needs to implement `Add`. Instead, it needs to implement `ParallelTrajData` which requires the user to specify how the data structures should be reduced (merged). `ParallelTrajData` also allows the user to provide a custom `initialize` function which accepts thread ID and is automatically called after spawning a thread. This allows the user to implement thread-specific behavior or to properly sort the final results.
+  - `System::traj_iter_map_reduce` can be now provided a group name in case a "partial-frame" iteration should be performed. In such case, the provided `Reader` structure must be `GroupXtcReader`.
+  - The `Reader` structure in `System::traj_iter_map_reduce` still needs to implement `TrajReadOpen` but it's the new trait (see 'Changes to Trajectory Iteration`).
+  - Made error propagation better. If a single thread encounters an error, all other threads will abort within 10 trajectory frames.
+
+#### Expansion of Utilities for Ignoring PBC
+- Introduced `NaiveShape` trait for geometry filtering ignoring PBC and implemented this trait for `Sphere`, `Rectangular`, and `Cylinder`.
+- Implemented `ImmutableAtomIterable::filter_geometry_naive` and `MutableAtomIterable::filter_geometry_naive` for geometry filtering of atoms from iterators ignoring PBC and box dimensions.
+
+#### Other Changes
+- Introduced `Atom::reset_bonded` and `System::clear_bonds` for simpler removal of bonding information.
+- Sodium atoms should be less often misclassified as sulfur when guessing elements.
+- Reworked how groups are stored inside a system. Introduced a new `Groups` structure for storing groups.
+- **Bug fix:** Fixed undefined behavior in xdrfile jumping which lead to TRR files being read incorrectly when using clang.
+- **Bug fix:** Fixed incorrect parsing of some TPR files generated with Gromacs 2025.
+
+***
+
 ### Version 0.9.0
 
 #### Atom Index

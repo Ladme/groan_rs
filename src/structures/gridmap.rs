@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Implementation of a higher-level utility GridMap structure for use in `groan_rs` programs.
 
@@ -32,7 +32,7 @@ pub enum DataOrder {
 /// - `RawValue` is the type of the value that will actually be stored inside the grid map.
 /// - `VisValue` is the type of the value that will be written out after calling `write_map`.
 /// - `Converter` is a function/closure that handles the conversion from `RawValue` to `VisValue`.
-///    The function is automatically called inside `write_map`, `get_at_convert`, and `extract_convert`.
+///   The function is automatically called inside `write_map`, `get_at_convert`, and `extract_convert`.
 ///
 /// ## Notes
 /// - The actual span of the map is not `span.0` to

@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Implementation of some higher level functions for `groan_rs` programs.
 
@@ -102,12 +102,16 @@ impl System {
     /// // center the group 'Protein'
     /// system.atoms_center("Protein", Dimension::XY).unwrap();
     /// ```
+    ///
+    /// ## Notes
+    /// - The Bai-Breen method may introduce some (typically minor) error into the calculated center of geometry.
+    ///   This method should only be used for visual centering, not if you require the group to be _precisely_ in the center of the box!
     pub fn atoms_center(
         &mut self,
         reference: &str,
         dimension: Dimension,
     ) -> Result<(), GroupError> {
-        let reference_center = self.group_get_center(reference)?;
+        let reference_center = self.group_estimate_center(reference)?;
 
         let box_center = self.get_box_center().map_err(GroupError::InvalidSimBox)?;
         let mut shift = Vector3D(box_center.deref() - reference_center.deref());
@@ -157,12 +161,16 @@ impl System {
     /// // center the group 'Protein'
     /// system.atoms_center_mass("Protein", Dimension::XY).unwrap();
     /// ```
+    ///
+    /// ## Notes
+    /// - The Bai-Breen method may introduce some (typically minor) error into the calculated center of mass.
+    ///   This method should only be used for visual centering, not if you require the group to be _precisely_ in the center of the box!
     pub fn atoms_center_mass(
         &mut self,
         reference: &str,
         dimension: Dimension,
     ) -> Result<(), GroupError> {
-        let reference_com = self.group_get_com(reference)?;
+        let reference_com = self.group_estimate_com(reference)?;
 
         let box_center = self.get_box_center().map_err(GroupError::InvalidSimBox)?;
         let mut shift = Vector3D(box_center.deref() - reference_com.deref());
@@ -353,7 +361,7 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            system.group_get_center("Protein").unwrap().x,
+            system.group_estimate_center("Protein").unwrap().x,
             system.get_box_center().unwrap().x
         );
 
@@ -378,7 +386,7 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            system.group_get_center("Protein").unwrap().y,
+            system.group_estimate_center("Protein").unwrap().y,
             system.get_box_center().unwrap().y
         );
 
@@ -403,7 +411,7 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            system.group_get_center("Protein").unwrap().z,
+            system.group_estimate_center("Protein").unwrap().z,
             system.get_box_center().unwrap().z
         );
 
@@ -426,7 +434,7 @@ mod tests {
 
         system.atoms_center("Protein", Dimension::XY).unwrap();
 
-        let group_center = system.group_get_center("Protein").unwrap();
+        let group_center = system.group_estimate_center("Protein").unwrap();
         assert_approx_eq!(f32, group_center.x, system.get_box_center().unwrap().x);
         assert_approx_eq!(f32, group_center.y, system.get_box_center().unwrap().y);
 
@@ -449,7 +457,7 @@ mod tests {
 
         system.atoms_center("Protein", Dimension::XZ).unwrap();
 
-        let group_center = system.group_get_center("Protein").unwrap();
+        let group_center = system.group_estimate_center("Protein").unwrap();
         assert_approx_eq!(f32, group_center.x, system.get_box_center().unwrap().x);
         assert_approx_eq!(f32, group_center.z, system.get_box_center().unwrap().z);
 
@@ -472,7 +480,7 @@ mod tests {
 
         system.atoms_center("Protein", Dimension::YZ).unwrap();
 
-        let group_center = system.group_get_center("Protein").unwrap();
+        let group_center = system.group_estimate_center("Protein").unwrap();
         assert_approx_eq!(f32, group_center.y, system.get_box_center().unwrap().y);
         assert_approx_eq!(f32, group_center.z, system.get_box_center().unwrap().z);
 
@@ -495,7 +503,7 @@ mod tests {
 
         system.atoms_center("Protein", Dimension::XYZ).unwrap();
 
-        let group_center = system.group_get_center("Protein").unwrap();
+        let group_center = system.group_estimate_center("Protein").unwrap();
         assert_approx_eq!(f32, group_center.x, system.get_box_center().unwrap().x);
         assert_approx_eq!(f32, group_center.y, system.get_box_center().unwrap().y);
         assert_approx_eq!(f32, group_center.z, system.get_box_center().unwrap().z);
@@ -584,7 +592,7 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            system.group_get_com("Protein").unwrap().x,
+            system.group_estimate_com("Protein").unwrap().x,
             system.get_box_center().unwrap().x
         );
 
@@ -610,7 +618,7 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            system.group_get_com("Protein").unwrap().y,
+            system.group_estimate_com("Protein").unwrap().y,
             system.get_box_center().unwrap().y
         );
 
@@ -636,7 +644,7 @@ mod tests {
 
         assert_approx_eq!(
             f32,
-            system.group_get_com("Protein").unwrap().z,
+            system.group_estimate_com("Protein").unwrap().z,
             system.get_box_center().unwrap().z
         );
 
@@ -660,17 +668,9 @@ mod tests {
 
         system.atoms_center_mass("Protein", Dimension::XY).unwrap();
 
-        assert_approx_eq!(
-            f32,
-            system.group_get_com("Protein").unwrap().x,
-            system.get_box_center().unwrap().x
-        );
-
-        assert_approx_eq!(
-            f32,
-            system.group_get_com("Protein").unwrap().y,
-            system.get_box_center().unwrap().y
-        );
+        let center = system.group_estimate_com("Protein").unwrap();
+        assert_approx_eq!(f32, center.x, system.get_box_center().unwrap().x);
+        assert_approx_eq!(f32, center.y, system.get_box_center().unwrap().y);
 
         let atom1 = system.atoms_iter().next().unwrap().get_position();
         let atom2 = system.atoms_iter().last().unwrap().get_position();
@@ -692,17 +692,9 @@ mod tests {
 
         system.atoms_center_mass("Protein", Dimension::XZ).unwrap();
 
-        assert_approx_eq!(
-            f32,
-            system.group_get_com("Protein").unwrap().x,
-            system.get_box_center().unwrap().x
-        );
-
-        assert_approx_eq!(
-            f32,
-            system.group_get_com("Protein").unwrap().z,
-            system.get_box_center().unwrap().z
-        );
+        let center = system.group_estimate_com("Protein").unwrap();
+        assert_approx_eq!(f32, center.x, system.get_box_center().unwrap().x);
+        assert_approx_eq!(f32, center.z, system.get_box_center().unwrap().z);
 
         let atom1 = system.atoms_iter().next().unwrap().get_position();
         let atom2 = system.atoms_iter().last().unwrap().get_position();
@@ -724,17 +716,9 @@ mod tests {
 
         system.atoms_center_mass("Protein", Dimension::YZ).unwrap();
 
-        assert_approx_eq!(
-            f32,
-            system.group_get_com("Protein").unwrap().y,
-            system.get_box_center().unwrap().y
-        );
-
-        assert_approx_eq!(
-            f32,
-            system.group_get_com("Protein").unwrap().z,
-            system.get_box_center().unwrap().z
-        );
+        let center = system.group_estimate_com("Protein").unwrap();
+        assert_approx_eq!(f32, center.y, system.get_box_center().unwrap().y);
+        assert_approx_eq!(f32, center.z, system.get_box_center().unwrap().z);
 
         let atom1 = system.atoms_iter().next().unwrap().get_position();
         let atom2 = system.atoms_iter().last().unwrap().get_position();
@@ -756,23 +740,10 @@ mod tests {
 
         system.atoms_center_mass("Protein", Dimension::XYZ).unwrap();
 
-        assert_approx_eq!(
-            f32,
-            system.group_get_com("Protein").unwrap().x,
-            system.get_box_center().unwrap().x
-        );
-
-        assert_approx_eq!(
-            f32,
-            system.group_get_com("Protein").unwrap().y,
-            system.get_box_center().unwrap().y
-        );
-
-        assert_approx_eq!(
-            f32,
-            system.group_get_com("Protein").unwrap().z,
-            system.get_box_center().unwrap().z
-        );
+        let center = system.group_estimate_com("Protein").unwrap();
+        assert_approx_eq!(f32, center.x, system.get_box_center().unwrap().x);
+        assert_approx_eq!(f32, center.y, system.get_box_center().unwrap().y);
+        assert_approx_eq!(f32, center.z, system.get_box_center().unwrap().z);
 
         let atom1 = system.atoms_iter().next().unwrap().get_position();
         let atom2 = system.atoms_iter().last().unwrap().get_position();

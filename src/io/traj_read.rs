@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Traits for reading generic trajectory files.
 
@@ -87,11 +87,39 @@ pub trait TrajRead<'a> {
     ) -> &mut <<Self as TrajRead<'a>>::FrameData as FrameData>::TrajFile;
 }
 
-/// Any structure implementing `TrajReadFile` can be used to OPEN and read a trajectory file.
+/// Trait that can be implemented by any structure that can be used to OPEN
+/// and read a trajectory file with either full-frame or partial-frame reading.
 pub trait TrajReadOpen<'a>: TrajRead<'a> {
+    /// Method specifying how to open the trajectory file either for full-frame or partial-frame reading.
+    /// If a particular mode of reading is not supported by the structure, the function should PANIC.
+    fn initialize(
+        system: &'a mut System,
+        filename: impl AsRef<Path>,
+        group: Option<&str>,
+    ) -> Result<Self, ReadTrajError>
+    where
+        Self: Sized;
+}
+
+/// Trait that can be implemented by any structure that can be used to OPEN and read a trajectory file without partial-frame reading.
+pub trait TrajFullReadOpen<'a>: TrajRead<'a> + TrajReadOpen<'a> {
     /// Method specifying how to open the trajectory file.
     /// This function should return structure implementing `TrajRead`.
     fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<Self, ReadTrajError>
+    where
+        Self: Sized;
+}
+
+/// Similar to [`TrajFullReadOpen`] but requires specifying a group. Only properties of atoms of the specified group
+/// will be read from the input trajectory.
+pub trait TrajGroupReadOpen<'a>: TrajRead<'a> + TrajReadOpen<'a> {
+    /// Method specifying how to open the trajectory file for partial frame reading.
+    /// This function should return structure implementing `TrajRead`.
+    fn new(
+        system: &'a mut System,
+        filename: impl AsRef<Path>,
+        group: &str,
+    ) -> Result<Self, ReadTrajError>
     where
         Self: Sized;
 }
@@ -585,6 +613,7 @@ pub trait TrajMasterRead<'a>:
     ///
     /// ## Example
     /// ```no_run
+    /// # #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))] {
     /// # use groan_rs::prelude::*;
     /// #
     /// let mut system = System::from_file("system.gro").unwrap();
@@ -604,6 +633,7 @@ pub trait TrajMasterRead<'a>:
     ///
     ///     // perform some analysis
     /// }
+    /// # }
     /// ```
     ///
     /// ## Note on the order of operations
@@ -622,6 +652,7 @@ pub trait TrajMasterRead<'a>:
     ///
     /// Example:
     /// ```no_run
+    /// # #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))] {
     /// # use groan_rs::prelude::*;
     /// #
     /// let mut system = System::from_file("system.gro").unwrap();
@@ -651,6 +682,7 @@ pub trait TrajMasterRead<'a>:
     /// // this iterator will only start printing information about the trajectory reading once it is actually used
     /// // it will not print any information about the jump as the `ProgressPrinter` was associated
     /// // with the iterator only after the jump to the starting time was already performed.
+    /// # }
     /// ```
     fn print_progress(mut self, printer: ProgressPrinter) -> Self
     where
@@ -659,20 +691,43 @@ pub trait TrajMasterRead<'a>:
         self.set_progress_printer(printer);
         self
     }
+
+    /// Method specifying how to get a mutable pointer to the `System` structure.
+    fn get_system(&mut self) -> *mut System;
 }
 
-impl<'a, R: TrajRead<'a>> TrajMasterRead<'a> for TrajReader<'a, R> {}
-
-impl<'a, R: TrajRangeRead<'a>> TrajMasterRead<'a> for TrajRangeReader<'a, R> where
-    R::FrameData: FrameDataTime
-{
+impl<'a, R: TrajRead<'a>> TrajMasterRead<'a> for TrajReader<'a, R> {
+    #[inline(always)]
+    fn get_system(&mut self) -> *mut System {
+        self.traj_reader.get_system()
+    }
 }
 
-impl<'a, R: TrajStepRead<'a>> TrajMasterRead<'a> for TrajStepReader<'a, R> {}
-
-impl<'a, R: TrajRangeRead<'a> + TrajStepRead<'a>> TrajMasterRead<'a> for TrajRangeStepReader<'a, R> where
-    R::FrameData: FrameDataTime
+impl<'a, R: TrajRangeRead<'a>> TrajMasterRead<'a> for TrajRangeReader<'a, R>
+where
+    R::FrameData: FrameDataTime,
 {
+    #[inline(always)]
+    fn get_system(&mut self) -> *mut System {
+        self.traj_reader.get_system()
+    }
+}
+
+impl<'a, R: TrajStepRead<'a>> TrajMasterRead<'a> for TrajStepReader<'a, R> {
+    #[inline(always)]
+    fn get_system(&mut self) -> *mut System {
+        self.traj_reader.get_system()
+    }
+}
+
+impl<'a, R: TrajRangeRead<'a> + TrajStepRead<'a>> TrajMasterRead<'a> for TrajRangeStepReader<'a, R>
+where
+    R::FrameData: FrameDataTime,
+{
+    #[inline(always)]
+    fn get_system(&mut self) -> *mut System {
+        self.traj_reader.get_system()
+    }
 }
 
 /***************************************/
@@ -765,6 +820,7 @@ impl System {
     ///
     /// ## Example
     /// ```no_run
+    /// # #[cfg(not(feature = "no-xdrfile"))] {
     /// # use groan_rs::prelude::*;
     /// # use groan_rs::errors::ReadTrajError;
     /// #
@@ -786,6 +842,7 @@ impl System {
     ///
     ///     Ok(())
     /// }
+    /// # }
     /// ```
     ///
     /// ## Notes
@@ -797,7 +854,7 @@ impl System {
         filename: impl AsRef<Path>,
     ) -> Result<TrajReader<'a, Read>, ReadTrajError>
     where
-        Read: TrajReadOpen<'a>,
+        Read: TrajFullReadOpen<'a>,
     {
         Ok(TrajReader::wrap_traj(Read::new(self, filename)?))
     }
@@ -807,6 +864,7 @@ impl System {
 /*       UNIT TESTS       */
 /**************************/
 
+#[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
 #[cfg(test)]
 mod tests {
     use std::fs::File;
@@ -839,6 +897,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn traj_iter_trr() {
         let mut system_trr = System::from_file("test_files/example.gro").unwrap();
         let mut system_traj = System::from_file("test_files/example.gro").unwrap();
@@ -1098,6 +1157,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn trr_iter_print_progress() {
         let mut system1 = System::from_file("test_files/example.gro").unwrap();
         let mut system2 = System::from_file("test_files/example.gro").unwrap();

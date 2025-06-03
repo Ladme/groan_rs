@@ -1,9 +1,9 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Implementation of functions for reading and writing gro files as trajectories.
 
-use std::io::{BufRead, BufWriter};
+use std::io::{BufRead, BufWriter, Seek};
 use std::marker::PhantomData;
 use std::path::Path;
 use std::str::FromStr;
@@ -15,7 +15,10 @@ use crate::auxiliary::{GRO_MAX_COORDINATE, GRO_MIN_COORDINATE};
 use crate::errors::WriteTrajError;
 use crate::io::check_coordinate_sizes;
 use crate::io::traj_write::{PrivateTrajWrite, TrajWrite};
-use crate::prelude::{AtomIterator, TrajRead, TrajReadOpen, TrajReader, TrajStepRead, Vector3D};
+use crate::prelude::{
+    AtomIterator, FrameDataTime, TrajFullReadOpen, TrajRangeRead, TrajRead, TrajReadOpen,
+    TrajReader, TrajStepRead, TrajStepTimeRead, Vector3D,
+};
 use crate::structures::group::Group;
 use crate::{
     errors::ReadTrajError,
@@ -26,6 +29,9 @@ use crate::{
 /**************************/
 /*      READING GRO       */
 /**************************/
+
+/// Used when jumping to the start of iteration.
+const TIME_PRECISION: f32 = 0.001;
 
 #[derive(Debug)]
 pub struct GroReader<'a> {
@@ -44,8 +50,8 @@ impl TrajFile for GroFile {}
 
 #[derive(Debug)]
 pub struct GroFrameData {
-    time: Option<f32>,
-    step: Option<u64>,
+    time: f32,
+    step: u64,
     simbox: SimBox,
     positions: Vec<[f32; 3]>,
     velocities: Vec<Option<[f32; 3]>>,
@@ -123,6 +129,38 @@ fn read_box(reader: &mut GroFile) -> Result<SimBox, ReadTrajError> {
     super::line_as_box(&line).map_err(|_| ReadTrajError::FrameNotFound)
 }
 
+/// Read the title, simulation time and step (optional), and the number of atoms.
+#[allow(clippy::type_complexity)]
+fn read_header(
+    reader: &mut GroFile,
+    expected_n_atoms: usize,
+) -> Option<Result<(String, Option<f32>, Option<u64>, usize), ReadTrajError>> {
+    let mut title = String::new();
+    match reader.buffer.read_line(&mut title) {
+        Ok(0) => return None,
+        Ok(_) => (),
+        Err(_) => return Some(Err(ReadTrajError::FrameNotFound)),
+    }
+
+    let (time, step) = match extract_time_step(&title) {
+        Some((x, y)) => (Some(x), Some(y)),
+        None => (None, None),
+    };
+
+    let n_atoms = match super::get_natoms(&mut reader.buffer, reader.filename.clone()) {
+        Ok(x) => x,
+        Err(_) => return Some(Err(ReadTrajError::FrameNotFound)),
+    };
+
+    if n_atoms != expected_n_atoms {
+        Some(Err(ReadTrajError::AtomsNumberMismatch(
+            reader.filename.clone(),
+        )))
+    } else {
+        Some(Ok((title, time, step, n_atoms)))
+    }
+}
+
 impl FrameData for GroFrameData {
     type TrajFile = GroFile;
 
@@ -133,29 +171,10 @@ impl FrameData for GroFrameData {
     where
         Self: Sized,
     {
-        // read title
-        let mut title = String::new();
-        match traj_file.buffer.read_line(&mut title) {
-            Ok(0) => return None,
-            Ok(_) => (),
-            Err(_) => return Some(Err(ReadTrajError::FrameNotFound)),
-        }
-
-        let (time, step) = match extract_time_step(&title) {
-            Some((x, y)) => (Some(x), Some(y)),
-            None => (None, None),
-        };
-
-        let n_atoms = match super::get_natoms(&mut traj_file.buffer, traj_file.filename.clone()) {
+        let (_, time, step, n_atoms) = match read_header(traj_file, system.get_n_atoms())? {
             Ok(x) => x,
-            Err(_) => return Some(Err(ReadTrajError::FrameNotFound)),
+            Err(e) => return Some(Err(e)),
         };
-
-        if n_atoms != system.get_n_atoms() {
-            return Some(Err(ReadTrajError::AtomsNumberMismatch(
-                traj_file.filename.clone(),
-            )));
-        }
 
         let mut positions = Vec::with_capacity(n_atoms);
         let mut velocities = Vec::with_capacity(n_atoms);
@@ -176,8 +195,8 @@ impl FrameData for GroFrameData {
         };
 
         Some(Ok(GroFrameData {
-            time,
-            step,
+            time: time.unwrap_or(system.get_simulation_time()),
+            step: step.unwrap_or(system.get_simulation_step()),
             simbox,
             positions,
             velocities,
@@ -199,15 +218,17 @@ impl FrameData for GroFrameData {
         }
 
         // update the system
-        if let Some(x) = self.step {
-            system.set_simulation_step(x);
-        }
-
-        if let Some(x) = self.time {
-            system.set_simulation_time(x);
-        }
+        system.set_simulation_step(self.step);
+        system.set_simulation_time(self.time);
 
         system.set_box(self.simbox);
+    }
+}
+
+impl FrameDataTime for GroFrameData {
+    #[inline(always)]
+    fn get_time(&self) -> f32 {
+        self.time
     }
 }
 
@@ -226,6 +247,29 @@ impl<'a> TrajRead<'a> for GroReader<'a> {
 }
 
 impl<'a> TrajReadOpen<'a> for GroReader<'a> {
+    /// Create an iterator over a gro file.
+    ///
+    /// ## Panic
+    /// Panics if the `group` is **not** None.
+    ///
+    /// ## Note
+    /// Prefer using [`GroReader::new`] which does not panic.
+    fn initialize(
+        system: &'a mut System,
+        filename: impl AsRef<Path>,
+        group: Option<&str>,
+    ) -> Result<Self, ReadTrajError>
+    where
+        Self: Sized,
+    {
+        match group {
+            None => GroReader::new(system, filename),
+            Some(_) => panic!("FATAL GROAN ERROR | GroReader::initialize | GroReader does not support partial-frame reading."),
+        }
+    }
+}
+
+impl<'a> TrajFullReadOpen<'a> for GroReader<'a> {
     fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<Self, ReadTrajError>
     where
         Self: Sized,
@@ -247,25 +291,26 @@ impl<'a> TrajReadOpen<'a> for GroReader<'a> {
 }
 
 impl<'a> TrajStepRead<'a> for GroReader<'a> {
+    #[inline(always)]
     fn skip_frame(&mut self) -> Result<bool, ReadTrajError> {
-        // read title
-        let mut buf = String::new();
-        if self
-            .gro
-            .buffer
-            .read_line(&mut buf)
-            .map_err(|_| ReadTrajError::SkipFailed)?
-            == 0
-        {
-            return Ok(false);
+        match self.skip_frame_time() {
+            Err(e) => Err(e),
+            Ok(None) => Ok(false),
+            Ok(_) => Ok(true),
         }
+    }
+}
 
-        let n_atoms = super::get_natoms(&mut self.gro.buffer, self.gro.filename.clone())
-            .map_err(|_| ReadTrajError::SkipFailed)?;
+impl<'a> TrajStepTimeRead<'a> for GroReader<'a> {
+    fn skip_frame_time(&mut self) -> Result<Option<f32>, ReadTrajError> {
+        let system = unsafe { &*self.get_system() };
+        let (time, n_atoms) = match read_header(&mut self.gro, system.get_n_atoms()) {
+            None => return Ok(None),
+            Some(Err(e)) => return Err(e),
+            Some(Ok((_, time, _, n_atoms))) => (time, n_atoms),
+        };
 
-        // currently, this works even if the frames we skip over contain inconsistent number of atoms
-        // do we want this?
-
+        let mut buf = String::new();
         for _ in 0..(n_atoms + 1) {
             buf.clear();
             if self
@@ -275,11 +320,48 @@ impl<'a> TrajStepRead<'a> for GroReader<'a> {
                 .map_err(|_| ReadTrajError::SkipFailed)?
                 == 0
             {
-                return Ok(false);
+                return Ok(None);
             }
         }
 
-        Ok(true)
+        // if the time information is not available, return the time from system
+        Ok(Some(time.unwrap_or(system.get_simulation_time())))
+    }
+}
+
+impl<'a> TrajRangeRead<'a> for GroReader<'a> {
+    fn jump_to_start(&mut self, start_time: f32) -> Result<(), ReadTrajError> {
+        let mut buf = String::new();
+        loop {
+            let system = unsafe { &*self.get_system() };
+            let pos = self.gro.buffer.stream_position().expect(
+                "FATAL GROAN ERROR | GroReader::jump_to_start | Could not get position in the stream.",
+            );
+            let (time, n_atoms) = match read_header(&mut self.gro, system.get_n_atoms()) {
+                None => return Err(ReadTrajError::StartNotFound(start_time.to_string())),
+                Some(Err(e)) => return Err(e),
+                Some(Ok((_, time, _, n_atoms))) => (time, n_atoms),
+            };
+
+            let time = time.unwrap_or(system.get_simulation_time());
+
+            if time >= start_time - TIME_PRECISION {
+                // revert to the start of the frame
+                self.gro.buffer.seek(std::io::SeekFrom::Start(pos))
+                    .expect("FATAL GROAN ERROR | GroReader::jump_to_start | Could not seek to an already visited position.");
+
+                return Ok(());
+            }
+
+            for _ in 0..(n_atoms + 1) {
+                buf.clear();
+                match self.gro.buffer.read_line(&mut buf) {
+                    Ok(0) => return Err(ReadTrajError::FrameNotFound),
+                    Ok(_) => (),
+                    Err(e) => return Err(ReadTrajError::UnknownError(e.to_string())),
+                }
+            }
+        }
     }
 }
 
@@ -412,7 +494,7 @@ impl PrivateTrajWrite for GroWriter {
             Some(x) => system
                 .get_groups()
                 .get(x)
-                .ok_or_else(|| WriteTrajError::GroupNotFound(x.to_owned()))?
+                .map_err(|_| WriteTrajError::GroupNotFound(x.to_owned()))?
                 .clone(),
             None => system
                 .get_groups()
@@ -459,12 +541,14 @@ impl PrivateTrajWrite for GroWriter {
 mod tests_read {
     use float_cmp::assert_approx_eq;
 
-    use crate::test_utilities::utilities::{
-        compare_atoms, compare_atoms_trr_with_gro, compare_box_low_precision,
-    };
+    use crate::test_utilities::utilities::{compare_atoms, compare_box_low_precision};
+
+    #[cfg(not(feature = "no-xdrfile"))]
+    use crate::test_utilities::utilities::compare_atoms_trr_with_gro;
 
     use super::*;
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn gro_iter() {
         let mut system = System::from_file("test_files/protein_trajectory.gro").unwrap();
@@ -523,6 +607,7 @@ mod tests_read {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn gro_iter_velocities() {
         let mut system = System::from_file("test_files/protein.gro").unwrap();
         let mut system2 = System::from_file("test_files/example.gro").unwrap();
@@ -593,6 +678,7 @@ mod tests_read {
         }
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn gro_iter_with_step() {
         let steps = [2, 3, 4, 5, 7];
@@ -626,6 +712,148 @@ mod tests_read {
                 {
                     compare_atoms(a1, a2);
                 }
+            }
+        }
+    }
+
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
+    #[test]
+    fn gro_iter_range() {
+        let ranges = [
+            (0.0, 100_000.0),
+            (200.0, 600.0),
+            (300.0, 500.0),
+            (500.0, 500.0),
+            (300.0, 100_000.0),
+        ];
+
+        for range in ranges.into_iter() {
+            let mut system = System::from_file("test_files/protein_trajectory.gro").unwrap();
+            let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+            for (frame1, frame2) in system
+                .gro_iter("test_files/protein_trajectory.gro")
+                .unwrap()
+                .with_range(range.0, range.1)
+                .unwrap()
+                .zip(
+                    system2
+                        .xtc_iter("test_files/short_trajectory.xtc")
+                        .unwrap()
+                        .with_range(range.0, range.1)
+                        .unwrap(),
+                )
+            {
+                let frame1 = frame1.unwrap();
+                let frame2 = frame2.unwrap();
+
+                compare_box_low_precision(frame1.get_box().unwrap(), frame2.get_box().unwrap());
+
+                for (a1, a2) in frame1
+                    .atoms_iter()
+                    .take(61)
+                    .zip(frame2.atoms_iter().take(61))
+                {
+                    compare_atoms(a1, a2);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn gro_iter_no_time_with_range() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        if let Err(e) = system
+            .gro_iter("test_files/example.gro")
+            .unwrap()
+            .with_range(0.0, f32::INFINITY)
+        {
+            panic!("Function failed: `{}`", e);
+        }
+    }
+
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
+    #[test]
+    fn gro_iter_range_steps() {
+        let mut system = System::from_file("test_files/protein_trajectory.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+
+        for (start, end, step) in [(0.0, 100_000.0, 1), (300.0, 800.0, 2), (100.0, 900.0, 4)] {
+            for (frame1, frame2) in system
+                .gro_iter("test_files/protein_trajectory.gro")
+                .unwrap()
+                .with_range(start, end)
+                .unwrap()
+                .with_step(step)
+                .unwrap()
+                .zip(
+                    system2
+                        .xtc_iter("test_files/short_trajectory.xtc")
+                        .unwrap()
+                        .with_range(start, end)
+                        .unwrap()
+                        .with_step(step)
+                        .unwrap(),
+                )
+            {
+                let frame1 = frame1.unwrap();
+                let frame2 = frame2.unwrap();
+
+                compare_box_low_precision(frame1.get_box().unwrap(), frame2.get_box().unwrap());
+
+                for (a1, a2) in frame1
+                    .atoms_iter()
+                    .take(61)
+                    .zip(frame2.atoms_iter().take(61))
+                {
+                    compare_atoms(a1, a2);
+                }
+            }
+        }
+    }
+
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
+    #[test]
+    fn gro_iter_cat() {
+        let mut system = System::from_file("test_files/protein_trajectory.gro").unwrap();
+        let mut system2 = System::from_file("test_files/example.gro").unwrap();
+        let (start, end, step) = (300.0, 800.0, 2);
+
+        for (frame1, frame2) in system
+            .traj_cat_iter::<GroReader>(&[
+                "test_files/split/traj1.gro",
+                "test_files/split/traj2.gro",
+                "test_files/split/traj3.gro",
+                "test_files/split/traj4.gro",
+                "test_files/split/traj5.gro",
+            ])
+            .unwrap()
+            .with_range(start, end)
+            .unwrap()
+            .with_step(step)
+            .unwrap()
+            .zip(
+                system2
+                    .xtc_iter("test_files/short_trajectory.xtc")
+                    .unwrap()
+                    .with_range(start, end)
+                    .unwrap()
+                    .with_step(step)
+                    .unwrap(),
+            )
+        {
+            let frame1 = frame1.unwrap();
+            let frame2 = frame2.unwrap();
+
+            compare_box_low_precision(frame1.get_box().unwrap(), frame2.get_box().unwrap());
+
+            for (a1, a2) in frame1
+                .atoms_iter()
+                .take(61)
+                .zip(frame2.atoms_iter().take(61))
+            {
+                compare_atoms(a1, a2);
             }
         }
     }
@@ -719,6 +947,7 @@ mod tests_write {
 
     use super::*;
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn gro_writer_no_velocities() {
         let mut system = System::from_file("test_files/protein.gro").unwrap();
@@ -772,6 +1001,7 @@ mod tests_write {
         assert!(file_diff::diff_files(&mut result, &mut expected));
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn gro_writer_group_no_velocities() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
@@ -802,6 +1032,7 @@ mod tests_write {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn gro_writer_group_velocities() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.group_create("Protein", "@protein").unwrap();
@@ -832,6 +1063,7 @@ mod tests_write {
         assert!(file_diff::diff_files(&mut result, &mut expected));
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn gro_writer_group_replace_group() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
@@ -866,6 +1098,7 @@ mod tests_write {
         assert!(file_diff::diff_files(&mut result, &mut expected));
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn gro_writer_group_remove_group() {
         let mut system = System::from_file("test_files/example.gro").unwrap();

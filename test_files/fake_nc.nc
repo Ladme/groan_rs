@@ -1,0 +1,1 @@
+Not an Amber NetCDF file.

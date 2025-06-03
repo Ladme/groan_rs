@@ -1,5 +1,5 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Implementation of methods for the calculation of RMSD.
 
@@ -36,6 +36,7 @@ impl System {
     /// Note that it is faster to use `RMSDIterator` for this kind of calculation.
     /// See [`RMSDTrajRead::calc_rmsd`] for more information.
     /// ```no_run
+    /// # #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))] {
     /// # use groan_rs::prelude::*;
     /// #
     /// fn calculate_rmsd() -> Result<Vec<f32>, Box<dyn std::error::Error + Send + Sync>> {
@@ -57,7 +58,7 @@ impl System {
     ///     // return the collected data
     ///     Ok(rmsd)
     /// }
-    ///
+    /// # }
     /// ```
     ///
     /// ## Notes
@@ -92,6 +93,7 @@ impl System {
     /// ## Example
     /// Fitting a protein structure to a reference:
     /// ```no_run
+    /// # #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))] {
     /// # use groan_rs::prelude::*;
     /// #
     /// fn rmsd_fit() -> Result<System, Box<dyn std::error::Error + Send + Sync>> {
@@ -111,6 +113,7 @@ impl System {
     ///
     ///     Ok(system)
     /// }
+    /// # }
     /// ```
     /// ## Notes
     /// - This method requires both systems to have a valid orthogonal simulation box;
@@ -269,6 +272,7 @@ pub trait RMSDTrajRead<'a>: ConvertableTrajRead<'a> {
     /// ## Example
     /// Calculating RMSD for every 10th frame of an XTC trajectory.
     /// ```no_run
+    /// # #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))] {
     /// # use groan_rs::prelude::*;
     /// #
     /// fn calculate_rmsd() -> Result<Vec<f32>, Box<dyn std::error::Error + Send + Sync>> {
@@ -294,7 +298,7 @@ pub trait RMSDTrajRead<'a>: ConvertableTrajRead<'a> {
     ///     // return the collected data
     ///     Ok(all_rmsd)
     /// }
-    ///
+    /// # }
     /// ```
     ///
     /// ## Notes
@@ -336,6 +340,7 @@ pub trait RMSDTrajRead<'a>: ConvertableTrajRead<'a> {
     /// ## Example
     /// Fitting part of an XTC trajectory (200-500 ns).
     /// ```no_run
+    /// # #[cfg(not(feature = "no-xdrfile"))] {
     /// # use groan_rs::prelude::*;
     /// #
     /// fn rmsd_fit() -> Result<Vec<f32>, Box<dyn std::error::Error + Send + Sync>> {
@@ -368,6 +373,7 @@ pub trait RMSDTrajRead<'a>: ConvertableTrajRead<'a> {
     ///
     ///     // the RMSD-fitted trajectory has been written to `trajectory_fit.xtc`
     /// }
+    /// # }
     /// ```
     ///
     /// ## Notes
@@ -598,12 +604,14 @@ fn kabsch_rmsd(
 
 #[cfg(test)]
 mod tests_system {
+    #[cfg(not(feature = "no-xdrfile"))]
     use std::fs::File;
 
     use crate::errors::{MassError, PositionError, SimBoxError};
 
     use super::*;
     use float_cmp::{approx_eq, assert_approx_eq};
+    #[cfg(not(feature = "no-xdrfile"))]
     use tempfile::NamedTempFile;
 
     #[test]
@@ -783,6 +791,7 @@ mod tests_system {
         )
     }
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn test_calc_rmsd_trajectory() {
         let mut system = System::from_file("test_files/example.tpr").unwrap();
@@ -800,8 +809,8 @@ mod tests_system {
             .collect::<Vec<f32>>();
 
         let expected = [
-            0.23680364, 0.26356384, 0.26030704, 0.2139618, 0.2221243, 0.19429797, 0.26472777,
-            0.27031714, 0.26426855, 0.23497728, 0.2426188,
+            0.23669721, 0.26347756, 0.2602166, 0.21364464, 0.22166993, 0.19383322, 0.26422343,
+            0.27013618, 0.26398134, 0.23475659, 0.24208021,
         ];
 
         assert_eq!(rmsd.len(), expected.len());
@@ -939,6 +948,7 @@ mod tests_system {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn test_rmsd_fit_trajectory() {
         let mut system = System::from_file("test_files/example.tpr").unwrap();
         system.group_create("Protein", "@protein").unwrap();
@@ -968,8 +978,8 @@ mod tests_system {
         system.traj_close();
 
         let expected = [
-            0.23680364, 0.26356384, 0.26030704, 0.2139618, 0.2221243, 0.19429797, 0.26472777,
-            0.27031714, 0.26426855, 0.23497728, 0.2426188,
+            0.23669721, 0.26347756, 0.2602166, 0.21364464, 0.22166993, 0.19383322, 0.26422343,
+            0.27013618, 0.26398134, 0.23475659, 0.24208021,
         ];
 
         assert_eq!(rmsd.len(), expected.len());
@@ -983,6 +993,7 @@ mod tests_system {
         assert!(file_diff::diff_files(&mut result, &mut expected));
     }
 
+    #[cfg(not(feature = "no-xdrfile"))]
     #[test]
     fn test_rmsd_fit_trajectory_partial() {
         let mut system = System::from_file("test_files/example.tpr").unwrap();
@@ -1015,8 +1026,8 @@ mod tests_system {
         system.traj_close();
 
         let expected = [
-            0.23680364, 0.26356384, 0.26030704, 0.2139618, 0.2221243, 0.19429797, 0.26472777,
-            0.27031714, 0.26426855, 0.23497728, 0.2426188,
+            0.23669721, 0.26347756, 0.2602166, 0.21364464, 0.22166993, 0.19383322, 0.26422343,
+            0.27013618, 0.26398134, 0.23475659, 0.24208021,
         ];
 
         assert_eq!(rmsd.len(), expected.len());
@@ -1031,6 +1042,7 @@ mod tests_system {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn test_rmsd_fit_trajectory_broken_at_pbc() {
         let mut system = System::from_file("test_files/example.tpr").unwrap();
         system.group_create("Protein", "@protein").unwrap();
@@ -1173,6 +1185,7 @@ mod tests_system {
 
 #[cfg(test)]
 mod tests_iterators {
+    #[cfg(not(feature = "no-xdrfile"))]
     use std::fs::File;
 
     use crate::errors::{
@@ -1181,8 +1194,10 @@ mod tests_iterators {
 
     use super::*;
     use float_cmp::assert_approx_eq;
+    #[cfg(not(feature = "no-xdrfile"))]
     use tempfile::NamedTempFile;
 
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     #[test]
     fn test_rmsd_iterator() {
         let mut system = System::from_file("test_files/example.tpr").unwrap();
@@ -1211,6 +1226,7 @@ mod tests_iterators {
     }
 
     #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
     fn test_rmsd_fit_iterator() {
         let mut system = System::from_file("test_files/example.tpr").unwrap();
         system.group_create("Protein", "@protein").unwrap();
@@ -1409,6 +1425,7 @@ mod tests_iterators {
     }
 
     // Define tests for `calc_rmsd`
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     define_rmsd_tests!(
         test_rmsd_iterator,
         calc_rmsd,
@@ -1416,6 +1433,7 @@ mod tests_iterators {
     );
 
     // Define tests for `calc_rmsd_and_fit`
+    #[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
     define_rmsd_tests!(
         test_rmsd_fit_iterator,
         calc_rmsd_and_fit,

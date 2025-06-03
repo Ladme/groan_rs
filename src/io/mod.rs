@@ -1,20 +1,26 @@
 // Released under MIT License.
-// Copyright (c) 2023-2024 Ladislav Bartos
+// Copyright (c) 2023-2025 Ladislav Bartos
 
 //! Implementation of functions for reading and writing various structure, trajectory, and auxiliary files.
 
 use crate::structures::atom::Atom;
 
+#[cfg(feature = "chemfiles")]
+pub mod chemfiles;
 pub mod gro_io;
 pub mod ndx_io;
 pub mod pdb_io;
 pub mod pqr_io;
 pub mod tpr_io;
+#[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
 pub mod traj_cat;
 pub mod traj_read;
 pub mod traj_write;
+#[cfg(not(feature = "no-xdrfile"))]
 pub mod trr_io;
+#[cfg(not(feature = "no-xdrfile"))]
 mod xdrfile;
+#[cfg(any(feature = "molly", not(feature = "no-xdrfile")))]
 pub mod xtc_io;
 
 /// Check that no coordinate of any atom is smaller than `min_limit` or higher than `max_limit`.
