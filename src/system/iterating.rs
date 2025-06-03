@@ -708,7 +708,7 @@ mod tests {
             .filter_geometry(sphere)
             .count();
 
-        assert_eq!(count, 1304);
+        assert_eq!(count, 1305);
     }
 
     #[test]
@@ -765,7 +765,7 @@ mod tests {
             .filter_geometry(cylinder)
             .count();
 
-        assert_eq!(count, 16);
+        assert_eq!(count, 17);
     }
 
     #[test]

@@ -1307,7 +1307,7 @@ where
     ///
     /// ## Notes
     /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
-    /// - It is able to calculate correct center of mass for any distribution of atoms
+    /// - It is able to calculate approximate but correct center of mass for any distribution of atoms
     ///   that is not completely homogeneous.
     /// - In case the iterator is empty, the center of mass is NaN.
     /// - If you do **not** want to consider periodic boundary conditions during the calculation, use [`AtomIterable::get_com_naive`].
@@ -1905,6 +1905,26 @@ mod tests {
     }
 
     #[test]
+    fn iterator_estimate_center() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.read_ndx("test_files/index.ndx").unwrap();
+
+        let sphere_pos = system.group_estimate_center("Protein").unwrap();
+        let sphere = Sphere::new(sphere_pos.clone(), 2.0);
+
+        let center = system
+            .group_iter("Membrane")
+            .unwrap()
+            .filter_geometry(sphere)
+            .estimate_center()
+            .unwrap();
+
+        assert_approx_eq!(f32, center.x, 9.8453);
+        assert_approx_eq!(f32, center.y, 2.4803874);
+        assert_approx_eq!(f32, center.z, 5.434977);
+    }
+
+    #[test]
     fn iterator_get_center() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
         system.read_ndx("test_files/index.ndx").unwrap();
@@ -1919,9 +1939,9 @@ mod tests {
             .get_center()
             .unwrap();
 
-        assert_approx_eq!(f32, center.x, 9.8453);
-        assert_approx_eq!(f32, center.y, 2.4803874);
-        assert_approx_eq!(f32, center.z, 5.434977);
+        assert_approx_eq!(f32, center.x, 9.848716);
+        assert_approx_eq!(f32, center.y, 2.4805717);
+        assert_approx_eq!(f32, center.z, 5.4309845);
     }
 
     #[test]
@@ -1969,6 +1989,32 @@ mod tests {
     }
 
     #[test]
+    fn iterator_estimate_com() {
+        let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
+
+        system.group_create("Peptide", "@protein").unwrap();
+        system.group_create("Membrane", "@membrane").unwrap();
+
+        system.guess_elements(Elements::default()).unwrap();
+
+        let sphere_pos = system.group_get_center("Peptide").unwrap();
+        let sphere = Sphere::new(sphere_pos.clone(), 1.0);
+
+        let com = system
+            .group_iter("Membrane")
+            .unwrap()
+            .filter_geometry(sphere)
+            .estimate_com()
+            .unwrap();
+
+        println!("{:?}", com);
+
+        assert_approx_eq!(f32, com.x, 3.985978);
+        assert_approx_eq!(f32, com.y, 3.7461767);
+        assert_approx_eq!(f32, com.z, 3.3526845);
+    }
+
+    #[test]
     fn iterator_get_com() {
         let mut system = System::from_file("test_files/aa_membrane_peptide.gro").unwrap();
 
@@ -1987,9 +2033,9 @@ mod tests {
             .get_com()
             .unwrap();
 
-        assert_approx_eq!(f32, com.x, 4.0072813);
-        assert_approx_eq!(f32, com.y, 3.7480402);
-        assert_approx_eq!(f32, com.z, 3.3228612);
+        assert_approx_eq!(f32, com.x, 3.9912941);
+        assert_approx_eq!(f32, com.y, 3.744326);
+        assert_approx_eq!(f32, com.z, 3.3532307);
     }
 
     #[test]
