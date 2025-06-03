@@ -38,6 +38,7 @@ parking_lot = { version = "0.12.3", optional = true }
 molly = { version = "0.3.3", optional = true }
 chemfiles = { version = "0.10.41", optional = true }
 itertools = "0.14.0"
+dyn-clone = "1.0.19"
 
 [dev-dependencies]
 file_diff = "1.0.0"

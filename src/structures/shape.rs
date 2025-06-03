@@ -3,6 +3,8 @@
 
 //! Implementation of shapes for geometry selection.
 
+use dyn_clone::DynClone;
+
 use crate::structures::{dimension::Dimension, simbox::SimBox, vector3d::Vector3D};
 
 /// Structure describing a sphere for geometry selections.
@@ -66,10 +68,12 @@ pub struct TriangularPrism {
 }
 
 /// Any structure implementing this trait can be used for geometry selection.
-pub trait Shape {
+pub trait Shape: DynClone {
     /// Returns `true` if target point is inside the `Shape`. Else returns `false`.
     fn inside(&self, point: &Vector3D, simbox: &SimBox) -> bool;
 }
+
+dyn_clone::clone_trait_object!(Shape);
 
 impl Sphere {
     /// Construct a new Sphere.
@@ -457,7 +461,7 @@ impl Shape for TriangularPrism {
 }
 
 /// Trait implemented by structures that can be used for geometry selection without PBC.
-pub trait NaiveShape {
+pub trait NaiveShape: DynClone {
     /// Returns `true` if target point is inside the `NaiveShape`. **Does not take periodic boundary conditions into consideration.**
     fn inside_naive(&self, point: &Vector3D) -> bool;
 }
@@ -495,6 +499,8 @@ impl NaiveShape for Rectangular {
         dx >= 0.0 && dx <= self.x && dy >= 0.0 && dy <= self.y && dz >= 0.0 && dz <= self.z
     }
 }
+
+dyn_clone::clone_trait_object!(NaiveShape);
 
 #[cfg(test)]
 mod tests_sphere {

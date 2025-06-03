@@ -384,7 +384,7 @@ impl<'a> CellGrid<'a> {
         &'a self,
         mut reference: Vector3D,
         ranges: CellNeighbors,
-    ) -> UnorderedAtomIterator<'a, impl Iterator<Item = usize> + 'a> {
+    ) -> UnorderedAtomIterator<'a, impl Iterator<Item = usize> + Clone + 'a> {
         reference.wrap(&self.simbox);
         let cells = self.grid.dim();
         let [x, y, z] = Self::pos2index(&reference, &self.cell_size, &[cells.0, cells.1, cells.2]);
@@ -642,7 +642,7 @@ mod tests {
 
     fn add_nearby_atoms_naive(
         system: &System,
-        geometry: impl Shape,
+        geometry: impl Shape + Clone,
         nearby_atoms: &mut Vec<Vec<usize>>,
     ) {
         nearby_atoms.push(
@@ -703,7 +703,7 @@ mod tests {
     fn add_nearby_atoms_cellgrid(
         cellgrid: &CellGrid,
         position: Vector3D,
-        geometry: impl Shape,
+        geometry: impl Shape + Clone,
         neighbors: CellNeighbors,
         nearby_atoms: &mut Vec<Vec<usize>>,
     ) {

@@ -144,7 +144,7 @@ impl<'a> OrderedAtomIterator<'a> for OwnedAtomIterator<'a> {}
 pub struct FilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a Atom>,
-    S: Shape,
+    S: Shape + Clone,
 {
     iterator: I,
     geometry: S,
@@ -154,7 +154,7 @@ where
 impl<'a, I, S> Iterator for FilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a Atom>,
-    S: Shape,
+    S: Shape + Clone,
 {
     type Item = &'a Atom;
 
@@ -175,7 +175,7 @@ where
 impl<'a, I, S> HasBox for FilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a Atom>,
-    S: Shape,
+    S: Shape + Clone,
 {
     #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
@@ -302,13 +302,13 @@ impl<'a> AtomIterable<'a> for MoleculeIterator<'a> {
 /// Immutable iterator over atoms.
 /// The atoms may be returned in any order.
 #[derive(Debug, Clone)]
-pub struct UnorderedAtomIterator<'a, I: Iterator<Item = usize>> {
+pub struct UnorderedAtomIterator<'a, I: Iterator<Item = usize> + Clone> {
     atoms: &'a [Atom],
     iterator: I,
     simbox: Option<&'a SimBox>,
 }
 
-impl<'a, I: Iterator<Item = usize>> Iterator for UnorderedAtomIterator<'a, I> {
+impl<'a, I: Iterator<Item = usize> + Clone> Iterator for UnorderedAtomIterator<'a, I> {
     type Item = &'a Atom;
 
     #[inline(always)]
@@ -321,7 +321,7 @@ impl<'a, I: Iterator<Item = usize>> Iterator for UnorderedAtomIterator<'a, I> {
     }
 }
 
-impl<'a, I: Iterator<Item = usize>> HasBox for UnorderedAtomIterator<'a, I> {
+impl<'a, I: Iterator<Item = usize> + Clone> HasBox for UnorderedAtomIterator<'a, I> {
     #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
         self.simbox
@@ -332,7 +332,7 @@ impl<'a, I: Iterator<Item = usize> + Clone> AtomIterable<'a> for UnorderedAtomIt
     type AtomRef = &'a Atom;
 }
 
-impl<'a, I: Iterator<Item = usize>> UnorderedAtomIterator<'a, I> {
+impl<'a, I: Iterator<Item = usize> + Clone> UnorderedAtomIterator<'a, I> {
     #[inline(always)]
     pub(crate) fn new(atoms: &'a [Atom], iterator: I, simbox: Option<&'a SimBox>) -> Self {
         UnorderedAtomIterator {
@@ -467,7 +467,7 @@ impl<'a> OrderedAtomIterator<'a> for OwnedMutAtomIterator<'a> {}
 pub struct MutFilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a mut Atom>,
-    S: Shape,
+    S: Shape + Clone,
 {
     iterator: I,
     geometry: S,
@@ -477,7 +477,7 @@ where
 impl<'a, I, S> HasBox for MutFilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a mut Atom>,
-    S: Shape,
+    S: Shape + Clone,
 {
     #[inline(always)]
     fn get_simbox(&self) -> Option<&SimBox> {
@@ -496,7 +496,7 @@ where
 impl<'a, I, S> Iterator for MutFilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a mut Atom>,
-    S: Shape,
+    S: Shape + Clone,
 {
     type Item = &'a mut Atom;
 
@@ -527,7 +527,7 @@ where
 pub struct MutNaiveFilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a mut Atom>,
-    S: NaiveShape,
+    S: NaiveShape + Clone,
 {
     iterator: I,
     geometry: S,
@@ -544,7 +544,7 @@ where
 impl<'a, I, S> Iterator for MutNaiveFilterAtomIterator<'a, I, S>
 where
     I: Iterator<Item = &'a mut Atom>,
-    S: NaiveShape,
+    S: NaiveShape + Clone,
 {
     type Item = &'a mut Atom;
 
@@ -994,8 +994,8 @@ pub trait ImmutableAtomIterable<'a>: AtomIterable<'a, AtomRef = &'a Atom, Item =
     #[inline(always)]
     fn filter_geometry_naive(
         self,
-        geometry: impl NaiveShape,
-    ) -> NaiveFilterAtomIterator<'a, Self, impl NaiveShape> {
+        geometry: impl NaiveShape + Clone,
+    ) -> NaiveFilterAtomIterator<'a, Self, impl NaiveShape + Clone> {
         NaiveFilterAtomIterator {
             iterator: self,
             geometry,
@@ -1031,8 +1031,8 @@ pub trait MutableAtomIterable<'a>:
     /// ```
     fn filter_geometry_naive(
         self,
-        geometry: impl NaiveShape,
-    ) -> MutNaiveFilterAtomIterator<'a, Self, impl NaiveShape> {
+        geometry: impl NaiveShape + Clone,
+    ) -> MutNaiveFilterAtomIterator<'a, Self, impl NaiveShape + Clone> {
         MutNaiveFilterAtomIterator {
             iterator: self,
             geometry,
@@ -1092,7 +1092,10 @@ where
     /// }
     /// ```
     #[inline(always)]
-    fn filter_geometry(self, geometry: impl Shape) -> FilterAtomIterator<'a, Self, impl Shape> {
+    fn filter_geometry(
+        self,
+        geometry: impl Shape + Clone,
+    ) -> FilterAtomIterator<'a, Self, impl Shape + Clone> {
         let simbox = self.get_simbox_unwrap().clone();
 
         FilterAtomIterator {
@@ -1479,7 +1482,10 @@ where
     /// }
     /// ```
     #[inline(always)]
-    fn filter_geometry(self, geometry: impl Shape) -> MutFilterAtomIterator<'a, Self, impl Shape> {
+    fn filter_geometry(
+        self,
+        geometry: impl Shape + Clone,
+    ) -> MutFilterAtomIterator<'a, Self, impl Shape + Clone> {
         let simbox = self.get_simbox_unwrap().clone();
 
         MutFilterAtomIterator {
