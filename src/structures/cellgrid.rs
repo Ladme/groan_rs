@@ -632,6 +632,7 @@ mod tests {
         }
     }
 
+    #[allow(clippy::ptr_arg)]
     fn compare_nearby_atoms(lhs: &Vec<Vec<usize>>, rhs: &Vec<Vec<usize>>) {
         for (a1, a2) in lhs.iter().zip(rhs.iter()) {
             for nearby in a1.iter() {
@@ -659,7 +660,7 @@ mod tests {
         let mut nearby_atoms = Vec::new();
         for atom in system.group_iter("Group").unwrap() {
             let sphere = Sphere::new(atom.get_position().unwrap().clone(), radius);
-            add_nearby_atoms_naive(&system, sphere, &mut nearby_atoms);
+            add_nearby_atoms_naive(system, sphere, &mut nearby_atoms);
         }
 
         nearby_atoms
@@ -679,7 +680,7 @@ mod tests {
                 height,
                 dimension,
             );
-            add_nearby_atoms_naive(&system, cylinder, &mut nearby_atoms);
+            add_nearby_atoms_naive(system, cylinder, &mut nearby_atoms);
         }
 
         nearby_atoms
@@ -694,7 +695,7 @@ mod tests {
         let mut nearby_atoms = Vec::new();
         for atom in system.group_iter("Group").unwrap() {
             let rectangular = Rectangular::new(atom.get_position().unwrap().clone(), x, y, z);
-            add_nearby_atoms_naive(&system, rectangular, &mut nearby_atoms);
+            add_nearby_atoms_naive(system, rectangular, &mut nearby_atoms);
         }
 
         nearby_atoms
@@ -734,9 +735,8 @@ mod tests {
                 );
             }
 
-            match last_nearby_atoms {
-                Some(x) => compare_nearby_atoms(&nearby_atoms, &x),
-                None => (),
+            if let Some(x) = last_nearby_atoms {
+                compare_nearby_atoms(&nearby_atoms, &x)
             }
 
             last_nearby_atoms = Some(nearby_atoms);
