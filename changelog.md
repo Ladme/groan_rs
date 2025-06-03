@@ -18,7 +18,7 @@
   - Methods `AtomIteratorWithBox::get_center` and `AtomIteratorWithBox::get_com` using the original Bai-Breen algorithm have been RENAMED to `AtomIteratorWithBox::estimate_center` and `AtomIteratorWithBox::estimate_com`, respectively.
   - Similarly, `System::group_get_center` and `System::group_get_com` have been renamed to `System::group_estimate_center` and `System::group_estimate_com`.
   - New functions called `AtomIteratorWithBox::get_center`, `AtomIteratorWithBox::get_com`, `System::group_get_center`, `System::group_get_com` use the **Refined Bai-Breen algorithm** which consists of 1) calculating the pseudo-center of geometry of the selected atoms, 2) making the group whole in the simulation box, 3) naive calculation of center of geometry or mass in the simulation box.
-  - The refined Bai-Breen algorithm is much more precise than the original Bai-Breen algorithm but only works for groups that are smaller than half the simulation box. It is also much slower than the original Bai-Breen algorithm.
+  - The refined Bai-Breen algorithm is much more precise than the original Bai-Breen algorithm but only works for groups that are smaller than half the simulation box. It is also ~50% slower than the original Bai-Breen algorithm.
   - All internal `groan_rs` methods now use the Refined Bai-Breen algorithm, with the exception of `System::atoms_center` and `System::atoms_center_mass` which continue to use the original Bai-Breen algorithm but are recommended to only be used for visual centering.
 
 #### CellGrid
