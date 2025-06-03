@@ -401,7 +401,7 @@ impl System {
     /// ## Notes
     /// - This function works similarly to [`System::make_molecules_whole`], but it only affects a single group of atoms,
     ///   which do **not** need to be connected by bonds.
-    /// - The method may not work properly for groups that are larger than the simulation box.
+    /// - The method will not work properly for groups that are larger than half of the simulation box.
     /// - Instead of using a reference atom, the function repositions the atoms in the group based on the group's center of geometry.
     ///
     /// ### Example

@@ -345,6 +345,7 @@
 //!   - Note that the performance of the `ChemfilesReader` is often much worse than that of specialized readers provided by `groan_rs`
 //!     (e.g., `XtcReader` with `molly` is 4-5 times faster than `ChemfilesReader`).
 //!   - Also note that some advanced `groan_rs` features for `ChemfilesReader` are not optimized or fully implemented.
+//!   - Currently requires you to have `cmake` version <4.0.
 //!
 //! Install the `groan_rs` crate with a specific feature using `cargo add groan_rs --features [FEATURE]`.
 //!
