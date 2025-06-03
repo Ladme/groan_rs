@@ -1310,6 +1310,7 @@ where
     /// - It is able to calculate approximate but correct center of mass for any distribution of atoms
     ///   that is not completely homogeneous.
     /// - In case the iterator is empty, the center of mass is NaN.
+    /// - If you want a more precise (but more computationally expensive) calculation, use [`AtomIteratorWithBox::get_com`].
     /// - If you do **not** want to consider periodic boundary conditions during the calculation, use [`AtomIterable::get_com_naive`].
     fn estimate_com(self) -> Result<Vector3D, AtomError> {
         let simbox = simbox_check(self.get_simbox()).map_err(AtomError::InvalidSimBox)?;
