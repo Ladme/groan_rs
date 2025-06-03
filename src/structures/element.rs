@@ -134,7 +134,7 @@ impl Elements {
         match yaml_file.read_to_string(&mut yaml_string) {
             Ok(_) => Ok(yaml_string),
             Err(_) => {
-                return Err(ParseElementError::FileCouldNotBeRead(Box::from(
+                Err(ParseElementError::FileCouldNotBeRead(Box::from(
                     filename.as_ref(),
                 )))
             }

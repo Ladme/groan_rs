@@ -263,7 +263,7 @@ impl System {
     /// - `GroupError::AlreadyExistsWarning` if the new group has overwritten a previous group.
     /// - `GroupError::InvalidName` if the name of the group is invalid (no group created).
     /// - `GroupError::InvalidQuery` if the `Select` structure is invalid (e.g., group
-    ///    specified in the structure does not exist).
+    ///   specified in the structure does not exist).
     ///
     /// ## Example
     /// ```no_run

@@ -130,6 +130,7 @@ fn read_box(reader: &mut GroFile) -> Result<SimBox, ReadTrajError> {
 }
 
 /// Read the title, simulation time and step (optional), and the number of atoms.
+#[allow(clippy::type_complexity)]
 fn read_header(
     reader: &mut GroFile,
     expected_n_atoms: usize,
@@ -152,9 +153,9 @@ fn read_header(
     };
 
     if n_atoms != expected_n_atoms {
-        return Some(Err(ReadTrajError::AtomsNumberMismatch(
+        Some(Err(ReadTrajError::AtomsNumberMismatch(
             reader.filename.clone(),
-        )));
+        )))
     } else {
         Some(Ok((title, time, step, n_atoms)))
     }

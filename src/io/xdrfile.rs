@@ -156,11 +156,9 @@ pub fn path2cstring(path: impl AsRef<Path>) -> Result<CString, NulError> {
 /// Convert XdrFile OpenMode to C string.
 pub fn mode2cstring(mode: OpenMode) -> CString {
     match mode {
-        OpenMode::Read => std::ffi::CStr::from_bytes_with_nul(b"r\0")
-            .unwrap()
+        OpenMode::Read => c"r"
             .to_owned(),
-        OpenMode::Write => std::ffi::CStr::from_bytes_with_nul(b"w\0")
-            .unwrap()
+        OpenMode::Write => c"w"
             .to_owned(),
     }
 }

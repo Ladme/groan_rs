@@ -144,7 +144,7 @@ impl System {
     /// - `Ok` if the trajectory writer is successfully created for the specified group and associated
     ///   with the `System`.
     /// - `WriteTrajError` if an error occurs, such as if a writer for the same file already exists or
-    ///    if the group does not exist.
+    ///   if the group does not exist.
     ///
     /// ## Notes
     /// - Once the writer is initialized, the group can be removed from the system. The trajectory writer retains

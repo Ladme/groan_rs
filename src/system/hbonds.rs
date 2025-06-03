@@ -192,7 +192,7 @@ impl FrameAnalyze for HBondAnalysis {
                 )?
             };
 
-            if let Some(_) = all_hbonds.insert((*chain1, *chain2), hbonds) {
+            if all_hbonds.insert((*chain1, *chain2), hbonds).is_some() {
                 panic!("FATAL GROAN ERROR | HBondAnalysis::analyze | Hydrogen bonds for pair {}x{} were calculated multiple times.", chain1, chain2);
             }
         }
@@ -214,9 +214,13 @@ impl HBondAnalysis {
         min_angle: f32,
     ) -> Result<Vec<HBond>, HBondError> {
         let mut bonds = Self::analyze_single(system, acc_grid1, donors2, max_distance, min_angle)?;
-        bonds.extend(
-            Self::analyze_single(system, acc_grid2, donors1, max_distance, min_angle)?.into_iter(),
-        );
+        bonds.extend(Self::analyze_single(
+            system,
+            acc_grid2,
+            donors1,
+            max_distance,
+            min_angle,
+        )?);
 
         Ok(bonds)
     }
@@ -348,10 +352,8 @@ impl HBondAnalysis {
                 if !pairs_set.insert((*chain1, *chain2)) || !pairs_set.insert((*chain2, *chain1)) {
                     return Err(HBondError::PairSpecifiedMultipleTimes(*chain1, *chain2));
                 }
-            } else {
-                if !pairs_set.insert((*chain1, *chain2)) {
-                    return Err(HBondError::PairSpecifiedMultipleTimes(*chain1, *chain2));
-                }
+            } else if !pairs_set.insert((*chain1, *chain2)) {
+                return Err(HBondError::PairSpecifiedMultipleTimes(*chain1, *chain2));
             }
 
             used_chains.insert(*chain1);
@@ -376,9 +378,9 @@ pub trait HBondTrajRead<'a>: ConvertableTrajRead<'a> {
     /// - `chains`: Chains to work with; see [`HBondChain::new`] for more information.
     /// - `pairs`: Pairs of chains between which hydrogen bonds should be searched.
     /// - `max_distance`: Maximum distance (in nm) between a donor and an acceptor atom for the hydrogen bond
-    ///    to be considered (recommended value is 0.3 nm).
+    ///   to be considered (recommended value is 0.3 nm).
     /// - `min_angle`: Minimum angle (in degrees) between donor-hydrogen-acceptor for the hydrogen bond
-    ///    to be considered (recommended value is 150°).
+    ///   to be considered (recommended value is 150°).
     ///
     /// ## Returns
     /// - Returns an `HBondIterator`, which is an iterable trajectory analyzer.
@@ -472,7 +474,7 @@ pub trait HBondTrajRead<'a>: ConvertableTrajRead<'a> {
 
         let analysis = HBondAnalysis {
             chains: chains_groups,
-            pairs: pairs,
+            pairs,
             max_distance,
             min_angle,
         };

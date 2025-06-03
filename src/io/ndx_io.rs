@@ -21,7 +21,7 @@ impl System {
     /// ## Returns
     /// - `Ok` if the parsing is successful.
     /// - `ParseNdxError::InvalidNamesWarning` if any of the groups has an invalid name.
-    ///    Has priority over `DuplicateGroupsWarning`.
+    ///   Has priority over `DuplicateGroupsWarning`.
     /// - `ParseNdxError::DuplicateGroupsWarning` if any of the groups already exists in the system.
     /// - Other `ParseNdxError` errors if the file does not exist or parsing failed.
     ///
@@ -41,7 +41,7 @@ impl System {
         match self.get_groups_mut().update(groups) {
             Ok(_) => (),
             Err(GroupError::MultipleAlreadyExistWarning(more_duplicates)) => {
-                duplicates.extend(more_duplicates.into_iter());
+                duplicates.extend(*more_duplicates);
             }
             Err(e) => panic!("FATAL GROAN ERROR | System::read_ndx | Unexpected error type `{}` returned by `Groups::update`.", e),
         }

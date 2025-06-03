@@ -371,7 +371,7 @@ impl<'a> CellGrid<'a> {
     /// ## Params
     /// - `reference` - coordinates of the reference point
     /// - `ranges` - specifies what cells should be considered neighbors,
-    ///    see [`CellNeighbors`] for more information
+    ///   see [`CellNeighbors`] for more information
     ///
     /// ## Notes
     /// - Assumes periodic boundary conditions in all dimensions.
@@ -385,7 +385,7 @@ impl<'a> CellGrid<'a> {
         mut reference: Vector3D,
         ranges: CellNeighbors,
     ) -> UnorderedAtomIterator<'a, impl Iterator<Item = usize> + Clone + 'a> {
-        reference.wrap(&self.simbox);
+        reference.wrap(self.simbox);
         let cells = self.grid.dim();
         let [x, y, z] = Self::pos2index(&reference, &self.cell_size, &[cells.0, cells.1, cells.2]);
         let (xcells, ycells, zcells) = self.grid.dim();
@@ -405,7 +405,7 @@ impl<'a> CellGrid<'a> {
                 .cloned()
         });
 
-        UnorderedAtomIterator::new(&self.atoms, iterator, Some(&self.simbox))
+        UnorderedAtomIterator::new(self.atoms, iterator, Some(self.simbox))
     }
 
     /// Check that the simulation box exists, is non-zero and orthogonal.

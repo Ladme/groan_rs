@@ -315,8 +315,7 @@ impl<'a, I: Iterator<Item = usize> + Clone> Iterator for UnorderedAtomIterator<'
     fn next(&mut self) -> Option<Self::Item> {
         unsafe {
             self.iterator
-                .next()
-                .and_then(|index| Some(self.atoms.get_unchecked(index)))
+                .next().map(|index| self.atoms.get_unchecked(index))
         }
     }
 }

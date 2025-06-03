@@ -124,7 +124,7 @@ impl ProgressPrinter {
     /// - `jumping_msg`: `"JUMPING".bright_purple()` (string printed when the trajectory reader is jumping to the iteration start)
     /// - `terminating`: `\r` (string terminating the progress message; useful to set to `\n` when printing to a file)
     /// - `newline_at_end`: `true` (should newline be printed once iteration is finished or failed?;
-    ///    useful to set to `false` when reading multiple trajectories sequentially)
+    ///   useful to set to `false` when reading multiple trajectories sequentially)
     ///
     /// You can set custom values for any of the parameters by using `with_%PARAMETER()` method
     /// when constructing the `ProgressPrinter`.

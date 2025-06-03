@@ -221,7 +221,7 @@ impl Group {
                     Some(x) => x,
                 };
 
-                Ok(identifiers.iter().any(|&target| target == chain))
+                Ok(identifiers.contains(&chain))
             }
 
             Select::GroupName(names) => {
