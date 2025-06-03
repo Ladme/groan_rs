@@ -205,7 +205,7 @@ impl System {
     pub fn xtc_cat_iter<'a>(
         &'a mut self,
         filenames: &[impl AsRef<Path>],
-    ) -> Result<TrajReader<'a, TrajConcatenator<'a, XtcReader>>, ReadTrajError> {
+    ) -> Result<TrajReader<'a, TrajConcatenator<'a, XtcReader<'a>>>, ReadTrajError> {
         self.traj_cat_iter::<XtcReader>(filenames)
     }
 }

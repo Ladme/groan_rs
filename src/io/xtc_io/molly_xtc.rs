@@ -344,7 +344,10 @@ impl<'a> TrajRead<'a> for XtcReader<'a> {
 impl<'a> TrajFullReadOpen<'a> for XtcReader<'a> {
     /// Create an iterator over an xtc file.
     #[inline(always)]
-    fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<XtcReader, ReadTrajError> {
+    fn new(
+        system: &'a mut System,
+        filename: impl AsRef<Path>,
+    ) -> Result<XtcReader<'a>, ReadTrajError> {
         let xtc = MollyXtc::new(&filename, system.get_n_atoms(), None)?;
 
         Ok(XtcReader {

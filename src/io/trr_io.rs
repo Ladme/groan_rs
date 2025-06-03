@@ -183,7 +183,10 @@ impl<'a> TrajReadOpen<'a> for TrrReader<'a> {
 
 impl<'a> TrajFullReadOpen<'a> for TrrReader<'a> {
     /// Create an iterator over a trr file.
-    fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<TrrReader, ReadTrajError> {
+    fn new(
+        system: &'a mut System,
+        filename: impl AsRef<Path>,
+    ) -> Result<TrrReader<'a>, ReadTrajError> {
         let n_atoms = system.get_n_atoms();
 
         // sanity check the number of atoms
@@ -404,7 +407,7 @@ impl System {
     pub fn trr_cat_iter<'a>(
         &'a mut self,
         filenames: &[impl AsRef<Path>],
-    ) -> Result<TrajReader<'a, TrajConcatenator<'a, TrrReader>>, ReadTrajError> {
+    ) -> Result<TrajReader<'a, TrajConcatenator<'a, TrrReader<'a>>>, ReadTrajError> {
         self.traj_cat_iter::<TrrReader>(filenames)
     }
 }
