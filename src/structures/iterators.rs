@@ -3,7 +3,7 @@
 
 //! Implementation of iterators over atoms and filter functions.
 
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ops::Deref};
 
 use crate::{
     auxiliary::PI_X2,
@@ -185,16 +185,16 @@ where
 
 impl<'a, I, S> AtomIterable<'a> for FilterAtomIterator<'a, I, S>
 where
-    I: Iterator<Item = &'a Atom>,
-    S: Shape,
+    I: Iterator<Item = &'a Atom> + Clone,
+    S: Shape + Clone,
 {
     type AtomRef = &'a Atom;
 }
 
 impl<'a, I, S> OrderedAtomIterator<'a> for FilterAtomIterator<'a, I, S>
 where
-    I: Iterator<Item = &'a Atom>,
-    S: Shape,
+    I: Iterator<Item = &'a Atom> + Clone,
+    S: Shape + Clone,
 {
 }
 
@@ -233,16 +233,16 @@ where
 
 impl<'a, I, S> AtomIterable<'a> for NaiveFilterAtomIterator<'a, I, S>
 where
-    I: Iterator<Item = &'a Atom>,
-    S: NaiveShape,
+    I: Iterator<Item = &'a Atom> + Clone,
+    S: NaiveShape + Clone,
 {
     type AtomRef = &'a Atom;
 }
 
 impl<'a, I, S> OrderedAtomIterator<'a> for NaiveFilterAtomIterator<'a, I, S>
 where
-    I: Iterator<Item = &'a Atom>,
-    S: NaiveShape,
+    I: Iterator<Item = &'a Atom> + Clone,
+    S: NaiveShape + Clone,
 {
 }
 
@@ -328,7 +328,7 @@ impl<'a, I: Iterator<Item = usize>> HasBox for UnorderedAtomIterator<'a, I> {
     }
 }
 
-impl<'a, I: Iterator<Item = usize>> AtomIterable<'a> for UnorderedAtomIterator<'a, I> {
+impl<'a, I: Iterator<Item = usize> + Clone> AtomIterable<'a> for UnorderedAtomIterator<'a, I> {
     type AtomRef = &'a Atom;
 }
 
@@ -487,8 +487,8 @@ where
 
 impl<'a, I, S> AtomIterable<'a> for MutFilterAtomIterator<'a, I, S>
 where
-    I: Iterator<Item = &'a mut Atom>,
-    S: Shape,
+    I: Iterator<Item = &'a mut Atom> + Clone,
+    S: Shape + Clone,
 {
     type AtomRef = &'a mut Atom;
 }
@@ -513,8 +513,8 @@ where
 
 impl<'a, I, S> OrderedAtomIterator<'a> for MutFilterAtomIterator<'a, I, S>
 where
-    I: Iterator<Item = &'a mut Atom>,
-    S: Shape,
+    I: Iterator<Item = &'a mut Atom> + Clone,
+    S: Shape + Clone,
 {
 }
 
@@ -535,8 +535,8 @@ where
 
 impl<'a, I, S> AtomIterable<'a> for MutNaiveFilterAtomIterator<'a, I, S>
 where
-    I: Iterator<Item = &'a mut Atom>,
-    S: NaiveShape,
+    I: Iterator<Item = &'a mut Atom> + Clone,
+    S: NaiveShape + Clone,
 {
     type AtomRef = &'a mut Atom;
 }
@@ -561,8 +561,8 @@ where
 
 impl<'a, I, S> OrderedAtomIterator<'a> for MutNaiveFilterAtomIterator<'a, I, S>
 where
-    I: Iterator<Item = &'a mut Atom>,
-    S: NaiveShape,
+    I: Iterator<Item = &'a mut Atom> + Clone,
+    S: NaiveShape + Clone,
 {
 }
 
@@ -840,14 +840,15 @@ pub trait HasBox {
 }
 
 /// Trait implemented by all iterators over atoms.
-pub trait AtomIterable<'a>: Iterator<Item = Self::AtomRef> + Sized {
+pub trait AtomIterable<'a>: Iterator<Item = Self::AtomRef> + Sized + Clone {
     // AtomRef is either &'a Atom or &'a mut Atom
     type AtomRef: std::ops::Deref<Target = Atom> + 'a;
 
     /// Calculate the center of geometry of a group of atoms selected by an iterator.
     /// This method **does not account for periodic boundary conditions**.
     ///
-    /// If you want to consider PBC, use [`AtomIteratorWithBox::get_center`].
+    /// If you want to consider PBC, use [`AtomIteratorWithBox::get_center`]
+    /// or [`AtomIteratorWithBox::estimate_center`].
     ///
     /// ## Returns
     /// - `Vector3D` corresponding to the geometric center of the selected atoms.
@@ -905,7 +906,8 @@ pub trait AtomIterable<'a>: Iterator<Item = Self::AtomRef> + Sized {
     /// Calculate the center of mass of a group of atoms selected by an iterator.
     /// This method **does not account for periodic boundary conditions**.
     ///
-    /// If you want to consider PBC, use [`AtomIteratorWithBox::get_com`].
+    /// If you want to consider PBC, use [`AtomIteratorWithBox::get_com`]
+    /// or [`AtomIteratorWithBox::estimate_com`].
     ///
     /// ## Returns
     /// - `Vector3D` corresponding to the center of mass of the selected atoms.
@@ -1100,12 +1102,14 @@ where
         }
     }
 
-    /// Calculate center of geometry of a group of atoms selected by an iterator.
-    /// Takes periodic boundary conditions into consideration.
+    /// Calculate an pproximate center of geometry of a group of atoms selected by an iterator.
+    /// Takes periodic boundary conditions into consideration
+    /// and returns an approximate center of geometry.
+    /// Works for any group of atoms which are not completely homogeneously distributed.
     /// Useful for the calculation of local center of geometry.
     ///
     /// ## Returns
-    /// - `Vector3D` corresponding to the geometric center of the selected atoms.
+    /// - `Vector3D` corresponding to the approximate geometric center of the selected atoms.
     /// - `AtomError::InvalidSimBox` if the iterator has no simulation box
     ///   or the simulation box is not orthogonal.
     /// - `AtomError::InvalidPosition` if any of the atoms of the iterator has no position.
@@ -1126,8 +1130,8 @@ where
     ///     .unwrap()
     ///     .filter_geometry(sphere);
     ///
-    /// // calculate center of geometry of "atoms"
-    /// let center = match atoms.get_center() {
+    /// // calculate approximate center of geometry of "atoms"
+    /// let center = match atoms.estimate_center() {
     ///     Ok(x) => x,
     ///     Err(e) => {
     ///         eprintln!("{}", e);
@@ -1138,11 +1142,12 @@ where
     ///
     /// ## Notes
     /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
-    /// - It is able to calculate correct center of geometry for any distribution of atoms
+    /// - It is able to calculate approximate but correct center of geometry for any distribution of atoms
     ///   that is not completely homogeneous.
     /// - In case the iterator is empty, the center of geometry is NaN.
+    /// - If you want a more precise (but more computationally expensive) calculation, use [`AtomIteratorWithBox::get_center`].
     /// - If you do **not** want to consider periodic boundary conditions during the calculation, use [`AtomIterable::get_center_naive`].
-    fn get_center(self) -> Result<Vector3D, AtomError> {
+    fn estimate_center(self) -> Result<Vector3D, AtomError> {
         let simbox = simbox_check(self.get_simbox()).map_err(AtomError::InvalidSimBox)?;
         let scaling = Vector3D::new(PI_X2 / simbox.x, PI_X2 / simbox.y, PI_X2 / simbox.z);
         let simbox = simbox as *const SimBox;
@@ -1183,12 +1188,89 @@ where
         ))
     }
 
-    /// Calculate center of mass of a group of atoms selected by an iterator.
+    /// Calculate the center of geometry of a group of atoms selected by an iterator.
     /// Takes periodic boundary conditions into consideration.
-    /// Useful for the calculation of local center of geometry.
+    /// Only works for groups smaller than half the size of the simulation box.
     ///
     /// ## Returns
-    /// - `Vector3D` corresponding to the center of mass of the selected atoms.
+    /// - `Vector3D` corresponding to the geometric center of the selected atoms.
+    /// - `AtomError::InvalidSimBox` if the iterator has no simulation box
+    ///   or the simulation box is not orthogonal.
+    /// - `AtomError::InvalidPosition` if any of the atoms of the iterator has no position.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.read_ndx("index.ndx").unwrap();
+    ///
+    /// let sphere = Sphere::new(Vector3D::new(1.0, 2.0, 3.0), 2.5);
+    ///
+    /// // select atoms of the group "Group" located inside a sphere with
+    /// // a radius of 2.5 nm centered at [1.0, 2.0, 3.0]
+    /// let atoms = system
+    ///     .group_iter("Group")
+    ///     .unwrap()
+    ///     .filter_geometry(sphere);
+    ///
+    /// // calculate the center of geometry of "atoms"
+    /// let center = match atoms.get_center() {
+    ///     Ok(x) => x,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;    
+    ///     }
+    /// };
+    /// ```
+    ///
+    /// ## Notes
+    /// - This method first estimates the geometric center using the Bai and Breen method and
+    ///   then makes the group whole in the simulation box. Once the group is no longer broken
+    ///   at periodic boundaries, precise center of geometry is calculated naively.
+    /// - The molecular system is not modified.
+    /// - In case the iterator is empty, the center of geometry is NaN.
+    /// - If you want a less precise (but much faster) calculation, use [`AtomIteratorWithBox::estimate_center`].
+    /// - If you do **not** want to consider periodic boundary conditions during the calculation, use [`AtomIterable::get_center_naive`].
+    fn get_center(self) -> Result<Vector3D, AtomError> {
+        // estimate the geometric center of the atoms of the iterator
+        let center = self.clone().estimate_center()?;
+
+        let simbox =
+            simbox_check(self.get_simbox()).map_err(AtomError::InvalidSimBox)? as *const SimBox;
+
+        // iterate through all atoms of the iterator
+        let mut total_pos = Vector3D::default();
+        let mut n_atoms = 0usize;
+        for atom in self {
+            let position = (*atom).get_position().ok_or_else(|| {
+                AtomError::InvalidPosition(PositionError::NoPosition((*atom).get_index()))
+            })?;
+
+            // get the shortest vector between the group center and the atom
+            let vector = center.vector_to(position, unsafe { &*simbox });
+
+            // modify the position
+            let new_position = Vector3D(center.deref() + vector.deref());
+
+            total_pos.x += new_position.x;
+            total_pos.y += new_position.y;
+            total_pos.z += new_position.z;
+
+            n_atoms += 1;
+        }
+
+        Ok(total_pos / n_atoms as f32)
+    }
+
+    /// Calculate an approximate center of mass of a group of atoms selected by an iterator.
+    /// Takes periodic boundary conditions into consideration
+    /// and returns an approximate center of mass.
+    /// Works for any group of atoms which are not completely homogeneously distributed.
+    /// Useful for the calculation of local center of mass.
+    ///
+    /// ## Returns
+    /// - `Vector3D` corresponding to the approximate center of mass of the selected atoms.
     /// - `AtomError::InvalidSimBox` if the iterator has no simulation box
     ///   or the simulation box is not orthogonal.
     /// - `AtomError::InvalidPosition` if any of the atoms of the iterator has no position.
@@ -1211,7 +1293,7 @@ where
     ///     .filter_geometry(sphere);
     ///
     /// // calculate center of mass of "atoms"
-    /// let center = match atoms.get_com() {
+    /// let center = match atoms.estimate_com() {
     ///     Ok(x) => x,
     ///     Err(e) => {
     ///         eprintln!("{}", e);
@@ -1226,7 +1308,7 @@ where
     ///   that is not completely homogeneous.
     /// - In case the iterator is empty, the center of mass is NaN.
     /// - If you do **not** want to consider periodic boundary conditions during the calculation, use [`AtomIterable::get_com_naive`].
-    fn get_com(self) -> Result<Vector3D, AtomError> {
+    fn estimate_com(self) -> Result<Vector3D, AtomError> {
         let simbox = simbox_check(self.get_simbox()).map_err(AtomError::InvalidSimBox)?;
         let scaling = Vector3D::new(PI_X2 / simbox.x, PI_X2 / simbox.y, PI_X2 / simbox.z);
         let simbox = simbox as *const SimBox;
@@ -1270,14 +1352,90 @@ where
             sum_zeta, sum_xi, &scaling,
         ))
     }
+
+    /// Calculate the center of mass of a group of atoms selected by an iterator.
+    /// Takes periodic boundary conditions into consideration.
+    /// Only works for groups smaller than half the size of the simulation box.
+    ///
+    /// ## Returns
+    /// - `Vector3D` corresponding to the center of mass of the selected atoms.
+    /// - `AtomError::InvalidSimBox` if the iterator has no simulation box
+    ///   or the simulation box is not orthogonal.
+    /// - `AtomError::InvalidPosition` if any of the atoms of the iterator has no position.
+    /// - `AtomError::InvalidMass` if any of the atoms of the iterator has no mass.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.read_ndx("index.ndx").unwrap();
+    ///
+    /// let sphere = Sphere::new(Vector3D::new(1.0, 2.0, 3.0), 2.5);
+    ///
+    /// // select atoms of the group "Group" located inside a sphere with
+    /// // a radius of 2.5 nm centered at [1.0, 2.0, 3.0]
+    /// let atoms = system
+    ///     .group_iter("Group")
+    ///     .unwrap()
+    ///     .filter_geometry(sphere);
+    ///
+    /// // calculate the center of mass of "atoms"
+    /// let center = match atoms.get_com() {
+    ///     Ok(x) => x,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;    
+    ///     }
+    /// };
+    /// ```
+    ///
+    /// ## Notes
+    /// - This method first estimates the center of *geometry* using the Bai and Breen method and
+    ///   then makes the group whole in the simulation box. Once the group is no longer broken
+    ///   at periodic boundaries, precise center of mass is calculated naively.
+    /// - The molecular system is not modified.
+    /// - In case the iterator is empty, the center of mass is NaN.
+    /// - If you want a less precise (but much faster) calculation, use [`AtomIteratorWithBox::estimate_com`].
+    /// - If you do **not** want to consider periodic boundary conditions during the calculation, use [`AtomIterable::get_com_naive`].
+    fn get_com(self) -> Result<Vector3D, AtomError> {
+        // estimate the center of geometry of the atoms of the iterator
+        // we do not calculate COM, since this is cheaper and the exact center does not matter here
+        let center = self.clone().estimate_center()?;
+
+        let simbox =
+            simbox_check(self.get_simbox()).map_err(AtomError::InvalidSimBox)? as *const SimBox;
+
+        // iterate through all atoms of the iterator
+        let mut total_pos = Vector3D::default();
+        let mut sum = 0f32;
+        for atom in self {
+            let position = (*atom).get_position().ok_or_else(|| {
+                AtomError::InvalidPosition(PositionError::NoPosition((*atom).get_index()))
+            })?;
+
+            let mass = (*atom)
+                .get_mass()
+                .ok_or_else(|| AtomError::InvalidMass(MassError::NoMass((*atom).get_index())))?;
+
+            // get the shortest vector between the group center and the atom
+            let vector = center.vector_to(position, unsafe { &*simbox });
+
+            // modify the position
+            let new_position = Vector3D(center.deref() + vector.deref());
+
+            total_pos.x += new_position.x * mass;
+            total_pos.y += new_position.y * mass;
+            total_pos.z += new_position.z * mass;
+
+            sum += mass;
+        }
+
+        Ok(total_pos / sum)
+    }
 }
 
-impl<'a, T> AtomIteratorWithBox<'a> for T
-where
-    T: AtomIterable<'a, AtomRef = &'a Atom>,
-    T: HasBox,
-{
-}
+impl<'a, T> AtomIteratorWithBox<'a> for T where T: AtomIterable<'a, AtomRef = &'a Atom> + HasBox {}
 
 /// Trait implemented by all MUTABLE iterators over atoms that contain information about the simulation box.
 pub trait MutAtomIteratorWithBox<'a>: HasBox
@@ -1389,10 +1547,8 @@ where
     }
 }
 
-impl<'a, T> MutAtomIteratorWithBox<'a> for T
-where
-    T: AtomIterable<'a, AtomRef = &'a mut Atom>,
-    T: HasBox,
+impl<'a, T> MutAtomIteratorWithBox<'a> for T where
+    T: AtomIterable<'a, AtomRef = &'a mut Atom> + HasBox
 {
 }
 

@@ -102,12 +102,16 @@ impl System {
     /// // center the group 'Protein'
     /// system.atoms_center("Protein", Dimension::XY).unwrap();
     /// ```
+    ///
+    /// ## Notes
+    /// - The Bai-Breen method may introduce some (typically minor) error into the calculated center of geometry.
+    ///   This method should be used for visual centering, not if you require the group to be _precisely_ in the center of the box!
     pub fn atoms_center(
         &mut self,
         reference: &str,
         dimension: Dimension,
     ) -> Result<(), GroupError> {
-        let reference_center = self.group_get_center(reference)?;
+        let reference_center = self.group_estimate_center(reference)?;
 
         let box_center = self.get_box_center().map_err(GroupError::InvalidSimBox)?;
         let mut shift = Vector3D(box_center.deref() - reference_center.deref());
@@ -157,6 +161,10 @@ impl System {
     /// // center the group 'Protein'
     /// system.atoms_center_mass("Protein", Dimension::XY).unwrap();
     /// ```
+    ///
+    /// ## Notes
+    /// - The Bai-Breen method may introduce some (typically minor) error into the calculated center of geometry.
+    ///   This method should be used for visual centering, not if you require the group to be _precisely_ in the center of the box!
     pub fn atoms_center_mass(
         &mut self,
         reference: &str,

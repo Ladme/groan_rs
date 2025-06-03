@@ -13,8 +13,62 @@ use crate::system::System;
 
 /// ## Methods for analyzing the properties of the system.
 impl System {
-    /// Calculate center of geometry of a group in `System`.
+    /// Esimate a center of geometry of a group in `System`.
+    /// Takes periodic boundary conditions into consideration
+    /// and returns an approximate center of geometry.
+    /// Works for any group of atoms which are not completely homogeneously distributed.
+    ///
+    /// ## Returns
+    /// - `Vector3D` corresponding to the approximate geometric center of the group.
+    /// - `GroupError::NotFound` if the group does not exist.
+    /// - `GroupError::EmptyGroup` if the group contains no atoms.
+    /// - `GroupError::InvalidSimBox` if the system has no simulation box
+    ///   or the simulation box is not orthogonal.
+    /// - `GroupError::InvalidPosition` if any of the atoms in the group has no position.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.read_ndx("index.ndx").unwrap();
+    ///
+    /// // estimate the center of geometry for group "Group"
+    /// let center = match system.group_estimate_center("Group") {
+    ///     Ok(x) => x,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;
+    ///     }
+    /// };
+    /// ```
+    ///
+    /// ## Notes
+    /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
+    /// - It is able to calculate an approximate but correct center of geometry for any distribution of atoms
+    ///   that is not completely homogeneous.
+    /// - If you want a more precise (but more computationally expensive) calculation, use [`System::group_get_center`].
+    /// - If you do **not** want to consider periodic boundary conditions during the calculation, use [`System::group_get_center_naive`].
+    pub fn group_estimate_center(&self, name: &str) -> Result<Vector3D, GroupError> {
+        if self.group_isempty(name)? {
+            return Err(GroupError::EmptyGroup(name.to_owned()));
+        }
+
+        let iterator = self
+            .group_iter(name)
+            .expect("FATAL GROAN ERROR | System::group_estimate_center | Group does not exist but this should have been handled before.");
+
+        match iterator.estimate_center() {
+            Ok(x) => Ok(x),
+            Err(AtomError::InvalidSimBox(e)) => Err(GroupError::InvalidSimBox(e)),
+            Err(AtomError::InvalidPosition(e)) => Err(GroupError::InvalidPosition(e)),
+            _ => panic!("FATAL GROAN ERROR | System::group_estimate_center | Invalid error type returned from `AtomIteratorWithBox::estimate_center`."),
+        }
+    }
+
+    /// Calculate a center of geometry of a group in `System`.
     /// Takes periodic boundary conditions into consideration.
+    /// Only works for groups smaller than half the size of the simulation box.
     ///
     /// ## Returns
     /// - `Vector3D` corresponding to the geometric center of the group.
@@ -31,20 +85,22 @@ impl System {
     /// let mut system = System::from_file("system.gro").unwrap();
     /// system.read_ndx("index.ndx").unwrap();
     ///
-    /// // calculate center of geometry for group "Group"
+    /// // get the center of geometry for group "Group"
     /// let center = match system.group_get_center("Group") {
     ///     Ok(x) => x,
     ///     Err(e) => {
     ///         eprintln!("{}", e);
-    ///         return;    
+    ///         return;
     ///     }
     /// };
     /// ```
     ///
     /// ## Notes
-    /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
-    /// - It is able to calculate correct center of geometry for any distribution of atoms
-    ///   that is not completely homogeneous.
+    /// - This method first estimates the geometric center using the Bai and Breen method and
+    ///   then makes the group whole in the simulation box. Once the group is no longer broken
+    ///   at periodic boundaries, precise center of geometry is calculated naively.
+    /// - The molecular system is not modified.
+    /// - If you want a less precise (but much faster) calculation, use [`System::group_estimate_center`].
     /// - If you do **not** want to consider periodic boundary conditions during the calculation, use [`System::group_get_center_naive`].
     pub fn group_get_center(&self, name: &str) -> Result<Vector3D, GroupError> {
         if self.group_isempty(name)? {
@@ -107,11 +163,13 @@ impl System {
         }
     }
 
-    /// Calculate center of mass of a group in `System`.
-    /// Takes periodic boundary conditions into consideration.
+    /// Estimate center of mass of a group in `System`.
+    /// Takes periodic boundary conditions into consideration
+    /// and returns an approximate center of mass.
+    /// Works for any group of atoms which are not completely homogeneously distributed.
     ///
     /// ## Returns
-    /// - `Vector3D` corresponding to the center of mass of the group.
+    /// - `Vector3D` corresponding to the approximate center of mass of the group.
     /// - `GroupError::NotFound` if the group does not exist.
     /// - `GroupError::EmptyGroup` if the group contains no atoms.
     /// - `GroupError::InvalidSimBox` if the system has no simulation box
@@ -126,8 +184,8 @@ impl System {
     /// let mut system = System::from_file("system.tpr").unwrap();
     /// system.read_ndx("index.ndx").unwrap();
     ///
-    /// // calculate center of mass for group "Group"
-    /// let center = match system.group_get_com("Group") {
+    /// // calculate the approximate center of mass for group "Group"
+    /// let center = match system.group_estimate_com("Group") {
     ///     Ok(x) => x,
     ///     Err(e) => {
     ///         eprintln!("{}", e);
@@ -138,8 +196,64 @@ impl System {
     ///
     /// ## Notes
     /// - This calculation approach is adapted from Linge Bai & David Breen (2008).
-    /// - It is able to calculate correct center of mass for any distribution of atoms
+    /// - It is able to calculate approximate but correct center of mass for any distribution of atoms
     ///   that is not completely homogeneous.
+    /// - If you want a more precise (but more computationally expensive) calculation, use [`System::group_get_com`].
+    /// - If you do **not** want to consider periodic boundary conditions during the calculation, use [`System::group_get_com_naive`].
+    pub fn group_estimate_com(&self, name: &str) -> Result<Vector3D, GroupError> {
+        if self.group_isempty(name)? {
+            return Err(GroupError::EmptyGroup(name.to_owned()));
+        }
+
+        let iterator = self
+            .group_iter(name)
+            .expect("FATAL GROAN ERROR | System::group_estimate_com | Group does not exist but this should have been handled before.");
+
+        match iterator.estimate_com() {
+            Ok(x) => Ok(x),
+            Err(AtomError::InvalidSimBox(e)) => Err(GroupError::InvalidSimBox(e)),
+            Err(AtomError::InvalidPosition(e)) => Err(GroupError::InvalidPosition(e)),
+            Err(AtomError::InvalidMass(e)) => Err(GroupError::InvalidMass(e)),
+            _ => panic!("FATAL GROAN ERROR | System::group_estimate_com | Invalid error type returned from `AtomIteratorWithBox::estimate_com`."),
+        }
+    }
+
+    /// Calculate a center of mass of a group in `System`.
+    /// Takes periodic boundary conditions into consideration.
+    /// Only works for groups smaller than half the size of the simulation box.
+    ///
+    /// ## Returns
+    /// - `Vector3D` corresponding to the center of mass of the group.
+    /// - `GroupError::NotFound` if the group does not exist.
+    /// - `GroupError::EmptyGroup` if the group contains no atoms.
+    /// - `GroupError::InvalidSimBox` if the system has no simulation box
+    ///   or the simulation box is not orthogonal.
+    /// - `GroupError::InvalidPosition` if any of the atoms in the group has no position.
+    /// - `GroupError::InvalidMass` if any of the atoms in the group has no mass.
+    ///
+    /// ## Example
+    /// ```no_run
+    /// # use groan_rs::prelude::*;
+    /// #
+    /// let mut system = System::from_file("system.gro").unwrap();
+    /// system.read_ndx("index.ndx").unwrap();
+    ///
+    /// // get the center of mass for group "Group"
+    /// let center = match system.group_get_com("Group") {
+    ///     Ok(x) => x,
+    ///     Err(e) => {
+    ///         eprintln!("{}", e);
+    ///         return;
+    ///     }
+    /// };
+    /// ```
+    ///
+    /// ## Notes
+    /// - This method first estimates the center of geometry using the Bai and Breen method and
+    ///   then makes the group whole in the simulation box. Once the group is no longer broken
+    ///   at periodic boundaries, precise center of mass is calculated naively.
+    /// - The molecular system is not modified.
+    /// - If you want a less precise (but much faster) calculation, use [`System::group_estimate_com`].
     /// - If you do **not** want to consider periodic boundary conditions during the calculation, use [`System::group_get_com_naive`].
     pub fn group_get_com(&self, name: &str) -> Result<Vector3D, GroupError> {
         if self.group_isempty(name)? {
@@ -154,7 +268,6 @@ impl System {
             Ok(x) => Ok(x),
             Err(AtomError::InvalidSimBox(e)) => Err(GroupError::InvalidSimBox(e)),
             Err(AtomError::InvalidPosition(e)) => Err(GroupError::InvalidPosition(e)),
-            Err(AtomError::InvalidMass(e)) => Err(GroupError::InvalidMass(e)),
             _ => panic!("FATAL GROAN ERROR | System::group_get_com | Invalid error type returned from `AtomIteratorWithBox::get_com`."),
         }
     }

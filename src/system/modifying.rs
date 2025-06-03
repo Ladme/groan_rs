@@ -445,8 +445,8 @@ impl System {
     ///
     /// Atoms of type B remain unaffected.
     pub fn make_group_whole(&mut self, group: &str) -> Result<(), GroupError> {
-        // get the geometric center of the group which is by definition inside the simulation box
-        let center = self.group_get_center(group)?;
+        // estimate the geometric center of the group which is by definition inside the simulation box
+        let center = self.group_estimate_center(group)?;
 
         let simbox =
             simbox_check(self.get_box()).map_err(GroupError::InvalidSimBox)? as *const SimBox;
