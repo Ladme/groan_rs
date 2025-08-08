@@ -12,7 +12,7 @@ use std::{fs::File, io::BufReader};
 use regex::Regex;
 
 use crate::auxiliary::{GRO_MAX_COORDINATE, GRO_MIN_COORDINATE};
-use crate::errors::WriteTrajError;
+use crate::errors::{ParseGroError, WriteTrajError};
 use crate::io::check_coordinate_sizes;
 use crate::io::traj_write::{PrivateTrajWrite, TrajWrite};
 use crate::prelude::{
@@ -97,6 +97,12 @@ fn read_position_velocity(
             .trim()
             .parse::<f32>()
             .map_err(|_| ReadTrajError::FrameNotFound)?;
+
+        if !item.is_finite() {
+            return Err(ReadTrajError::GroSpecificError(
+                ParseGroError::InvalidFloat(line.to_string()),
+            ));
+        }
     }
 
     let velocity = if line.trim_end().len() >= 68 {
@@ -108,6 +114,12 @@ fn read_position_velocity(
                 .trim()
                 .parse::<f32>()
                 .map_err(|_| ReadTrajError::FrameNotFound)?;
+
+            if !item.is_finite() {
+                return Err(ReadTrajError::GroSpecificError(
+                    ParseGroError::InvalidFloat(line.to_string()),
+                ));
+            }
         }
 
         Some(velocity)
@@ -935,6 +947,27 @@ mod tests_read {
         {
             Some(Ok(_)) => panic!("Function should have failed."),
             Some(Err(ReadTrajError::FrameNotFound)) => (),
+            Some(Err(e)) => panic!("Unexpected error type `{}` returned.", e),
+            None => panic!("Iterator is empty."),
+        }
+    }
+
+    #[test]
+    fn gro_iter_nan_position() {
+        let mut system = System::from_file("test_files/protein.gro").unwrap();
+
+        match system
+            .gro_iter("test_files/nan_trajectory.gro")
+            .unwrap()
+            .nth(3)
+        {
+            Some(Ok(_)) => panic!("Function should have failed."),
+            Some(Err(ReadTrajError::GroSpecificError(ParseGroError::InvalidFloat(x)))) => {
+                assert_eq!(
+                    x,
+                    String::from("   23ALA    SC1   47   6.290     NaN   4.190\n")
+                )
+            }
             Some(Err(e)) => panic!("Unexpected error type `{}` returned.", e),
             None => panic!("Iterator is empty."),
         }

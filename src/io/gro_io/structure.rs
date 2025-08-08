@@ -200,6 +200,10 @@ fn line_as_atom(line: &str) -> Result<Atom, ParseGroError> {
             .trim()
             .parse::<f32>()
             .map_err(|_| ParseGroError::ParseAtomLineErr(line.to_string()))?;
+
+        if !item.is_finite() {
+            return Err(ParseGroError::InvalidFloat(line.to_string()));
+        }
     }
 
     let atom = Atom::new(resid, &resname, atomid, &atomname).with_position(position.into());
@@ -214,6 +218,10 @@ fn line_as_atom(line: &str) -> Result<Atom, ParseGroError> {
                 .trim()
                 .parse::<f32>()
                 .map_err(|_| ParseGroError::ParseAtomLineErr(line.to_string()))?;
+
+            if !item.is_finite() {
+                return Err(ParseGroError::InvalidFloat(line.to_string()));
+            }
         }
 
         Ok(atom.with_velocity(velocity.into()))
@@ -555,6 +563,20 @@ mod tests_read {
             panic!("Parsing should have failed, but it succeeded.")
         }
     }
+
+    read_gro_fails!(
+        read_nan_position,
+        "test_files/nan_error.gro",
+        ParseGroError::InvalidFloat,
+        "   19ALA    SC1   39     nan   2.496   5.027  0.0733 -0.2227 -0.2563"
+    );
+
+    read_gro_fails!(
+        read_nan_velocity,
+        "test_files/nan_error_velocity.gro",
+        ParseGroError::InvalidFloat,
+        "    6VAL     BB   12   9.947   2.258   6.831 -0.2096     NaN  0.0665"
+    );
 }
 
 #[cfg(test)]

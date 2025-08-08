@@ -3,8 +3,13 @@
 
 ### Version 0.11.0
 
-#### GSL v0.11
-- Updated the `@membrane` macro which should now match a wider variety of lipid molecules.
+#### Groan Selection Language v0.11
+- Updated the `@membrane` macro, which should now match a wider variety of lipid molecules.
+
+#### Bug fixes
+- GRO, PDB, and PQR files with NaN positions (or velocities) are no longer parsed and instead raise an error.
+
+***
 
 ### Version 0.10.0
 
