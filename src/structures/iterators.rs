@@ -381,7 +381,7 @@ impl<'a> Iterator for MutAtomIterator<'a> {
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(index) = self.container_iterator.next() {
-            unsafe { Some((*self.atoms).get_unchecked_mut(index)) }
+            unsafe { Some((&mut (*self.atoms)).get_unchecked_mut(index)) }
         } else {
             None
         }
@@ -448,7 +448,7 @@ impl<'a> Iterator for OwnedMutAtomIterator<'a> {
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(index) = self.container_iterator.next() {
-            unsafe { Some((*self.atoms).get_unchecked_mut(index)) }
+            unsafe { Some((&mut (*self.atoms)).get_unchecked_mut(index)) }
         } else {
             None
         }
@@ -611,7 +611,7 @@ impl<'a> Iterator for MutMoleculeIterator<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(index) = self.container.get(self.current_index) {
             self.current_index += 1;
-            unsafe { Some((*self.atoms).get_unchecked_mut(*index)) }
+            unsafe { Some((&mut (*self.atoms)).get_unchecked_mut(*index)) }
         } else {
             None
         }
@@ -1668,8 +1668,8 @@ impl<'a> Iterator for MutAtomPairIterator<'a> {
             self.current_index += 1;
             unsafe {
                 Some((
-                    (*self.atoms).get_unchecked_mut(*i),
-                    (*self.atoms).get_unchecked_mut(*j),
+                    (&mut (*self.atoms)).get_unchecked_mut(*i),
+                    (&mut (*self.atoms)).get_unchecked_mut(*j),
                 ))
             }
         } else {
