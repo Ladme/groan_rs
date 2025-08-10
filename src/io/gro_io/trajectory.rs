@@ -442,7 +442,7 @@ impl System {
     pub fn gro_iter(
         &mut self,
         filename: impl AsRef<Path>,
-    ) -> Result<TrajReader<GroReader>, ReadTrajError> {
+    ) -> Result<TrajReader<'_, GroReader<'_>>, ReadTrajError> {
         Ok(TrajReader::wrap_traj(GroReader::new(self, filename)?))
     }
 }

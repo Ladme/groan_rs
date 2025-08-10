@@ -40,7 +40,7 @@ impl System {
     ///     Err(e) => eprintln!("{}", e),
     /// };
     /// ```
-    pub fn group_iter(&self, name: &str) -> Result<AtomIterator, GroupError> {
+    pub fn group_iter(&self, name: &str) -> Result<AtomIterator<'_>, GroupError> {
         let group = self.groups.get(name)?;
 
         Ok(AtomIterator::new(
@@ -74,7 +74,7 @@ impl System {
     ///     Err(e) => eprintln!("{}", e),
     /// };
     /// ```
-    pub fn group_iter_mut(&mut self, name: &str) -> Result<MutAtomIterator, GroupError> {
+    pub fn group_iter_mut(&mut self, name: &str) -> Result<MutAtomIterator<'_>, GroupError> {
         let simbox = self.get_box().map(|x| x as *const SimBox);
 
         let group = { self.groups.get_mut(name)? as *mut Group };
@@ -105,7 +105,7 @@ impl System {
     /// It might be slightly faster to get reference to the atoms [`System::get_atoms`](`crate::system::System::get_atoms`)
     /// and iterate through it if you do not care about the additional methods [`AtomIterator`](`crate::structures::iterators::AtomIterator`) implements.
     #[inline(always)]
-    pub fn atoms_iter(&self) -> AtomIterator {
+    pub fn atoms_iter(&self) -> AtomIterator<'_> {
         self.group_iter("all")
             .expect("FATAL GROAN ERROR | System::atoms_iter | Default group `all` does not exist.")
     }
@@ -126,7 +126,7 @@ impl System {
     /// }
     /// ```
     #[inline(always)]
-    pub fn atoms_iter_mut(&mut self) -> MutAtomIterator {
+    pub fn atoms_iter_mut(&mut self) -> MutAtomIterator<'_> {
         self.group_iter_mut("all").expect(
             "FATAL GROAN ERROR | System::atoms_iter_mut | Default group `all` does not exist.",
         )
@@ -167,7 +167,7 @@ impl System {
     ///     Err(e) => eprintln!("{}", e),
     /// }
     /// ```
-    pub fn bonded_atoms_iter(&self, index: usize) -> Result<AtomIterator, AtomError> {
+    pub fn bonded_atoms_iter(&self, index: usize) -> Result<AtomIterator<'_>, AtomError> {
         let atom = self.get_atom(index)?;
 
         Ok(AtomIterator::new(
@@ -201,7 +201,7 @@ impl System {
     ///     Err(e) => eprintln!("{}", e),
     /// }
     /// ```
-    pub fn bonded_atoms_iter_mut(&mut self, index: usize) -> Result<MutAtomIterator, AtomError> {
+    pub fn bonded_atoms_iter_mut(&mut self, index: usize) -> Result<MutAtomIterator<'_>, AtomError> {
         let simbox = self.get_box().map(|x| x as *const SimBox);
 
         unsafe {
@@ -235,7 +235,7 @@ impl System {
     ///   and starting from atom 1, the method will traverse the atoms in this order:
     ///   1, 2, 4, 3, 5, 8, 7, 6, 9
     /// - I.e. atoms closer to the starting atom will be visited before atoms that are further way.
-    pub fn molecule_iter(&self, index: usize) -> Result<MoleculeIterator, AtomError> {
+    pub fn molecule_iter(&self, index: usize) -> Result<MoleculeIterator<'_>, AtomError> {
         let indices = get_molecule_indices(self, index)?;
         Ok(MoleculeIterator::new(
             self.get_atoms(),
@@ -264,7 +264,7 @@ impl System {
     ///   and starting from atom 1, the method will traverse the atoms in this order:
     ///   1, 2, 4, 3, 5, 8, 7, 6, 9
     /// - I.e. atoms closer to the starting atom will be visited before atoms that are further way.
-    pub fn molecule_iter_mut(&mut self, index: usize) -> Result<MutMoleculeIterator, AtomError> {
+    pub fn molecule_iter_mut(&mut self, index: usize) -> Result<MutMoleculeIterator<'_>, AtomError> {
         let indices = get_molecule_indices(self, index)?;
         let simbox = self.get_box().map(|x| x as *const SimBox);
 
@@ -298,7 +298,7 @@ impl System {
     ///   and starting from the atom 1, the metod will traverse the pairs of atoms in this order:
     ///   (1, 2), (1, 4), (2, 3), (4, 5), (4, 8), **(3, 7)**, (5, 6), (8, 9), (6, 7).
     /// - Inside the pair, the atom with the lower index is always first.
-    pub fn molecule_bonds_iter(&self, index: usize) -> Result<AtomPairIterator, AtomError> {
+    pub fn molecule_bonds_iter(&self, index: usize) -> Result<AtomPairIterator<'_>, AtomError> {
         let pairs = get_molecule_bonds(self, index)?;
         Ok(AtomPairIterator::new(self.get_atoms(), pairs))
     }
@@ -327,7 +327,7 @@ impl System {
     pub fn molecule_bonds_iter_mut(
         &mut self,
         index: usize,
-    ) -> Result<MutAtomPairIterator, AtomError> {
+    ) -> Result<MutAtomPairIterator<'_>, AtomError> {
         let pairs = get_molecule_bonds(self, index)?;
         Ok(MutAtomPairIterator::new(self.get_atoms_mut(), pairs))
     }
@@ -349,7 +349,7 @@ impl System {
     ///     // perform some operation with the atom
     /// }
     /// ```
-    pub fn selection_iter(&self, query: &str) -> Result<OwnedAtomIterator, SelectError> {
+    pub fn selection_iter(&self, query: &str) -> Result<OwnedAtomIterator<'_>, SelectError> {
         let group = crate::structures::group::Group::from_query(query, self)?;
 
         Ok(OwnedAtomIterator::new(
@@ -376,7 +376,7 @@ impl System {
     ///     // perform some operation with the atom
     /// }
     /// ```
-    pub fn selection_iter_mut(&mut self, query: &str) -> Result<OwnedMutAtomIterator, SelectError> {
+    pub fn selection_iter_mut(&mut self, query: &str) -> Result<OwnedMutAtomIterator<'_>, SelectError> {
         let group = crate::structures::group::Group::from_query(query, self)?;
 
         let simbox = self.get_box().map(|x| x as *const SimBox);

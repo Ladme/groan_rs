@@ -215,7 +215,7 @@ impl AtomContainer {
     }
 
     /// Iterate over the atom indices of the `AtomContainer`.
-    pub fn iter(&self) -> AtomContainerIterator {
+    pub fn iter(&self) -> AtomContainerIterator<'_> {
         AtomContainerIterator {
             container: self,
             current_block_index: 0,

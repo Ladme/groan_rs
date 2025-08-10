@@ -635,7 +635,7 @@ impl System {
         &mut self,
         filename: impl AsRef<Path>,
         group: &str,
-    ) -> Result<TrajReader<GroupXtcReader>, ReadTrajError> {
+    ) -> Result<TrajReader<'_, GroupXtcReader<'_>>, ReadTrajError> {
         Ok(TrajReader::wrap_traj(GroupXtcReader::new(
             self, filename, group,
         )?))
