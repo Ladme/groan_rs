@@ -388,6 +388,10 @@ fn line_as_atom(line: &str) -> Result<Atom, ParsePdbError> {
             .map(|x| x / 10.0)
             .map_err(|_| ParsePdbError::ParseAtomLineErr(line.to_string()))?;
 
+        if !pos.is_finite() {
+            return Err(ParsePdbError::InvalidFloat(line.to_string()));
+        }
+
         curr += 8;
     }
 
@@ -1090,6 +1094,13 @@ mod tests_read {
         "test_files/example_invalid_atom.pdb",
         ParsePdbError::ParseAtomLineErr,
         "ATOM      30  SC1 ARG A  14      32.540  35.200  34.040  1.00  0.00            "
+    );
+
+    read_pdb_fails!(
+        read_nan_position,
+        "test_files/nan_error.pdb",
+        ParsePdbError::InvalidFloat,
+        "ATOM      4  SC2 LYS     2      98.640  26.920    NaN   1.00  0.00            "
     );
 
     macro_rules! read_bonds_fails {

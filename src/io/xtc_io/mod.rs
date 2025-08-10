@@ -172,7 +172,7 @@ impl System {
     pub fn xtc_iter(
         &mut self,
         filename: impl AsRef<Path>,
-    ) -> Result<TrajReader<XtcReader>, ReadTrajError> {
+    ) -> Result<TrajReader<'_, XtcReader<'_>>, ReadTrajError> {
         Ok(TrajReader::wrap_traj(XtcReader::new(self, filename)?))
     }
 

@@ -374,7 +374,7 @@ impl System {
     pub fn trr_iter(
         &mut self,
         filename: impl AsRef<Path>,
-    ) -> Result<TrajReader<TrrReader>, ReadTrajError> {
+    ) -> Result<TrajReader<'_, TrrReader<'_>>, ReadTrajError> {
         Ok(TrajReader::wrap_traj(TrrReader::new(self, filename)?))
     }
 

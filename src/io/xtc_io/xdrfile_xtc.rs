@@ -152,7 +152,10 @@ impl<'a> TrajReadOpen<'a> for XtcReader<'a> {
 
 impl<'a> TrajFullReadOpen<'a> for XtcReader<'a> {
     /// Create an iterator over an xtc file.
-    fn new(system: &'a mut System, filename: impl AsRef<Path>) -> Result<XtcReader, ReadTrajError> {
+    fn new(
+        system: &'a mut System,
+        filename: impl AsRef<Path>,
+    ) -> Result<XtcReader<'a>, ReadTrajError> {
         let n_atoms = system.get_n_atoms();
 
         // sanity check the number of atoms

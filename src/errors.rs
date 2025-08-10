@@ -69,6 +69,9 @@ pub enum ParseGroError {
     /// Used when the "box line" in the gro file could be parsed but the simulation box is not supported by Gromacs.
     #[error("{} simulation box on line '{}' is not supported (4th, 5th, and 7th element must be zero)", "error:".red().bold(), .0.yellow())]
     UnsupportedBox(String),
+    /// Used when a gro line contains an invalid floating point number (nan, inf...).
+    #[error("{} could not parse line '{}' because it contains an invalid floating point number", "error:".red().bold(), .0.yellow())]
+    InvalidFloat(String),
 }
 
 /// Errors that can occur when reading and parsing pdb file.
@@ -94,6 +97,9 @@ pub enum ParsePdbError {
     /// Used when a "TITLE" line in the pdb file could not be parsed.
     #[error("{} could not parse line '{}' as title", "error:".red().bold(), .0.yellow())]
     ParseTitleLineErr(String),
+    /// Used when a pdb line contains an invalid floating point number (nan, inf...).
+    #[error("{} could not parse line '{}' because it contains an invalid floating point number", "error:".red().bold(), .0.yellow())]
+    InvalidFloat(String),
 }
 
 /// Errors that can occur when reading the connectivity section of a PDB file.
@@ -186,6 +192,9 @@ pub enum ParsePqrError {
     /// Used when a "TITLE" line in the pqr file could not be parsed.
     #[error("{} could not parse line '{}' as title", "error:".red().bold(), .0.yellow())]
     ParseTitleLineErr(String),
+    /// Used when a pqr line contains an invalid floating point number (nan, inf...).
+    #[error("{} could not parse line '{}' because it contains an invalid floating point number", "error:".red().bold(), .0.yellow())]
+    InvalidFloat(String),
 }
 
 /// Errors that can occur when writing a pqr file.
@@ -406,6 +415,9 @@ pub enum ReadTrajError {
     /// Used when an unknown error occurs.
     #[error("{} an unknown error occured when reading a trajectory: '{}'", "error:".red().bold(), .0.yellow())]
     UnknownError(String),
+    /// Used when an error specific to GRO files has been encountered.
+    #[error("{}", .0)]
+    GroSpecificError(ParseGroError),
 }
 
 /// Errors that can occur when writing a trajectory file.

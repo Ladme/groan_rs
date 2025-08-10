@@ -258,6 +258,10 @@ fn line_as_atom(line: &str) -> Result<Atom, ParsePqrError> {
     let y = parse_float(line, split[7 - convert])? / 10.0;
     let z = parse_float(line, split[8 - convert])? / 10.0;
 
+    if !x.is_finite() || !y.is_finite() || !z.is_finite() {
+        return Err(ParsePqrError::InvalidFloat(line.to_string()));
+    }
+
     let charge = parse_float(line, split[9 - convert])?;
     let vdw = parse_float(line, split[10 - convert])? / 10.0;
 
@@ -551,6 +555,13 @@ mod tests_read {
         "test_files/example_invalid_box.pqr",
         ParsePqrError::ParseBoxLineErr,
         "CRYST1   60.861   60.861.3 60.861  90.00  90.00  90.00 P 1           1"
+    );
+
+    read_pqr_fails!(
+        read_nan_position,
+        "test_files/nan_error.pqr",
+        ParsePqrError::InvalidFloat,
+        "ATOM     32  BB  VAL C  15      35.650  33.730  NaN     0.0000 0.0000"
     );
 }
 

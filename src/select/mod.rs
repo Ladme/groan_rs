@@ -101,6 +101,7 @@ impl Select {
                 Err(SelectError::InvalidTokenParentheses(query.to_string()))
             }
             Err(SelectError::DeprecatedKeyword(e)) => Err(SelectError::DeprecatedKeyword(e)),
+            Err(SelectError::EmptyQuery) => Err(SelectError::EmptyQuery),
             Err(_) => Err(SelectError::UnknownError(query.to_string())),
         }
     }
@@ -586,13 +587,13 @@ fn quotes_balanced(string: &str) -> bool {
     single % 2 == 0 && double % 2 == 0
 }
 
-/// Macros @protein, @water, @ion, @dna, @rna are partly based on https://github.com/gromacs/gromacs/blob/main/share/top/residuetypes.dat
+/// Macros @protein, @water, @ion, @dna, @rna are partially based on https://github.com/gromacs/gromacs/blob/main/share/top/residuetypes.dat
 fn get_macros() -> HashMap<&'static str, &'static str> {
     let mut macros = HashMap::new();
 
     macros.insert(
         "@membrane",
-        "(resname DAPC DBPC DFPC DGPC DIPC DLPC DNPC DOPC DPPC DUPC DRPC DTPC DVPC DXPC DYPC LPPC PAPC PEPC PGPC PIPC POPC PRPC PUPC DAPE DBPE DFPE DGPE DIPE DLPE DNPE DOPE DPPE DRPE DTPE DUPE DVPE DXPE DYPE LPPE PAPE PGPE PIPE POPE PQPE PRPE PUPE DAPS DBPS DFPS DGPS DIPS DLPS DNPS DOPS DPPS DRPS DTPS DUPS DVPS DXPS DYPS LPPS PAPS PGPS PIPS POPS PQPS PRPS PUPS DAPG DBPG DFPG DGPG DIPG DLPG DNPG DOPG DPPG DRPG DTPG DVPG DXPG DYPG JFPG JPPG LPPG OPPG PAPG PGPG PIPG POPG PRPG DAPA DBPA DFPA DGPA DIPA DLPA DNPA DOPA DPPA DRPA DTPA DVPA DXPA DYPA LPPA PAPA PGPA PIPA POPA PRPA PUPA DPP1 DPP2 DPPI PAPI PIPI POP1 POP2 POP3 POPI PUPI PVP1 PVP2 PVP3 PVPI PADG PIDG PODG PUDG PVDG TOG APC CPC IPC LPC OPC PPC TPC UPC VPC BNSM DBSM DPSM DXSM PGSM PNSM POSM PVSM XNSM DPCE DXCE PNCE XNCE DBG1 DPG1 DPG3 DPGS DXG1 DXG3 PNG1 PNG3 XNG1 XNG3 DFGG DFMG DPGG DPMG DPSG FPGG FPMG FPSG OPGG OPMG OPSG CHOA CHOL CHYO BOG DDM DPC EO5 SDS BOLA BOLB CDL0 CDL1 CDL2 CDL DBG3 ERGO HBHT HDPT HHOP HOPR ACA ACN BCA BCN LCA LCN PCA PCN UCA UCN XCA XCN RAMP REMP OANT)");
+        "(resname r'^[A-Za-z]{2}(PA|PC|PE|PG|PS|PI|GL|DG)$' r'^[A-Za-z]{3}TG' r'.+CL' r'^CER' r'.+SM$' TOG APC CPC IPC LPC OPC PPC TPC UPC VPC XNCE DBG1 DPG1 DPG3 DPGS DXG1 DXG3 PNG1 PNG3 XNG1 XNG3 DFGG DFMG DPGG DPMG DPSG FPGG FPMG FPSG OPGG OPMG OPSG CHOA CHOL CHYO BOG DDM DPC EO5 SDS BOLA BOLB CDL0 CDL1 CDL2 CDL DBG3 ERGO HBHT HDPT HHOP HOPR ACA ACN BCA BCN LCA LCN PCA PCN UCA UCN XCA XCN RAMP REMP OANT POPP1 POPP2 POPP3 DOPP1 DOPP2 DOPP3 POP1 POP2 POP3 DOP1 DOP2 DOP3)");
     macros.insert(
         "@protein",
         "(resname ABU ACE AIB ALA ARG ARGN ASN ASN1 ASP ASP1 ASPH ASPP ASH CT3 CYS CYS1 CYS2 CYSH DALA GLN GLU GLUH GLUP GLH GLY HIS HIS1 HISA HISB HISH HISD HISE HISP HSD HSE HSP HYP ILE LEU LSN LYS LYSN LYSH MELEU MET MEVAL NAC NME NHE NH2 PHE PHEH PHEU PHL PRO SER THR TRP TRPH TRPU TYR TYRH TYRU VAL PGLU HID HIE HIP LYP LYN CYN CYM CYX DAB ORN HYP NALA NGLY NSER NTHR NLEU NILE NVAL NASN NGLN NARG NHID NHIE NHIP NHISD NHISE NHISH NTRP NPHE NTYR NGLU NASP NLYS NORN NDAB NLYSN NPRO NHYP NCYS NCYS2 NMET NASPH NGLUH CALA CGLY CSER CTHR CLEU CILE CVAL CASN CGLN CARG CHID CHIE CHIP CHISD CHISE CHISH CTRP CPHE CTYR CGLU CASP CLYS CORN CDAB CLYSN CPRO CHYP CCYS CCYS2 CMET CASPH CGLUH)",
@@ -761,6 +762,10 @@ fn parse_token(string: &str) -> Result<Select, SelectError> {
     }
 
     let token = split_with_quotes(string);
+
+    if token.is_empty() {
+        return Err(SelectError::EmptyQuery);
+    }
 
     match token[0].as_str() {
         "resname" => {
@@ -2884,6 +2889,66 @@ mod fail_tests {
         "Membrane (serial 1 to 3)",
         SelectError::InvalidTokenParentheses
     );
+
+    #[test]
+    fn empty_quotes_1() {
+        let query = "''";
+        match Select::parse_query(query) {
+            Err(SelectError::EmptyQuery) => (),
+            Ok(_) => panic!("Parsing should have failed, but it succeeded."),
+            Err(e) => {
+                panic!(
+                    "Parsing successfully failed but incorrect error type `{:?}` was returned.",
+                    e
+                )
+            }
+        }
+    }
+
+    #[test]
+    fn empty_quotes_2() {
+        let query = " '  ' ";
+        match Select::parse_query(query) {
+            Err(SelectError::EmptyQuery) => (),
+            Ok(_) => panic!("Parsing should have failed, but it succeeded."),
+            Err(e) => {
+                panic!(
+                    "Parsing successfully failed but incorrect error type `{:?}` was returned.",
+                    e
+                )
+            }
+        }
+    }
+
+    #[test]
+    fn empty_quotes_3() {
+        let query = "\"\"";
+        match Select::parse_query(query) {
+            Err(SelectError::EmptyQuery) => (),
+            Ok(_) => panic!("Parsing should have failed, but it succeeded."),
+            Err(e) => {
+                panic!(
+                    "Parsing successfully failed but incorrect error type `{:?}` was returned.",
+                    e
+                )
+            }
+        }
+    }
+
+    #[test]
+    fn empty_quotes_4() {
+        let query = "\"  \"";
+        match Select::parse_query(query) {
+            Err(SelectError::EmptyQuery) => (),
+            Ok(_) => panic!("Parsing should have failed, but it succeeded."),
+            Err(e) => {
+                panic!(
+                    "Parsing successfully failed but incorrect error type `{:?}` was returned.",
+                    e
+                )
+            }
+        }
+    }
 
     #[test]
     fn invalid_regex() {

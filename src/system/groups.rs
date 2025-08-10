@@ -1392,6 +1392,20 @@ mod tests {
     }
 
     #[test]
+    fn group_create_macro_membrane_cdl() {
+        let mut system = System::from_file("test_files/lipids_cdl.gro").unwrap();
+
+        system.group_create("Membrane", "@membrane").unwrap();
+
+        assert!(system.group_exists("Membrane"));
+        assert_eq!(system.group_get_n_atoms("Membrane").unwrap(), 10);
+
+        for i in 5..=14 {
+            assert!(system.group_isin("Membrane", i).unwrap());
+        }
+    }
+
+    #[test]
     fn group_create_macro_water() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
