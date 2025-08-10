@@ -5,6 +5,7 @@
 
 #### Groan Selection Language v0.11
 - Updated the `@membrane` macro, which should now match a wider variety of lipid molecules.
+- GSL queries with empty quoted blocks no longer panic.
 
 #### Bug fixes
 - GRO, PDB, and PQR files with NaN positions (or velocities) are no longer parsed and instead raise an error.

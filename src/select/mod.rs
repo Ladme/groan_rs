@@ -101,6 +101,7 @@ impl Select {
                 Err(SelectError::InvalidTokenParentheses(query.to_string()))
             }
             Err(SelectError::DeprecatedKeyword(e)) => Err(SelectError::DeprecatedKeyword(e)),
+            Err(SelectError::EmptyQuery) => Err(SelectError::EmptyQuery),
             Err(_) => Err(SelectError::UnknownError(query.to_string())),
         }
     }
@@ -761,6 +762,10 @@ fn parse_token(string: &str) -> Result<Select, SelectError> {
     }
 
     let token = split_with_quotes(string);
+
+    if token.is_empty() {
+        return Err(SelectError::EmptyQuery);
+    }
 
     match token[0].as_str() {
         "resname" => {
@@ -2884,6 +2889,66 @@ mod fail_tests {
         "Membrane (serial 1 to 3)",
         SelectError::InvalidTokenParentheses
     );
+
+    #[test]
+    fn empty_quotes_1() {
+        let query = "''";
+        match Select::parse_query(query) {
+            Err(SelectError::EmptyQuery) => (),
+            Ok(_) => panic!("Parsing should have failed, but it succeeded."),
+            Err(e) => {
+                panic!(
+                    "Parsing successfully failed but incorrect error type `{:?}` was returned.",
+                    e
+                )
+            }
+        }
+    }
+
+    #[test]
+    fn empty_quotes_2() {
+        let query = " '  ' ";
+        match Select::parse_query(query) {
+            Err(SelectError::EmptyQuery) => (),
+            Ok(_) => panic!("Parsing should have failed, but it succeeded."),
+            Err(e) => {
+                panic!(
+                    "Parsing successfully failed but incorrect error type `{:?}` was returned.",
+                    e
+                )
+            }
+        }
+    }
+
+    #[test]
+    fn empty_quotes_3() {
+        let query = "\"\"";
+        match Select::parse_query(query) {
+            Err(SelectError::EmptyQuery) => (),
+            Ok(_) => panic!("Parsing should have failed, but it succeeded."),
+            Err(e) => {
+                panic!(
+                    "Parsing successfully failed but incorrect error type `{:?}` was returned.",
+                    e
+                )
+            }
+        }
+    }
+
+    #[test]
+    fn empty_quotes_4() {
+        let query = "\"  \"";
+        match Select::parse_query(query) {
+            Err(SelectError::EmptyQuery) => (),
+            Ok(_) => panic!("Parsing should have failed, but it succeeded."),
+            Err(e) => {
+                panic!(
+                    "Parsing successfully failed but incorrect error type `{:?}` was returned.",
+                    e
+                )
+            }
+        }
+    }
 
     #[test]
     fn invalid_regex() {
