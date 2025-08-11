@@ -1,6 +1,9 @@
 
 ## Changelog for the `groan_rs` library
 
+### Version 0.11.1
+- **Bug fix:** Writing individual groups into XTC and TRR files should no longer cause a panic, even if the group does not start with atom index 0.
+
 ### Version 0.11.0
 
 #### Groan Selection Language v0.11
