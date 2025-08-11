@@ -304,9 +304,9 @@ mod xtc_write {
             let iterator =
                 AtomIterator::new(system.get_atoms(), self.group.get_atoms(), system.get_box());
             let mut coordinates = vec![[0.0, 0.0, 0.0]; n_atoms];
-            for atom in iterator {
+            for (i, atom) in iterator.enumerate() {
                 if let Some(pos) = atom.get_position() {
-                    coordinates[atom.get_index()] = [pos.x, pos.y, pos.z];
+                    coordinates[i] = [pos.x, pos.y, pos.z];
                 }
             }
 

@@ -491,17 +491,17 @@ impl PrivateTrajWrite for TrrWriter {
         let iterator =
             AtomIterator::new(system.get_atoms(), self.group.get_atoms(), system.get_box());
 
-        for atom in iterator {
+        for (i, atom) in iterator.enumerate() {
             if let Some(pos) = atom.get_position() {
-                coordinates[atom.get_index()] = [pos.x, pos.y, pos.z];
+                coordinates[i] = [pos.x, pos.y, pos.z];
             }
 
             if let Some(vel) = atom.get_velocity() {
-                velocities[atom.get_index()] = [vel.x, vel.y, vel.z];
+                velocities[i] = [vel.x, vel.y, vel.z];
             }
 
             if let Some(force) = atom.get_force() {
-                forces[atom.get_index()] = [force.x, force.y, force.z]
+                forces[i] = [force.x, force.y, force.z]
             }
         }
 
