@@ -1081,6 +1081,31 @@ mod tests_write {
     }
 
     #[test]
+    fn write_group_xtc_not_starting() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        system.group_create("Phosphates", "name PO4").unwrap();
+
+        let xtc_output = NamedTempFile::new().unwrap();
+        let path_to_output = xtc_output.path();
+
+        system
+            .xtc_group_writer_init(path_to_output, "Phosphates")
+            .unwrap();
+
+        for frame in system.xtc_iter("test_files/short_trajectory.xtc").unwrap() {
+            let frame = frame.unwrap();
+            frame.traj_write_frame().unwrap();
+        }
+
+        system.traj_close();
+
+        let mut result = File::open(path_to_output).unwrap();
+        let mut expected = File::open("test_files/short_trajectory_phosphates.xtc").unwrap();
+
+        assert!(file_diff::diff_files(&mut result, &mut expected));
+    }
+
+    #[test]
     fn write_group_xtc_all() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
 
