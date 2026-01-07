@@ -1009,6 +1009,23 @@ mod tests_read {
             }
         }
     }
+
+    #[test]
+    fn read_xtc_large_simulation_step() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+
+        let expected_steps = [
+            3000000000, 3000005000, 3000010000, 3000015000, 3000020000, 3000025000, 3000030000,
+            3000035000, 3000040000, 3000045000, 3000050000,
+        ]
+        .into_iter();
+
+        assert!(system
+            .xtc_iter("test_files/large_step.xtc")
+            .unwrap()
+            .map(|frame| frame.unwrap().get_simulation_step())
+            .eq(expected_steps));
+    }
 }
 
 #[cfg(not(feature = "no-xdrfile"))]

@@ -94,7 +94,9 @@ impl FrameData for XtcFrameData {
             }
 
             // update the system
-            system.set_simulation_step(self.step as u64);
+            // we need to first convert the i32 simulation step returned by the xdrfile library to u32 and only then to u64
+            // otherwise the wrapping will be incorrect
+            system.set_simulation_step((self.step as u32) as u64);
             system.set_simulation_time(self.time);
             system.set_box(self.simbox);
             system.set_precision(self.precision as u64);
