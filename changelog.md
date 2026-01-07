@@ -2,7 +2,7 @@
 ## Changelog for the `groan_rs` library
 
 ### Version 0.11.2
-- **Bug fix:** XTC files containing frames with simulation steps larger than 2 147 483 647 can be now read even when the `molly` feature is enabled.
+- **Bug fix:** XTC files containing frames with simulation steps larger than 2 147 483 647 can be now be read properly.
 
 ### Version 0.11.1
 - **Bug fix:** Writing individual groups into XTC and TRR files should no longer cause a panic, even if the group does not start with atom index 0.
