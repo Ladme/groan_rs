@@ -506,7 +506,7 @@ dyn_clone::clone_trait_object!(NaiveShape);
 mod tests_sphere {
     use super::*;
     use float_cmp::assert_approx_eq;
-    use rand::Rng;
+    use rand::RngExt;
 
     #[test]
     fn new() {

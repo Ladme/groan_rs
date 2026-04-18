@@ -480,7 +480,7 @@ impl<'a> CellGrid<'a> {
 mod tests {
     use float_cmp::assert_approx_eq;
     use itertools::izip;
-    use rand::{seq::IndexedRandom, Rng, SeedableRng};
+    use rand::{seq::IndexedRandom, RngExt, SeedableRng};
 
     use crate::prelude::{AtomIteratorWithBox, Cylinder, Dimension, Rectangular, Shape, Sphere};
 
@@ -846,7 +846,7 @@ mod tests {
         for cutoff in cutoffs {
             let selected_atoms = system
                 .get_atoms()
-                .choose_multiple(&mut rng, 500)
+                .sample(&mut rng, 500)
                 .map(|atom| atom.get_index())
                 .collect::<Vec<usize>>();
 
@@ -885,7 +885,7 @@ mod tests {
         {
             let selected_atoms = system
                 .get_atoms()
-                .choose_multiple(&mut rng, 1000)
+                .sample(&mut rng, 1000)
                 .map(|atom| atom.get_index())
                 .collect::<Vec<usize>>();
 
@@ -914,7 +914,7 @@ mod tests {
         for (x, y, z, cell_size) in izip!(xs, ys, zs, cell_sizes) {
             let selected_atoms = system
                 .get_atoms()
-                .choose_multiple(&mut rng, 1000)
+                .sample(&mut rng, 1000)
                 .map(|atom| atom.get_index())
                 .collect::<Vec<usize>>();
 

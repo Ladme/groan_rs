@@ -293,7 +293,7 @@ impl FrameData for XtcFrameData {
     #[inline]
     fn update_system(self, system: &mut System) {
         for (atom, pos) in system.get_atoms_mut().iter_mut().zip(self.frame.coords()) {
-            atom.set_position(Vector3D::new(pos.x, pos.y, pos.z));
+            atom.set_position(Vector3D::new(pos[0], pos[1], pos[2]));
             atom.reset_velocity();
             atom.reset_force();
         }
@@ -302,20 +302,7 @@ impl FrameData for XtcFrameData {
         system.set_simulation_step(self.frame.step as u64);
         system.set_simulation_time(self.frame.time);
         let b = self.frame.boxvec;
-        system.set_box(
-            [
-                b.col(0).x,
-                b.col(1).y,
-                b.col(2).z,
-                b.col(0).y,
-                b.col(0).z,
-                b.col(1).x,
-                b.col(1).z,
-                b.col(2).x,
-                b.col(2).y,
-            ]
-            .into(),
-        );
+        system.set_box([b[0], b[4], b[8], b[1], b[2], b[3], b[5], b[6], b[7]].into());
         system.set_precision(self.frame.precision as u64);
     }
 }
@@ -478,20 +465,7 @@ impl FrameData for GroupXtcFrameData {
         system.set_simulation_step(self.frame.step as u64);
         system.set_simulation_time(self.frame.time);
         let b = self.frame.boxvec;
-        system.set_box(
-            [
-                b.col(0).x,
-                b.col(1).y,
-                b.col(2).z,
-                b.col(0).y,
-                b.col(0).z,
-                b.col(1).x,
-                b.col(1).z,
-                b.col(2).x,
-                b.col(2).y,
-            ]
-            .into(),
-        );
+        system.set_box([b[0], b[4], b[8], b[1], b[2], b[3], b[5], b[6], b[7]].into());
         system.set_precision(self.frame.precision as u64);
     }
 }

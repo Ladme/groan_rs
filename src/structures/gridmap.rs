@@ -580,7 +580,9 @@ impl<
     /// Returns `None` in case the coordinates are outside of the span of the map.
     #[inline(always)]
     pub fn get_mut_at(&mut self, x: f32, y: f32) -> Option<&mut RawValue> {
-        self.values.get_mut((self.x2index(x), self.y2index(y)))
+        let x2i = self.x2index(x);
+        let y2i = self.y2index(y);
+        self.values.get_mut((x2i, y2i))
     }
 
     /// Get the value of the map at target coordinates

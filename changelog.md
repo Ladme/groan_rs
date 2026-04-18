@@ -1,6 +1,9 @@
 
 ## Changelog for the `groan_rs` library
 
+### Version 0.11.3
+- Updated dependencies.
+
 ### Version 0.11.2
 - **Bug fix:** XTC files containing frames with simulation steps larger than 2 147 483 647 can be now read properly.
 
