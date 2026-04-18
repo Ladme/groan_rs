@@ -2,6 +2,7 @@
 ## Changelog for the `groan_rs` library
 
 ### Version 0.11.3
+- Any number of trajectories can be now concatenated without having to worry about reaching the file descriptor limit.
 - Updated dependencies.
 
 ### Version 0.11.2

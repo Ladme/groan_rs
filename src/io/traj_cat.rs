@@ -3,8 +3,9 @@
 
 //! Structures and functions for efficient trajectory concatenation.
 
+use std::collections::VecDeque;
 use std::marker::PhantomData;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::prelude::{TrajFullReadOpen, TrajGroupReadOpen};
 use crate::{errors::ReadTrajError, io::traj_read::TrajRead, system::System};
@@ -19,14 +20,30 @@ use crate::prelude::TrajReadOpen;
 use super::traj_read::{TrajFile, TrajReader};
 
 pub struct TrajCat<'a, R: TrajRead<'a>> {
-    traj_readers: Vec<R>,
-    curr_reader: usize,
+    remaining_files: VecDeque<PathBuf>,
+    curr_reader: Option<R>,
+    opener: Box<dyn FnMut(&Path) -> Result<R, ReadTrajError> + 'a>,
     last_time: Option<f32>,
     last_skipped_time: Option<f32>,
     _phantom: &'a PhantomData<R>,
 }
 
 impl<'a, R> TrajFile for TrajCat<'a, R> where R: TrajRead<'a> {}
+
+impl<'a, R: TrajRead<'a>> TrajCat<'a, R> {
+    /// Drop the current reader (closing the file) and open the next one.
+    /// Returns Ok(true) if a new file was opened, Ok(false) if no files remain.
+    fn open_next(&mut self) -> Result<bool, ReadTrajError> {
+        self.curr_reader = None;
+        match self.remaining_files.pop_front() {
+            None => Ok(false),
+            Some(path) => {
+                self.curr_reader = Some((self.opener)(&path)?);
+                Ok(true)
+            }
+        }
+    }
+}
 
 pub struct TrajCatFrame<'a, R>
 where
@@ -47,17 +64,18 @@ where
         trajcat: &mut Self::TrajFile,
         system: &System,
     ) -> Option<Result<Self, ReadTrajError>> {
-        let frame = match trajcat.traj_readers.get_mut(trajcat.curr_reader) {
-            // all trajectories read
+        let frame = match trajcat.curr_reader.as_mut() {
             None => None,
             Some(trajectory) => {
                 match R::FrameData::from_frame(trajectory.get_file_handle(), system) {
                     // no frame left -> move to next trajectory
                     None => {
-                        trajcat.curr_reader += 1;
-                        // save the last time of the current trajectory
                         trajcat.last_time = Some(system.get_simulation_time());
-                        Self::from_frame(trajcat, system)
+                        match trajcat.open_next() {
+                            Err(e) => return Some(Err(e)),
+                            Ok(false) => None,
+                            Ok(true) => return Self::from_frame(trajcat, system),
+                        }
                     }
                     // error while reading
                     Some(Err(e)) => Some(Err(e)),
@@ -152,15 +170,23 @@ where
     R::FrameData: FrameDataTime,
 {
     fn jump_to_start(&mut self, start_time: f32) -> Result<(), ReadTrajError> {
-        // jump through all trajectories until the starting time is found
-        for traj in self.traj_cat.traj_readers.iter_mut() {
-            match traj.jump_to_start(start_time) {
-                Ok(_) => return Ok(()),
-                // starting time not found in the trajectory, continue with the next trajectory
-                Err(_) => continue,
+        // first try the currently open reader
+        if let Some(reader) = self.traj_cat.curr_reader.as_mut() {
+            if reader.jump_to_start(start_time).is_ok() {
+                return Ok(());
             }
         }
 
+        // then try remaining files one by one
+        while let Some(path) = self.traj_cat.remaining_files.pop_front() {
+            let mut reader = (self.traj_cat.opener)(&path)?;
+            if reader.jump_to_start(start_time).is_ok() {
+                self.traj_cat.curr_reader = Some(reader);
+                return Ok(());
+            }
+        }
+
+        self.traj_cat.curr_reader = None;
         // if starting time is not found in any trajectory, return an error
         Err(ReadTrajError::StartNotFound(start_time.to_string()))
     }
@@ -172,12 +198,7 @@ where
     R::FrameData: FrameDataTime,
 {
     fn skip_frame(&mut self) -> Result<bool, ReadTrajError> {
-        let traj = match self
-            .traj_cat
-            .traj_readers
-            .get_mut(self.traj_cat.curr_reader)
-        {
-            // if all trajectories are read, end the iteration
+        let traj = match self.traj_cat.curr_reader.as_mut() {
             None => return Ok(false),
             Some(x) => x,
         };
@@ -193,8 +214,11 @@ where
                 unsafe {
                     self.traj_cat.last_time = Some((*self.get_system()).get_simulation_time());
                 }
-                self.traj_cat.curr_reader += 1;
-                self.skip_frame()
+                match self.traj_cat.open_next() {
+                    Err(e) => Err(e),
+                    Ok(false) => Ok(false),
+                    Ok(true) => self.skip_frame(),
+                }
             }
 
             // if an error is returned, propagate it
@@ -248,19 +272,24 @@ where
     R: TrajRead<'a>,
     R::FrameData: FrameDataTime,
 {
-    pub(super) fn new(mut readers: Vec<R>) -> TrajReader<'a, Self> {
-        if readers.is_empty() {
-            panic!("FATAL GROAN ERROR | TrajConcatenator::new | Vector of trajectory readers should not be empty.");
-        }
+    pub(super) fn new(
+        filenames: &[impl AsRef<Path>],
+        system: *mut System,
+        mut opener: Box<dyn FnMut(&Path) -> Result<R, ReadTrajError> + 'a>,
+    ) -> Result<TrajReader<'a, Self>, ReadTrajError> {
+        let mut remaining_files: VecDeque<PathBuf> =
+            filenames.iter().map(|f| f.as_ref().to_path_buf()).collect();
 
-        let system = readers
-            .get_mut(0)
-            .expect("FATAL GROAN ERROR | TrajConcatenator::new | The first reader should exist.")
-            .get_system();
+        let first_path = remaining_files
+            .pop_front()
+            .expect("FATAL GROAN ERROR | TrajConcatenator::new | No trajectory files provided.");
+
+        let curr_reader = Some(opener(&first_path)?);
 
         let traj_cat = TrajCat {
-            traj_readers: readers,
-            curr_reader: 0,
+            remaining_files: remaining_files,
+            curr_reader,
+            opener: opener,
             last_time: None,
             last_skipped_time: None,
             _phantom: &PhantomData,
@@ -272,7 +301,7 @@ where
             _phantom: &PhantomData,
         };
 
-        TrajReader::wrap_traj(concatenator)
+        Ok(TrajReader::wrap_traj(concatenator))
     }
 }
 
@@ -353,12 +382,11 @@ impl System {
 
         let system = self as *mut System;
 
-        let readers: Result<Vec<Read>, _> = filenames
-            .iter()
-            .map(|name| unsafe { Read::new(&mut *system, name) })
-            .collect();
+        let opener = move |path: &Path| -> Result<Read, ReadTrajError> {
+            unsafe { Read::new(&mut *system, path) }
+        };
 
-        readers.map(TrajConcatenator::new)
+        TrajConcatenator::new(filenames, system, Box::new(opener))
     }
 
     /// Iterate through multiple trajectory files while reading only the coordinates
@@ -382,12 +410,13 @@ impl System {
         }
 
         let system = self as *mut System;
-        let readers: Result<Vec<Read>, _> = filenames
-            .iter()
-            .map(|name| unsafe { Read::new(&mut *system, name, group) })
-            .collect();
 
-        readers.map(TrajConcatenator::new)
+        let group = group.to_owned();
+        let opener = move |path: &Path| -> Result<Read, ReadTrajError> {
+            unsafe { Read::new(&mut *system, path, &group) }
+        };
+
+        TrajConcatenator::new(filenames, system, Box::new(opener))
     }
 }
 
@@ -411,12 +440,14 @@ impl System {
         }
 
         let system = self as *mut System;
-        let readers: Result<Vec<Read>, _> = filenames
-            .iter()
-            .map(|name| unsafe { Read::initialize(&mut *system, name, group) })
-            .collect();
 
-        readers.map(TrajConcatenator::new)
+        let group = group.map(|g| g.to_string());
+        let opener: Box<dyn FnMut(&Path) -> Result<Read, ReadTrajError> + 'a> =
+            Box::new(move |path: &Path| unsafe {
+                Read::initialize(&mut *system, path, group.as_deref())
+            });
+
+        TrajConcatenator::new(filenames, system, opener)
     }
 }
 
@@ -992,27 +1023,43 @@ mod tests {
         match system.traj_cat_iter::<XtcReader>(&empty) {
             Ok(_) => panic!("Function should have failed."),
             Err(e) => assert_eq!(ReadTrajError::CatNoTrajectories, e),
-        }
+        };
     }
 
     #[test]
     #[cfg(not(feature = "no-xdrfile"))]
-    fn cat_traj_nonexistent() {
+    fn cat_traj_second_file_is_nonexistent() {
         let mut system = System::from_file("test_files/example.gro").unwrap();
-        let empty: Vec<&str> = vec![
+        let files: Vec<&str> = vec![
             "test_files/split/traj1.trr",
             "test_files/split/traj_nonexistent.trr",
             "test_files/split/traj3.trr",
         ];
 
-        match system.traj_cat_iter::<TrrReader>(&empty) {
+        assert!(system
+            .traj_cat_iter::<TrrReader>(&files)
+            .unwrap()
+            .any(|frame| matches!(frame, Err(ReadTrajError::FileNotFound(_)))));
+    }
+
+    #[test]
+    #[cfg(not(feature = "no-xdrfile"))]
+    fn cat_traj_first_file_is_nonexistent() {
+        let mut system = System::from_file("test_files/example.gro").unwrap();
+        let files: Vec<&str> = vec![
+            "test_files/split/traj_nonexistent.trr",
+            "test_files/split/traj1.trr",
+            "test_files/split/traj3.trr",
+        ];
+
+        match system.traj_cat_iter::<TrrReader>(&files) {
             Ok(_) => panic!("Function should have failed."),
             Err(ReadTrajError::FileNotFound(file)) => assert_eq!(
                 file.to_str().unwrap(),
                 "test_files/split/traj_nonexistent.trr"
             ),
             Err(e) => panic!("Incorrect error type returned `{}`", e),
-        }
+        };
     }
 
     #[test]
